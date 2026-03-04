@@ -1,0 +1,44 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - generic [ref=e12]:
+      - img [ref=e14]
+      - generic [ref=e16]: E-Finance
+    - generic [ref=e17]:
+      - heading "Gestão Financeira de Alta Performance." [level=1] [ref=e18]
+      - paragraph [ref=e19]: Centralize ativos, controle contratos e gerencie riscos com a plataforma mais segura do mercado.
+      - generic [ref=e20]:
+        - img [ref=e22]
+        - generic [ref=e25]:
+          - heading "Segurança Bancária" [level=3] [ref=e26]
+          - paragraph [ref=e27]: Dados criptografados de ponta a ponta e conformidade com RLS.
+    - generic [ref=e29]: © 2026 E-Finance Suite
+  - generic [ref=e30]:
+    - button "Reset Config" [ref=e31] [cursor=pointer]:
+      - img [ref=e32]
+      - text: Reset Config
+    - generic [ref=e35]:
+      - generic [ref=e36]:
+        - heading "Acessar Plataforma" [level=2] [ref=e37]
+        - paragraph [ref=e38]: Entre com suas credenciais para continuar.
+      - generic [ref=e39]:
+        - textbox "E-mail Corporativo" [ref=e40]: testes@testes
+        - textbox "Senha de Acesso" [ref=e41]: testes
+        - generic [ref=e42]:
+          - img [ref=e43]
+          - paragraph [ref=e45]: Invalid login credentials
+        - button "Entrar" [ref=e46] [cursor=pointer]:
+          - generic [ref=e47]: Entrar
+      - generic [ref=e48]:
+        - paragraph [ref=e49]:
+          - text: Recebeu um convite?
+          - button "Ativar Conta" [ref=e50] [cursor=pointer]
+        - paragraph [ref=e51]:
+          - text: Quer criar sua própria organização?
+          - button "Registrar Empresa" [ref=e52] [cursor=pointer]
+        - paragraph [ref=e53]:
+          - text: Problemas para acessar?
+          - button "Redefinir senha" [ref=e54] [cursor=pointer]
+```
