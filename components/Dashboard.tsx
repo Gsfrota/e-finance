@@ -1,13 +1,16 @@
 
 import React, { useState } from 'react';
 import { useDashboardData } from '../hooks/useDashboardData';
-import { 
-  KPICards, FiltersBar, OverviewCharts,
-  InvestmentsTable, InstallmentsTable 
+import {
+  KPICards, OverviewCharts,
+  InvestmentsTable, InstallmentsTable
 } from './dashboard/DashboardWidgets';
-import { 
-  LayoutDashboard, FileText, Users, PieChart, 
-  Loader2, AlertCircle 
+import {
+  LayoutDashboard,
+  FileText,
+  Loader2,
+  AlertCircle,
+  WalletCards,
 } from 'lucide-react';
 import { UserRole, Tenant } from '../types';
 import InvestorDashboard from './InvestorDashboard';
@@ -23,35 +26,26 @@ interface DashboardProps {
 // Sub-component for Admin View
 const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined }> = ({ tenant }) => {
   const { stats, detailedKPIs, investments, installments, loading, error, refetch } = useDashboardData(tenant?.id);
-  const [activeTab, setActiveTab] = useState<'overview' | 'receivables' | 'investors' | 'reports'>('overview');
-  const [filterTerm, setFilterTerm] = useState('');
-
-  // Local filtering logic (Frontend side for responsiveness on small datasets)
-  const filteredInvestments = investments.filter(inv => 
-    inv.asset_name.toLowerCase().includes(filterTerm.toLowerCase()) ||
-    inv.investor_name?.toLowerCase().includes(filterTerm.toLowerCase()) ||
-    inv.payer_name?.toLowerCase().includes(filterTerm.toLowerCase())
-  );
-
+  const [activeTab, setActiveTab] = useState<'overview' | 'receivables'>('overview');
   // Pass all installments to the table so the internal filters (All/Paid/Pending) work correctly
   const filteredInstallments = installments;
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 text-teal-500 animate-pulse">
+      <div className="flex h-96 flex-col items-center justify-center text-[color:var(--accent-brass)] animate-pulse">
         <Loader2 size={40} className="animate-spin mb-4" />
-        <p className="text-xs font-black uppercase tracking-widest">Carregando Indicadores...</p>
+        <p className="section-kicker text-[color:var(--text-secondary)]">Carregando indicadores</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="bg-red-900/20 border border-red-900/50 p-6 rounded-3xl flex flex-col items-center gap-4 text-center max-w-md">
-          <AlertCircle size={32} className="text-red-500" />
-          <h3 className="text-white font-bold">Erro ao carregar dados</h3>
-          <p className="text-slate-400 text-sm">{error}</p>
+      <div className="flex h-96 items-center justify-center">
+        <div className="panel-card flex max-w-md flex-col items-center gap-4 rounded-[2rem] p-8 text-center">
+          <AlertCircle size={32} className="text-[color:var(--accent-danger)]" />
+          <h3 className="font-display text-3xl text-[color:var(--text-primary)]">Erro ao carregar dados</h3>
+          <p className="text-sm leading-7 text-[color:var(--text-secondary)]">{error}</p>
         </div>
       </div>
     );
@@ -59,47 +53,55 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined }> = ({ t
 
   return (
     <div className="space-y-6 pb-12 animate-fade-in">
-      {/* TABS HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4 border-b border-slate-700 pb-1">
-        <div className="flex gap-1 bg-slate-800/50 p-1 rounded-xl">
+      <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <p className="section-kicker mb-2">Dashboard executivo</p>
+            <h2 className="font-display text-5xl leading-none text-[color:var(--text-primary)]">Leitura da carteira</h2>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-[color:var(--text-secondary)]">
+              Acompanhe capital ativo, performance do mês, agenda de cobrança e o comportamento das parcelas com a mesma base financeira usada nas consultas operacionais.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 py-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)]">
+              <WalletCards size={18} />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-[color:var(--text-primary)]">{tenant?.name || 'Operação'}</div>
+              <div className="text-[0.72rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Base real do tenant</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-wrap gap-2 rounded-full border border-white/10 bg-black/10 p-1.5">
           <button 
             onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'overview' ? 'bg-teal-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
+            className={`rounded-full px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.18em] transition-all flex items-center gap-2 ${activeTab === 'overview' ? 'bg-[color:var(--accent-brass)] text-[#17120b]' : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'}`}
           >
             <LayoutDashboard size={14} /> Visão Geral
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('receivables')}
-            className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'receivables' ? 'bg-teal-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
+            className={`rounded-full px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.18em] transition-all flex items-center gap-2 ${activeTab === 'receivables' ? 'bg-[color:var(--accent-brass)] text-[#17120b]' : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'}`}
           >
             <FileText size={14} /> Recebíveis
-          </button>
-          <button 
-            onClick={() => setActiveTab('investors')}
-            className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'investors' ? 'bg-teal-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
-          >
-            <Users size={14} /> Carteira
-          </button>
-          <button 
-            onClick={() => setActiveTab('reports')}
-            className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'reports' ? 'bg-teal-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
-          >
-            <PieChart size={14} /> Relatórios
           </button>
         </div>
       </div>
 
-      {/* CONTENT AREA */}
       <div className="min-h-[500px]">
         {activeTab === 'overview' && (
           <div className="space-y-6 animate-fade-in">
-            <KPICards stats={stats} kpis={detailedKPIs} />
+            <KPICards stats={stats} kpis={detailedKPIs} installments={installments} />
             
-            {/* Gráficos de Visão Geral */}
             <OverviewCharts kpis={detailedKPIs} installments={installments} />
             
             <div>
-              <h3 className="text-white font-bold mb-4 uppercase text-sm tracking-wider pl-2">Últimos Investimentos</h3>
+              <div className="mb-4 pl-1">
+                <p className="section-kicker mb-1">Carteira</p>
+                <h3 className="font-display text-4xl leading-none text-[color:var(--text-primary)]">Contratos recentes</h3>
+              </div>
               <InvestmentsTable data={filteredInvestments.slice(0, 5)} />
             </div>
           </div>
@@ -107,30 +109,10 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined }> = ({ t
 
         {activeTab === 'receivables' && (
           <div className="space-y-6 animate-fade-in">
-            <h3 className="text-white font-bold mb-2 uppercase text-sm tracking-wider pl-2">Gestão de Títulos</h3>
             <InstallmentsTable data={filteredInstallments} onUpdate={refetch} tenant={tenant} />
           </div>
         )}
 
-        {activeTab === 'investors' && (
-          <div className="space-y-6 animate-fade-in">
-             <FiltersBar 
-                onSearch={setFilterTerm} 
-             />
-             <InvestmentsTable data={filteredInvestments} />
-          </div>
-        )}
-
-        {activeTab === 'reports' && (
-          <div className="flex flex-col items-center justify-center h-80 bg-slate-800 rounded-3xl border border-slate-700 animate-fade-in">
-            <PieChart size={64} className="text-slate-600 mb-4" />
-            <h3 className="text-white font-bold text-lg">Central de Relatórios</h3>
-            <p className="text-slate-500 text-sm mb-6">Exporte dados consolidados em CSV ou PDF.</p>
-            <button className="bg-teal-600 hover:bg-teal-500 text-white px-8 py-3 rounded-xl font-black uppercase text-xs tracking-widest transition-colors">
-              Gerar Relatório Mensal
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
