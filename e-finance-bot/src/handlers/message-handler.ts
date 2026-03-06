@@ -1,12 +1,13 @@
-import { analyzeImage, NormalizedEntities, transcribeAudio, inferInstallmentMonth } from '../ai/intent-classifier';
-import { routeIntent } from '../ai/intent-router';
+import { analyzeImage, NormalizedEntities, inferInstallmentMonth } from '../ai/intent-classifier';
+import { AudioTranscriptResult, transcribeAudioDetailed } from '../ai/audio-pipeline';
 import {
   getOrCreateSession, updateSessionContext, clearSessionContext,
   linkProfileToSession, saveMessage, getRecentMessages, Session,
-  syncSessionProfileFromChannelBinding,
+  syncSessionProfileFromChannelBinding, getProfileByChannelBinding,
 } from '../session/session-manager';
 import {
   getDashboardSummary, getInstallments, getInstallmentsToday, getDebtorsToCollectToday,
+  getInstallmentsInWindow, getDebtorsToCollectInWindow, buildDateWindow,
   generateMonthlyReport, parseContractTextWithMeta, createContract,
   markInstallmentPaid, searchUser, getUserDebtDetails, generateInvite,
   validateLinkCode, disconnectBot, formatCurrency, formatDate,
@@ -18,16 +19,30 @@ import { logStructuredMessage } from '../observability/logger';
 import { config } from '../config';
 import type { LinkValidationResult, ContractOpenInstallment } from '../actions/admin-actions';
 import { detectPromptInjectionAttempt, sanitizeUserText } from '../security/prompt-guard';
-import { generateAgentResponse } from '../ai/response-generator';
+import { renderConversationalReply } from '../ai/response-generator';
+import { getFollowupFromTenantConfig } from '../assistant/followup-question-generator';
+import { getBotTenantConfig } from '../actions/bot-config-actions';
+import { understandCommand } from '../assistant/command-understanding';
+import { createActionPlan } from '../assistant/action-planner';
+import { resolveFollowup } from '../assistant/followup-resolver';
+import { getWorkingState, patchWorkingState } from '../assistant/working-state-store';
+import { clearPendingConfirmation, getPendingConfirmationState, parseConfirmationReply } from '../assistant/confirmation-store';
+import { executeActionPlan } from '../assistant/tool-executor';
+import { runPolicyCheck } from '../assistant/policy-engine';
+import type { ActionPlan, CommandUnderstanding } from '../assistant/contracts';
 
 export interface IncomingMessage {
   messageId: string;
+  messageIds?: string[];
   channel: 'whatsapp' | 'telegram';
   channelUserId: string;
   senderName: string;
   text?: string;
   audioBuffer?: Buffer;
   audioMimeType?: string;
+  audioDurationSec?: number;
+  audioSizeBytes?: number;
+  audioKind?: 'voice_note' | 'audio_file';
   imageBuffer?: Buffer;
   imageMimeType?: string;
 }
@@ -36,22 +51,15 @@ export interface OutgoingMessage {
   text: string;
 }
 
-const WELCOME_MSG = (name: string) => `Olá ${name}! 👋 Sou o assistente *e-finance*.
+const WELCOME_MSG = (name: string) => `Oi ${name}! Sou o assistente e-finance.
 
-Posso te ajudar com:
-• *Dashboard* — resumo do mês
-• *Recebíveis* — parcelas pendentes e atrasadas
-• *Criar contrato* — novo contrato por descrição ou voz
-• *Marcar pagamento* — registrar recebimento
-• *Buscar usuário* — consultar devedor
+Pode falar comigo naturalmente para ver dashboard, recebiveis, criar contrato, baixar pagamento, buscar cliente ou pedir relatorio.
 
-Pode falar naturalmente ou enviar áudio. O que precisa?`;
+Me conta o que voce precisa agora.`;
 
-const NOT_LINKED_MSG = `Olá! 👋 Para usar o assistente e-finance, preciso vincular sua conta.
+const NOT_LINKED_MSG = `Para te atender com seus dados, preciso vincular este chat a sua conta no e-finance.
 
-Acesse o *dashboard web → Configurações → Conectar WhatsApp/Telegram* e me envie o código gerado.
-
-Ou envie seu código agora se já tiver um.`;
+Gere o codigo em Dashboard web -> Configuracoes -> Conectar WhatsApp/Telegram e me envie aqui.`;
 
 const PROMPT_INJECTION_BLOCK_MSG =
   'Por segurança, não posso seguir comandos para ignorar regras, revelar prompts ou acessar segredos.\n\n'
@@ -61,6 +69,118 @@ const PROMPT_INJECTION_BLOCK_MSG =
 const CPF_REQUIRED_MSG =
   'Para criar contrato com segurança, preciso do *CPF do devedor* (11 dígitos).\n\n'
   + 'Exemplo: *529.982.247-25*';
+
+function getAudioPreview(text: string): string {
+  const compact = text.replace(/\s+/g, ' ').trim();
+  const preview = compact.length > config.audio.previewChars
+    ? `${compact.slice(0, config.audio.previewChars).trimEnd()}...`
+    : compact;
+  return `Entendi do áudio: "${preview}"`;
+}
+
+function shouldPrependAudioPreview(response: string): boolean {
+  return /^Vou criar o seguinte contrato:/i.test(response)
+    || /^Confirma a baixa desta parcela\?/i.test(response)
+    || /Confirma\?\s*\(sim\/n[aã]o\)/i.test(response);
+}
+
+function prependAudioPreview(response: string, transcript?: string): string {
+  if (!transcript || !shouldPrependAudioPreview(response)) return response;
+  return `${getAudioPreview(transcript)}\n\n${response}`;
+}
+
+async function withTimeout<T>(task: () => Promise<T>, timeoutMs: number, errorCode: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(errorCode)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([task(), timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function getGlobalUtilityReply(text: string): { text: string; action: string } | null {
+  const normalized = text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
+  if (!normalized) return null;
+
+  if (/^(quem (e|é) voce|quem (e|é) vc)( agora)?\??$/.test(normalized)) {
+    return {
+      text: 'Sou o assistente operacional do e-finance. Posso consultar dashboard, recebíveis, cobranças, clientes, contratos, pagamentos, relatórios e convite.',
+      action: 'utility:identity',
+    };
+  }
+
+  if (/^(que dia (e|é) hoje|qual (e|é) a data de hoje)( agora)?\??$/.test(normalized)) {
+    const today = new Intl.DateTimeFormat('pt-BR', {
+      weekday: 'long',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: 'America/Fortaleza',
+    }).format(new Date());
+
+    return {
+      text: `Hoje é ${today}.`,
+      action: 'utility:datetime',
+    };
+  }
+
+  if (/^(me ajuda|ajuda|o que voce faz|o que vc faz|quais comandos voce faz|quais comandos vc faz)\??$/.test(normalized)) {
+    return {
+      text: 'Posso te ajudar com dashboard, recebíveis, cobranças do dia ou período, busca de cliente, criação de contrato, baixa de pagamento, relatório, convite e desconexão do bot.',
+      action: 'utility:help',
+    };
+  }
+
+  return null;
+}
+
+function getAudioValidationMessage(result: AudioTranscriptResult): string {
+  if (result.quality === 'too_long') {
+    return `Seu áudio passou de *${config.audio.maxDurationSec}s*.\n\nEnvie um áudio mais curto ou escreva só a ação principal com os dados mais importantes.`;
+  }
+
+  if (result.quality === 'unsupported') {
+    return 'Não consegui abrir esse formato de áudio.\n\nEnvie como *nota de voz*, *OGG*, *MP3*, *M4A* ou *WAV*.';
+  }
+
+  if (result.quality === 'timeout') {
+    return `O áudio demorou demais para processar.\n\nTente um áudio mais curto (até *${config.audio.maxDurationSec}s*) ou escreva só o dado principal.`;
+  }
+
+  return 'O áudio ficou pouco claro. Se preferir, envie um áudio mais curto ou escreva a ação principal.';
+}
+
+function getWeakAudioClarification(transcript: string, fallback: string): string {
+  const normalized = transcript.toLowerCase();
+
+  if (/(emprest|contrato|parcelas|todo dia|por\s+\d+)/i.test(normalized)) {
+    return 'O áudio ficou parcial.\n\nPara criar o contrato, me diga só: *nome do devedor + CPF + valor principal + parcelas*.';
+  }
+
+  if (/(baixa|pagamento|parcela|quitar|janeiro|fevereiro|mar[cç]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/i.test(normalized)) {
+    return 'O áudio ficou parcial.\n\nPara baixar um pagamento, me diga só: *nome do devedor + mês ou número da parcela*.';
+  }
+
+  if (/(quanto|deve|d[íi]vida|saldo)/i.test(normalized)) {
+    return 'O áudio ficou parcial.\n\nMe diga só o *nome* ou *CPF* do cliente que você quer consultar.';
+  }
+
+  return fallback;
+}
 
 function getLinkConflictMessage(currentProfileName: string): string {
   return 'Este chat já está vinculado à conta de *' + currentProfileName + '*.\n\n'
@@ -267,6 +387,8 @@ const SENSITIVE_INTENTS = new Set(['criar_contrato', 'marcar_pagamento', 'descon
 const INTENT_LABELS: Record<string, string> = {
   ver_dashboard: 'ver *dashboard*',
   listar_recebiveis: 'listar *recebíveis*',
+  recebiveis_periodo: 'consultar *recebíveis nos próximos dias*',
+  cobrar_periodo: 'consultar *cobrança nos próximos dias*',
   criar_contrato: '*criar contrato*',
   marcar_pagamento: '*marcar pagamento*',
   desconectar: '*desconectar*',
@@ -275,6 +397,8 @@ const INTENT_LABELS: Record<string, string> = {
 const INTENT_REPLY_HINT: Record<string, string> = {
   ver_dashboard: '/dashboard',
   listar_recebiveis: '/recebiveis',
+  recebiveis_periodo: 'quanto vou receber nos próximos 7 dias',
+  cobrar_periodo: 'quem devo cobrar nos próximos 7 dias',
   criar_contrato: 'criar contrato',
   marcar_pagamento: 'marcar pagamento',
   desconectar: '/desconectar',
@@ -286,16 +410,16 @@ function getCandidateClarification(candidates: string[]): string | null {
 
   if (normalized.length === 1) {
     const key = normalized[0];
-    return `Para evitar erro, confirma se você quer ${INTENT_LABELS[key]}?\n\nSe sim, responda com *${INTENT_REPLY_HINT[key] || key}*.`;
+    return `Antes de continuar, confirma se voce quer ${INTENT_LABELS[key]}? Se for isso, pode responder *${INTENT_REPLY_HINT[key] || key}*.`;
   }
 
   if (normalized.length === 2) {
     const first = normalized[0];
     const second = normalized[1];
-    return `Para evitar erro, preciso confirmar: você quer ${INTENT_LABELS[first]} ou ${INTENT_LABELS[second]}?\n\nResponda com *${INTENT_REPLY_HINT[first] || first}* ou *${INTENT_REPLY_HINT[second] || second}*.`;
+    return `Fiquei entre ${INTENT_LABELS[first]} e ${INTENT_LABELS[second]}. Qual dos dois voce quer agora?`;
   }
 
-  return 'Para evitar erro, preciso confirmar o que você quer fazer.\n\nVocê quer:\n1) Ver *dashboard*\n2) Listar *recebíveis*\n3) *Criar contrato*\n\nResponda com o número ou descreva de novo em uma frase curta.';
+  return `Quero confirmar para nao executar algo errado. Voce quer ${INTENT_LABELS[normalized[0]]}, ${INTENT_LABELS[normalized[1]]} ou ${INTENT_LABELS[normalized[2]]}?`;
 }
 
 export function getClarificationMessage(
@@ -306,14 +430,62 @@ export function getClarificationMessage(
   const candidateFirst = getCandidateClarification(candidates);
 
   if (intent === 'desconhecido' || confidence === 'low') {
-    return candidateFirst || 'Para evitar erro, preciso confirmar o que você quer fazer.\n\nVocê quer:\n1) Ver *dashboard*\n2) Listar *recebíveis*\n3) *Criar contrato*\n4) *Marcar pagamento*\n\nResponda com o número ou descreva de novo em uma frase curta.';
+    return candidateFirst || 'Ainda nao peguei sua intencao com seguranca. Me diga em uma frase curta o que voce quer fazer agora.';
   }
 
   if (SENSITIVE_INTENTS.has(intent) && confidence !== 'high') {
-    return candidateFirst || `Para evitar erro, confirma se você quer ${INTENT_LABELS[intent] || intent}?\n\nSe sim, responda com *${INTENT_REPLY_HINT[intent] || intent}*.`;
+    return candidateFirst || `Antes de seguir, confirma se voce quer ${INTENT_LABELS[intent] || intent}?`;
   }
 
   return null;
+}
+
+const CAPABILITY_LABELS: Record<string, string> = {
+  show_dashboard: 'ver o dashboard',
+  list_receivables: 'listar recebíveis',
+  query_receivables_window: 'consultar recebíveis por período',
+  query_collection_window: 'consultar cobrança por período',
+  query_debtor_balance: 'consultar a dívida de um cliente',
+  create_contract: 'criar um contrato',
+  mark_installment_paid: 'registrar um pagamento',
+  disconnect_bot: 'desconectar este chat',
+  help: 'ajuda',
+  smalltalk_identity: 'saber quem eu sou',
+  smalltalk_datetime: 'saber a data de hoje',
+};
+
+function getPlanClarificationMessage(plan: ActionPlan, understanding?: CommandUnderstanding): string | null {
+  if (plan.ambiguity?.type === 'intent' && plan.ambiguity.candidates.length > 0) {
+    const labels = plan.ambiguity.candidates
+      .slice(0, 3)
+      .map(candidate => INTENT_LABELS[candidate.id] || candidate.label);
+
+    if (labels.length === 1) return `Quero confirmar antes de seguir. Você quer ${labels[0]}?`;
+    if (labels.length === 2) return `Fiquei entre ${labels[0]} e ${labels[1]}. Qual dos dois você quer agora?`;
+    return `Fiquei entre ${labels[0]}, ${labels[1]} ou ${labels[2]}. Qual caminho você quer seguir?`;
+  }
+
+  if (plan.capability === 'query_debtor_balance' && plan.missingFields.includes('debtor_name')) {
+    return 'Me diga o nome ou o CPF do cliente que você quer consultar.';
+  }
+
+  if ((plan.capability === 'query_receivables_window' || plan.capability === 'query_collection_window')
+    && !plan.args.time_window) {
+    return 'Me diga o período que você quer consultar. Ex.: hoje, amanhã, próximos 7 dias ou próximos 2 meses.';
+  }
+
+  if (plan.confidence === 'low') {
+    const capabilityLabel = CAPABILITY_LABELS[plan.capability] || 'seguir com essa ação';
+    return understanding?.intent === 'desconhecido'
+      ? 'Ainda não fechei sua ação com segurança. Me diga em uma frase o que você quer fazer no e-finance.'
+      : `Ainda não fechei isso com segurança. Você quer ${capabilityLabel}?`;
+  }
+
+  return null;
+}
+
+function shouldSkipConversationalLayer(action: string): boolean {
+  return action === 'prompt_injection_blocked';
 }
 
 export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessage> {
@@ -332,6 +504,10 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
 
   const latencyBreakdown = {
     routeMs: 0,
+    followupMs: 0,
+    policyMs: 0,
+    executorMs: 0,
+    naturalizeMs: 0,
     dbReadMs: 0,
     dbWriteMs: 0,
     llmMs: 0,
@@ -355,19 +531,122 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
     intent?: string,
   ) => timed('dbWriteMs', () => saveMessage(sessionId, role, content, mediaType, intent));
 
-  const finalize = (text: string, patch: Partial<typeof telemetry> = {}): OutgoingMessage => {
-    Object.assign(telemetry, patch);
-    return { text };
+  const buildEphemeralSession = async (): Promise<Session> => {
+    const profile = await timed('dbReadMs', () => withTimeout(
+      () => getProfileByChannelBinding(msg.channel, msg.channelUserId),
+      Math.max(3000, Math.floor(config.assistant.sessionReadTimeoutMs / 2)),
+      'channel_binding_timeout',
+    ));
+
+    return {
+      id: `ephemeral:${msg.channel}:${msg.channelUserId}`,
+      profile_id: profile?.id || null,
+      channel: msg.channel,
+      channel_user_id: msg.channelUserId,
+      context: {},
+      profile: profile || null,
+    };
   };
 
-  try {
-    let session = await timed('dbReadMs', () => getOrCreateSession(msg.channel, msg.channelUserId));
+  const originalUserText = sanitizeUserText(msg.text || '');
+  let textToProcess = originalUserText;
 
-    const syncResult = await timed('dbReadMs', () => syncSessionProfileFromChannelBinding(session));
-    session = syncResult.session;
+  const finalize = async (text: string, patch: Partial<typeof telemetry> = {}): Promise<OutgoingMessage> => {
+    Object.assign(telemetry, patch);
+
+    const baseText = (text || '').trim() || 'Nao consegui montar uma resposta agora.';
+    if (shouldSkipConversationalLayer(String(telemetry.action || ''))) {
+      return { text: baseText };
+    }
+
+    const resultType = telemetry.result === 'error'
+      ? 'error'
+      : telemetry.result === 'clarification' || telemetry.result === 'blocked'
+        ? 'clarification'
+        : 'success';
+
+    const naturalizeStartedAt = Date.now();
+    const conversationalText = await renderConversationalReply({
+      userMessage: textToProcess || originalUserText || '',
+      baseText,
+      action: String(telemetry.action || patch.action || 'resposta'),
+      result: resultType,
+    });
+    const naturalizeElapsed = Date.now() - naturalizeStartedAt;
+    latencyBreakdown.naturalizeMs += naturalizeElapsed;
+    latencyBreakdown.llmMs += naturalizeElapsed;
+
+    return { text: conversationalText || baseText };
+  };
+
+  if (!msg.audioBuffer && !msg.imageBuffer) {
+    const globalUtilityReply = getGlobalUtilityReply(textToProcess || originalUserText);
+    if (globalUtilityReply) {
+      return finalize(globalUtilityReply.text, {
+        action: globalUtilityReply.action,
+        result: 'success',
+      });
+    }
+  }
+
+  try {
+    let session: Session;
+    let syncResult: Awaited<ReturnType<typeof syncSessionProfileFromChannelBinding>> | null = null;
+    let sessionMode: 'persistent' | 'ephemeral' = 'persistent';
+
+    try {
+      let lastSessionError: Error | null = null;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          session = await timed('dbReadMs', () => withTimeout(
+            () => getOrCreateSession(msg.channel, msg.channelUserId),
+            config.assistant.sessionReadTimeoutMs,
+            'session_get_timeout',
+          ));
+          lastSessionError = null;
+          break;
+        } catch (error) {
+          if (!(error instanceof Error) || error.message !== 'session_get_timeout') throw error;
+          lastSessionError = error;
+          logStructuredMessage('session_get_retry', {
+            channel: msg.channel,
+            messageId: msg.messageId,
+            result: attempt === 0 ? 'retrying' : 'failed',
+            reason: error.message,
+          });
+          if (attempt === 0) {
+            await wait(250);
+            continue;
+          }
+        }
+      }
+
+      if (lastSessionError) {
+        throw lastSessionError;
+      }
+
+      syncResult = await timed('dbReadMs', () => withTimeout(
+        () => syncSessionProfileFromChannelBinding(session),
+        config.assistant.sessionReadTimeoutMs,
+        'session_sync_timeout',
+      ));
+      session = syncResult.session;
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== 'session_get_timeout') throw error;
+      session = await buildEphemeralSession();
+      sessionMode = 'ephemeral';
+      logStructuredMessage('session_fallback_activated', {
+        channel: msg.channel,
+        messageId: msg.messageId,
+        sessionId: session.id,
+        reason: 'session_get_timeout',
+        result: session.profile ? 'profile_resolved' : 'unlinked',
+      });
+    }
+
     telemetry.sessionId = session.id;
 
-    if (syncResult.changed) {
+    if (syncResult?.changed) {
       logStructuredMessage('session_profile_sync', {
         channel: msg.channel,
         messageId: msg.messageId,
@@ -379,17 +658,130 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       });
     }
 
-    let textToProcess = sanitizeUserText(msg.text || '');
+    if (sessionMode === 'ephemeral') {
+      logStructuredMessage('session_mode_selected', {
+        channel: msg.channel,
+        messageId: msg.messageId,
+        sessionId: session.id,
+        result: 'ephemeral',
+      });
+    }
 
+    let audioTranscript: AudioTranscriptResult | null = null;
     if (msg.audioBuffer && msg.audioMimeType) {
-      const transcribed = await transcribeAudio(msg.audioBuffer, msg.audioMimeType);
-      if (transcribed) {
-        textToProcess = sanitizeUserText(transcribed);
-      } else {
+      const audioSizeBytes = msg.audioSizeBytes || msg.audioBuffer.length;
+      logStructuredMessage('audio_received', {
+        channel: msg.channel,
+        messageId: msg.messageId,
+        sessionId: session.id,
+        mimeType: msg.audioMimeType,
+        audioKind: msg.audioKind,
+        durationSec: msg.audioDurationSec,
+        sizeBytes: audioSizeBytes,
+        result: 'received',
+      });
+
+      logStructuredMessage('audio_transcription_started', {
+        channel: msg.channel,
+        messageId: msg.messageId,
+        sessionId: session.id,
+        mimeType: msg.audioMimeType,
+        audioKind: msg.audioKind,
+        durationSec: msg.audioDurationSec,
+        sizeBytes: audioSizeBytes,
+        result: 'started',
+      });
+
+      audioTranscript = await timed('llmMs', () => transcribeAudioDetailed({
+        audioBuffer: msg.audioBuffer!,
+        mimeType: msg.audioMimeType!,
+        durationSec: msg.audioDurationSec,
+        sizeBytes: audioSizeBytes,
+        audioKind: msg.audioKind,
+      }));
+
+      if (audioTranscript.quality === 'too_long' || audioTranscript.quality === 'unsupported') {
+        telemetry.result = 'clarification';
+        telemetry.action = 'audio_validation_rejected';
+        logStructuredMessage('audio_validation_rejected', {
+          channel: msg.channel,
+          messageId: msg.messageId,
+          sessionId: session.id,
+          mimeType: msg.audioMimeType,
+          audioKind: msg.audioKind,
+          durationSec: msg.audioDurationSec,
+          sizeBytes: audioSizeBytes,
+          usedFilesApi: audioTranscript.usedFilesApi,
+          transcriptionMs: audioTranscript.durationMs,
+          result: audioTranscript.quality,
+          reason: audioTranscript.reason,
+        });
+        return finalize(getAudioValidationMessage(audioTranscript), {
+          action: 'audio_validation_rejected',
+          result: 'clarification',
+        });
+      }
+
+      if (audioTranscript.quality === 'timeout') {
+        telemetry.result = 'clarification';
+        telemetry.action = 'audio_transcription_timeout';
+        logStructuredMessage('audio_transcription_failed', {
+          channel: msg.channel,
+          messageId: msg.messageId,
+          sessionId: session.id,
+          mimeType: msg.audioMimeType,
+          audioKind: msg.audioKind,
+          durationSec: msg.audioDurationSec,
+          sizeBytes: audioSizeBytes,
+          usedFilesApi: audioTranscript.usedFilesApi,
+          transcriptionMs: audioTranscript.durationMs,
+          result: 'timeout',
+          reason: audioTranscript.reason,
+        });
+        return finalize(getAudioValidationMessage(audioTranscript), {
+          action: 'audio_transcription_timeout',
+          result: 'clarification',
+        });
+      }
+
+      if (!audioTranscript.text.trim()) {
         telemetry.result = 'clarification';
         telemetry.action = 'transcription_failed';
-        return finalize('Não consegui transcrever o áudio. Pode escrever a mensagem?');
+        logStructuredMessage('audio_transcription_failed', {
+          channel: msg.channel,
+          messageId: msg.messageId,
+          sessionId: session.id,
+          mimeType: msg.audioMimeType,
+          audioKind: msg.audioKind,
+          durationSec: msg.audioDurationSec,
+          sizeBytes: audioSizeBytes,
+          usedFilesApi: audioTranscript.usedFilesApi,
+          transcriptionMs: audioTranscript.durationMs,
+          transcriptChars: 0,
+          result: audioTranscript.quality,
+          reason: audioTranscript.reason,
+        });
+        return finalize(getAudioValidationMessage(audioTranscript), {
+          action: 'transcription_failed',
+          result: 'clarification',
+        });
       }
+
+      textToProcess = sanitizeUserText(audioTranscript.text);
+      logStructuredMessage('audio_transcription_completed', {
+        channel: msg.channel,
+        messageId: msg.messageId,
+        sessionId: session.id,
+        mimeType: msg.audioMimeType,
+        audioKind: msg.audioKind,
+        durationSec: msg.audioDurationSec,
+        sizeBytes: audioSizeBytes,
+        usedFilesApi: audioTranscript.usedFilesApi,
+        transcriptionMs: audioTranscript.durationMs,
+        transcriptChars: textToProcess.length,
+        result: audioTranscript.quality,
+        reason: audioTranscript.reason,
+      });
     }
 
     if (msg.imageBuffer && msg.imageMimeType) {
@@ -402,6 +794,9 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
 
     if (!textToProcess.trim()) {
       telemetry.result = 'clarification';
+      if (audioTranscript) {
+        return finalize(getAudioValidationMessage(audioTranscript), { action: 'empty_audio_message' });
+      }
       return finalize('Não entendi. Pode repetir?', { action: 'empty_message' });
     }
 
@@ -426,20 +821,6 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
         action: 'guardrail:prompt_injection',
         result: 'blocked',
       });
-    }
-
-    if (/^(\/desconectar|desconectar|desvincular|sair da conta)$/i.test(textToProcess.trim())) {
-      await saveMessageTimed(session.id, 'user', textToProcess, userMediaType, 'desconectar');
-      if (!session.profile) {
-        await saveMessageTimed(session.id, 'assistant', NOT_LINKED_MSG);
-        return finalize(NOT_LINKED_MSG, { action: 'disconnect_not_linked' });
-      }
-      const ok = await disconnectBot(msg.channel, msg.channelUserId);
-      const reply = ok
-        ? '✅ Conta desvinculada com sucesso. Até logo!\n\nPara reconectar, gere um novo código no dashboard web → Configurações → Assistente de Bolso.'
-        : '❌ Erro ao desvincular. Tente novamente.';
-      await saveMessageTimed(session.id, 'assistant', reply);
-      return finalize(reply, { action: 'disconnect', result: ok ? 'success' : 'error' });
     }
 
     const linkCodeCandidate = extractLinkCodeCandidate(textToProcess);
@@ -513,82 +894,281 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
     const role = session.profile.role;
     const tenantId = session.profile.tenant_id;
     const profileId = session.profile.id;
+    const workingState = getWorkingState(session.context);
+
+    const legacyExecuteIntent = async (legacyIntent: string, args: Record<string, unknown>): Promise<string> => (
+      dispatchIntent(
+        legacyIntent,
+        args as NormalizedEntities,
+        session,
+        tenantId,
+        profileId,
+        role,
+        msg.messageId,
+        textToProcess,
+      )
+    );
+
+    const pendingConfirmation = getPendingConfirmationState(session);
+    if (pendingConfirmation && !session.context.pendingAction) {
+      await saveMessageTimed(session.id, 'user', textToProcess, userMediaType, pendingConfirmation.capability);
+
+      const confirmationReply = parseConfirmationReply(textToProcess);
+      if (confirmationReply === 'cancel') {
+        await timed('dbWriteMs', () => clearPendingConfirmation(session));
+        const cancelReply = 'Tudo certo, mantive como estava. Se quiser, pode me pedir outra ação.';
+        await saveMessageTimed(session.id, 'assistant', cancelReply);
+        return finalize(cancelReply, {
+          action: `confirmation_cancelled:${pendingConfirmation.capability}`,
+          result: 'clarification',
+        });
+      }
+
+      if (confirmationReply !== 'confirm') {
+        const waitReply = 'Se quiser seguir, responda *sim*. Se preferir parar, responda *não*.';
+        await saveMessageTimed(session.id, 'assistant', waitReply);
+        return finalize(waitReply, {
+          action: `confirmation_wait:${pendingConfirmation.capability}`,
+          result: 'clarification',
+        });
+      }
+
+      const confirmedPlan: ActionPlan = {
+        capability: pendingConfirmation.capability,
+        confidence: 'high',
+        source: 'followup',
+        args: pendingConfirmation.argsSnapshot,
+        missingFields: [],
+        dependsOnContext: true,
+        requiresConfirmation: false,
+      };
+
+      const policyResult = await timed('policyMs', async () => runPolicyCheck({
+        tenantId,
+        profileId,
+        role,
+        requestId: msg.messageId,
+        channel: msg.channel,
+        capability: confirmedPlan.capability,
+        args: confirmedPlan.args,
+        confirmed: true,
+      }));
+
+      logStructuredMessage('policy_check', {
+        channel: msg.channel,
+        messageId: msg.messageId,
+        sessionId: session.id,
+        capability: confirmedPlan.capability,
+        policyResult: policyResult.allowed ? 'allowed' : 'forbidden',
+        confirmationState: 'confirmed',
+        idempotencyKey: policyResult.idempotencyKey,
+        result: policyResult.allowed ? 'success' : 'blocked',
+        reason: policyResult.reason,
+      });
+
+      await timed('dbWriteMs', () => clearPendingConfirmation(session));
+
+      const execution = await timed('executorMs', () => executeActionPlan(
+        confirmedPlan,
+        {
+          session,
+          tenantId,
+          profileId,
+          role,
+          requestId: msg.messageId,
+          channel: msg.channel,
+          confirmed: true,
+        },
+        { executeLegacyIntent: legacyExecuteIntent }
+      ));
+
+      if (execution.workingStatePatch && execution.audit.executor !== 'legacy-dispatch') {
+        await timed('dbWriteMs', () => patchWorkingState(session, execution.workingStatePatch));
+      }
+
+      let confirmationResponse = execution.safeUserMessage;
+      confirmationResponse = prependAudioPreview(confirmationResponse, audioTranscript?.text);
+      await saveMessageTimed(session.id, 'assistant', confirmationResponse);
+      return finalize(confirmationResponse, {
+        action: `capability:${confirmedPlan.capability}`,
+        result: execution.status === 'error'
+          ? 'error'
+          : execution.status === 'forbidden'
+            ? 'blocked'
+            : execution.status === 'ok'
+              ? 'success'
+              : 'clarification',
+      });
+    }
 
     if (session.context.pendingAction) {
       await saveMessageTimed(session.id, 'user', textToProcess, userMediaType);
-      const pendingResponse = await handlePendingAction(session, textToProcess, tenantId, profileId, msg.messageId);
+      let pendingResponse = await handlePendingAction(session, textToProcess, tenantId, profileId, msg.messageId);
+      pendingResponse = prependAudioPreview(pendingResponse, audioTranscript?.text);
       await saveMessageTimed(session.id, 'assistant', pendingResponse);
       return finalize(pendingResponse, { action: `pending:${session.context.pendingAction}` });
     }
 
-    const runRoute = async (
-      mode: 'fast' | 'full',
-      history: Array<{ role: string; content: string }>,
-    ) => {
-      const routeStartedAt = Date.now();
-      const routed = await routeIntent(textToProcess, history, {
-        cacheScope: tenantId,
+    const followupPlan = await timed('followupMs', async () => resolveFollowup(textToProcess, workingState));
+
+    let understanding: CommandUnderstanding | undefined;
+    let actionPlan = followupPlan;
+
+    if (followupPlan) {
+      telemetry.intent = `followup:${followupPlan.capability}`;
+      telemetry.confidence = followupPlan.confidence;
+      telemetry.routeSource = followupPlan.source;
+      telemetry.fallbackReason = 'n/a';
+      logStructuredMessage('followup_resolved', {
         channel: msg.channel,
         messageId: msg.messageId,
         sessionId: session.id,
-        mode,
+        capability: followupPlan.capability,
+        result: 'success',
       });
-      const routeElapsed = Date.now() - routeStartedAt;
-      latencyBreakdown.routeMs += routeElapsed;
-      if (routed.source === 'llm') latencyBreakdown.llmMs += routeElapsed;
-      return routed;
-    };
-
-    let routed = await runRoute('fast', []);
-
-    if (routed.intent === 'desconhecido' || routed.confidence !== 'high' || routed.source !== 'rule') {
-      const historyTimeoutMs = 1200;
-      const history = await timed('dbReadMs', async () => Promise.race([
-        getRecentMessages(session.id, 8),
-        new Promise<Array<{ role: string; content: string }>>(resolve => {
-          setTimeout(() => resolve([]), historyTimeoutMs);
+    } else {
+      understanding = await timed('routeMs', () => understandCommand({
+        text: textToProcess,
+        tenantId,
+        channel: msg.channel,
+        messageId: msg.messageId,
+        sessionId: session.id,
+        loadHistory: async () => timed('dbReadMs', async () => {
+          try {
+            return await withTimeout(
+              () => getRecentMessages(session.id, 8),
+              config.assistant.historyReadTimeoutMs,
+              'history_timeout',
+            );
+          } catch {
+            return [];
+          }
         }),
-      ]));
+      }));
 
-      routed = await runRoute('full', history);
+      actionPlan = createActionPlan(understanding, textToProcess);
+      telemetry.intent = understanding.intent;
+      telemetry.confidence = understanding.confidence;
+      telemetry.routeSource = understanding.source;
+      telemetry.fallbackReason = understanding.fallbackReason || 'n/a';
     }
 
-    telemetry.intent = routed.intent;
-    telemetry.confidence = routed.confidence;
-    telemetry.routeSource = routed.source;
-    telemetry.fallbackReason = routed.fallbackReason || 'n/a';
+    await saveMessageTimed(session.id, 'user', textToProcess, userMediaType, telemetry.intent);
 
-    await saveMessageTimed(session.id, 'user', textToProcess, userMediaType, routed.intent);
+    logStructuredMessage('action_plan_created', {
+      channel: msg.channel,
+      messageId: msg.messageId,
+      sessionId: session.id,
+      capability: actionPlan.capability,
+      confidence: actionPlan.confidence,
+      routeSource: actionPlan.source,
+      result: actionPlan.missingFields.length > 0 ? 'needs_clarification' : 'ready',
+    });
 
-    const clarification = getClarificationMessage(routed.intent, routed.confidence, routed.candidates || []);
+    const clarification = getPlanClarificationMessage(actionPlan, understanding);
     if (clarification) {
-      await saveMessageTimed(session.id, 'assistant', clarification);
-      return finalize(clarification, {
-        action: `clarification:${routed.intent}`,
+      const clarificationText = audioTranscript?.quality === 'weak'
+        ? getWeakAudioClarification(textToProcess, clarification)
+        : clarification;
+      await timed('dbWriteMs', () => patchWorkingState(session, {
+        lastAction: actionPlan.capability,
+        pendingCapability: actionPlan.capability,
+        pendingMissingFields: actionPlan.missingFields,
+      }));
+      await saveMessageTimed(session.id, 'assistant', clarificationText);
+      return finalize(clarificationText, {
+        action: `clarification:${actionPlan.capability}`,
         result: 'clarification',
       });
     }
 
-    const response = await dispatchIntent(
-      routed.intent,
-      routed.normalizedEntities,
-      session,
+    const policyResult = await timed('policyMs', async () => runPolicyCheck({
       tenantId,
       profileId,
       role,
-      msg.messageId,
-      textToProcess
-    );
+      requestId: msg.messageId,
+      channel: msg.channel,
+      capability: actionPlan.capability,
+      args: actionPlan.args,
+      confirmed: false,
+    }));
+
+    logStructuredMessage('policy_check', {
+      channel: msg.channel,
+      messageId: msg.messageId,
+      sessionId: session.id,
+      capability: actionPlan.capability,
+      policyResult: policyResult.allowed ? 'allowed' : 'forbidden',
+      confirmationState: policyResult.requiresConfirmation ? 'pending' : 'not_required',
+      idempotencyKey: policyResult.idempotencyKey,
+      result: policyResult.allowed ? 'success' : 'blocked',
+      reason: policyResult.reason,
+    });
+
+    const execution = await timed('executorMs', () => executeActionPlan(
+      actionPlan,
+      {
+        session,
+        tenantId,
+        profileId,
+        role,
+        requestId: msg.messageId,
+        channel: msg.channel,
+        confirmed: false,
+      },
+      { executeLegacyIntent: legacyExecuteIntent }
+    ));
+
+    if (execution.workingStatePatch && execution.audit.executor !== 'legacy-dispatch') {
+      await timed('dbWriteMs', () => patchWorkingState(session, execution.workingStatePatch));
+    }
+
+    logStructuredMessage('tool_execution', {
+      channel: msg.channel,
+      messageId: msg.messageId,
+      sessionId: session.id,
+      capability: actionPlan.capability,
+      result: execution.status,
+      actionCapability: execution.audit.capability,
+    });
+
+    let response = execution.safeUserMessage;
+    response = prependAudioPreview(response, audioTranscript?.text);
+
+    // Injetar pergunta de acompanhamento ao final (quando execução bem-sucedida)
+    if (execution.status === 'ok' && session.profile?.tenant_id) {
+      try {
+        const tenantBotConfig = await getBotTenantConfig(session.profile.tenant_id);
+        const followup = getFollowupFromTenantConfig(actionPlan.capability, tenantBotConfig);
+        if (followup) {
+          response = `${response}\n\n${followup}`;
+        }
+      } catch {
+        // Não bloquear resposta por falha no follow-up
+      }
+    }
 
     await saveMessageTimed(session.id, 'assistant', response);
 
-    return finalize(response, { action: `intent:${routed.intent}` });
+    return finalize(response, {
+      action: `capability:${actionPlan.capability}`,
+      result: execution.status === 'error'
+        ? 'error'
+        : execution.status === 'forbidden'
+          ? 'blocked'
+          : execution.status === 'ok'
+            ? 'success'
+            : 'clarification',
+    });
   } catch (err) {
     console.error('[handleMessage error]', err);
     telemetry.result = 'error';
-    return finalize('❌ Ocorreu um erro ao processar sua mensagem. Tente novamente em instantes.', {
-      action: 'internal_error',
-    });
+    const message = err instanceof Error && err.message === 'session_get_timeout'
+      ? 'A abertura da sua sessão demorou mais do que o esperado. Tente novamente em instantes.'
+      : err instanceof Error && err.message === 'session_sync_timeout'
+        ? 'A validação do vínculo deste chat demorou demais. Tente novamente em instantes.'
+        : '❌ Ocorreu um erro ao processar sua mensagem. Tente novamente em instantes.';
+    return finalize(message, { action: 'internal_error' });
   } finally {
     const totalMs = Date.now() - startedAt;
     const presenceMode = !config.presence.enabled
@@ -602,6 +1182,10 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       messageId: telemetry.messageId,
       sessionId: telemetry.sessionId,
       routeMs: latencyBreakdown.routeMs,
+      followupMs: latencyBreakdown.followupMs,
+      policyMs: latencyBreakdown.policyMs,
+      executorMs: latencyBreakdown.executorMs,
+      naturalizeMs: latencyBreakdown.naturalizeMs,
       dbReadMs: latencyBreakdown.dbReadMs,
       dbWriteMs: latencyBreakdown.dbWriteMs,
       llmMs: latencyBreakdown.llmMs,
@@ -623,6 +1207,10 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       action: telemetry.action,
       result: telemetry.result,
       routeMs: latencyBreakdown.routeMs,
+      followupMs: latencyBreakdown.followupMs,
+      policyMs: latencyBreakdown.policyMs,
+      executorMs: latencyBreakdown.executorMs,
+      naturalizeMs: latencyBreakdown.naturalizeMs,
       dbReadMs: latencyBreakdown.dbReadMs,
       dbWriteMs: latencyBreakdown.dbWriteMs,
       llmMs: latencyBreakdown.llmMs,
@@ -755,6 +1343,19 @@ async function startPaymentByDebtorMonthFlow(
   return formatPaymentConfirmation(selected, selected.contractId);
 }
 
+function resolveDaysAhead(value?: number): number {
+  if (!Number.isFinite(value || NaN)) return 7;
+  return Math.max(1, Math.min(60, Math.trunc(value as number)));
+}
+
+function resolveWindowStart(value?: string): 'today' | 'tomorrow' {
+  return value === 'tomorrow' ? 'tomorrow' : 'today';
+}
+
+function formatDateWindow(daysAhead: number, windowStart: 'today' | 'tomorrow'): string {
+  const window = buildDateWindow(daysAhead, windowStart);
+  return `${formatDate(window.startDate)} a ${formatDate(window.endDate)}`;
+}
 async function dispatchIntent(
   intent: string,
   entities: NormalizedEntities,
@@ -926,35 +1527,95 @@ async function dispatchIntent(
       return `✅ Convite gerado!\n\nCódigo: *${code}*\n\nVálido por 7 dias. Compartilhe com o novo usuário para que ele acesse o dashboard e faça o cadastro.`;
     }
 
+    case 'recebiveis_periodo': {
+      if (role !== 'admin') return 'Essa função é apenas para administradores.';
+      const daysAhead = resolveDaysAhead(entities.days_ahead);
+      const windowStart = resolveWindowStart(entities.window_start);
+      const window = buildDateWindow(daysAhead, windowStart);
+      const installments = await getInstallmentsInWindow(tenantId, daysAhead, windowStart);
+
+      logStructuredMessage('receivables_window_computed', {
+        channel: session.channel,
+        messageId,
+        sessionId: session.id,
+        tenantId,
+        daysAhead,
+        windowStart,
+        startDate: window.startDate,
+        endDate: window.endDate,
+        result: 'success',
+      });
+
+      if (installments.length === 0) {
+        return `✅ Nenhum recebivel em aberto no periodo *${formatDateWindow(daysAhead, windowStart)}*.`;
+      }
+
+      const total = installments.reduce((sum, installment) => sum + installment.amount, 0);
+      const visibleItems = installments.slice(0, 8);
+      const lines = visibleItems.map((item, index) => (
+        `${index + 1}. ${item.debtorName} — ${formatCurrency(item.amount)} — ${formatDate(item.dueDate)}`
+      ));
+      const extra = installments.length > visibleItems.length
+        ? `\n\n...e mais ${installments.length - visibleItems.length} itens no período.`
+        : '';
+      const dataBlock = `📅 *Recebíveis (${formatDateWindow(daysAhead, windowStart)})*\n\n${lines.join('\n')}\n\n💰 Total previsto: *${formatCurrency(total)}*${extra}`;
+      return dataBlock;
+    }
+
+    case 'cobrar_periodo': {
+      if (role !== 'admin') return 'Essa função é apenas para administradores.';
+      const daysAhead = resolveDaysAhead(entities.days_ahead);
+      const windowStart = resolveWindowStart(entities.window_start);
+      const window = buildDateWindow(daysAhead, windowStart);
+      const debtors = await getDebtorsToCollectInWindow(tenantId, daysAhead, windowStart);
+
+      logStructuredMessage('collection_window_computed', {
+        channel: session.channel,
+        messageId,
+        sessionId: session.id,
+        tenantId,
+        daysAhead,
+        windowStart,
+        startDate: window.startDate,
+        endDate: window.endDate,
+        result: 'success',
+      });
+
+      if (debtors.length === 0) {
+        return `✅ Nenhum devedor para cobranca no periodo *${formatDateWindow(daysAhead, windowStart)}*.`;
+      }
+
+      const total = debtors.reduce((sum, debtor) => sum + debtor.totalDue, 0);
+      const visibleItems = debtors.slice(0, 8);
+      const lines = visibleItems.map((debtor, index) => {
+        const parcels = debtor.installmentCount > 1 ? ` — ${debtor.installmentCount} parcelas` : '';
+        const late = debtor.daysLate > 0 ? ` *(${debtor.daysLate}d atrasado)*` : '';
+        return `${index + 1}. ${debtor.name} — ${formatCurrency(debtor.totalDue)}${parcels}${late}`;
+      });
+      const extra = debtors.length > visibleItems.length
+        ? `\n\n...e mais ${debtors.length - visibleItems.length} devedores no período.`
+        : '';
+      const dataBlock = `🔴 *Cobrança (${formatDateWindow(daysAhead, windowStart)})*\n\n${lines.join('\n')}\n\n💰 Total em aberto: *${formatCurrency(total)}*${extra}`;
+      return dataBlock;
+    }
+
     case 'recebiveis_hoje': {
       if (role !== 'admin') return 'Essa função é apenas para administradores.';
       const hoje = await getInstallmentsToday(tenantId);
       if (hoje.length === 0) {
-        const naturalReply = await generateAgentResponse(
-          { type: 'success', action: 'recebiveis_hoje', details: 'Nenhuma parcela vence hoje.' },
-          originalText,
-        );
-        return naturalReply || '✅ Nenhuma parcela vence hoje.';
+        return '✅ Nenhuma parcela vence hoje.';
       }
       const total = hoje.reduce((s, i) => s + i.amount, 0);
       const lines = hoje.map((i, idx) => `${idx + 1}. ${i.debtorName} — ${formatCurrency(i.amount)}`);
       const dataBlock = `📅 *Vencimentos de hoje:*\n\n${lines.join('\n')}\n\n💰 Total: *${formatCurrency(total)}*`;
-      const introReply = await generateAgentResponse(
-        { type: 'list_intro', count: hoje.length, entity: 'vencimentos hoje' },
-        originalText,
-      );
-      return introReply ? `${introReply}\n\n${dataBlock}` : dataBlock;
+      return dataBlock;
     }
 
     case 'cobrar_hoje': {
       if (role !== 'admin') return 'Essa função é apenas para administradores.';
       const devedores = await getDebtorsToCollectToday(tenantId);
       if (devedores.length === 0) {
-        const naturalReply = await generateAgentResponse(
-          { type: 'success', action: 'cobrar_hoje', details: 'Nenhum devedor com vencimento hoje.' },
-          originalText,
-        );
-        return naturalReply || '✅ Nenhum devedor com vencimento hoje.';
+        return '✅ Nenhum devedor com vencimento hoje.';
       }
       const total = devedores.reduce((s, d) => s + d.totalDue, 0);
       const lines = devedores.map((d, idx) => {
@@ -963,11 +1624,7 @@ async function dispatchIntent(
         return `${idx + 1}. ${d.name} — ${formatCurrency(d.totalDue)}${parcelas}${atraso}`;
       });
       const dataBlock = `🔴 *Lista de cobrança:*\n\n${lines.join('\n')}\n\n💰 Total em aberto: *${formatCurrency(total)}*`;
-      const introReply = await generateAgentResponse(
-        { type: 'list_intro', count: devedores.length, entity: 'devedores para cobrar hoje' },
-        originalText,
-      );
-      return introReply ? `${introReply}\n\n${dataBlock}` : dataBlock;
+      return dataBlock;
     }
 
     case 'gerar_relatorio': {
@@ -1019,11 +1676,7 @@ async function dispatchIntent(
     }
 
     default: {
-      const naturalReply = await generateAgentResponse(
-        { type: 'clarification', options: 'dashboard, recebiveis, criar contrato, marcar pagamento' },
-        originalText,
-      );
-      return naturalReply || 'Não entendi bem o que precisa. Digite *ajuda* para ver o que posso fazer.';
+      return 'Nao entendi com seguranca. Me diz de novo em uma frase curta o que voce quer fazer.';
     }
   }
 }
@@ -1486,11 +2139,7 @@ Para baixar, diga: *baixar contrato ${result.id}*`;
       await clearSessionContext(session.id);
       if (!success) return '❌ Não foi possível marcar como pago. Tente novamente.';
 
-      const naturalReply = await generateAgentResponse(
-        { type: 'success', action: 'marcar_pagamento', details: `Parcela de ${selected.debtorName}, ${formatCurrency(selected.amount)}, contrato #${selected.contractId}` },
-        text,
-      );
-      return naturalReply || `✅ Parcela de *${selected.debtorName}* (${formatCurrency(selected.amount)}) marcada como *paga*!`;
+      return `✅ Parcela de *${selected.debtorName}* (${formatCurrency(selected.amount)}) marcada como *paga*!`;
     }
   }
 
@@ -1609,6 +2258,8 @@ function getHelpText(role: string): string {
 📋 *Relatório completo* — "gerar relatório"
 📅 *Vence hoje* — "recebíveis de hoje"
 🔴 *Cobrar hoje* — "quem tenho que cobrar hoje?"
+📆 *Receber próximos dias* — "quanto vou receber nos próximos 7 dias"
+📌 *Cobrar próximos dias* — "quem devo cobrar nos próximos 7 dias"
 📋 *Recebíveis* — "parcelas pendentes" / "quem tá atrasado"
 📝 *Criar contrato* — "cria contrato pra João, CPF 52998224725, R$5.000, 3%, 12x"
 ✅ *Marcar pago* — "marcar pagamento" ou "baixar contrato 123 parcela 2"

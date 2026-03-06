@@ -26,6 +26,14 @@ export const config = {
     apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY || '',
   },
 
+  // Audio inbound (transcrição + UX)
+  audio: {
+    maxDurationSec: parseInt(process.env.AUDIO_MAX_DURATION_SEC || '90', 10),
+    inlineMaxBytes: parseInt(process.env.AUDIO_INLINE_MAX_BYTES || '2000000', 10),
+    transcribeTimeoutMs: parseInt(process.env.AUDIO_TRANSCRIBE_TIMEOUT_MS || '6000', 10),
+    previewChars: parseInt(process.env.AUDIO_PREVIEW_CHARS || '120', 10),
+  },
+
   // Roteador de intent hibrido (baixo token)
   llmRouter: {
     enabled: process.env.LLM_ROUTER_ENABLED !== 'false',
@@ -48,6 +56,14 @@ export const config = {
     whatsappSlowThresholdMs: parseInt(process.env.PRESENCE_WHATSAPP_SLOW_THRESHOLD_MS || '2500', 10),
   },
 
+  // Buffer adaptativo de mensagens inbound
+  inboundBuffer: {
+    enabled: process.env.INBOUND_BUFFER_ENABLED !== 'false',
+    debounceMs: parseInt(process.env.INBOUND_BUFFER_DEBOUNCE_MS || '3500', 10),
+    maxWindowMs: parseInt(process.env.INBOUND_BUFFER_MAX_WINDOW_MS || '12000', 10),
+    maxMessages: parseInt(process.env.INBOUND_BUFFER_MAX_MESSAGES || '5', 10),
+  },
+
   // Persistencia de historico
   messagePersistence: {
     mode: (process.env.MESSAGE_PERSISTENCE_MODE === 'sync' ? 'sync' : 'hybrid') as 'sync' | 'hybrid',
@@ -55,10 +71,24 @@ export const config = {
     retryBaseMs: parseInt(process.env.MESSAGE_PERSISTENCE_RETRY_BASE_MS || '200', 10),
   },
 
+  // Camada operacional do assistente
+  assistant: {
+    workingStateTtlMs: parseInt(process.env.ASSISTANT_WORKING_STATE_TTL_MS || '1800000', 10),
+    confirmationTtlMs: parseInt(process.env.ASSISTANT_CONFIRMATION_TTL_MS || '600000', 10),
+    sessionReadTimeoutMs: parseInt(process.env.ASSISTANT_SESSION_READ_TIMEOUT_MS || '15000', 10),
+    historyReadTimeoutMs: parseInt(process.env.ASSISTANT_HISTORY_READ_TIMEOUT_MS || '1200', 10),
+  },
+
   // Gerador de respostas naturais via LLM (agente real)
   llmResponse: {
     enabled: process.env.LLM_RESPONSE_ENABLED !== 'false',
-    timeoutMs: parseInt(process.env.LLM_RESPONSE_TIMEOUT_MS || '1500', 10),
-    maxOutputTokens: parseInt(process.env.LLM_RESPONSE_MAX_TOKENS || '120', 10),
+    timeoutMs: parseInt(process.env.LLM_RESPONSE_TIMEOUT_MS || '2200', 10),
+    maxOutputTokens: parseInt(process.env.LLM_RESPONSE_MAX_TOKENS || '80', 10),
+  },
+
+  // Scheduler de automações (Cloud Scheduler → HTTP)
+  scheduler: {
+    secret: process.env.SCHEDULER_SECRET || '',
+    followupEnabledDefault: process.env.FOLLOWUP_ENABLED_DEFAULT !== 'false',
   },
 };

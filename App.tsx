@@ -6,12 +6,27 @@ import Dashboard from './components/Dashboard';
 import AdminUsers from './components/AdminUsers';
 import AdminContracts from './components/AdminContracts';
 import AdminSettings from './components/AdminSettings';
+import AdminAssistant from './components/AdminAssistant';
 import AdminUserDetails from './components/AdminUserDetails';
 import SetupWizard from './components/SetupWizard';
 import ResetPassword from './components/ResetPassword';
 import { AppView, UserRole, Tenant, Profile } from './types';
 import { getSupabase, isProduction, isSupabaseConfigured, logError } from './services/supabase';
-import { LayoutDashboard, LogOut, User, Users, FileText, Building2, ShieldCheck, Loader2, AlertCircle, Menu, X } from 'lucide-react';
+import {
+  LayoutDashboard,
+  LogOut,
+  UserRound,
+  Users,
+  BriefcaseBusiness,
+  Building2,
+  ShieldCheck,
+  Loader2,
+  AlertCircle,
+  Menu,
+  X,
+  ChevronRight,
+  Bot,
+} from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -26,97 +41,150 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onLogout, userRole, tenant, profile }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const currentSectionLabel: Record<AppView, string> = {
+    [AppView.LOGIN]: 'Acesso',
+    [AppView.DASHBOARD]: 'Visão Executiva',
+    [AppView.USERS]: 'Relacionamentos',
+    [AppView.USER_DETAILS]: 'Dossiê do Cliente',
+    [AppView.CONTRACTS]: 'Contratos',
+    [AppView.SETTINGS]: 'Configurações',
+    [AppView.ASSISTANT]: 'Assistente',
+    [AppView.RESET_PASSWORD]: 'Segurança',
+  };
+
   const handleViewChange = (view: AppView) => {
     onChangeView(view);
-    setMobileMenuOpen(false); // Fecha menu ao clicar
+    setMobileMenuOpen(false);
   };
 
   const NavContent = () => (
     <>
-      <div className="p-8 border-b border-slate-700">
-        <div className="flex items-center gap-3">
+      <div className="border-b soft-divider px-7 py-7">
+        <div className="flex items-center gap-4">
             {tenant?.logo_url ? (
-                <img src={tenant.logo_url} alt="Logo" className="w-8 h-8 rounded object-cover" />
+                <img src={tenant.logo_url} alt="Logo" className="h-11 w-11 rounded-2xl object-cover ring-1 ring-white/10" />
             ) : (
-                <div className="w-8 h-8 bg-teal-600 rounded flex items-center justify-center font-bold text-white shrink-0">
-                    {tenant?.name?.charAt(0) || <ShieldCheck size={14} />}
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.16)]">
+                    {tenant?.name?.charAt(0) || <ShieldCheck size={16} />}
                 </div>
             )}
             <div className="min-w-0">
-                <h2 className="text-lg font-black tracking-tighter text-white truncate uppercase leading-tight">
-                  {tenant?.name || 'Enterprise'}
+                <p className="section-kicker mb-1">E-Finance</p>
+                <h2 className="font-display truncate text-[1.9rem] leading-none text-[color:var(--text-primary)]">
+                  {tenant?.name || 'Workspace'}
                 </h2>
-                <p className="text-[8px] text-slate-500 uppercase tracking-[0.2em] font-black">
-                  {isProduction() ? 'Secure Production' : 'Development Env'}
+                <p className="mt-1 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
+                  {isProduction() ? 'Ambiente Operacional' : 'Ambiente de Desenvolvimento'}
                 </p>
             </div>
         </div>
       </div>
       
-      <nav className="flex-1 p-6 space-y-2 overflow-y-auto">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-5 py-5">
         <button 
           onClick={() => handleViewChange(AppView.DASHBOARD)}
-          className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 ${activeView === AppView.DASHBOARD ? 'bg-teal-600 text-white shadow-lg shadow-teal-900/30 font-bold translate-x-1' : 'text-slate-500 hover:bg-slate-700/50 hover:text-slate-300'}`}
+          className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${
+            activeView === AppView.DASHBOARD
+              ? 'bg-[rgba(202,176,122,0.12)] text-[color:var(--text-primary)] ring-1 ring-[rgba(202,176,122,0.2)]'
+              : 'text-[color:var(--text-muted)] hover:bg-white/[0.03] hover:text-[color:var(--text-primary)]'
+          }`}
         >
           <LayoutDashboard size={20} />
-          <span className="text-sm">Dashboard</span>
+          <div className="flex-1">
+            <div className="text-sm font-semibold">Dashboard</div>
+            <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Leitura financeira</div>
+          </div>
         </button>
 
         {userRole === 'admin' && (
             <>
                 <button 
                 onClick={() => handleViewChange(AppView.USERS)}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 ${(activeView === AppView.USERS || activeView === AppView.USER_DETAILS) ? 'bg-teal-600 text-white shadow-lg shadow-teal-900/30 font-bold translate-x-1' : 'text-slate-500 hover:bg-slate-700/50 hover:text-slate-300'}`}
+                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${
+                  activeView === AppView.USERS || activeView === AppView.USER_DETAILS
+                    ? 'bg-[rgba(202,176,122,0.12)] text-[color:var(--text-primary)] ring-1 ring-[rgba(202,176,122,0.2)]'
+                    : 'text-[color:var(--text-muted)] hover:bg-white/[0.03] hover:text-[color:var(--text-primary)]'
+                }`}
                 >
                 <Users size={20} />
-                <span className="text-sm">Usuários</span>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold">Usuários</div>
+                  <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Relacionamentos</div>
+                </div>
                 </button>
 
                 <button 
                 onClick={() => handleViewChange(AppView.CONTRACTS)}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 ${activeView === AppView.CONTRACTS ? 'bg-teal-600 text-white shadow-lg shadow-teal-900/30 font-bold translate-x-1' : 'text-slate-500 hover:bg-slate-700/50 hover:text-slate-300'}`}
+                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${
+                  activeView === AppView.CONTRACTS
+                    ? 'bg-[rgba(202,176,122,0.12)] text-[color:var(--text-primary)] ring-1 ring-[rgba(202,176,122,0.2)]'
+                    : 'text-[color:var(--text-muted)] hover:bg-white/[0.03] hover:text-[color:var(--text-primary)]'
+                }`}
                 >
-                <FileText size={20} />
-                <span className="text-sm">Contratos</span>
+                <BriefcaseBusiness size={20} />
+                <div className="flex-1">
+                  <div className="text-sm font-semibold">Contratos</div>
+                  <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Crédito e prazos</div>
+                </div>
                 </button>
 
-                <button 
+                <button
+                onClick={() => handleViewChange(AppView.ASSISTANT)}
+                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${
+                  activeView === AppView.ASSISTANT
+                    ? 'bg-[rgba(202,176,122,0.12)] text-[color:var(--text-primary)] ring-1 ring-[rgba(202,176,122,0.2)]'
+                    : 'text-[color:var(--text-muted)] hover:bg-white/[0.03] hover:text-[color:var(--text-primary)]'
+                }`}
+                >
+                <Bot size={20} />
+                <div className="flex-1">
+                  <div className="text-sm font-semibold">Assistente</div>
+                  <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Automações e conexões</div>
+                </div>
+                </button>
+
+                <button
                 onClick={() => handleViewChange(AppView.SETTINGS)}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 ${activeView === AppView.SETTINGS ? 'bg-teal-600 text-white shadow-lg shadow-teal-900/30 font-bold translate-x-1' : 'text-slate-500 hover:bg-slate-700/50 hover:text-slate-300'}`}
+                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${
+                  activeView === AppView.SETTINGS
+                    ? 'bg-[rgba(202,176,122,0.12)] text-[color:var(--text-primary)] ring-1 ring-[rgba(202,176,122,0.2)]'
+                    : 'text-[color:var(--text-muted)] hover:bg-white/[0.03] hover:text-[color:var(--text-primary)]'
+                }`}
                 >
                 <Building2 size={20} />
-                <span className="text-sm">Ajustes</span>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold">Ajustes</div>
+                  <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Empresa e financeiro</div>
+                </div>
                 </button>
             </>
         )}
       </nav>
 
-      <div className="p-6 border-t border-slate-700">
+      <div className="border-t soft-divider p-5">
         <button 
           onClick={onLogout}
-          className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-slate-500 hover:bg-red-900/10 hover:text-red-400 transition-all font-black text-xs uppercase tracking-widest"
+          className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[color:var(--text-muted)] transition-all hover:bg-[rgba(198,126,105,0.08)] hover:text-[color:var(--accent-danger)]"
         >
           <LogOut size={18} />
-          <span>Sair</span>
+          <span className="text-sm font-semibold">Encerrar sessão</span>
         </button>
       </div>
     </>
   );
 
   return (
-    <div className="flex h-screen bg-slate-900 text-slate-100 overflow-hidden font-sans">
+    <div className="flex min-h-screen bg-transparent text-[color:var(--text-primary)] overflow-hidden font-sans">
       
-      {/* DESKTOP SIDEBAR */}
-      <aside className="w-64 bg-slate-800 border-r border-slate-700 hidden md:flex flex-col">
+      <aside className="glass-border hidden w-[280px] flex-col border-r md:flex">
         <NavContent />
       </aside>
 
-      {/* MOBILE SIDEBAR (Overlay) */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}></div>
-          <aside className="relative w-4/5 max-w-xs bg-slate-800 h-full shadow-2xl flex flex-col animate-fade-in-right">
-             <button onClick={() => setMobileMenuOpen(false)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}></div>
+          <aside className="glass-border relative h-full w-[84%] max-w-xs animate-fade-in-right flex-col">
+             <button onClick={() => setMobileMenuOpen(false)} className="absolute right-4 top-4 p-2 text-[color:var(--text-muted)] hover:text-white">
                 <X size={24} />
              </button>
              <NavContent />
@@ -124,42 +192,51 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
         </div>
       )}
 
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* HEADER */}
-        <header className="h-16 md:h-20 bg-slate-900/50 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-4 md:px-8 shadow-xl z-20">
+      <div className="flex h-screen flex-1 flex-col overflow-hidden">
+        <header className="glass-border z-20 flex h-16 items-center justify-between border-b px-4 md:h-20 md:px-8">
           
-          {/* Mobile Menu Button & Logo */}
           <div className="flex items-center gap-4 md:hidden">
-            <button onClick={() => setMobileMenuOpen(true)} className="text-slate-300 hover:text-white">
+            <button onClick={() => setMobileMenuOpen(true)} className="text-[color:var(--text-secondary)] hover:text-white">
               <Menu size={24} />
             </button>
-            <div className="font-black text-teal-400 tracking-tighter text-xl uppercase truncate max-w-[150px]">
+            <div className="font-display truncate text-2xl text-[color:var(--text-primary)] max-w-[160px]">
               {tenant?.name || '...'}
             </div>
           </div>
 
-          <div className="hidden md:flex flex-1 justify-end items-center gap-6">
-            <div className="text-right">
-                <p className="text-xs font-bold text-white">{profile?.full_name || 'Usuário'}</p>
-                <p className="text-[9px] text-slate-500 uppercase tracking-widest">
-                  {userRole === 'admin' ? 'Administrador' : userRole || '---'}
-                </p>
+          <div className="hidden md:flex md:items-center md:gap-6">
+            <div>
+              <div className="section-kicker mb-1">Painel</div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--text-secondary)]">
+                <span>{currentSectionLabel[activeView]}</span>
+                <ChevronRight size={14} className="text-[color:var(--text-faint)]" />
+                <span className="text-[color:var(--text-primary)]">{tenant?.name || 'Operação'}</span>
+              </div>
             </div>
-            <div className="w-10 h-10 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-teal-500 shadow-xl">
-              <User size={20} />
+
+            <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)]">
+                <UserRound size={18} />
+              </div>
+              <div className="text-right">
+                  <p className="text-sm font-semibold text-[color:var(--text-primary)]">{profile?.full_name || 'Usuário'}</p>
+                  <p className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
+                    {userRole === 'admin' ? 'Administrador' : userRole || '---'}
+                  </p>
+              </div>
             </div>
           </div>
 
-          {/* Mobile Profile Icon */}
-          <div className="md:hidden w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-teal-500">
-             <User size={16} />
+          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-[color:var(--accent-brass)] md:hidden">
+             <UserRound size={16} />
           </div>
-
         </header>
 
-        {/* MAIN CONTENT */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-950/40 custom-scrollbar">
-          {children}
+        <main className="custom-scrollbar relative flex-1 overflow-y-auto">
+          <div className="app-noise absolute inset-0"></div>
+          <div className="relative mx-auto w-full max-w-[1680px] px-4 py-6 md:px-8 md:py-8">
+            {children}
+          </div>
         </main>
       </div>
     </div>
@@ -266,12 +343,13 @@ const App: React.FC = () => {
 
   if (appError) {
       return (
-          <div className="h-screen bg-slate-900 flex flex-col items-center justify-center p-8 text-center">
-              <div className="bg-red-900/20 border border-red-900/50 p-10 rounded-[3rem] max-w-md shadow-2xl">
-                  <AlertCircle size={64} className="text-red-500 mx-auto mb-6" />
-                  <h1 className="text-2xl font-black text-white mb-4 uppercase tracking-tighter">Erro de Inicialização</h1>
-                  <p className="text-slate-400 text-sm mb-8 leading-relaxed">{appError}</p>
-                  <button onClick={() => window.location.reload()} className="bg-slate-800 hover:bg-slate-700 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all">
+          <div className="flex h-screen items-center justify-center p-8 text-center">
+              <div className="panel-card max-w-md rounded-[2rem] p-10">
+                  <AlertCircle size={56} className="mx-auto mb-6 text-[color:var(--accent-danger)]" />
+                  <p className="section-kicker mb-2">Inicialização</p>
+                  <h1 className="font-display mb-4 text-4xl text-[color:var(--text-primary)]">Falha ao abrir a operação</h1>
+                  <p className="mb-8 text-sm leading-relaxed text-[color:var(--text-secondary)]">{appError}</p>
+                  <button onClick={() => window.location.reload()} className="rounded-full border border-[color:var(--border-strong)] bg-white/[0.04] px-8 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--text-primary)] transition-all hover:bg-white/[0.08]">
                       Tentar Novamente
                   </button>
               </div>
@@ -281,7 +359,7 @@ const App: React.FC = () => {
   
   if (currentView === AppView.RESET_PASSWORD) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-200">
+      <div className="min-h-screen text-[color:var(--text-primary)]">
         <ResetPassword onResetSuccess={() => {
             setIsLoading(true);
             getSupabase()!.auth.getSession().then(({ data: { session } }) => {
@@ -299,7 +377,7 @@ const App: React.FC = () => {
 
   if (currentView === AppView.LOGIN) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-200">
+      <div className="min-h-screen text-[color:var(--text-primary)]">
         <Login onLoginSuccess={() => setIsLoading(true)} />
       </div>
     );
@@ -307,9 +385,9 @@ const App: React.FC = () => {
 
   if (isLoading) {
       return (
-        <div className="h-screen bg-slate-900 flex flex-col items-center justify-center text-teal-500">
-            <Loader2 className="animate-spin mb-4" size={40} />
-            <p className="text-white font-bold animate-pulse text-xs tracking-widest uppercase">Protegendo Sessão...</p>
+        <div className="flex h-screen flex-col items-center justify-center text-[color:var(--accent-brass)]">
+            <Loader2 className="mb-4 animate-spin" size={40} />
+            <p className="section-kicker animate-pulse text-[color:var(--text-secondary)]">Preparando operação</p>
         </div>
       );
   }
@@ -346,6 +424,9 @@ const App: React.FC = () => {
           )}
           {currentView === AppView.SETTINGS && profile?.role === 'admin' && tenant && (
               <AdminSettings tenant={tenant} onUpdate={(updated) => setTenant(updated)} />
+          )}
+          {currentView === AppView.ASSISTANT && profile?.role === 'admin' && tenant && profile && (
+              <AdminAssistant tenant={tenant} profile={profile} />
           )}
         </Layout>
     </Router>

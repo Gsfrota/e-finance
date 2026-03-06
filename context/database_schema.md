@@ -1,5 +1,5 @@
 
-# E-Finance: Esquema Completo do Banco de Dados (v16)
+# E-Finance: Esquema Completo do Banco de Dados (v17)
 
 Este arquivo contém o script SQL completo para configurar ou atualizar o banco de dados do Supabase para a aplicação E-Finance. Ele serve como a "fonte da verdade" para a estrutura do banco.
 
@@ -13,7 +13,7 @@ Este arquivo contém o script SQL completo para configurar ou atualizar o banco 
 
 ```sql
 -- =================================================================
--- E-FINANCE DATABASE SCHEMA (V16 - FULL MIGRATION SCRIPT)
+-- E-FINANCE DATABASE SCHEMA (V17 - FULL MIGRATION SCRIPT)
 -- Execute este script no SQL Editor do Supabase para garantir
 -- que todas as tabelas, funções e políticas estejam atualizadas.
 -- =================================================================
@@ -178,7 +178,181 @@ BEGIN
 END;
 $$;
 
--- Adicionar outras funções RPC aqui (ex: create_investment_validated, pay_installment, etc.)
+-- 8a. Função RPC: create_investment_validated
+-- Cria o investimento e gera as parcelas com amount_principal e amount_interest populados.
+CREATE OR REPLACE FUNCTION public.create_investment_validated(
+    p_tenant_id UUID,
+    p_user_id UUID,
+    p_payer_id UUID,
+    p_asset_name TEXT,
+    p_amount_invested NUMERIC,
+    p_source_capital NUMERIC DEFAULT 0,
+    p_source_profit NUMERIC DEFAULT 0,
+    p_current_value NUMERIC DEFAULT 0,
+    p_interest_rate NUMERIC DEFAULT 0,
+    p_installment_value NUMERIC DEFAULT 0,
+    p_total_installments INTEGER DEFAULT 1,
+    p_frequency TEXT DEFAULT 'monthly',
+    p_due_day INTEGER DEFAULT NULL,
+    p_weekday INTEGER DEFAULT NULL,
+    p_start_date DATE DEFAULT NULL,
+    p_calculation_mode TEXT DEFAULT 'manual'
+) RETURNS BIGINT LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+    v_investment_id BIGINT;
+    v_amount_principal NUMERIC;
+    v_amount_interest NUMERIC;
+    v_due_date DATE;
+    v_base_date DATE;
+    v_effective_day INTEGER;
+    i INTEGER;
+BEGIN
+    -- Insere o investimento
+    INSERT INTO public.investments (
+        tenant_id, user_id, payer_id, asset_name,
+        amount_invested, current_value, interest_rate,
+        installment_value, total_installments,
+        frequency, due_day, weekday, start_date,
+        calculation_mode, source_capital, source_profit
+    ) VALUES (
+        p_tenant_id, p_user_id, p_payer_id, p_asset_name,
+        p_amount_invested, p_current_value, p_interest_rate,
+        p_installment_value, p_total_installments,
+        p_frequency, p_due_day, p_weekday, p_start_date,
+        p_calculation_mode, p_source_capital, p_source_profit
+    ) RETURNING id INTO v_investment_id;
+
+    -- Calcula principal e juros por parcela
+    v_amount_principal := ROUND(p_amount_invested / NULLIF(p_total_installments, 0), 2);
+    v_amount_interest  := ROUND((p_current_value - p_amount_invested) / NULLIF(p_total_installments, 0), 2);
+
+    -- Calcula data-base para frequência mensal
+    IF p_frequency = 'monthly' THEN
+        v_effective_day := COALESCE(p_due_day, 1);
+        IF v_effective_day >= EXTRACT(DAY FROM CURRENT_DATE)::INTEGER THEN
+            v_base_date := (DATE_TRUNC('month', CURRENT_DATE) + (v_effective_day - 1) * INTERVAL '1 day')::DATE;
+        ELSE
+            v_base_date := (DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month') + (v_effective_day - 1) * INTERVAL '1 day')::DATE;
+        END IF;
+    END IF;
+
+    -- Gera as parcelas
+    FOR i IN 1..p_total_installments LOOP
+        IF p_frequency = 'monthly' THEN
+            -- Avança i-1 meses a partir da data-base
+            v_due_date := (DATE_TRUNC('month', v_base_date + ((i - 1) || ' months')::INTERVAL)
+                           + (EXTRACT(DAY FROM v_base_date)::INTEGER - 1) * INTERVAL '1 day')::DATE;
+            -- Clamp ao último dia do mês
+            v_due_date := LEAST(v_due_date,
+                (DATE_TRUNC('month', v_due_date) + INTERVAL '1 month' - INTERVAL '1 day')::DATE);
+        ELSIF p_frequency = 'weekly' THEN
+            v_due_date := (CURRENT_DATE + (i * 7 || ' days')::INTERVAL)::DATE;
+        ELSE -- daily
+            v_due_date := (COALESCE(p_start_date, CURRENT_DATE) + (i - 1) * INTERVAL '1 day')::DATE;
+        END IF;
+
+        INSERT INTO public.loan_installments (
+            investment_id, tenant_id, number,
+            due_date, amount_principal, amount_interest, amount_total
+        ) VALUES (
+            v_investment_id, p_tenant_id, i,
+            v_due_date, v_amount_principal, v_amount_interest,
+            p_installment_value
+        );
+    END LOOP;
+
+    RETURN v_investment_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.create_investment_validated(
+    UUID, UUID, UUID, TEXT, NUMERIC, NUMERIC, NUMERIC, NUMERIC,
+    NUMERIC, NUMERIC, INTEGER, TEXT, INTEGER, INTEGER, DATE, TEXT
+) TO authenticated;
+
+-- 8b. Função RPC: get_admin_dashboard_stats
+-- Retorna KPIs básicos para o dashboard admin.
+CREATE OR REPLACE FUNCTION public.get_admin_dashboard_stats()
+RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+    v_tenant_id UUID;
+    v_today DATE := CURRENT_DATE;
+    v_month_start DATE := DATE_TRUNC('month', CURRENT_DATE)::DATE;
+    v_month_end DATE := (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::DATE;
+    result JSON;
+BEGIN
+    v_tenant_id := get_tenant_id_safe();
+
+    SELECT json_build_object(
+        'active_portfolio', COALESCE((
+            SELECT SUM(amount_invested) FROM public.investments WHERE tenant_id = v_tenant_id
+        ), 0),
+        'expected_month', COALESCE((
+            SELECT SUM(li.amount_total)
+            FROM public.loan_installments li
+            JOIN public.investments inv ON li.investment_id = inv.id
+            WHERE inv.tenant_id = v_tenant_id
+              AND li.due_date >= v_month_start
+              AND li.due_date <  v_month_end
+        ), 0),
+        'received_month', COALESCE((
+            SELECT SUM(li.amount_paid)
+            FROM public.loan_installments li
+            JOIN public.investments inv ON li.investment_id = inv.id
+            WHERE inv.tenant_id = v_tenant_id
+              AND li.paid_at::DATE >= v_month_start
+              AND li.paid_at::DATE <  v_month_end
+              AND li.status = 'paid'
+        ), 0),
+        'total_overdue', COALESCE((
+            SELECT SUM(li.amount_total - li.amount_paid)
+            FROM public.loan_installments li
+            JOIN public.investments inv ON li.investment_id = inv.id
+            WHERE inv.tenant_id = v_tenant_id
+              AND li.due_date < v_today
+              AND li.status NOT IN ('paid')
+              AND (li.amount_total - li.amount_paid) > 0
+        ), 0),
+        'active_contracts', (
+            SELECT COUNT(DISTINCT id)
+            FROM public.investments
+            WHERE tenant_id = v_tenant_id
+        )
+    ) INTO result;
+
+    RETURN result;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_admin_dashboard_stats() TO authenticated;
+
+-- 8c. View: view_investor_balances
+-- Usada em AdminUserDetails para exibir métricas de riqueza por investidor.
+CREATE OR REPLACE VIEW public.view_investor_balances AS
+SELECT
+    p.id                                                      AS profile_id,
+    p.tenant_id,
+    p.full_name,
+    COALESCE(SUM(i.source_capital), 0)                        AS total_own_capital,
+    COALESCE(SUM(i.source_profit), 0)                         AS total_profit_reinvested,
+    COALESCE((
+        SELECT SUM(li.amount_interest)
+        FROM public.loan_installments li
+        JOIN public.investments inv2 ON li.investment_id = inv2.id
+        WHERE inv2.user_id = p.id
+          AND li.status = 'paid'
+    ), 0)                                                     AS total_profit_received,
+    GREATEST(0, COALESCE((
+        SELECT SUM(li.amount_interest)
+        FROM public.loan_installments li
+        JOIN public.investments inv2 ON li.investment_id = inv2.id
+        WHERE inv2.user_id = p.id
+          AND li.status = 'paid'
+    ), 0) - COALESCE(SUM(i.source_profit), 0))               AS available_profit_balance
+FROM public.profiles p
+LEFT JOIN public.investments i ON i.user_id = p.id
+WHERE p.role IN ('investor', 'admin')
+GROUP BY p.id, p.tenant_id, p.full_name;
 
 -- 9. Políticas de Segurança (ROW LEVEL SECURITY)
 ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
@@ -229,5 +403,110 @@ GRANT SELECT ON public.tenants TO anon;
 -- Garante que o usuário autenticado pode executar as funções RPC
 GRANT EXECUTE ON FUNCTION public.generate_invite_code(text, text, text, text) TO authenticated;
 -- (Adicionar GRANT EXECUTE para outras funções RPC aqui)
+
+-- =================================================================
+-- V18 - BOT ASSISTANT (WhatsApp / Telegram)
+-- =================================================================
+
+-- Campos de canal no profiles
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS whatsapp_phone TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS telegram_chat_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_whatsapp_phone ON public.profiles (whatsapp_phone) WHERE whatsapp_phone IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_telegram_chat_id ON public.profiles (telegram_chat_id) WHERE telegram_chat_id IS NOT NULL;
+
+-- Códigos de vinculação (magic link dashboard → bot)
+CREATE TABLE IF NOT EXISTS public.bot_link_codes (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    profile_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    code TEXT NOT NULL UNIQUE,
+    channel TEXT NOT NULL CHECK (channel IN ('whatsapp', 'telegram')),
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '15 minutes',
+    used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Sessões de conversa do bot (uma por usuário por canal)
+CREATE TABLE IF NOT EXISTS public.bot_sessions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    profile_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    channel TEXT NOT NULL CHECK (channel IN ('whatsapp', 'telegram')),
+    channel_user_id TEXT NOT NULL,
+    context JSONB DEFAULT '{}',
+    last_active_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(channel, channel_user_id)
+);
+
+-- Histórico de mensagens do bot (contexto para IA)
+CREATE TABLE IF NOT EXISTS public.bot_messages (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    session_id UUID NOT NULL REFERENCES public.bot_sessions(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content TEXT,
+    media_type TEXT CHECK (media_type IN ('text', 'audio', 'image', 'document')),
+    intent TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS: apenas service_role acessa tabelas do bot
+ALTER TABLE public.bot_link_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bot_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bot_messages ENABLE ROW LEVEL SECURITY;
+
+-- Usuário autenticado pode criar seu próprio link code
+CREATE POLICY IF NOT EXISTS "user_create_own_link_code" ON public.bot_link_codes
+    FOR INSERT TO authenticated WITH CHECK (profile_id = auth.uid());
+CREATE POLICY IF NOT EXISTS "user_read_own_link_code" ON public.bot_link_codes
+    FOR SELECT TO authenticated USING (profile_id = auth.uid());
+
+-- Service role tem acesso total (o bot usa service role)
+GRANT ALL ON public.bot_link_codes TO service_role;
+GRANT ALL ON public.bot_sessions TO service_role;
+GRANT ALL ON public.bot_messages TO service_role;
+
+-- =================================================================
+-- V19 - BOT TENANT CONFIG + AUTOMAÇÕES
+-- =================================================================
+
+-- Configuração do assistente por tenant
+CREATE TABLE IF NOT EXISTS public.bot_tenant_config (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    UNIQUE (tenant_id),
+
+    -- Mensagem matinal
+    morning_briefing_enabled BOOLEAN NOT NULL DEFAULT false,
+    morning_briefing_time TEXT NOT NULL DEFAULT '08:00',
+    morning_briefing_targets TEXT[] NOT NULL DEFAULT ARRAY['admin'],
+
+    -- Perguntas de acompanhamento
+    followup_enabled BOOLEAN NOT NULL DEFAULT true,
+    followup_style TEXT NOT NULL DEFAULT 'natural'
+        CHECK (followup_style IN ('natural', 'direto', 'disabled')),
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- RLS: apenas admin do tenant pode ler/escrever
+ALTER TABLE public.bot_tenant_config ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY IF NOT EXISTS "admin_read_bot_config" ON public.bot_tenant_config
+    FOR SELECT TO authenticated
+    USING (tenant_id = get_tenant_id_safe());
+
+CREATE POLICY IF NOT EXISTS "admin_write_bot_config" ON public.bot_tenant_config
+    FOR ALL TO authenticated
+    USING (
+        tenant_id = get_tenant_id_safe()
+        AND (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
+    )
+    WITH CHECK (
+        tenant_id = get_tenant_id_safe()
+        AND (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
+    );
+
+GRANT ALL ON public.bot_tenant_config TO service_role;
+GRANT SELECT, INSERT, UPDATE ON public.bot_tenant_config TO authenticated;
 ```
 

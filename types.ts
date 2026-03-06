@@ -112,6 +112,8 @@ export interface AdminDashboardStats {
 export interface DashboardKPIs {
   // Mês Atual
   receivedMonth: number;
+  receivedByPaymentMonth: number;
+  receivedByDueMonth: number;
   expectedMonth: number;
   
   // Acumulado (All Time)
@@ -130,6 +132,8 @@ export interface DashboardKPIs {
   
   totalOverdue: number;
   totalReceivable: number;
+  activeContractsCount?: number;
+  overdueContractsCount?: number;
 
   // New Wealth Metrics (Optional for compatibility)
   totalReinvestedCapital?: number;
@@ -164,5 +168,6 @@ export enum AppView {
   USER_DETAILS = 'USER_DETAILS',
   CONTRACTS = 'CONTRACTS',
   SETTINGS = 'SETTINGS',
+  ASSISTANT = 'ASSISTANT',
   RESET_PASSWORD = 'RESET_PASSWORD'
 }

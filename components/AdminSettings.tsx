@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Tenant } from '../types';
 import { getSupabase, cleanNumbers, isValidCPF } from '../services/supabase';
-import { Save, Building2, Image as ImageIcon, CheckCircle2, RefreshCw, QrCode, Smartphone, ExternalLink, AlertTriangle, MessageCircle, Crown, User } from 'lucide-react';
+import { Save, Building2, CheckCircle2, RefreshCw, QrCode, MessageCircle, Crown, User } from 'lucide-react';
 
 interface AdminSettingsProps {
     tenant: Tenant;
@@ -101,7 +101,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate }) => {
     return (
         <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-12">
             <div className="border-b border-slate-800 pb-6">
-                <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Configurações Gerais</h2>
+                <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Configurações</h2>
                 <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.2em] mt-1">Identidade, Propriedade e Financeiro</p>
             </div>
 
