@@ -25,15 +25,25 @@ const normalizeNumber = (val: any): number => {
 };
 
 const getMonthRange = () => {
+  // Brasília = UTC-3. Midnight Brasília = 03:00 UTC.
+  // Shift "now" back 3h to get the correct local month/year in Brazil.
+  const BRAZIL_OFFSET_MS = 3 * 60 * 60 * 1000;
   const now = new Date();
-  const start = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
-  const end = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 1));
-  
+  const brazilNow = new Date(now.getTime() - BRAZIL_OFFSET_MS);
+  const year = brazilNow.getUTCFullYear();
+  const month = brazilNow.getUTCMonth();
+
+  // Month boundaries anchored at Brazil midnight (= 03:00 UTC)
+  const start = new Date(Date.UTC(year, month, 1, 3, 0, 0));
+  const end = new Date(Date.UTC(year, month + 1, 1, 3, 0, 0));
+  const startYMD = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const endYMD = new Date(Date.UTC(year, month + 1, 1)).toISOString().split('T')[0];
+
   return {
-    startISO: start.toISOString(), 
+    startISO: start.toISOString(),
     endISO: end.toISOString(),
-    startYMD: start.toISOString().split('T')[0], 
-    endYMD: end.toISOString().split('T')[0]
+    startYMD,
+    endYMD
   };
 };
 
@@ -46,37 +56,6 @@ const calculateOutstanding = (inst: any): number => {
   return Math.max(0, (total + fine + interestDelay) - paid);
 };
 
-// Deduplicate Logic (Robust)
-const deduplicateInstallments = (list: any[]) => {
-  const map = new Map<string, any>();
-  list.forEach(inst => {
-    const key = `${inst.investment_id}-${inst.number}`;
-    if (map.has(key)) {
-      const existing = map.get(key);
-      // Prioridade 1: Status 'paid'
-      if (existing.status !== 'paid' && inst.status === 'paid') {
-        map.set(key, inst);
-      } 
-      // Prioridade 2: Status 'partial'
-      else if (existing.status !== 'paid' && existing.status !== 'partial' && inst.status === 'partial') {
-        map.set(key, inst);
-      }
-      // Prioridade 3: Mais recente (created_at) se ambos tiverem mesmo status
-      else if (existing.status === inst.status) {
-        if (inst.created_at && existing.created_at) {
-            // Se o novo é mais recente, substitui
-            if (new Date(inst.created_at).getTime() > new Date(existing.created_at).getTime()) {
-                map.set(key, inst);
-            }
-        }
-      }
-    } else {
-      map.set(key, inst);
-    }
-  });
-  return Array.from(map.values());
-};
-
 // --- KPI BUILDER ENGINE ---
 const buildKPIs = (
     investments: Investment[],
@@ -85,6 +64,8 @@ const buildKPIs = (
 ): DashboardKPIs => {
     const kpis: DashboardKPIs = {
         receivedMonth: 0,
+        receivedByPaymentMonth: 0,
+        receivedByDueMonth: 0,
         expectedMonth: 0,
         totalInvestedHistorical: 0,
         totalPrincipalRepaid: 0,
@@ -95,10 +76,13 @@ const buildKPIs = (
         activeOwnCapital: 0,        // Inicializa zerado
         activeReinvestedCapital: 0, // Inicializa zerado
         totalOverdue: 0,
-        totalReceivable: 0
+        totalReceivable: 0,
+        activeContractsCount: investments.length,
+        overdueContractsCount: 0,
     };
 
     const todayYMD = new Date().toISOString().split('T')[0];
+    const overdueContractIds = new Set<number>();
 
     // Map para acesso rápido aos dados de origem do contrato
     const invMap = new Map<number, { sourceCapital: number, sourceProfit: number, totalInvested: number }>();
@@ -162,17 +146,32 @@ const buildKPIs = (
             }
         }
 
-        if (inst.paid_at && inst.paid_at >= monthRange.startISO && inst.paid_at < monthRange.endISO) {
-            kpis.receivedMonth += amountPaid;
+        if (inst.paid_at) {
+            const paidAt = new Date(inst.paid_at);
+            const rangeStart = new Date(monthRange.startISO);
+            const rangeEnd = new Date(monthRange.endISO);
+            if (!isNaN(paidAt.getTime()) && paidAt >= rangeStart && paidAt < rangeEnd) {
+                kpis.receivedMonth += amountPaid;
+                kpis.receivedByPaymentMonth += amountPaid;
+            }
         }
-        if (inst.due_date >= monthRange.startYMD && inst.due_date < monthRange.endYMD) {
-            kpis.expectedMonth += amountTotal;
+        if (inst.due_date >= monthRange.startYMD && inst.due_date < monthRange.endYMD && isPaid) {
+            kpis.receivedByDueMonth += amountPaid;
+        }
+
+        if (
+          inst.due_date >= monthRange.startYMD &&
+          inst.due_date < monthRange.endYMD &&
+          (inst.status === 'pending' || inst.status === 'late' || inst.status === 'partial')
+        ) {
+            kpis.expectedMonth += outstanding;
         }
 
         if (outstanding > 0) {
             kpis.totalReceivable += outstanding;
             if (isOverdue) {
                 kpis.totalOverdue += outstanding;
+                overdueContractIds.add(inst.investment_id);
             }
         }
     });
@@ -193,6 +192,7 @@ const buildKPIs = (
     // O que está na rua = O que entrou - O que já voltou (Amortizado)
     kpis.activeOwnCapital = Math.max(0, totalOwnInvestedHistorical - totalRepaidOwn);
     kpis.activeReinvestedCapital = Math.max(0, totalProfitInvestedHistorical - totalRepaidProfit);
+    kpis.overdueContractsCount = overdueContractIds.size;
 
     return kpis;
 };
@@ -210,6 +210,8 @@ const INITIAL_STATS: AdminDashboardStats = {
 
 const INITIAL_KPIS: DashboardKPIs = {
     receivedMonth: 0,
+    receivedByPaymentMonth: 0,
+    receivedByDueMonth: 0,
     expectedMonth: 0,
     totalInvestedHistorical: 0,
     totalPrincipalRepaid: 0,
@@ -221,6 +223,8 @@ const INITIAL_KPIS: DashboardKPIs = {
     activeReinvestedCapital: 0,
     totalOverdue: 0,
     totalReceivable: 0,
+    activeContractsCount: 0,
+    overdueContractsCount: 0,
 };
 
 export const useDashboardData = (tenantId?: string) => {
@@ -248,10 +252,7 @@ export const useDashboardData = (tenantId?: string) => {
       const monthRange = getMonthRange();
       const todayYMD = new Date().toISOString().split('T')[0];
 
-      // 1. RPC (Stats Básicos)
-      const statsPromise = supabase.rpc('get_admin_dashboard_stats');
-
-      // 2. Investimentos
+      // 1. Investimentos
       const investmentsPromise = supabase
         .from('investments')
         .select(`
@@ -261,7 +262,7 @@ export const useDashboardData = (tenantId?: string) => {
         `)
         .order('created_at', { ascending: false });
 
-      // 3. Todas as Parcelas
+      // 2. Todas as Parcelas
       const installmentsPromise = supabase
         .from('loan_installments')
         .select(`
@@ -271,18 +272,14 @@ export const useDashboardData = (tenantId?: string) => {
             user_id,
             asset_name,
             interest_rate,
-            investor:profiles!investments_user_id_fkey (role)
+            investor:profiles!investments_user_id_fkey (role),
+            payer:profiles!investments_payer_id_fkey (id, full_name, email)
           )
         `)
         .order('due_date', { ascending: true });
 
-      const [statsRes, invRes, instRes] = await Promise.all([
-        statsPromise,
-        investmentsPromise,
-        installmentsPromise
-      ]);
+      const [invRes, instRes] = await Promise.all([investmentsPromise, installmentsPromise]);
 
-      if (statsRes.error) throw statsRes.error;
       if (invRes.error) throw invRes.error;
       if (instRes.error) throw instRes.error;
 
@@ -297,9 +294,7 @@ export const useDashboardData = (tenantId?: string) => {
         source_profit: normalizeNumber(inv.source_profit)
       }));
 
-      // --- DEDUPLICATION STEP ---
-      const rawInstallments = instRes.data || [];
-      const uniqueInstallments = deduplicateInstallments(rawInstallments);
+      const uniqueInstallments = instRes.data || [];
       
       const computedKPIs = buildKPIs(safeInvestments, uniqueInstallments, monthRange);
 
@@ -309,11 +304,15 @@ export const useDashboardData = (tenantId?: string) => {
         const isPaid = inst.status === 'paid';
         const isOverdue = inst.due_date < todayYMD && !isPaid && outstanding > 0.01;
         
-        const isRelevantForList = 
-             inst.status === 'pending' || 
-             inst.status === 'late' || 
+        const paidDate = inst.paid_at ? new Date(inst.paid_at) : null;
+        const rStart = new Date(monthRange.startISO);
+        const rEnd = new Date(monthRange.endISO);
+        const paidThisMonth = isPaid && paidDate && !isNaN(paidDate.getTime()) && paidDate >= rStart && paidDate < rEnd;
+        const isRelevantForList =
+             inst.status === 'pending' ||
+             inst.status === 'late' ||
              inst.status === 'partial' ||
-             (isPaid && inst.paid_at >= monthRange.startISO && inst.paid_at < monthRange.endISO);
+             paidThisMonth;
 
         if (isRelevantForList) {
             uiInstallments.push({
@@ -333,8 +332,16 @@ export const useDashboardData = (tenantId?: string) => {
           return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
       });
 
+      const derivedStats: AdminDashboardStats = {
+        active_portfolio: computedKPIs.activeStreetMoney,
+        expected_month: computedKPIs.expectedMonth,
+        received_month: computedKPIs.receivedByPaymentMonth,
+        total_overdue: computedKPIs.totalOverdue,
+        active_contracts: safeInvestments.length,
+      };
+
       setData({
-        stats: statsRes.data || INITIAL_STATS, 
+        stats: derivedStats,
         detailedKPIs: computedKPIs, 
         investments: safeInvestments,
         installments: uiInstallments,

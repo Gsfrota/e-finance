@@ -12,6 +12,8 @@ export type Intent =
   | 'listar_recebiveis'
   | 'recebiveis_hoje'
   | 'cobrar_hoje'
+  | 'recebiveis_periodo'
+  | 'cobrar_periodo'
   | 'criar_contrato'
   | 'marcar_pagamento'
   | 'buscar_usuario'
@@ -36,6 +38,8 @@ export interface NormalizedEntities {
   installment_number?: number;
   installment_month?: number;
   installment_year?: number;
+  days_ahead?: number;
+  window_start?: 'today' | 'tomorrow';
 }
 
 export interface ClassifiedIntent {
@@ -57,7 +61,7 @@ interface ClassifyCompactOptions {
   maxOutputTokens?: number;
 }
 
-const CLASSIFIER_MODEL = 'gemini-2.0-flash-lite';
+const CLASSIFIER_MODEL = 'gemini-2.5-flash-lite';
 
 const INTENT_SYSTEM_PROMPT = `Você é um classificador de intenções para um sistema financeiro de contratos de crédito (e-finance).
 Classifique a mensagem do usuário em uma das intenções disponíveis e extraia as entidades relevantes.
@@ -67,6 +71,8 @@ Intenções disponíveis:
 - listar_recebiveis
 - recebiveis_hoje
 - cobrar_hoje
+- recebiveis_periodo
+- cobrar_periodo
 - criar_contrato
 - marcar_pagamento
 - buscar_usuario
@@ -91,19 +97,25 @@ Responda APENAS com JSON válido no formato:
     "installment_id": "<id da parcela>",
     "filter": "<pending|late|week|all>",
     "contract_id": <id numérico do contrato>,
-    "installment_number": <número da parcela>
+    "installment_number": <número da parcela>,
+    "installment_month": <mês da parcela 1..12>,
+    "installment_year": <ano da parcela 4 dígitos>,
+    "days_ahead": <janela em dias 1..60>,
+    "window_start": "<today|tomorrow>"
   },
   "confidence": "<high|medium|low>"
 }`;
 
 const INTENT_COMPACT_PROMPT = `Classifique intenção financeira em PT-BR coloquial e extraia entidades.
 Use APENAS:
-intent: ver_dashboard|listar_recebiveis|recebiveis_hoje|cobrar_hoje|criar_contrato|marcar_pagamento|buscar_usuario|gerar_convite|gerar_relatorio|desconectar|confirmar|cancelar|ajuda|desconhecido
+intent: ver_dashboard|listar_recebiveis|recebiveis_hoje|cobrar_hoje|recebiveis_periodo|cobrar_periodo|criar_contrato|marcar_pagamento|buscar_usuario|gerar_convite|gerar_relatorio|desconectar|confirmar|cancelar|ajuda|desconhecido
 confidence: high|medium|low
-entities: debtor_name, debtor_cpf, amount, rate, installments, frequency, installment_id, filter, contract_id, installment_number, installment_month (1-12 se mes mencionado), installment_year (4 digitos se ano mencionado)
+entities: debtor_name, debtor_cpf, amount, rate, installments, frequency, installment_id, filter, contract_id, installment_number, installment_month (1-12 se mes mencionado), installment_year (4 digitos se ano mencionado), days_ahead (1..60), window_start (today|tomorrow)
 
 Exemplos por intencao:
 - cobrar_hoje: "quem ta me devendo hoje", "quem devo cobrar hoje", "quem me deve hoje"
+- cobrar_periodo: "quem devo cobrar nos próximos 7 dias", "a partir de amanhã, quem devo cobrar nos próximos 3 dias"
+- recebiveis_periodo: "quanto vou receber nos próximos 15 dias", "recebíveis dos próximos 7 dias"
 - marcar_pagamento: "dar baixa na parcela de janeiro de X", "registrar pagamento do mes de fevereiro de Y", "quitar parcela de marco do Joao", "baixar pagamento de X"
 - buscar_usuario: "quanto X deve", "qual a divida de X", "me fala da divida do Joao"
 - listar_recebiveis: "quem ta atrasado", "quem ta devendo", "parcelas em aberto"
@@ -112,9 +124,22 @@ Para marcar_pagamento com mes: extraia debtor_name e installment_month (jan=1, f
 Retorne SOMENTE JSON valido.`;
 
 const INTENT_SET = new Set<Intent>([
-  'ver_dashboard', 'listar_recebiveis', 'recebiveis_hoje', 'cobrar_hoje',
-  'criar_contrato', 'marcar_pagamento', 'buscar_usuario', 'gerar_convite',
-  'gerar_relatorio', 'desconectar', 'confirmar', 'cancelar', 'ajuda', 'desconhecido',
+  'ver_dashboard',
+  'listar_recebiveis',
+  'recebiveis_hoje',
+  'cobrar_hoje',
+  'recebiveis_periodo',
+  'cobrar_periodo',
+  'criar_contrato',
+  'marcar_pagamento',
+  'buscar_usuario',
+  'gerar_convite',
+  'gerar_relatorio',
+  'desconectar',
+  'confirmar',
+  'cancelar',
+  'ajuda',
+  'desconhecido',
 ]);
 
 const CONFIDENCE_SET = new Set(['high', 'medium', 'low']);
@@ -207,6 +232,42 @@ export function inferInstallmentMonth(text: string): { month?: number; year?: nu
   return {};
 }
 
+export function inferDaysWindow(text: string): { daysAhead?: number; windowStart?: 'today' | 'tomorrow' } {
+  const normalized = text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const windowStart: 'today' | 'tomorrow' = /(a partir de amanha|comecando amanha|desde amanha|de amanha em diante|amanha)/.test(normalized)
+    ? 'tomorrow'
+    : 'today';
+
+  const explicitDays = [
+    normalized.match(/proxim(?:o|os|a|as)\s+(\d{1,2})\s+dias?/),
+    normalized.match(/(\d{1,2})\s+dias?\s+(?:a\s+frente|adiante|seguintes)/),
+    normalized.match(/janela\s+de\s+(\d{1,2})\s+dias?/),
+  ].find(Boolean);
+
+  if (explicitDays?.[1]) {
+    const days = Number(explicitDays[1]);
+    if (Number.isFinite(days) && days >= 1 && days <= 60) {
+      return { daysAhead: days, windowStart };
+    }
+  }
+
+  if (/proxim(?:a|o)\s+semana|7\s*dias/.test(normalized)) {
+    return { daysAhead: 7, windowStart };
+  }
+
+  if (/proxim(?:os|as)\s+dias/.test(normalized)) {
+    return { daysAhead: 7, windowStart };
+  }
+
+  return { windowStart };
+}
+
 export function normalizeFrequency(value: unknown): NormalizedEntities['frequency'] {
   if (typeof value !== 'string') return undefined;
   const normalized = value.trim().toLowerCase();
@@ -227,6 +288,19 @@ export function normalizeFilter(value: unknown): NormalizedEntities['filter'] {
   if (normalized === 'week' || /semana|7\s*dias/.test(normalized)) return 'week';
   if (normalized === 'all' || /todos|todas|geral|completo/.test(normalized)) return 'all';
 
+  return undefined;
+}
+
+function normalizeWindowStart(value: unknown): NormalizedEntities['window_start'] {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+  if (normalized === 'tomorrow' || /amanha/.test(normalized)) return 'tomorrow';
+  if (normalized === 'today' || /hoje/.test(normalized)) return 'today';
   return undefined;
 }
 
@@ -276,6 +350,16 @@ export function normalizeEntities(
   const installmentYear = toPositiveInt(entities.installment_year);
   if (installmentYear !== undefined && installmentYear >= 2020 && installmentYear <= 2099) {
     normalized.installment_year = installmentYear;
+  }
+
+  const daysAhead = toPositiveInt(entities.days_ahead ?? entities.days ?? entities.period_days);
+  if (daysAhead !== undefined && daysAhead >= 1 && daysAhead <= 60) {
+    normalized.days_ahead = daysAhead;
+  }
+
+  const windowStart = normalizeWindowStart(entities.window_start ?? entities.start_from);
+  if (windowStart) {
+    normalized.window_start = windowStart;
   }
 
   return normalized;
@@ -418,7 +502,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   try {
     const base64 = audioBuffer.toString('base64');
     const result = await ai().models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash-lite',
       contents: [
         {
           role: 'user',
@@ -439,7 +523,7 @@ export async function analyzeImage(imageBuffer: Buffer, mimeType: string): Promi
   try {
     const base64 = imageBuffer.toString('base64');
     const result = await ai().models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash-lite',
       contents: [
         {
           role: 'user',

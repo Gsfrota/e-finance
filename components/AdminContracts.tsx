@@ -16,6 +16,19 @@ import {
 const formatCurrency = (val: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
+const formatDecimalInput = (val: number) => roundCurrency(Number(val || 0)).toFixed(2);
+
+const roundCurrency = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+
+const distributeEvenly = (total: number, count: number): number[] => {
+    if (count <= 0) return [];
+    const base = roundCurrency(total / count);
+    const values = Array.from({ length: count }, () => base);
+    const currentTotal = roundCurrency(values.reduce((sum, value) => sum + value, 0));
+    values[count - 1] = roundCurrency(values[count - 1] + (total - currentTotal));
+    return values;
+};
+
 const calculateInstallmentDates = (
     frequency: string, 
     dueDay: number, 
@@ -202,6 +215,17 @@ const UserSelectionCard: React.FC<{
     );
 };
 
+type EditableContractInstallment = {
+  id: string;
+  number: number;
+  due_date: string;
+  status: 'pending' | 'paid' | 'late' | 'partial';
+  amount_total: number;
+  amount_paid: number;
+  amount_principal: number;
+  amount_interest: number;
+};
+
 // --- MAIN COMPONENT ---
 
 const AdminContracts: React.FC = () => {
@@ -249,7 +273,42 @@ const AdminContracts: React.FC = () => {
   const [isEditContractOpen, setIsEditContractOpen] = useState(false);
   const [contractToEdit, setContractToEdit] = useState<Investment | null>(null);
   const [editContractName, setEditContractName] = useState('');
+  const [editContractPrincipal, setEditContractPrincipal] = useState('');
+  const [editContractInstallmentValue, setEditContractInstallmentValue] = useState('');
+  const [editInstallments, setEditInstallments] = useState<EditableContractInstallment[]>([]);
+  const [editContractError, setEditContractError] = useState<string | null>(null);
   const [editContractLoading, setEditContractLoading] = useState(false);
+
+  const editPaidInstallments = useMemo(
+      () => editInstallments.filter((installment) => installment.status === 'paid'),
+      [editInstallments]
+  );
+
+  const editOpenInstallments = useMemo(
+      () => editInstallments.filter((installment) => installment.status !== 'paid'),
+      [editInstallments]
+  );
+
+  const editPaidPrincipal = useMemo(
+      () => roundCurrency(editPaidInstallments.reduce((sum, installment) => sum + Number(installment.amount_principal || 0), 0)),
+      [editPaidInstallments]
+  );
+
+  const editPaidTotal = useMemo(
+      () => roundCurrency(editPaidInstallments.reduce((sum, installment) => sum + Number(installment.amount_total || 0), 0)),
+      [editPaidInstallments]
+  );
+
+  const editCurrentValuePreview = useMemo(() => {
+      const installmentValue = Number(editContractInstallmentValue) || 0;
+      return roundCurrency(editPaidTotal + installmentValue * editOpenInstallments.length);
+  }, [editContractInstallmentValue, editOpenInstallments.length, editPaidTotal]);
+
+  const editInterestRatePreview = useMemo(() => {
+      const principal = Number(editContractPrincipal) || 0;
+      if (principal <= 0) return 0;
+      return roundCurrency(((editCurrentValuePreview / principal) - 1) * 100);
+  }, [editContractPrincipal, editCurrentValuePreview]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -412,7 +471,8 @@ const AdminContracts: React.FC = () => {
               p_payer_id: selectedPayer.id,
               p_asset_name: formData.asset_name || `Contrato ${selectedPayer.full_name.split(' ')[0]}`,
               p_amount_invested: formData.amount_invested,
-              p_source_profit: formData.source_profit_amount, 
+              p_source_capital: formData.amount_invested - formData.source_profit_amount,
+              p_source_profit: formData.source_profit_amount,
               p_current_value: formData.current_value,
               p_interest_rate: formData.interest_rate,
               p_installment_value: formData.installment_value,
@@ -425,10 +485,6 @@ const AdminContracts: React.FC = () => {
           });
 
           if (rpcError) throw rpcError;
-          
-          // NOTE: Instalação automática via gatilho de banco de dados 'on_investment_created_generate_installments'
-          // A criação manual de parcelas no frontend foi REMOVIDA para evitar duplicidade.
-
           setIsWizardOpen(false);
           fetchData(); 
 
@@ -494,21 +550,139 @@ const AdminContracts: React.FC = () => {
       }
   };
 
+  const handleOpenContractEdit = async (contract: Investment) => {
+      setContractToEdit(contract);
+      setEditContractName(contract.asset_name);
+      setEditContractPrincipal(formatDecimalInput(contract.amount_invested));
+      setEditContractInstallmentValue(formatDecimalInput(contract.installment_value));
+      setEditContractError(null);
+      setIsEditContractOpen(true);
+      setEditContractLoading(true);
+
+      const supabase = getSupabase();
+      if (!supabase) {
+          setEditContractError('Instância Supabase indisponível.');
+          setEditContractLoading(false);
+          return;
+      }
+
+      try {
+          const { data, error } = await supabase
+              .from('loan_installments')
+              .select('id, number, due_date, status, amount_total, amount_paid, amount_principal, amount_interest')
+              .eq('investment_id', contract.id)
+              .order('number', { ascending: true });
+
+          if (error) throw error;
+          const rawInstallments = (data || []).map((installment) => ({
+              ...installment,
+              investment_id: contract.id,
+              amount_total: Number(installment.amount_total || 0),
+              amount_paid: Number(installment.amount_paid || 0),
+              amount_principal: Number(installment.amount_principal || 0),
+              amount_interest: Number(installment.amount_interest || 0),
+          }));
+
+          setEditInstallments(rawInstallments.map(({ investment_id, ...installment }) => installment));
+      } catch (err: any) {
+          setEditContractError(parseSupabaseError(err));
+      } finally {
+          setEditContractLoading(false);
+      }
+  };
+
+  const handleEditInstallmentDateChange = (installmentId: string, dueDate: string) => {
+      setEditInstallments((current) =>
+          current.map((installment) =>
+              installment.id === installmentId ? { ...installment, due_date: dueDate } : installment
+          )
+      );
+  };
+
   const handleEditContractSave = async () => {
       if (!contractToEdit || !editContractName.trim()) return;
       setEditContractLoading(true);
+      setEditContractError(null);
       const supabase = getSupabase();
       if (!supabase) return;
       try {
-          const { error } = await supabase.from('investments')
-              .update({ asset_name: editContractName.trim() })
+          const principal = roundCurrency(Number(editContractPrincipal));
+          const installmentValue = roundCurrency(Number(editContractInstallmentValue));
+          const openCount = editOpenInstallments.length;
+
+          if (!principal || principal <= 0) {
+              throw new Error('Informe um valor emprestado válido.');
+          }
+
+          if (!installmentValue || installmentValue <= 0) {
+              throw new Error('Informe um valor de parcela válido.');
+          }
+
+          if (openCount === 0) {
+              throw new Error('Este contrato não possui parcelas abertas para redistribuir.');
+          }
+
+          if (principal < editPaidPrincipal) {
+              throw new Error(`O valor emprestado não pode ser menor que o principal já recuperado (${formatCurrency(editPaidPrincipal)}).`);
+          }
+
+          const nextCurrentValue = roundCurrency(editPaidTotal + installmentValue * openCount);
+          const remainingPrincipal = roundCurrency(principal - editPaidPrincipal);
+          const remainingTotal = roundCurrency(nextCurrentValue - editPaidTotal);
+
+          if (remainingTotal < remainingPrincipal) {
+              throw new Error('O valor da parcela gera um total menor do que o principal ainda em aberto.');
+          }
+
+          const nextInterestRate = principal > 0
+              ? roundCurrency(((nextCurrentValue / principal) - 1) * 100)
+              : 0;
+
+          const principalDistribution = distributeEvenly(remainingPrincipal, openCount);
+          const totalDistribution = distributeEvenly(remainingTotal, openCount);
+
+          const installmentUpdates = editOpenInstallments.map((installment, index) => {
+              const nextAmountPrincipal = principalDistribution[index];
+              const nextAmountTotal = totalDistribution[index];
+              const nextAmountInterest = roundCurrency(nextAmountTotal - nextAmountPrincipal);
+              if (!installment.due_date) {
+                  throw new Error(`A parcela ${installment.number} precisa de uma data válida.`);
+              }
+
+              return supabase
+                  .from('loan_installments')
+                  .update({
+                      due_date: installment.due_date,
+                      amount_total: nextAmountTotal,
+                      amount_principal: nextAmountPrincipal,
+                      amount_interest: nextAmountInterest,
+                  })
+                  .eq('id', installment.id);
+          });
+
+          const { error: investmentError } = await supabase
+              .from('investments')
+              .update({
+                  asset_name: editContractName.trim(),
+                  amount_invested: principal,
+                  installment_value: installmentValue,
+                  current_value: nextCurrentValue,
+                  interest_rate: nextInterestRate,
+              })
               .eq('id', contractToEdit.id);
-          if (error) throw error;
+
+          if (investmentError) throw investmentError;
+
+          const installmentResults = await Promise.all(installmentUpdates);
+          const installmentError = installmentResults.find((result) => result.error)?.error;
+          if (installmentError) throw installmentError;
+
           setIsEditContractOpen(false);
           setContractToEdit(null);
+          setEditInstallments([]);
           fetchData();
       } catch (err: any) {
-          alert(`Erro ao salvar: ${parseSupabaseError(err)}`);
+          setEditContractError(parseSupabaseError(err));
       } finally {
           setEditContractLoading(false);
       }
@@ -516,61 +690,64 @@ const AdminContracts: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12 w-full max-w-[100vw]">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1">
+      <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1">
         <div>
-            <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter">Contratos</h2>
-            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Gestão de Carteira</p>
+            <p className="section-kicker mb-2">Crédito operacional</p>
+            <h2 className="font-display text-5xl leading-none text-[color:var(--text-primary)]">Contratos</h2>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-[color:var(--text-secondary)]">Crie, acompanhe e revise contratos com leitura clara de principal, prazo e cronograma financeiro.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-            <button onClick={() => setIsNLContractOpen(true)} className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-2xl flex items-center justify-center gap-2 font-bold text-sm tracking-wide shadow-lg transition-all hover:scale-105 active:scale-95 border border-slate-600">
-                <Zap size={18} className="text-teal-400"/> Cadastro Rápido
+            <button onClick={() => setIsNLContractOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-6 py-3 text-sm font-semibold text-[color:var(--text-primary)] transition-all hover:bg-white/[0.08]">
+                <Zap size={16} className="text-[color:var(--accent-steel)]"/> Cadastro Rápido
             </button>
-            <button onClick={handleOpenWizard} className="bg-teal-600 hover:bg-teal-500 text-white px-6 py-3 rounded-2xl flex items-center justify-center gap-2 font-bold text-sm tracking-wide shadow-lg hover:shadow-teal-500/20 transition-all hover:scale-105 active:scale-95">
-                <PlusCircle size={18} /> Novo Contrato
+            <button onClick={handleOpenWizard} className="inline-flex items-center justify-center gap-2 rounded-full bg-[color:var(--accent-brass)] px-6 py-3 text-sm font-extrabold text-[#17120b] transition-all hover:bg-[color:var(--accent-brass-strong)]">
+                <PlusCircle size={16} /> Novo Contrato
             </button>
         </div>
       </div>
+      </div>
       
       {loading ? (
-        <div className="flex justify-center py-20"><RefreshCw className="animate-spin text-teal-500 w-12" /></div>
+        <div className="flex justify-center py-20"><RefreshCw className="animate-spin text-[color:var(--accent-brass)] w-12" /></div>
       ) : contracts.length === 0 ? (
-        <div className="text-center py-24 bg-slate-800 rounded-[2.5rem] border border-slate-700 border-dashed">
-            <div className="w-20 h-20 bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Wallet size={32} className="text-slate-600"/>
+        <div className="panel-card rounded-[2rem] border border-dashed border-white/10 py-24 text-center">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)]">
+                <Wallet size={32}/>
             </div>
-            <h3 className="text-white font-bold text-lg">Carteira Vazia</h3>
-            <p className="text-slate-500 text-sm mt-2 max-w-xs mx-auto">Nenhum contrato ativo no momento. Inicie um novo empréstimo para começar.</p>
+            <h3 className="font-display text-4xl leading-none text-[color:var(--text-primary)]">Carteira vazia</h3>
+            <p className="mx-auto mt-4 max-w-xs text-sm leading-7 text-[color:var(--text-secondary)]">Nenhum contrato ativo no momento. Inicie um novo empréstimo para começar.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {contracts.map(contract => (
-                <div key={contract.id} className="bg-slate-800 border border-slate-700 rounded-[2.5rem] p-8 shadow-lg hover:border-teal-500/30 transition-all relative group flex flex-col justify-between h-full">
+                <div key={contract.id} className="panel-card relative flex h-full flex-col justify-between rounded-[2rem] p-7 transition-all hover:border-white/15">
                     <div>
                         <div className="flex justify-between items-start mb-6">
-                            <div className="p-3 bg-slate-900 rounded-2xl text-teal-500 shadow-inner border border-slate-800"><Wallet size={24}/></div>
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]"><Wallet size={20}/></div>
                             <div className="flex items-center gap-1">
-                                <button onClick={() => { setViewingContract(contract); setIsDetailsModalOpen(true); }} className="p-2 text-slate-500 hover:text-white bg-slate-900 hover:bg-slate-700 rounded-xl transition-all" title="Ver detalhes"><Eye size={18}/></button>
-                                <button onClick={() => { setContractToEdit(contract); setEditContractName(contract.asset_name); setIsEditContractOpen(true); }} className="p-2 text-slate-500 hover:text-sky-400 bg-slate-900 hover:bg-sky-900/20 rounded-xl transition-all" title="Editar contrato"><Pencil size={18}/></button>
-                                <button onClick={() => { setContractToDelete(contract); setIsDeleteConfirmOpen(true); }} className="p-2 text-slate-500 hover:text-red-400 bg-slate-900 hover:bg-red-900/20 rounded-xl transition-all" title="Excluir contrato"><Trash2 size={18}/></button>
+                                <button onClick={() => { setViewingContract(contract); setIsDetailsModalOpen(true); }} className="rounded-full border border-white/10 bg-white/[0.03] p-2.5 text-[color:var(--text-muted)] transition-all hover:text-white" title="Ver detalhes"><Eye size={16}/></button>
+                                <button onClick={() => handleOpenContractEdit(contract)} className="rounded-full border border-white/10 bg-white/[0.03] p-2.5 text-[color:var(--text-muted)] transition-all hover:text-[color:var(--accent-brass)]" title="Editar contrato"><Pencil size={16}/></button>
+                                <button onClick={() => { setContractToDelete(contract); setIsDeleteConfirmOpen(true); }} className="rounded-full border border-white/10 bg-white/[0.03] p-2.5 text-[color:var(--text-muted)] transition-all hover:text-[color:var(--accent-danger)]" title="Excluir contrato"><Trash2 size={16}/></button>
                             </div>
                         </div>
-                        <h3 className="text-white font-black text-xl truncate mb-1">{contract.asset_name}</h3>
+                        <div className="section-kicker mb-2">Contrato #{contract.id}</div>
+                        <h3 className="font-display text-[2rem] leading-tight text-[color:var(--text-primary)] truncate mb-1">{contract.asset_name}</h3>
                         <div className="flex items-center gap-2 mb-6">
-                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                            <p className="text-slate-400 text-xs font-bold uppercase tracking-wide">{contract.payer_name}</p>
+                            <span className="h-2 w-2 rounded-full bg-[color:var(--accent-positive)]"></span>
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">{contract.payer_name}</p>
                         </div>
                     </div>
                     
-                    {/* Badge de Origem do Recurso */}
                     {(contract.source_profit || 0) > 0 && (
-                        <div className="mb-4 bg-emerald-900/10 border border-emerald-900/30 p-2 rounded-xl flex items-center gap-2">
-                            <div className="bg-emerald-900/30 p-1.5 rounded-lg text-emerald-400"><TrendingUp size={12}/></div>
+                        <div className="mb-4 flex items-center gap-2 rounded-2xl border border-[rgba(143,179,157,0.16)] bg-[rgba(143,179,157,0.08)] p-3">
+                            <div className="rounded-xl bg-[rgba(143,179,157,0.12)] p-2 text-[color:var(--accent-positive)]"><TrendingUp size={12}/></div>
                             <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-emerald-400 uppercase">
+                                <span className="text-[10px] font-bold text-[color:var(--accent-positive)] uppercase tracking-[0.16em]">
                                     {((contract.source_profit! / contract.amount_invested) * 100).toFixed(0)}% Reinvestido
                                 </span>
                                 {contract.source_capital! > 0 && (
-                                    <span className="text-[8px] font-bold text-slate-500 uppercase">
+                                    <span className="text-[10px] font-semibold text-[color:var(--text-faint)] uppercase tracking-[0.16em]">
                                         + {((contract.source_capital! / contract.amount_invested) * 100).toFixed(0)}% Aporte
                                     </span>
                                 )}
@@ -578,16 +755,25 @@ const AdminContracts: React.FC = () => {
                         </div>
                     )}
 
-                    <div className="pt-6 border-t border-slate-700/50">
-                        <div className="flex justify-between items-end">
+                    <div className="grid gap-4 border-t border-white/10 pt-5">
+                        <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Valor Total</p>
-                                <p className="text-2xl font-black text-white">{formatCurrency(Number(contract.current_value))}</p>
+                                <p className="section-kicker mb-1">Principal</p>
+                                <p className="text-xl font-semibold text-[color:var(--text-primary)]">{formatCurrency(Number(contract.amount_invested))}</p>
                             </div>
                             <div className="text-right">
-                                <span className="bg-slate-900 text-white px-3 py-1 rounded-lg text-xs font-bold border border-slate-700">
-                                    {contract.total_installments}x
-                                </span>
+                                <p className="section-kicker mb-1">Valor total</p>
+                                <p className="text-xl font-semibold text-[color:var(--text-primary)]">{formatCurrency(Number(contract.current_value))}</p>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <p className="section-kicker mb-1">Parcela</p>
+                                <p className="text-sm font-semibold text-[color:var(--text-secondary)]">{formatCurrency(Number(contract.installment_value || 0))}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="section-kicker mb-1">Prazo</p>
+                                <p className="text-sm font-semibold text-[color:var(--text-secondary)]">{contract.total_installments}x</p>
                             </div>
                         </div>
                     </div>
@@ -987,25 +1173,152 @@ const AdminContracts: React.FC = () => {
       {/* --- MODAL: EDITAR CONTRATO --- */}
       {isEditContractOpen && contractToEdit && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
-              <div className="bg-slate-800 border border-slate-700 rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 animate-fade-in-up">
+              <div className="panel-card w-full max-w-4xl rounded-[2.5rem] p-8 shadow-2xl animate-fade-in-up">
                   <div className="flex justify-between items-center mb-6">
-                      <h3 className="text-xl font-black text-white uppercase tracking-tight">Editar Contrato</h3>
+                      <div>
+                          <p className="section-kicker mb-2">Ajuste operacional</p>
+                          <h3 className="font-display text-4xl leading-none text-[color:var(--text-primary)]">Editar contrato</h3>
+                      </div>
                       <button onClick={() => setIsEditContractOpen(false)} className="p-2 hover:bg-slate-700 rounded-full transition-colors">
                           <X className="text-slate-400" size={20}/>
                       </button>
                   </div>
-                  <div className="space-y-4">
-                      <div>
-                          <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Nome do Contrato</label>
-                          <input
-                              type="text"
-                              value={editContractName}
-                              onChange={e => setEditContractName(e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white font-bold outline-none focus:ring-2 focus:ring-teal-500 transition-all"
-                              placeholder="Ex: Empréstimo João"
-                          />
+                  <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+                      <div className="space-y-5">
+                          <div className="rounded-[1.6rem] border border-white/10 bg-black/10 p-5">
+                              <p className="section-kicker mb-4">Parâmetros financeiros</p>
+                              <div className="space-y-4">
+                                  <div>
+                                      <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Nome do contrato</label>
+                                      <input
+                                          type="text"
+                                          value={editContractName}
+                                          onChange={e => setEditContractName(e.target.value)}
+                                          className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3.5 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)]"
+                                          placeholder="Ex: Empréstimo João"
+                                      />
+                                  </div>
+
+                                  <div className="grid gap-4 sm:grid-cols-2">
+                                      <div>
+                                          <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Valor emprestado</label>
+                                          <div className="relative">
+                                              <Wallet size={16} className="absolute left-4 top-4 text-[color:var(--text-faint)]" />
+                                              <input
+                                                  type="number"
+                                                  step="0.01"
+                                                  min="0"
+                                                  value={editContractPrincipal}
+                                                  onChange={e => setEditContractPrincipal(e.target.value)}
+                                                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] py-3.5 pl-11 pr-4 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)]"
+                                              />
+                                          </div>
+                                      </div>
+                                      <div>
+                                          <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Valor da parcela aberta</label>
+                                          <div className="relative">
+                                              <Banknote size={16} className="absolute left-4 top-4 text-[color:var(--text-faint)]" />
+                                              <input
+                                                  type="number"
+                                                  step="0.01"
+                                                  min="0"
+                                                  value={editContractInstallmentValue}
+                                                  onChange={e => setEditContractInstallmentValue(e.target.value)}
+                                                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] py-3.5 pl-11 pr-4 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)]"
+                                              />
+                                          </div>
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+
+                          <div className="rounded-[1.6rem] border border-white/10 bg-black/10 p-5">
+                              <p className="section-kicker mb-4">Leitura após o ajuste</p>
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                  <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+                                      <p className="text-[11px] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Parcelas abertas</p>
+                                      <p className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{editOpenInstallments.length}</p>
+                                  </div>
+                                  <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+                                      <p className="text-[11px] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Parcelas pagas</p>
+                                      <p className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{editPaidInstallments.length}</p>
+                                  </div>
+                                  <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+                                      <p className="text-[11px] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Valor total recalculado</p>
+                                      <p className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{formatCurrency(editCurrentValuePreview)}</p>
+                                  </div>
+                                  <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+                                      <p className="text-[11px] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Taxa implícita</p>
+                                      <p className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{editInterestRatePreview.toFixed(2)}%</p>
+                                  </div>
+                              </div>
+                              <p className="mt-4 text-xs leading-6 text-[color:var(--text-secondary)]">
+                                  Parcelas já pagas permanecem preservadas. O ajuste redistribui apenas as parcelas em aberto.
+                              </p>
+                          </div>
+                      </div>
+
+                      <div className="rounded-[1.6rem] border border-white/10 bg-black/10 p-5">
+                          <div className="flex items-center justify-between gap-4">
+                              <div>
+                                  <p className="section-kicker mb-2">Cronograma</p>
+                                  <h4 className="font-display text-3xl leading-none text-[color:var(--text-primary)]">Datas das parcelas</h4>
+                              </div>
+                              <div className="rounded-2xl bg-[rgba(202,176,122,0.14)] p-3 text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]">
+                                  <CalendarDays size={18} />
+                              </div>
+                          </div>
+
+                          <div className="custom-scrollbar mt-5 max-h-[420px] space-y-3 overflow-y-auto pr-1">
+                              {editContractLoading ? (
+                                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-6 text-sm text-[color:var(--text-secondary)]">
+                                      Carregando cronograma do contrato...
+                                  </div>
+                              ) : editInstallments.length === 0 ? (
+                                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-6 text-sm text-[color:var(--text-secondary)]">
+                                      Nenhuma parcela encontrada para este contrato.
+                                  </div>
+                              ) : (
+                                  editInstallments.map((installment) => {
+                                      const locked = installment.status === 'paid';
+                                      return (
+                                          <div key={installment.id} className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+                                              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                                  <div>
+                                                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Parcela {installment.number}</p>
+                                                      <p className="mt-1 text-sm font-semibold text-[color:var(--text-primary)]">
+                                                          {locked ? 'Parcela liquidada' : 'Parcela em aberto'}
+                                                      </p>
+                                                      <p className="mt-1 text-xs text-[color:var(--text-secondary)]">
+                                                          {locked
+                                                              ? `Recebido ${formatCurrency(Number(installment.amount_paid || 0))}`
+                                                              : `Valor previsto ${formatCurrency(Number(installment.amount_total || 0))}`}
+                                                      </p>
+                                                  </div>
+                                                  <div className="flex items-center gap-3">
+                                                      <input
+                                                          type="date"
+                                                          disabled={locked}
+                                                          value={installment.due_date}
+                                                          onChange={(event) => handleEditInstallmentDateChange(installment.id, event.target.value)}
+                                                          className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)] disabled:cursor-not-allowed disabled:opacity-45"
+                                                      />
+                                                  </div>
+                                              </div>
+                                          </div>
+                                      );
+                                  })
+                              )}
+                          </div>
                       </div>
                   </div>
+
+                  {editContractError && (
+                      <div className="mt-6 rounded-2xl border border-[rgba(198,126,105,0.22)] bg-[rgba(198,126,105,0.08)] px-4 py-3 text-sm text-[color:var(--accent-danger)]">
+                          {editContractError}
+                      </div>
+                  )}
+
                   <div className="flex gap-3 mt-6">
                       <button onClick={() => setIsEditContractOpen(false)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all">
                           Cancelar

@@ -4,6 +4,7 @@ import {
   classifyIntentCompact,
   normalizeEntities,
   inferInstallmentMonth,
+  inferDaysWindow,
 } from './intent-classifier';
 import { detectPromptInjectionAttempt } from '../security/prompt-guard';
 import { config } from '../config';
@@ -57,12 +58,18 @@ const RULES: Rule[] = [
   { intent: 'listar_recebiveis', pattern: /^(\/recebiveis|\/recebíveis|recebiveis|recebíveis)$/i, entities: { filter: 'pending' } },
   { intent: 'listar_recebiveis', pattern: /^(2)$/i, entities: { filter: 'pending' } },
   { intent: 'listar_recebiveis', pattern: /(quem\s+t[aá]\s+atrasad|quem\s+est[aá]\s+atrasad|quem\s+ta\s+atrasad)/i, entities: { filter: 'late' } },
+
+  { intent: 'recebiveis_periodo', pattern: /((quanto|quais?)\s+.*(vou|irei|devo)?\s*receber.*(pr[oó]xim|\d+\s*dias|amanh[ãa]))|(receb[ií]veis?.*(pr[oó]xim|\d+\s*dias|amanh[ãa]))/i },
+  { intent: 'cobrar_periodo', pattern: /((quem\s+.*devo\s+cobrar|quem\s+tenho\s+que\s+cobrar|quem\s+me\s+deve).*(pr[oó]xim|\d+\s*dias|amanh[ãa]))|((cobrar|cobran[cç]a).*(pr[oó]xim|\d+\s*dias|amanh[ãa]))/i },
+
   { intent: 'criar_contrato', pattern: /^(\/contrato|\/criarcontrato|contrato)$/i },
   { intent: 'criar_contrato', pattern: /^(3)$/i },
   { intent: 'marcar_pagamento', pattern: /^(\/pagamento|pagamento)$/i },
   { intent: 'marcar_pagamento', pattern: /^(4)$/i },
+
   { intent: 'recebiveis_hoje', pattern: /(receb[ií]veis?\s+de\s+hoje|vence\s+hoje|vencimentos?\s+de\s+hoje|parcelas?\s+de\s+hoje|o\s+que\s+vence\s+hoje)/i },
-  { intent: 'cobrar_hoje', pattern: /(quem\s+tenho\s+que\s+cobrar\s+hoje|cobrar\s+hoje|lista\s+de\s+cobran[cç]a\s+de\s+hoje|quem\s+(t[aá]|est[aá])\s+me\s+devendo\s+hoje|quem\s+me\s+deve\s+hoje|quem\s+devo\s+cobrar|quem\s+(t[aá]|est[aá])\s+devendo\s+hoje)/i },
+  { intent: 'cobrar_hoje', pattern: /(quem\s+tenho\s+que\s+cobrar\s+hoje|cobrar\s+hoje|lista\s+de\s+cobran[cç]a\s+de\s+hoje|quem\s+(t[aá]|est[aá])\s+me\s+devendo\s+hoje|quem\s+me\s+deve\s+hoje|quem\s+(t[aá]|est[aá])\s+devendo\s+hoje)/i },
+
   { intent: 'criar_contrato', pattern: /(criar?\s+contrato|novo\s+contrato|registrar\s+contrato|cadastrar\s+contrato|empr[eé]stimo\s+para)/i },
   { intent: 'marcar_pagamento', pattern: /(marcar\s+pagamento|dar\s+baixa|registrar\s+pagamento|parcela\s+paga|baixar\s+contrato|quitar\s+parcela|baixar\s+pagamento|pagamento\s+do\s+m[eê]s\s+de|parcela\s+do\s+m[eê]s\s+de)/i },
   { intent: 'gerar_relatorio', pattern: /(gerar\s+relat[oó]rio|relat[oó]rio\s+mensal|resumo\s+completo|me\s+d[aá]\s+um\s+relat[oó]rio|pedir\s+relat[oó]rio)/i },
@@ -72,6 +79,19 @@ const RULES: Rule[] = [
   { intent: 'confirmar', pattern: /^(sim|confirmo|ok|pode|isso|s)$/i },
   { intent: 'cancelar', pattern: /^(n[aã]o|nao|cancela|cancelar|para|sair)$/i },
 ];
+
+function clampDaysAhead(value?: number): number {
+  if (!Number.isFinite(value || NaN)) return 7;
+  return Math.max(1, Math.min(60, Math.trunc(value as number)));
+}
+
+function inferPeriodEntities(text: string): Record<string, string | number> {
+  const inferred = inferDaysWindow(text);
+  return {
+    days_ahead: clampDaysAhead(inferred.daysAhead),
+    window_start: inferred.windowStart || 'today',
+  };
+}
 
 function inferFilter(text: string): 'pending' | 'late' | 'week' | 'all' | undefined {
   const normalized = text.toLowerCase();
@@ -231,6 +251,10 @@ function inferRuleIntent(text: string): RoutedIntent | null {
       Object.assign(entities, inferredUser);
     }
 
+    if (rule.intent === 'recebiveis_periodo' || rule.intent === 'cobrar_periodo') {
+      Object.assign(entities, inferPeriodEntities(trimmed));
+    }
+
     return {
       intent: rule.intent,
       entities,
@@ -312,6 +336,35 @@ function buildTraceBase(
   };
 }
 
+function applyPeriodDefaults(routed: RoutedIntent, text: string): RoutedIntent {
+  if (routed.intent !== 'recebiveis_periodo' && routed.intent !== 'cobrar_periodo') {
+    return routed;
+  }
+
+  const normalized = { ...(routed.normalizedEntities || {}) };
+  const inferred = inferDaysWindow(text);
+
+  if (!normalized.days_ahead) {
+    normalized.days_ahead = clampDaysAhead(inferred.daysAhead);
+  } else {
+    normalized.days_ahead = clampDaysAhead(normalized.days_ahead);
+  }
+
+  if (!normalized.window_start) {
+    normalized.window_start = inferred.windowStart || 'today';
+  }
+
+  return {
+    ...routed,
+    normalizedEntities: normalized,
+    entities: {
+      ...(routed.entities || {}),
+      days_ahead: normalized.days_ahead,
+      window_start: normalized.window_start,
+    },
+  };
+}
+
 export async function routeIntent(
   text: string,
   history: Array<{ role: string; content: string }>,
@@ -363,23 +416,24 @@ export async function routeIntent(
 
   const ruleMatch = inferRuleIntent(trimmed);
   if (ruleMatch) {
+    const withDefaults = applyPeriodDefaults(ruleMatch, trimmed);
     logStructuredMessage('llm_router_skipped', {
       ...traceBase,
       routeSource: 'rule',
-      intent: ruleMatch.intent,
-      confidence: ruleMatch.confidence,
+      intent: withDefaults.intent,
+      confidence: withDefaults.confidence,
       result: 'skipped',
       fallbackReason: 'rule_strong',
     });
     logStructuredMessage('router_decision_trace', {
       ...traceBase,
-      routeSource: ruleMatch.source,
-      intent: ruleMatch.intent,
-      confidence: ruleMatch.confidence,
-      result: ruleMatch.decisionPath,
+      routeSource: withDefaults.source,
+      intent: withDefaults.intent,
+      confidence: withDefaults.confidence,
+      result: withDefaults.decisionPath,
       fallbackReason: 'rule_strong',
     });
-    return ruleMatch;
+    return withDefaults;
   }
 
   const contractSignal = detectContractSignal(trimmed);
@@ -510,23 +564,24 @@ export async function routeIntent(
   const cacheKey = buildCacheKey(cacheScope, trimmed);
   const cached = getCache(cacheKey);
   if (cached) {
+    const withDefaults = applyPeriodDefaults(cached, trimmed);
     logStructuredMessage('llm_router_skipped', {
       ...traceBase,
-      routeSource: cached.source,
-      intent: cached.intent,
-      confidence: cached.confidence,
+      routeSource: withDefaults.source,
+      intent: withDefaults.intent,
+      confidence: withDefaults.confidence,
       result: 'cache_hit',
       fallbackReason: 'cache_hit',
     });
     logStructuredMessage('router_decision_trace', {
       ...traceBase,
-      routeSource: cached.source,
-      intent: cached.intent,
-      confidence: cached.confidence,
-      result: cached.decisionPath || 'llm',
+      routeSource: withDefaults.source,
+      intent: withDefaults.intent,
+      confidence: withDefaults.confidence,
+      result: withDefaults.decisionPath || 'llm',
       fallbackReason: 'cache_hit',
     });
-    return cached;
+    return withDefaults;
   }
 
   const llmStartedAt = Date.now();
@@ -541,7 +596,7 @@ export async function routeIntent(
         normalizedEntities: {},
         confidence: 'low',
         meta: {
-          model: 'gemini-2.0-flash-lite',
+          model: 'gemini-2.5-flash-lite',
           timeout: true,
           fallbackReason: 'timeout',
         },
@@ -571,7 +626,7 @@ export async function routeIntent(
     });
   }
 
-  const routed: RoutedIntent = {
+  let routed: RoutedIntent = {
     ...classified,
     source: didTimeout ? 'rule' : 'llm',
     decisionPath: didTimeout ? 'fallback' : (candidates.length > 0 ? 'rule_weak_llm' : 'llm'),
@@ -589,6 +644,8 @@ export async function routeIntent(
     routed.entities = {};
     routed.normalizedEntities = {};
   }
+
+  routed = applyPeriodDefaults(routed, trimmed);
 
   logStructuredMessage('llm_router_called', {
     ...traceBase,

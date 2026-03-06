@@ -48,3 +48,5 @@ Thumbs.db
 .claude/settings.local.json
 .aios/install-log.txt
 e2e/.auth/
+.mcp.json
+.mcp.json

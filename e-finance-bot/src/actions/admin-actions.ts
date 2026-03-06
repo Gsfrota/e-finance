@@ -1,18 +1,13 @@
 import { randomUUID } from 'crypto';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { GoogleGenAI } from '@google/genai';
 import { config } from '../config';
+import { getGeminiClient, getSupabaseClient } from '../infra/runtime-clients';
 
-let _supabase: SupabaseClient | null = null;
-function db(): SupabaseClient {
-  if (!_supabase) _supabase = createClient(config.supabase.url, config.supabase.serviceRoleKey);
-  return _supabase;
+function db() {
+  return getSupabaseClient();
 }
 
-let _genai: GoogleGenAI | null = null;
-function ai(): GoogleGenAI {
-  if (!_genai) _genai = new GoogleGenAI({ apiKey: config.gemini.apiKey });
-  return _genai;
+function ai() {
+  return getGeminiClient();
 }
 
 export interface DashboardSummary {
@@ -120,6 +115,41 @@ export interface ContractOpenInstallment {
   status: string;
 }
 
+export type ContractEditField = 'invested_amount' | 'installment_amount' | 'installment_due_date';
+
+export interface ContractEditSummary {
+  contractId: number;
+  assetName: string;
+  debtorName: string;
+  amountInvested: number;
+  currentValue: number;
+  openInstallments: number;
+}
+
+export type EditContractResult =
+  | {
+      status: 'success';
+      field: ContractEditField;
+      summary: ContractEditSummary;
+      installmentNumber?: number;
+      updatedInstallmentCount?: number;
+      newAmount?: number;
+      newDueDate?: string;
+    }
+  | {
+      status: 'not_found';
+      reason: 'contract_not_found' | 'installment_not_found';
+    }
+  | {
+      status: 'invalid_input';
+      reason: 'invalid_amount' | 'invalid_due_date' | 'installment_closed' | 'amount_below_paid' | 'missing_installments';
+      message: string;
+    }
+  | {
+      status: 'error';
+      reason: string;
+    };
+
 export interface ContractInstallmentsPage {
   items: ContractOpenInstallment[];
   page: number;
@@ -134,6 +164,33 @@ export interface UserDebtDetails {
   nextDueDate: string | null;
   nextDueAmount: number;
   activeContracts: number;
+  totalProjectedProfit: number;
+  totalReceivedAmount: number;
+  contracts: UserDebtContractSummary[];
+}
+
+export interface UserDebtContractSummary {
+  contractId: number;
+  assetName: string;
+  amountInvested: number;
+  currentValue: number;
+  projectedProfit: number;
+  projectedReturnPct: number;
+  receivedAmount: number;
+  openBalance: number;
+  pendingInstallments: number;
+  totalInstallments: number;
+  nextDueDate: string | null;
+  nextDueAmount: number;
+}
+
+export type WindowStart = 'today' | 'tomorrow';
+
+export interface DateWindow {
+  daysAhead: number;
+  windowStart: WindowStart;
+  startDate: string;
+  endDate: string;
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -148,6 +205,95 @@ interface DashboardInstallmentRow {
 }
 
 const OPERATION_TIMEZONE = 'America/Fortaleza';
+
+function roundCurrency(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function parseYmd(value?: string | null): Date | null {
+  if (!value) return null;
+  const [year, month, day] = String(value).split('T')[0].split('-').map(Number);
+  if (!year || !month || !day) return null;
+  const parsed = new Date(year, month - 1, day);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function buildCanonicalInstallmentSchedule(input: {
+  amountInvested: number;
+  currentValue: number;
+  installmentValue: number;
+  totalInstallments: number;
+  frequency: string;
+  dueDay?: number | null;
+  weekday?: number | null;
+  startDate?: string | null;
+  now?: Date;
+}): Array<{
+  number: number;
+  dueDate: string;
+  amountPrincipal: number;
+  amountInterest: number;
+  amountTotal: number;
+}> {
+  const totalInstallments = Math.max(1, Math.trunc(input.totalInstallments || 1));
+  const amountPrincipal = roundCurrency(input.amountInvested / totalInstallments);
+  const amountInterest = roundCurrency((input.currentValue - input.amountInvested) / totalInstallments);
+  const amountTotal = roundCurrency(input.installmentValue);
+  const dueDay = Math.max(1, Math.min(31, Number(input.dueDay || 1)));
+  const weekday = Number.isFinite(input.weekday as number) ? Number(input.weekday) : 1;
+  const now = input.now ? new Date(input.now) : new Date();
+  let cursorDate = parseYmd(input.startDate) || new Date(now);
+
+  if (input.frequency === 'monthly') {
+    if (!parseYmd(input.startDate)) {
+      cursorDate = new Date(now);
+      cursorDate.setDate(dueDay);
+      if (now.getDate() >= dueDay) {
+        cursorDate.setMonth(cursorDate.getMonth() + 1);
+      }
+    }
+  } else if (input.frequency === 'weekly') {
+    if (!parseYmd(input.startDate)) {
+      cursorDate = new Date(now);
+      const currentDay = now.getDay();
+      let diff = weekday - currentDay;
+      if (diff <= 0) diff += 7;
+      cursorDate.setDate(now.getDate() + diff);
+    }
+  }
+
+  const rows: Array<{
+    number: number;
+    dueDate: string;
+    amountPrincipal: number;
+    amountInterest: number;
+    amountTotal: number;
+  }> = [];
+
+  for (let i = 0; i < totalInstallments; i += 1) {
+    const due = new Date(cursorDate);
+
+    if (input.frequency === 'monthly') {
+      const anchorDay = parseYmd(input.startDate)?.getDate() || dueDay;
+      due.setMonth(due.getMonth() + i);
+      if (due.getDate() !== anchorDay) due.setDate(0);
+    } else if (input.frequency === 'weekly') {
+      due.setDate(due.getDate() + (i * 7));
+    } else {
+      due.setDate(due.getDate() + i);
+    }
+
+    rows.push({
+      number: i + 1,
+      dueDate: formatYmd(due.getFullYear(), due.getMonth() + 1, due.getDate()),
+      amountPrincipal,
+      amountInterest,
+      amountTotal,
+    });
+  }
+
+  return rows;
+}
 
 function formatYmd(year: number, month: number, day: number): string {
   return year + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
@@ -185,8 +331,174 @@ function getMonthBoundariesInTimeZone(now: Date, timeZone: string): { today: str
   return { today, monthStart, nextMonthStart };
 }
 
+function addDays(baseDate: Date, days: number): Date {
+  const next = new Date(baseDate);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function clampDaysAhead(daysAhead?: number): number {
+  if (!Number.isFinite(daysAhead || NaN)) return 7;
+  return Math.max(1, Math.min(60, Math.trunc(daysAhead as number)));
+}
+
+export function buildDateWindow(
+  daysAhead = 7,
+  windowStart: WindowStart = 'today',
+  now: Date = new Date(),
+  timeZone = OPERATION_TIMEZONE,
+): DateWindow {
+  const safeDaysAhead = clampDaysAhead(daysAhead);
+  const offset = windowStart === 'tomorrow' ? 1 : 0;
+
+  const startDate = addDays(now, offset);
+  const endDate = addDays(startDate, safeDaysAhead - 1);
+
+  return {
+    daysAhead: safeDaysAhead,
+    windowStart,
+    startDate: toYmdInTimeZone(startDate, timeZone),
+    endDate: toYmdInTimeZone(endDate, timeZone),
+  };
+}
+
 function isOpenStatus(status: string): boolean {
   return ['pending', 'late', 'partial'].includes((status || '').toLowerCase());
+}
+
+interface UserDebtInvestmentRow {
+  id: string | number;
+  asset_name?: string | null;
+  amount_invested?: number | string | null;
+  current_value?: number | string | null;
+}
+
+interface UserDebtInstallmentRow {
+  investment_id: string | number;
+  amount_total?: number | string | null;
+  amount_paid?: number | string | null;
+  due_date?: string | null;
+  status?: string | null;
+}
+
+function roundMoney(value: number): number {
+  return Number(value.toFixed(2));
+}
+
+function roundPct(value: number): number {
+  return Number(value.toFixed(2));
+}
+
+function emptyUserDebtDetails(activeContracts = 0): UserDebtDetails {
+  return {
+    totalDebt: 0,
+    pendingInstallments: 0,
+    nextDueDate: null,
+    nextDueAmount: 0,
+    activeContracts,
+    totalProjectedProfit: 0,
+    totalReceivedAmount: 0,
+    contracts: [],
+  };
+}
+
+export function summarizeUserDebtContracts(
+  investments: UserDebtInvestmentRow[],
+  installments: UserDebtInstallmentRow[],
+): UserDebtDetails {
+  if (!investments || investments.length === 0) {
+    return emptyUserDebtDetails(0);
+  }
+
+  const installmentsByContract = new Map<string, UserDebtInstallmentRow[]>();
+  for (const row of installments || []) {
+    const investmentId = String(row.investment_id || '');
+    if (!investmentId) continue;
+    const current = installmentsByContract.get(investmentId) || [];
+    current.push(row);
+    installmentsByContract.set(investmentId, current);
+  }
+
+  const contracts: UserDebtContractSummary[] = investments.map(investment => {
+    const contractId = Number(investment.id || 0);
+    const assetName = String((investment as any).asset_name || `Contrato #${contractId}`);
+    const amountInvested = roundMoney(Number((investment as any).amount_invested || 0));
+    const currentValueRaw = Number((investment as any).current_value || 0);
+    const contractInstallments = installmentsByContract.get(String(investment.id)) || [];
+
+    let receivedAmount = 0;
+    let openBalance = 0;
+    let pendingInstallments = 0;
+    let totalInstallments = 0;
+    let nextDueDate: string | null = null;
+    let nextDueAmount = 0;
+    let fallbackCurrentValue = 0;
+
+    for (const row of contractInstallments) {
+      totalInstallments += 1;
+      const amountTotal = Number((row as any).amount_total || 0);
+      const amountPaid = Number((row as any).amount_paid || 0);
+      const dueDate = String((row as any).due_date || '').split('T')[0] || null;
+      const remaining = Math.max(0, amountTotal - amountPaid);
+
+      fallbackCurrentValue += amountTotal;
+      receivedAmount += amountPaid;
+
+      if (remaining > 0) {
+        pendingInstallments += 1;
+        openBalance += remaining;
+        if (!nextDueDate || (dueDate && dueDate < nextDueDate)) {
+          nextDueDate = dueDate;
+          nextDueAmount = remaining;
+        }
+      }
+    }
+
+    const currentValue = roundMoney(currentValueRaw > 0 ? currentValueRaw : fallbackCurrentValue);
+    const projectedProfit = roundMoney(currentValue - amountInvested);
+    const projectedReturnPct = amountInvested > 0
+      ? roundPct(((currentValue / amountInvested) - 1) * 100)
+      : 0;
+
+    return {
+      contractId,
+      assetName,
+      amountInvested,
+      currentValue,
+      projectedProfit,
+      projectedReturnPct,
+      receivedAmount: roundMoney(receivedAmount),
+      openBalance: roundMoney(openBalance),
+      pendingInstallments,
+      totalInstallments,
+      nextDueDate,
+      nextDueAmount: roundMoney(nextDueAmount),
+    };
+  }).sort((left, right) => {
+    if (left.nextDueDate && right.nextDueDate) {
+      return left.nextDueDate.localeCompare(right.nextDueDate) || left.contractId - right.contractId;
+    }
+    if (left.nextDueDate) return -1;
+    if (right.nextDueDate) return 1;
+    return left.contractId - right.contractId;
+  });
+
+  const totalDebt = roundMoney(contracts.reduce((sum, contract) => sum + contract.openBalance, 0));
+  const pendingInstallments = contracts.reduce((sum, contract) => sum + contract.pendingInstallments, 0);
+  const totalProjectedProfit = roundMoney(contracts.reduce((sum, contract) => sum + contract.projectedProfit, 0));
+  const totalReceivedAmount = roundMoney(contracts.reduce((sum, contract) => sum + contract.receivedAmount, 0));
+  const nextContract = contracts.find(contract => !!contract.nextDueDate);
+
+  return {
+    totalDebt,
+    pendingInstallments,
+    nextDueDate: nextContract?.nextDueDate || null,
+    nextDueAmount: nextContract?.nextDueAmount || 0,
+    activeContracts: contracts.length,
+    totalProjectedProfit,
+    totalReceivedAmount,
+    contracts,
+  };
 }
 
 export function summarizeDashboardRows(
@@ -366,29 +678,6 @@ function mapContractOpenInstallmentRow(row: any, contractId: number): ContractOp
   };
 }
 
-function dedupeContractInstallmentsByNumber(rows: any[], contractId: number): ContractOpenInstallment[] {
-  const byNumber = new Map<number, ContractOpenInstallment>();
-
-  for (const row of rows || []) {
-    const mapped = mapContractOpenInstallmentRow(row, contractId);
-    if (!Number.isFinite(mapped.number) || mapped.number <= 0) continue;
-
-    const existing = byNumber.get(mapped.number);
-    if (!existing) {
-      byNumber.set(mapped.number, mapped);
-      continue;
-    }
-
-    // Keep the earliest due date when duplicated rows exist for same installment number.
-    if (mapped.dueDate && (!existing.dueDate || mapped.dueDate < existing.dueDate)) {
-      byNumber.set(mapped.number, mapped);
-    }
-  }
-
-  return Array.from(byNumber.values())
-    .sort((a, b) => a.number - b.number || a.dueDate.localeCompare(b.dueDate));
-}
-
 export async function getContractOpenInstallments(
   tenantId: string,
   contractId: number,
@@ -416,9 +705,9 @@ export async function getContractOpenInstallments(
     return { items: [], page: safePage, pageSize: safePageSize, total: 0, hasMore: false };
   }
 
-  const uniqueInstallments = dedupeContractInstallmentsByNumber(data || [], Number(contractId));
-  const items = uniqueInstallments.slice(from, from + safePageSize);
-  const total = uniqueInstallments.length;
+  const allInstallments = (data || []).map(row => mapContractOpenInstallmentRow(row, Number(contractId)));
+  const items = allInstallments.slice(from, from + safePageSize);
+  const total = allInstallments.length;
   const hasMore = total > (from + items.length);
 
   return {
@@ -456,8 +745,7 @@ export async function getContractOpenInstallmentByNumber(
 
   if (!data || data.length === 0) return null;
 
-  const unique = dedupeContractInstallmentsByNumber(data, Number(contractId));
-  return unique[0] || null;
+  return mapContractOpenInstallmentRow(data[0], Number(contractId));
 }
 
 // ─── Criar Contrato ───────────────────────────────────────────────────────────
@@ -686,7 +974,7 @@ export async function parseContractTextWithMeta(text: string): Promise<ContractP
       'Texto: "' + text + '"';
 
     const result = await ai().models.generateContent({
-      model: 'gemini-2.0-flash-lite',
+      model: 'gemini-2.5-flash-lite',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
     });
 
@@ -905,6 +1193,7 @@ export async function createContract(
   }
 
   const contractId = Number(data);
+
   const firstName = (resolvedDebtorName.split(' ')[0] || 'Devedor').trim();
   const { error: assetNameUpdateError } = await db()
     .from('investments')
@@ -939,6 +1228,302 @@ export async function createContract(
     debtorResolution: debtorResolution.status,
     renameApplied: debtorResolution.status === 'reused' ? debtorResolution.renameApplied : undefined,
   };
+}
+
+// ─── Editar Contrato ──────────────────────────────────────────────────────────
+
+export async function getContractEditSummary(
+  tenantId: string,
+  contractId: number,
+): Promise<ContractEditSummary | null> {
+  const { data: investment, error: investmentError } = await db()
+    .from('investments')
+    .select('id, asset_name, amount_invested, current_value, payer_id')
+    .eq('tenant_id', tenantId)
+    .eq('id', contractId)
+    .maybeSingle();
+
+  if (investmentError) {
+    console.error('[getContractEditSummary] investment query failed', investmentError);
+    return null;
+  }
+
+  if (!investment) return null;
+
+  const payerId = String((investment as any).payer_id || '');
+  const { data: debtor, error: debtorError } = await db()
+    .from('profiles')
+    .select('full_name')
+    .eq('id', payerId)
+    .eq('tenant_id', tenantId)
+    .maybeSingle();
+
+  if (debtorError) {
+    console.error('[getContractEditSummary] debtor query failed', debtorError);
+    return null;
+  }
+
+  const { count, error: countError } = await db()
+    .from('loan_installments')
+    .select('id', { count: 'exact', head: true })
+    .eq('investment_id', contractId)
+    .in('status', ['pending', 'late', 'partial']);
+
+  if (countError) {
+    console.error('[getContractEditSummary] installments count failed', countError);
+    return null;
+  }
+
+  return {
+    contractId,
+    assetName: String((investment as any).asset_name || `Contrato #${contractId}`),
+    debtorName: String((debtor as any)?.full_name || 'Devedor'),
+    amountInvested: Number((investment as any).amount_invested || 0),
+    currentValue: Number((investment as any).current_value || 0),
+    openInstallments: Number(count || 0),
+  };
+}
+
+async function recalculateContractFinancials(
+  tenantId: string,
+  contractId: number,
+): Promise<boolean> {
+  const { data: investment, error: investmentError } = await db()
+    .from('investments')
+    .select('amount_invested')
+    .eq('tenant_id', tenantId)
+    .eq('id', contractId)
+    .single();
+
+  if (investmentError || !investment) {
+    console.error('[recalculateContractFinancials] investment query failed', investmentError);
+    return false;
+  }
+
+  const { data: installments, error: installmentsError } = await db()
+    .from('loan_installments')
+    .select('amount_total')
+    .eq('investment_id', contractId);
+
+  if (installmentsError) {
+    console.error('[recalculateContractFinancials] installments query failed', installmentsError);
+    return false;
+  }
+
+  const currentValue = Number((installments || []).reduce(
+    (sum, row) => sum + Number((row as any).amount_total || 0),
+    0,
+  ).toFixed(2));
+  const amountInvested = Number((investment as any).amount_invested || 0);
+  const interestRate = amountInvested > 0
+    ? Number((((currentValue / amountInvested) - 1) * 100).toFixed(4))
+    : 0;
+
+  const { error: updateError } = await db()
+    .from('investments')
+    .update({
+      current_value: currentValue,
+      source_capital: amountInvested,
+      interest_rate: interestRate,
+    })
+    .eq('tenant_id', tenantId)
+    .eq('id', contractId);
+
+  if (updateError) {
+    console.error('[recalculateContractFinancials] update failed', updateError);
+    return false;
+  }
+
+  return true;
+}
+
+export async function editContract(
+  tenantId: string,
+  input: {
+    contractId: number;
+    field: ContractEditField;
+    newAmount?: number;
+    installmentNumber?: number;
+    newDueDate?: string;
+  },
+): Promise<EditContractResult> {
+  const summary = await getContractEditSummary(tenantId, input.contractId);
+  if (!summary) {
+    return { status: 'not_found', reason: 'contract_not_found' };
+  }
+
+  if (input.field === 'invested_amount') {
+    const newAmount = Number(input.newAmount || 0);
+    if (!Number.isFinite(newAmount) || newAmount <= 0) {
+      return {
+        status: 'invalid_input',
+        reason: 'invalid_amount',
+        message: 'O novo valor emprestado precisa ser maior que zero.',
+      };
+    }
+
+    const { error } = await db()
+      .from('investments')
+      .update({
+        amount_invested: newAmount,
+        source_capital: newAmount,
+      })
+      .eq('tenant_id', tenantId)
+      .eq('id', input.contractId);
+
+    if (error) {
+      console.error('[editContract] update invested amount failed', error);
+      return { status: 'error', reason: 'update_invested_amount_failed' };
+    }
+
+    if (!await recalculateContractFinancials(tenantId, input.contractId)) {
+      return { status: 'error', reason: 'recalculate_failed' };
+    }
+
+    const refreshedSummary = await getContractEditSummary(tenantId, input.contractId);
+    if (!refreshedSummary) {
+      return { status: 'error', reason: 'summary_reload_failed' };
+    }
+
+    return {
+      status: 'success',
+      field: input.field,
+      summary: refreshedSummary,
+      newAmount,
+    };
+  }
+
+  if (input.field === 'installment_amount') {
+    const newAmount = Number(input.newAmount || 0);
+    if (!Number.isFinite(newAmount) || newAmount <= 0) {
+      return {
+        status: 'invalid_input',
+        reason: 'invalid_amount',
+        message: 'O novo valor da parcela precisa ser maior que zero.',
+      };
+    }
+
+    const { data: installments, error: installmentsError } = await db()
+      .from('loan_installments')
+      .select('id, amount_paid, status')
+      .eq('investment_id', input.contractId)
+      .in('status', ['pending', 'late', 'partial']);
+
+    if (installmentsError) {
+      console.error('[editContract] open installments query failed', installmentsError);
+      return { status: 'error', reason: 'load_open_installments_failed' };
+    }
+
+    if (!installments || installments.length === 0) {
+      return {
+        status: 'invalid_input',
+        reason: 'missing_installments',
+        message: 'Não encontrei parcelas em aberto para ajustar neste contrato.',
+      };
+    }
+
+    const invalidPartial = installments.find(row => Number((row as any).amount_paid || 0) > newAmount);
+    if (invalidPartial) {
+      return {
+        status: 'invalid_input',
+        reason: 'amount_below_paid',
+        message: 'Existe parcela parcialmente paga com valor recebido maior que o novo valor informado.',
+      };
+    }
+
+    const { error: updateError } = await db()
+      .from('loan_installments')
+      .update({ amount_total: newAmount })
+      .eq('investment_id', input.contractId)
+      .in('status', ['pending', 'late', 'partial']);
+
+    if (updateError) {
+      console.error('[editContract] update installment amount failed', updateError);
+      return { status: 'error', reason: 'update_installment_amount_failed' };
+    }
+
+    if (!await recalculateContractFinancials(tenantId, input.contractId)) {
+      return { status: 'error', reason: 'recalculate_failed' };
+    }
+
+    const refreshedSummary = await getContractEditSummary(tenantId, input.contractId);
+    if (!refreshedSummary) {
+      return { status: 'error', reason: 'summary_reload_failed' };
+    }
+
+    return {
+      status: 'success',
+      field: input.field,
+      summary: refreshedSummary,
+      updatedInstallmentCount: installments.length,
+      newAmount,
+    };
+  }
+
+  if (input.field === 'installment_due_date') {
+    const installmentNumber = Number(input.installmentNumber || 0);
+    const newDueDate = String(input.newDueDate || '').trim();
+
+    if (!installmentNumber || installmentNumber <= 0) {
+      return {
+        status: 'invalid_input',
+        reason: 'installment_closed',
+        message: 'Me diga o número da parcela que você quer ajustar.',
+      };
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newDueDate)) {
+      return {
+        status: 'invalid_input',
+        reason: 'invalid_due_date',
+        message: 'A nova data da parcela está inválida.',
+      };
+    }
+
+    const { data: installment, error: installmentError } = await db()
+      .from('loan_installments')
+      .select('id, status')
+      .eq('investment_id', input.contractId)
+      .eq('number', installmentNumber)
+      .maybeSingle();
+
+    if (installmentError) {
+      console.error('[editContract] installment lookup failed', installmentError);
+      return { status: 'error', reason: 'installment_lookup_failed' };
+    }
+
+    if (!installment) {
+      return { status: 'not_found', reason: 'installment_not_found' };
+    }
+
+    if (!['pending', 'late', 'partial'].includes(String((installment as any).status || ''))) {
+      return {
+        status: 'invalid_input',
+        reason: 'installment_closed',
+        message: 'Só posso editar a data de parcelas em aberto.',
+      };
+    }
+
+    const { error: updateError } = await db()
+      .from('loan_installments')
+      .update({ due_date: newDueDate })
+      .eq('id', String((installment as any).id));
+
+    if (updateError) {
+      console.error('[editContract] installment due date update failed', updateError);
+      return { status: 'error', reason: 'update_installment_due_date_failed' };
+    }
+
+    return {
+      status: 'success',
+      field: input.field,
+      summary,
+      installmentNumber,
+      newDueDate,
+    };
+  }
+
+  return { status: 'error', reason: 'unsupported_field' };
 }
 
 // ─── Marcar Pagamento ─────────────────────────────────────────────────────────
@@ -1073,71 +1658,33 @@ export async function searchUser(tenantId: string, query: string) {
 export async function getUserDebtDetails(tenantId: string, profileId: string): Promise<UserDebtDetails> {
   const { data: investments, error: investmentsError } = await db()
     .from('investments')
-    .select('id')
+    .select('id, asset_name, amount_invested, current_value')
     .eq('tenant_id', tenantId)
     .eq('payer_id', profileId)
     .eq('status', 'active');
 
   if (investmentsError) {
     console.error('[getUserDebtDetails] investments query failed', investmentsError);
-    return {
-      totalDebt: 0,
-      pendingInstallments: 0,
-      nextDueDate: null,
-      nextDueAmount: 0,
-      activeContracts: 0,
-    };
+    return emptyUserDebtDetails();
   }
 
   if (!investments || investments.length === 0) {
-    return {
-      totalDebt: 0,
-      pendingInstallments: 0,
-      nextDueDate: null,
-      nextDueAmount: 0,
-      activeContracts: 0,
-    };
+    return emptyUserDebtDetails();
   }
 
   const ids = investments.map(i => i.id);
   const { data: installments, error: installmentsError } = await db()
     .from('loan_installments')
-    .select('due_date, amount_total, amount_paid, status')
+    .select('investment_id, due_date, amount_total, amount_paid, status')
     .in('investment_id', ids)
-    .in('status', ['pending', 'late', 'partial'])
     .order('due_date', { ascending: true });
 
   if (installmentsError) {
     console.error('[getUserDebtDetails] installments query failed', installmentsError);
-    return {
-      totalDebt: 0,
-      pendingInstallments: 0,
-      nextDueDate: null,
-      nextDueAmount: 0,
-      activeContracts: ids.length,
-    };
+    return emptyUserDebtDetails(ids.length);
   }
 
-  const openInstallments = (installments || [])
-    .map(row => {
-      const remaining = Math.max(0, Number(row.amount_total) - Number(row.amount_paid || 0));
-      return {
-        dueDate: String(row.due_date || '').split('T')[0],
-        remaining,
-      };
-    })
-    .filter(row => row.remaining > 0);
-
-  const totalDebt = openInstallments.reduce((sum, row) => sum + row.remaining, 0);
-  const next = openInstallments[0];
-
-  return {
-    totalDebt,
-    pendingInstallments: openInstallments.length,
-    nextDueDate: next?.dueDate || null,
-    nextDueAmount: next?.remaining || 0,
-    activeContracts: ids.length,
-  };
+  return summarizeUserDebtContracts(investments as UserDebtInvestmentRow[], installments as UserDebtInstallmentRow[]);
 }
 
 export async function getUserDebt(tenantId: string, profileId: string): Promise<number> {
@@ -1316,38 +1863,67 @@ export async function disconnectBot(
   return true;
 }
 
-// ─── Recebíveis de Hoje ───────────────────────────────────────────────────────
+// ─── Recebíveis por Janela ─────────────────────────────────────────────────────
 
-export async function getInstallmentsToday(tenantId: string): Promise<Installment[]> {
+export async function getInstallmentsInWindow(
+  tenantId: string,
+  daysAhead = 7,
+  windowStart: WindowStart = 'today',
+): Promise<Installment[]> {
+  const window = buildDateWindow(daysAhead, windowStart);
+  return getInstallmentsByDateRange(tenantId, window.startDate, window.endDate);
+}
+
+export async function getInstallmentsByDateRange(
+  tenantId: string,
+  startDate: string,
+  endDate: string,
+): Promise<Installment[]> {
   const today = toYmdInTimeZone(new Date(), OPERATION_TIMEZONE);
+
   const { data, error } = await db()
     .from('loan_installments')
-    .select(`
+    .select(
+      `
       id, investment_id, amount_total, amount_paid, due_date, status,
       investments!inner(tenant_id, debtor:profiles!investments_payer_id_fkey(full_name))
-    `)
+    `
+    )
     .eq('investments.tenant_id', tenantId)
-    .eq('due_date', today)
+    .gte('due_date', startDate)
+    .lte('due_date', endDate)
     .in('status', ['pending', 'late', 'partial'])
+    .order('due_date', { ascending: true })
     .order('amount_total', { ascending: false });
 
   if (error) {
-    console.error('[getInstallmentsToday] query failed', error);
+    console.error('[getInstallmentsByDateRange] query failed', error);
     return [];
   }
 
-  return (data || []).map(row => ({
-    id: row.id,
-    investmentId: row.investment_id,
-    debtorName: (row as any).investments?.debtor?.full_name || 'Desconhecido',
-    amount: Math.max(0, Number(row.amount_total) - Number(row.amount_paid || 0)),
-    dueDate: row.due_date?.split('T')[0] || '',
-    status: row.status,
-    daysLate: 0,
-  }));
+  return (data || []).map(row => {
+    const dueDate = row.due_date?.split('T')[0] || '';
+    const daysLate = dueDate < today
+      ? Math.floor((Date.now() - new Date(`${dueDate}T00:00:00`).getTime()) / 86400000)
+      : 0;
+
+    return {
+      id: row.id,
+      investmentId: row.investment_id,
+      debtorName: (row as any).investments?.debtor?.full_name || 'Desconhecido',
+      amount: Math.max(0, Number(row.amount_total) - Number(row.amount_paid || 0)),
+      dueDate,
+      status: row.status,
+      daysLate,
+    };
+  });
 }
 
-// ─── Devedores para Cobrar Hoje ───────────────────────────────────────────────
+export async function getInstallmentsToday(tenantId: string): Promise<Installment[]> {
+  return getInstallmentsInWindow(tenantId, 1, 'today');
+}
+
+// ─── Devedores para Cobrar por Janela ────────────────────────────────────────
 
 export interface DebtorToCollect {
   name: string;
@@ -1391,25 +1967,46 @@ function mapDebtorsToCollect(
     .sort((a, b) => b.totalDue - a.totalDue);
 }
 
-export async function getDebtorsToCollectToday(tenantId: string): Promise<DebtorToCollect[]> {
+export async function getDebtorsToCollectInWindow(
+  tenantId: string,
+  daysAhead = 7,
+  windowStart: WindowStart = 'today',
+): Promise<DebtorToCollect[]> {
+  const window = buildDateWindow(daysAhead, windowStart);
+  return getDebtorsToCollectByDateRange(tenantId, window.startDate, window.endDate);
+}
+
+export async function getDebtorsToCollectByDateRange(
+  tenantId: string,
+  startDate: string,
+  endDate: string,
+): Promise<DebtorToCollect[]> {
   const today = toYmdInTimeZone(new Date(), OPERATION_TIMEZONE);
+
   const { data, error } = await db()
     .from('loan_installments')
-    .select(`
+    .select(
+      `
       amount_total, amount_paid, due_date, status,
       investments!inner(tenant_id, debtor:profiles!investments_payer_id_fkey(full_name))
-    `)
+    `
+    )
     .eq('investments.tenant_id', tenantId)
     .in('status', ['pending', 'late', 'partial'])
-    .eq('due_date', today)
+    .gte('due_date', startDate)
+    .lte('due_date', endDate)
     .order('due_date', { ascending: true });
 
   if (error) {
-    console.error('[getDebtorsToCollectToday] query failed', error);
+    console.error('[getDebtorsToCollectByDateRange] query failed', error);
     return [];
   }
 
   return mapDebtorsToCollect(data || [], today);
+}
+
+export async function getDebtorsToCollectToday(tenantId: string): Promise<DebtorToCollect[]> {
+  return getDebtorsToCollectInWindow(tenantId, 1, 'today');
 }
 
 async function getOverdueDebtors(tenantId: string): Promise<DebtorToCollect[]> {
@@ -1442,36 +2039,47 @@ export interface MonthlyReport {
   topDebtors: Array<{ name: string; totalDebt: number }>;
 }
 
+async function getTopDebtors(tenantId: string, limit = 5): Promise<Array<{ name: string; totalDebt: number }>> {
+  const { data, error } = await db()
+    .from('loan_installments')
+    .select(`
+      amount_total, amount_paid,
+      investments!inner(tenant_id, payer_id, debtor:profiles!investments_payer_id_fkey(full_name))
+    `)
+    .eq('investments.tenant_id', tenantId)
+    .in('status', ['pending', 'late', 'partial']);
+
+  if (error) {
+    console.error('[getTopDebtors] query failed', error);
+    return [];
+  }
+
+  const byDebtor = new Map<string, { name: string; totalDebt: number }>();
+  for (const row of data || []) {
+    const payerId = String((row as any).investments?.payer_id || '');
+    if (!payerId) continue;
+
+    const name = (row as any).investments?.debtor?.full_name || 'Desconhecido';
+    const remaining = Math.max(0, Number((row as any).amount_total || 0) - Number((row as any).amount_paid || 0));
+    if (remaining <= 0) continue;
+
+    const current = byDebtor.get(payerId) || { name, totalDebt: 0 };
+    current.totalDebt += remaining;
+    byDebtor.set(payerId, current);
+  }
+
+  return Array.from(byDebtor.values())
+    .sort((a, b) => b.totalDebt - a.totalDebt)
+    .slice(0, Math.max(1, limit));
+}
+
 export async function generateMonthlyReport(tenantId: string): Promise<MonthlyReport> {
-  const [dashboard, overdueDebtors, todayInstallments] = await Promise.all([
+  const [dashboard, overdueDebtors, todayInstallments, topDebtors] = await Promise.all([
     getDashboardSummary(tenantId),
     getOverdueDebtors(tenantId),
     getInstallmentsToday(tenantId),
+    getTopDebtors(tenantId, 5),
   ]);
-
-  const { data: investments } = await db()
-    .from('investments')
-    .select('id, payer_id, debtor:profiles!investments_payer_id_fkey(full_name)')
-    .eq('tenant_id', tenantId)
-    .eq('status', 'active');
-
-  const debtorsById = new Map<string, string>();
-  for (const inv of investments || []) {
-    if (!inv.payer_id) continue;
-    if (!debtorsById.has(inv.payer_id)) {
-      debtorsById.set(inv.payer_id, (inv as any).debtor?.full_name || 'Desconhecido');
-    }
-  }
-
-  const debtorDebts: Array<{ name: string; totalDebt: number }> = [];
-  for (const [payerId, name] of debtorsById.entries()) {
-    const debt = await getUserDebt(tenantId, payerId);
-    if (debt > 0) debtorDebts.push({ name, totalDebt: debt });
-  }
-
-  const topDebtors = debtorDebts
-    .sort((a, b) => b.totalDebt - a.totalDebt)
-    .slice(0, 5);
 
   return { dashboard, overdueDebtors, todayInstallments, topDebtors };
 }

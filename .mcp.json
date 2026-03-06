@@ -2,26 +2,7 @@
   "mcpServers": {
     "supabase": {
       "type": "http",
-      "url": "https://mcp.supabase.com/mcp?project_ref=SUPABASE_PROJECT_REF_REMOVED&features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching%2Cstorage",
-      "headers": {
-        "Authorization": "Bearer SUPABASE_PAT_REMOVED"
-      }
-    },
-    "stripe": {
-      "type": "http",
-      "url": "https://mcp.stripe.com",
-      "headers": {
-        "Authorization": "Bearer"
-      }
-    },
-    "gcloud": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@google-cloud/gcloud-mcp"
-      ],
-      "env": {}
+      "url": "https://mcp.supabase.com/mcp?project_ref=SUPABASE_PROJECT_REF_REMOVED&features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching"
     }
   }
 }

@@ -36,7 +36,7 @@ export const analyzePortfolio = async (investments: Investment[]): Promise<strin
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.0-flash-lite',
       contents: prompt,
     });
     // Fix: Accessing the .text property directly (not a method call).
@@ -78,7 +78,7 @@ Regras de inferência:
 Frase do usuário: "${text.replace(/"/g, "'")}"`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-2.0-flash-lite',
     contents: prompt,
   });
 

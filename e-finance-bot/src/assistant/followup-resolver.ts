@@ -1,0 +1,160 @@
+import type { ActionPlan, ConversationWorkingState } from './contracts';
+import { inferInstallmentMonth } from '../ai/intent-classifier';
+import { inferTimeWindowFromText } from './time-window';
+
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractOrdinalSelection(text: string): number | null {
+  const trimmed = text.trim();
+  const direct = trimmed.match(/^(\d{1,2})$/);
+  if (direct?.[1]) return Number(direct[1]);
+
+  if (/primeir[oa]/i.test(trimmed)) return 1;
+  if (/segund[oa]/i.test(trimmed)) return 2;
+  if (/terceir[oa]/i.test(trimmed)) return 3;
+  return null;
+}
+
+function resolveDebtorCandidateSelection(
+  state: ConversationWorkingState,
+  text: string,
+): ActionPlan | null {
+  const candidates = state.lastDebtorCandidates || [];
+  if (candidates.length === 0) return null;
+
+  const normalized = normalizeText(text);
+  let selected = null as typeof candidates[number] | null;
+
+  if (/^o outro\b/.test(normalized) && candidates.length === 2 && state.lastEntity?.id) {
+    selected = candidates.find(candidate => candidate.id !== state.lastEntity?.id) || null;
+  }
+
+  if (!selected) {
+    const byOrdinal = extractOrdinalSelection(text);
+    if (byOrdinal && byOrdinal >= 1 && byOrdinal <= candidates.length) {
+      selected = candidates[byOrdinal - 1];
+    }
+  }
+
+  if (!selected) {
+    const digits = normalized.replace(/\D/g, '');
+    if (digits.length >= 2) {
+      selected = candidates.find(candidate =>
+        candidate.cpfMasked?.replace(/\D/g, '').endsWith(digits)
+      ) || null;
+    }
+  }
+
+  if (!selected) {
+    selected = candidates.find(candidate =>
+      normalizeText(candidate.label).includes(normalized)
+    ) || null;
+  }
+
+  if (!selected) return null;
+
+  return {
+    capability: 'query_debtor_balance',
+    confidence: 'high',
+    source: 'followup',
+    args: {
+      debtor_profile_id: selected.id,
+      debtor_name: selected.label,
+    },
+    missingFields: [],
+    dependsOnContext: true,
+    requiresConfirmation: false,
+  };
+}
+
+function resolveTemporalFollowup(
+  state: ConversationWorkingState,
+  text: string,
+): ActionPlan | null {
+  const timeWindow = inferTimeWindowFromText(text);
+  if (!timeWindow || !state.lastAction) return null;
+
+  if (state.lastAction === 'query_receivables_window' || state.lastAction === 'list_receivables') {
+    return {
+      capability: 'query_receivables_window',
+      confidence: 'high',
+      source: 'followup',
+      args: { time_window: timeWindow },
+      missingFields: [],
+      dependsOnContext: true,
+      requiresConfirmation: false,
+    };
+  }
+
+  if (state.lastAction === 'query_collection_window' || state.lastAction === 'list_collection_targets') {
+    return {
+      capability: 'query_collection_window',
+      confidence: 'high',
+      source: 'followup',
+      args: { time_window: timeWindow },
+      missingFields: [],
+      dependsOnContext: true,
+      requiresConfirmation: false,
+    };
+  }
+
+  return null;
+}
+
+function resolveInstallmentFollowup(
+  state: ConversationWorkingState,
+  text: string,
+): ActionPlan | null {
+  if (state.lastAction !== 'mark_installment_paid' || !state.lastContractId) return null;
+
+  const installmentNumber = text.trim().match(/parcela\s*#?\s*(\d+)/i)?.[1];
+  if (installmentNumber) {
+    return {
+      capability: 'mark_installment_paid',
+      confidence: 'high',
+      source: 'followup',
+      args: {
+        contract_id: state.lastContractId,
+        installment_number: Number(installmentNumber),
+      },
+      missingFields: [],
+      dependsOnContext: true,
+      requiresConfirmation: false,
+    };
+  }
+
+  const monthInfo = inferInstallmentMonth(text);
+  if (monthInfo.month) {
+    return {
+      capability: 'mark_installment_paid',
+      confidence: 'high',
+      source: 'followup',
+      args: {
+        contract_id: state.lastContractId,
+        installment_month: monthInfo.month,
+        installment_year: monthInfo.year,
+      },
+      missingFields: [],
+      dependsOnContext: true,
+      requiresConfirmation: false,
+    };
+  }
+
+  return null;
+}
+
+export function resolveFollowup(
+  text: string,
+  state: ConversationWorkingState,
+): ActionPlan | null {
+  return resolveDebtorCandidateSelection(state, text)
+    || resolveTemporalFollowup(state, text)
+    || resolveInstallmentFollowup(state, text);
+}

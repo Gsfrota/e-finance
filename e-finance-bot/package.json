@@ -1,0 +1,32 @@
+{
+  "name": "e-finance-bot",
+  "version": "1.0.0",
+  "description": "Assistente de bolso e-finance via WhatsApp e Telegram",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:window-validation": "tsx scripts/validate-window-reports.ts",
+    "audit:duplicate-installments": "tsx scripts/audit-duplicate-installments.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.1",
+    "@supabase/supabase-js": "^2.49.2",
+    "axios": "^1.7.0",
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.0.0",
+    "@types/supertest": "^6.0.3",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.5"
+  }
+}

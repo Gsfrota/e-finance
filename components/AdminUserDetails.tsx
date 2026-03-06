@@ -21,33 +21,6 @@ interface AdminUserDetailsProps {
   onBack: () => void;
 }
 
-// Deduplicate Logic (Copied for isolation)
-const deduplicateInstallments = (list: any[]) => {
-  const map = new Map<string, any>();
-  list.forEach(inst => {
-    const key = `${inst.investment_id}-${inst.number}`;
-    if (map.has(key)) {
-      const existing = map.get(key);
-      if (existing.status !== 'paid' && inst.status === 'paid') {
-        map.set(key, inst);
-      } 
-      else if (existing.status !== 'paid' && existing.status !== 'partial' && inst.status === 'partial') {
-        map.set(key, inst);
-      }
-      else if (existing.status === inst.status) {
-        if (inst.created_at && existing.created_at) {
-            if (new Date(inst.created_at).getTime() > new Date(existing.created_at).getTime()) {
-                map.set(key, inst);
-            }
-        }
-      }
-    } else {
-      map.set(key, inst);
-    }
-  });
-  return Array.from(map.values());
-};
-
 const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null); // Store tenant for receipts
@@ -119,8 +92,7 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
       const processedContracts = (invs || []).map((inv: any) => {
           tLoaned += Number(inv.current_value || 0);
           
-          // Deduplicate first
-          const uniqueInstallments = deduplicateInstallments(inv.loan_installments || []);
+          const uniqueInstallments = (inv.loan_installments || []);
 
           const sortedInstallments = uniqueInstallments.sort((a: any, b: any) => 
             new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
