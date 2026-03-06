@@ -102,7 +102,7 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined }> = ({ t
                 <p className="section-kicker mb-1">Carteira</p>
                 <h3 className="font-display text-4xl leading-none text-[color:var(--text-primary)]">Contratos recentes</h3>
               </div>
-              <InvestmentsTable data={filteredInvestments.slice(0, 5)} />
+              <InvestmentsTable data={investments.slice(0, 5)} />
             </div>
           </div>
         )}
