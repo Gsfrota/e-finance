@@ -26,6 +26,8 @@ import {
   X,
   ChevronRight,
   Bot,
+  ListChecks,
+  Settings,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -174,7 +176,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
   );
 
   return (
-    <div className="flex min-h-screen bg-transparent text-[color:var(--text-primary)] overflow-hidden font-sans">
+    <div className="flex min-h-screen bg-transparent text-[color:var(--text-primary)] overflow-x-hidden font-sans">
       
       <aside className="glass-border hidden w-[280px] flex-col border-r md:flex">
         <NavContent />
@@ -183,9 +185,9 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}></div>
-          <aside className="glass-border relative h-full w-[84%] max-w-xs animate-fade-in-right flex-col">
-             <button onClick={() => setMobileMenuOpen(false)} className="absolute right-4 top-4 p-2 text-[color:var(--text-muted)] hover:text-white">
-                <X size={24} />
+          <aside className="glass-border relative flex h-full w-[84%] max-w-xs animate-fade-in-right flex-col pb-[env(safe-area-inset-bottom,0px)]">
+             <button onClick={() => setMobileMenuOpen(false)} className="absolute right-4 top-4 flex min-h-[44px] min-w-[44px] items-center justify-center text-[color:var(--text-muted)] hover:text-white">
+                <X size={22} />
              </button>
              <NavContent />
           </aside>
@@ -195,11 +197,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
       <div className="flex h-screen flex-1 flex-col overflow-hidden">
         <header className="glass-border z-20 flex h-16 items-center justify-between border-b px-4 md:h-20 md:px-8">
           
-          <div className="flex items-center gap-4 md:hidden">
-            <button onClick={() => setMobileMenuOpen(true)} className="text-[color:var(--text-secondary)] hover:text-white">
+          <div className="flex items-center gap-3 md:hidden">
+            <button onClick={() => setMobileMenuOpen(true)} className="flex min-h-[44px] min-w-[44px] items-center justify-center text-[color:var(--text-secondary)] hover:text-white">
               <Menu size={24} />
             </button>
-            <div className="font-display truncate text-2xl text-[color:var(--text-primary)] max-w-[160px]">
+            <div className="font-display truncate text-lg text-[color:var(--text-primary)] max-w-[140px]">
               {tenant?.name || '...'}
             </div>
           </div>
@@ -232,13 +234,40 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
           </div>
         </header>
 
-        <main className="custom-scrollbar relative flex-1 overflow-y-auto">
-          <div className="app-noise absolute inset-0"></div>
-          <div className="relative mx-auto w-full max-w-[1680px] px-4 py-6 md:px-8 md:py-8">
+        <main className="custom-scrollbar relative flex-1 overflow-y-auto bg-[#0f1d33]">
+          <div className="app-noise pointer-events-none absolute inset-0 z-0"></div>
+          <div className="relative z-10 mx-auto w-full max-w-[1680px] px-4 py-6 pb-20 md:px-8 md:py-8 md:pb-8">
             {children}
           </div>
         </main>
       </div>
+
+      {/* Bottom Navigation — mobile only */}
+      <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden glass-border border-t" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        <div className="flex bg-[var(--bg-card,#151922)]">
+          {(
+            [
+              { icon: LayoutDashboard, label: 'Dashboard', view: AppView.DASHBOARD },
+              { icon: ListChecks, label: 'Recebíveis', view: AppView.DASHBOARD },
+              { icon: Bot, label: 'Assistente', view: AppView.ASSISTANT },
+              { icon: Settings, label: 'Ajustes', view: AppView.SETTINGS },
+            ] as const
+          ).map(({ icon: Icon, label, view }) => (
+            <button
+              key={label}
+              onClick={() => handleViewChange(view)}
+              className={`flex flex-1 flex-col items-center gap-1 py-3 text-[10px] font-extrabold uppercase tracking-wide transition-all ${
+                activeView === view
+                  ? 'text-[color:var(--accent-brass)]'
+                  : 'text-[color:var(--text-faint)]'
+              }`}
+            >
+              <Icon size={20} />
+              {label}
+            </button>
+          ))}
+        </div>
+      </nav>
     </div>
   );
 };

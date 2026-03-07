@@ -31,9 +31,19 @@ export interface WaMessage {
 
 export type WaPresence = 'available' | 'unavailable';
 
+// Normaliza numero BR de 12 digitos (55 + DDD + 8 digitos) para 13 (insere 9)
+function normalizeBrPhone(digits: string): string {
+  if (digits.length === 12 && digits.startsWith('55')) {
+    return digits.slice(0, 4) + '9' + digits.slice(4);
+  }
+  return digits;
+}
+
 // Extrai numero limpo de qualquer formato (558591318582@s.whatsapp.net ou 5585991318582)
 export function extractPhone(chatid: string): string {
-  return chatid.replace('@s.whatsapp.net', '').replace('@g.us', '').split(':')[0];
+  const raw = chatid.replace(/@s\.whatsapp\.net$/, '').replace(/@.*$/, '').split(':')[0];
+  const digits = raw.replace(/\D/g, '');
+  return normalizeBrPhone(digits);
 }
 
 export async function sendText(to: string, text: string): Promise<void> {

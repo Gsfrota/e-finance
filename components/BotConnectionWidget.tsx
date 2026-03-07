@@ -127,9 +127,16 @@ export function BotConnectionWidget() {
         <div className="mt-4 bg-slate-900 rounded-lg p-4 border border-teal-700">
           <p className="text-slate-300 text-sm mb-2">
             Envie o código abaixo para o bot no{' '}
-            <span className="text-teal-400 font-medium">
-              {activeChannel === 'whatsapp' ? 'WhatsApp (+5585991318582)' : 'Telegram (@claulermbot)'}
-            </span>
+            <a
+              href={activeChannel === 'whatsapp'
+                ? `https://wa.me/5585920284195?text=${encodeURIComponent(linkCode)}`
+                : `https://t.me/claulermbot?start=${linkCode}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-teal-400 font-medium underline hover:text-teal-300"
+            >
+              {activeChannel === 'whatsapp' ? 'WhatsApp (+55 85 2028-4195)' : 'Telegram (@claulermbot)'}
+            </a>
             :
           </p>
           <div className="flex items-center gap-3">
@@ -141,6 +148,16 @@ export function BotConnectionWidget() {
               Copiar
             </button>
           </div>
+          <a
+            href={activeChannel === 'whatsapp'
+              ? `https://wa.me/5585920284195?text=${encodeURIComponent(linkCode)}`
+              : `https://t.me/claulermbot?start=${linkCode}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex items-center gap-2 text-xs bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+          >
+            Abrir {activeChannel === 'whatsapp' ? 'WhatsApp' : 'Telegram'} com o código →
+          </a>
           <p className="text-slate-500 text-xs mt-2">Expira em {formatCountdown(countdown)}</p>
           <button
             onClick={() => { setLinkCode(null); setCountdown(0); loadStatus(); }}

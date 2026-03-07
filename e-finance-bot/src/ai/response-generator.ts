@@ -29,6 +29,12 @@ export interface ConversationalReplyContext {
   result?: 'success' | 'clarification' | 'error' | 'blocked';
 }
 
+export interface ReplyResult {
+  text: string | null;
+  tokensIn: number;
+  tokensOut: number;
+}
+
 function hasApiKey(): boolean {
   return !!config.gemini.apiKey;
 }
@@ -54,9 +60,9 @@ async function generateWithTimeout(
   prompt: string,
   maxOutputTokens: number,
   timeoutMs: number,
-): Promise<string | null> {
-  const timeoutPromise = new Promise<null>((resolve) => {
-    setTimeout(() => resolve(null), timeoutMs);
+): Promise<ReplyResult> {
+  const timeoutPromise = new Promise<ReplyResult>((resolve) => {
+    setTimeout(() => resolve({ text: null, tokensIn: 0, tokensOut: 0 }), timeoutMs);
   });
 
   const llmPromise = ai().models.generateContent({
@@ -66,18 +72,23 @@ async function generateWithTimeout(
       temperature: 0.2,
       maxOutputTokens,
     },
-  }).then(result => result.text?.trim() || null);
+  }).then(result => ({
+    text: result.text?.trim() || null,
+    tokensIn: (result.usageMetadata as Record<string, number> | undefined)?.promptTokenCount ?? 0,
+    tokensOut: (result.usageMetadata as Record<string, number> | undefined)?.candidatesTokenCount ?? 0,
+  }));
 
   return Promise.race([llmPromise, timeoutPromise]);
 }
 
 export async function renderConversationalReply(
   context: ConversationalReplyContext,
-): Promise<string | null> {
-  if (!config.llmResponse.enabled || !hasApiKey()) return null;
+): Promise<ReplyResult> {
+  const empty: ReplyResult = { text: null, tokensIn: 0, tokensOut: 0 };
+  if (!config.llmResponse.enabled || !hasApiKey()) return empty;
 
   const baseText = (context.baseText || '').trim();
-  if (!baseText) return null;
+  if (!baseText) return empty;
 
   const action = truncate(context.action || 'resposta', 60);
   const userMessage = truncate(context.userMessage || '', 180);
@@ -101,14 +112,14 @@ Contexto:
 
 Retorne somente a frase final.`;
 
-      const preface = await generateWithTimeout(
+      const reply = await generateWithTimeout(
         prompt,
         Math.min(config.llmResponse.maxOutputTokens, 40),
         config.llmResponse.timeoutMs,
       );
 
-      if (!preface) return null;
-      return `${preface}\n\n${baseText}`;
+      if (!reply.text) return empty;
+      return { text: `${reply.text}\n\n${baseText}`, tokensIn: reply.tokensIn, tokensOut: reply.tokensOut };
     }
 
     const prompt = `${AGENT_SYSTEM_PROMPT}
@@ -133,15 +144,16 @@ Retorne somente o texto final.`;
       config.llmResponse.timeoutMs,
     );
   } catch {
-    return null;
+    return empty;
   }
 }
 
 export async function generateAgentResponse(
   context: ResponseContext,
   userMessage: string,
-): Promise<string | null> {
-  if (!config.llmResponse.enabled || !hasApiKey()) return null;
+): Promise<ReplyResult> {
+  const empty: ReplyResult = { text: null, tokensIn: 0, tokensOut: 0 };
+  if (!config.llmResponse.enabled || !hasApiKey()) return empty;
 
   let contextDescription: string;
   switch (context.type) {
@@ -182,6 +194,6 @@ Gere uma resposta natural e concisa em PT-BR (maximo 2 frases):`;
       config.llmResponse.timeoutMs,
     );
   } catch {
-    return null;
+    return empty;
   }
 }

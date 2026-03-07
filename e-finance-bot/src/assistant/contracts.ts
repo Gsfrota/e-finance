@@ -16,7 +16,10 @@ export type ActionCapability =
   | 'smalltalk_identity'
   | 'smalltalk_datetime'
   | 'generate_report'
-  | 'generate_invite';
+  | 'generate_invite'
+  | 'view_my_installments'
+  | 'view_my_debt_summary'
+  | 'view_my_portfolio';
 
 export type OperationalIntent = Intent | 'smalltalk_identity' | 'smalltalk_datetime';
 

@@ -37,6 +37,13 @@ export interface MessageLogPayload {
   fallbackReason?: string;
   estimatedTokenClass?: 'low' | 'medium' | 'high';
 
+  llmCallCount?: number;
+  tokensInput?: number;
+  tokensOutput?: number;
+  llmModels?: string[];
+  llmSkipped?: boolean;
+  estimatedCostUsd?: number;
+
   routeMs?: number;
   followupMs?: number;
   policyMs?: number;

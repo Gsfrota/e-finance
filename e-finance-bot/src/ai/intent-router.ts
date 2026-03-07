@@ -75,6 +75,9 @@ const RULES: Rule[] = [
   { intent: 'gerar_relatorio', pattern: /(gerar\s+relat[oó]rio|relat[oó]rio\s+mensal|resumo\s+completo|me\s+d[aá]\s+um\s+relat[oó]rio|pedir\s+relat[oó]rio)/i },
   { intent: 'gerar_convite', pattern: /(gerar\s+convite|gera\s+um\s+convite|novo\s+c[oó]digo\s+de\s+convite|link\s+de\s+convite)/i },
   { intent: 'buscar_usuario', pattern: /(buscar\s+usu[aá]rio|buscar\s+devedor|consultar\s+usu[aá]rio|quanto\s+.*\s+deve|ver\s+devedor|me\s+fala\s+da\s+d[íi]vida|qual\s+(a\s+)?d[íi]vida\s+de)/i },
+  { intent: 'ver_minhas_parcelas', pattern: /minha[s]?\s+parcela[s]?|meu[s]?\s+vencimento[s]?|quando\s+vence\s+minha|minhas\s+d[íi]vidas\s+abertas/i },
+  { intent: 'ver_meu_saldo_devedor', pattern: /quanto\s+devo|minha\s+d[íi]vida|meu\s+saldo\s+devedor|total\s+em\s+aberto\s*(da\s+minha|que\s+devo)?/i },
+  { intent: 'ver_meu_portfolio', pattern: /meu[s]?\s+contrato[s]?|meu[s]?\s+receb[íi]ve[il][s]?|meu\s+portf[oó]lio|minha[s]?\s+carteira/i },
   { intent: 'desconectar', pattern: /^(\/desconectar|desconectar|desvincular|sair\s+da\s+conta)$/i },
   { intent: 'confirmar', pattern: /^(sim|confirmo|ok|pode|isso|s)$/i },
   { intent: 'cancelar', pattern: /^(n[aã]o|nao|cancela|cancelar|para|sair)$/i },
@@ -295,9 +298,16 @@ function getCache(cacheKey: string): RoutedIntent | null {
   return entry.value;
 }
 
+function cacheTtlByConfidence(confidence: string): number {
+  if (confidence === 'high') return 300_000;   // 5 minutes for strong results
+  if (confidence === 'medium') return 60_000;  // 1 minute for medium
+  return 15_000;                               // 15s for low confidence
+}
+
 function setCache(cacheKey: string, value: RoutedIntent): void {
+  const ttlMs = Math.max(1000, cacheTtlByConfidence(value.confidence));
   llmRouterCache.set(cacheKey, {
-    expiresAt: Date.now() + Math.max(1000, config.llmRouter.cacheTtlMs),
+    expiresAt: Date.now() + ttlMs,
     value,
   });
 }
@@ -655,6 +665,9 @@ export async function routeIntent(
     result: didTimeout ? 'timeout' : 'success',
     durationMs,
     fallbackReason: routed.fallbackReason,
+    tokensInput: routed.usage?.tokensInput,
+    tokensOutput: routed.usage?.tokensOutput,
+    llmModels: ['gemini-2.5-flash-lite'],
   });
 
   logStructuredMessage('router_decision_trace', {
@@ -665,6 +678,16 @@ export async function routeIntent(
     result: routed.decisionPath,
     fallbackReason: routed.fallbackReason,
   });
+
+  if (routed.confidence === 'low' || routed.decisionPath === 'fallback') {
+    logStructuredMessage('nlu_low_confidence', {
+      ...traceBase,
+      intent: routed.intent,
+      confidence: routed.confidence,
+      result: routed.decisionPath,
+      fallbackReason: routed.fallbackReason,
+    });
+  }
 
   if (!didTimeout) {
     setCache(cacheKey, routed);

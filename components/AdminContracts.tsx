@@ -1101,7 +1101,7 @@ const AdminContracts: React.FC = () => {
                     )}
                 </div>
 
-                <div className="p-6 border-t border-slate-700 bg-slate-900/90 backdrop-blur flex gap-4">
+                <div className="flex gap-4 border-t border-slate-700 bg-slate-900/90 p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] backdrop-blur">
                     {step > 1 && (
                         <button onClick={() => setStep(s => s - 1)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all border border-slate-700">
                             Voltar

@@ -61,12 +61,12 @@ const InvestorDashboard: React.FC = () => {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 pb-12 animate-fade-in">
+    <div className="mx-auto max-w-7xl space-y-4 pb-12 animate-fade-in md:space-y-6">
       <div className="panel-card rounded-[2rem] px-6 py-7 md:px-8 md:py-8">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="section-kicker mb-2">Visão do investidor</p>
-            <h1 className="font-display text-5xl leading-none text-[color:var(--text-primary)]">Carteira de {metrics.userName}</h1>
+            <h1 className="font-display text-3xl leading-none text-[color:var(--text-primary)] md:text-5xl">Carteira de {metrics.userName}</h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-[color:var(--text-secondary)]">
               Acompanhe o capital alocado, o lucro já realizado e o próximo recebimento previsto sem depender de relatórios externos.
             </p>
@@ -84,8 +84,8 @@ const InvestorDashboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <div className="panel-card rounded-[1.8rem] p-6">
+      <div className="grid grid-cols-1 gap-3 md:gap-5 xl:grid-cols-3">
+        <div className="panel-card rounded-[1.8rem] p-4 md:p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker mb-1">Principal</p>
@@ -99,7 +99,7 @@ const InvestorDashboard: React.FC = () => {
           <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Volume principal comprometido na carteira atual.</p>
         </div>
 
-        <div className="panel-card rounded-[1.8rem] p-6">
+        <div className="panel-card rounded-[1.8rem] p-4 md:p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker mb-1">Resultado</p>
@@ -113,7 +113,7 @@ const InvestorDashboard: React.FC = () => {
           <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Apurado em regime de caixa, conforme o pagamento efetivo das parcelas.</p>
         </div>
 
-        <div data-testid="next-payment-card" className="panel-card rounded-[1.8rem] p-6">
+        <div data-testid="next-payment-card" className="panel-card rounded-[1.8rem] p-4 md:p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker mb-1">Próximo recebimento</p>
@@ -137,8 +137,8 @@ const InvestorDashboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="panel-card rounded-[1.8rem] p-6">
+      <div className="grid grid-cols-1 gap-3 md:gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="panel-card rounded-[1.8rem] p-4 md:p-6">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker mb-1">Fluxo mensal</p>
@@ -149,8 +149,8 @@ const InvestorDashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="h-[320px] min-w-0">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320}>
+          <div className="h-52 min-w-0 md:h-[320px]">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={metrics.chartData} barSize={28}>
                 <CartesianGrid stroke="rgba(245,239,226,0.05)" vertical={false} />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#8d919a', fontSize: 11, fontWeight: 700 }} />

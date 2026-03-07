@@ -5,6 +5,7 @@ import {
   getDebtorsToCollectByDateRange,
   getInstallments,
   getInstallmentsByDateRange,
+  getInvestorPortfolio,
   getUserDebtDetails,
   searchUser,
 } from '../actions/admin-actions';
@@ -441,6 +442,78 @@ export async function executeActionPlan(
         pendingCapability: undefined,
         pendingMissingFields: [],
       }),
+    };
+  }
+
+  if (plan.capability === 'view_my_installments' || plan.capability === 'view_my_debt_summary') {
+    const debtDetails = await getUserDebtDetails(context.tenantId, context.profileId);
+
+    if (plan.capability === 'view_my_installments') {
+      const allPending = debtDetails.contracts.flatMap(c =>
+        c.nextDueDate
+          ? [{ name: c.assetName, amount: c.nextDueAmount, dueDate: c.nextDueDate, pending: c.pendingInstallments }]
+          : []
+      );
+
+      let msg: string;
+      if (allPending.length === 0) {
+        msg = '✅ Você não possui parcelas pendentes no momento.';
+      } else {
+        const lines = allPending.map((item, i) => {
+          const parcelasLabel = item.pending === 1 ? '1 parcela' : `${item.pending} parcelas`;
+          return `${i + 1}. ${item.name} — próxima: *${formatCurrency(item.amount)}* em ${formatDate(item.dueDate)} (${parcelasLabel} em aberto)`;
+        });
+        msg = `📋 *Suas parcelas em aberto:*\n\n${lines.join('\n')}`;
+      }
+
+      return {
+        status: 'ok',
+        safeUserMessage: msg,
+        audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+        workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [] }),
+      };
+    }
+
+    // view_my_debt_summary
+    let summaryMsg: string;
+    if (debtDetails.totalDebt <= 0) {
+      summaryMsg = '✅ Você não possui saldo devedor em aberto.';
+    } else {
+      const parcelasLabel = debtDetails.pendingInstallments === 1 ? 'parcela pendente' : 'parcelas pendentes';
+      const contratosLabel = debtDetails.activeContracts === 1 ? 'contrato ativo' : 'contratos ativos';
+      const nextLine = debtDetails.nextDueDate
+        ? `\nPróximo vencimento: *${formatDate(debtDetails.nextDueDate)}* (${formatCurrency(debtDetails.nextDueAmount)})`
+        : '';
+      summaryMsg = `💰 Seu saldo devedor total: *${formatCurrency(debtDetails.totalDebt)}*\n${debtDetails.pendingInstallments} ${parcelasLabel} em ${debtDetails.activeContracts} ${contratosLabel}.${nextLine}`;
+    }
+
+    return {
+      status: 'ok',
+      safeUserMessage: summaryMsg,
+      audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+      workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [] }),
+    };
+  }
+
+  if (plan.capability === 'view_my_portfolio') {
+    const portfolio = await getInvestorPortfolio(context.tenantId, context.profileId);
+
+    let portfolioMsg: string;
+    if (portfolio.totalContracts === 0) {
+      portfolioMsg = 'Você ainda não possui contratos ativos como investidor.';
+    } else {
+      const lines = portfolio.contracts.slice(0, 8).map((c, i) => {
+        const nextLine = c.nextDueDate ? ` — próximo: ${formatCurrency(c.nextDueAmount)} em ${formatDate(c.nextDueDate)}` : '';
+        return `${i + 1}. ${c.assetName} — a receber: *${formatCurrency(c.openBalance)}*${nextLine}`;
+      });
+      portfolioMsg = `📈 *Seu portfólio:*\n\n${lines.join('\n')}\n\n💰 Total a receber: *${formatCurrency(portfolio.totalReceivable)}*\n✅ Total recebido: *${formatCurrency(portfolio.totalReceived)}*`;
+    }
+
+    return {
+      status: 'ok',
+      safeUserMessage: portfolioMsg,
+      audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+      workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [] }),
     };
   }
 

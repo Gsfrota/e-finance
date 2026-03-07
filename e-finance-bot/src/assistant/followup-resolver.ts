@@ -150,11 +150,70 @@ function resolveInstallmentFollowup(
   return null;
 }
 
+function resolveDetailFollowup(
+  state: ConversationWorkingState,
+  text: string,
+): ActionPlan | null {
+  if (!state.lastAction) return null;
+  const normalized = normalizeText(text);
+
+  // "quero ver detalhes" / "me mostra mais" after installments view
+  if (
+    state.lastAction === 'view_my_installments'
+    && /\b(detalhes?|mais|completo|tudo)\b/.test(normalized)
+  ) {
+    return {
+      capability: 'view_my_installments',
+      confidence: 'high',
+      source: 'followup',
+      args: { filter: 'all' },
+      missingFields: [],
+      dependsOnContext: true,
+      requiresConfirmation: false,
+    };
+  }
+
+  // "e meus outros contratos?" / "todos os contratos" after portfolio view
+  if (
+    state.lastAction === 'view_my_portfolio'
+    && /\b(outros?|todos?|contratos?|carteira)\b/.test(normalized)
+  ) {
+    return {
+      capability: 'view_my_portfolio',
+      confidence: 'high',
+      source: 'followup',
+      args: {},
+      missingFields: [],
+      dependsOnContext: true,
+      requiresConfirmation: false,
+    };
+  }
+
+  // "quanto no total?" / "total da dívida?" after debt summary
+  if (
+    state.lastAction === 'view_my_debt_summary'
+    && /\b(total|soma|quanto|divida|saldo)\b/.test(normalized)
+  ) {
+    return {
+      capability: 'view_my_debt_summary',
+      confidence: 'high',
+      source: 'followup',
+      args: {},
+      missingFields: [],
+      dependsOnContext: true,
+      requiresConfirmation: false,
+    };
+  }
+
+  return null;
+}
+
 export function resolveFollowup(
   text: string,
   state: ConversationWorkingState,
 ): ActionPlan | null {
   return resolveDebtorCandidateSelection(state, text)
     || resolveTemporalFollowup(state, text)
-    || resolveInstallmentFollowup(state, text);
+    || resolveInstallmentFollowup(state, text)
+    || resolveDetailFollowup(state, text);
 }

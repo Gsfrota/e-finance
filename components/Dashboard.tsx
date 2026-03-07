@@ -57,7 +57,7 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined }> = ({ t
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <p className="section-kicker mb-2">Dashboard executivo</p>
-            <h2 className="font-display text-5xl leading-none text-[color:var(--text-primary)]">Leitura da carteira</h2>
+            <h2 className="font-display text-3xl leading-none text-[color:var(--text-primary)] md:text-5xl">Leitura da carteira</h2>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-[color:var(--text-secondary)]">
               Acompanhe capital ativo, performance do mês, agenda de cobrança e o comportamento das parcelas com a mesma base financeira usada nas consultas operacionais.
             </p>
@@ -74,33 +74,33 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined }> = ({ t
           </div>
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-2 rounded-full border border-white/10 bg-black/10 p-1.5">
-          <button 
+        <div className="mt-6 grid grid-cols-2 gap-1.5 rounded-full border border-white/10 bg-black/10 p-1.5">
+          <button
             onClick={() => setActiveTab('overview')}
-            className={`rounded-full px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.18em] transition-all flex items-center gap-2 ${activeTab === 'overview' ? 'bg-[color:var(--accent-brass)] text-[#17120b]' : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'}`}
+            className={`w-full justify-center rounded-full px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.18em] transition-all flex items-center gap-2 ${activeTab === 'overview' ? 'bg-[color:var(--accent-brass)] text-[#17120b]' : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'}`}
           >
             <LayoutDashboard size={14} /> Visão Geral
           </button>
           <button
             onClick={() => setActiveTab('receivables')}
-            className={`rounded-full px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.18em] transition-all flex items-center gap-2 ${activeTab === 'receivables' ? 'bg-[color:var(--accent-brass)] text-[#17120b]' : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'}`}
+            className={`w-full justify-center rounded-full px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.18em] transition-all flex items-center gap-2 ${activeTab === 'receivables' ? 'bg-[color:var(--accent-brass)] text-[#17120b]' : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'}`}
           >
             <FileText size={14} /> Recebíveis
           </button>
         </div>
       </div>
 
-      <div className="min-h-[500px]">
+      <div>
         {activeTab === 'overview' && (
           <div className="space-y-6 animate-fade-in">
-            <KPICards stats={stats} kpis={detailedKPIs} installments={installments} />
+            <KPICards stats={stats} kpis={detailedKPIs} installments={installments} onGoToReceivables={() => setActiveTab('receivables')} />
             
             <OverviewCharts kpis={detailedKPIs} installments={installments} />
             
             <div>
               <div className="mb-4 pl-1">
                 <p className="section-kicker mb-1">Carteira</p>
-                <h3 className="font-display text-4xl leading-none text-[color:var(--text-primary)]">Contratos recentes</h3>
+                <h3 className="font-display text-2xl leading-none text-[color:var(--text-primary)] md:text-4xl">Contratos recentes</h3>
               </div>
               <InvestmentsTable data={investments.slice(0, 5)} />
             </div>

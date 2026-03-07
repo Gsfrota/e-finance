@@ -139,6 +139,33 @@ const REGISTRY: Record<ActionCapability, CapabilityDefinition> = {
     idempotencyScope: 'mutation',
     legacyIntent: 'gerar_convite',
   },
+  view_my_installments: {
+    name: 'view_my_installments',
+    kind: 'query',
+    rolesAllowed: ['debtor'],
+    requiredArgs: [],
+    optionalArgs: [],
+    requiresConfirmation: false,
+    idempotencyScope: 'session',
+  },
+  view_my_debt_summary: {
+    name: 'view_my_debt_summary',
+    kind: 'query',
+    rolesAllowed: ['debtor'],
+    requiredArgs: [],
+    optionalArgs: [],
+    requiresConfirmation: false,
+    idempotencyScope: 'session',
+  },
+  view_my_portfolio: {
+    name: 'view_my_portfolio',
+    kind: 'query',
+    rolesAllowed: ['investor'],
+    requiredArgs: [],
+    optionalArgs: [],
+    requiresConfirmation: false,
+    idempotencyScope: 'session',
+  },
 };
 
 export function getCapabilityDefinition(capability: ActionCapability): CapabilityDefinition {

@@ -37,10 +37,10 @@ export const config = {
   // Roteador de intent hibrido (baixo token)
   llmRouter: {
     enabled: process.env.LLM_ROUTER_ENABLED !== 'false',
-    timeoutMs: parseInt(process.env.LLM_ROUTER_TIMEOUT_MS || '1200', 10),
+    timeoutMs: parseInt(process.env.LLM_ROUTER_TIMEOUT_MS || '2000', 10),
     maxOutputTokens: parseInt(process.env.LLM_ROUTER_MAX_OUTPUT_TOKENS || '80', 10),
-    maxInputChars: parseInt(process.env.LLM_ROUTER_MAX_INPUT_CHARS || '450', 10),
-    historyItems: parseInt(process.env.LLM_ROUTER_HISTORY_ITEMS || '2', 10),
+    maxInputChars: parseInt(process.env.LLM_ROUTER_MAX_INPUT_CHARS || '600', 10),
+    historyItems: parseInt(process.env.LLM_ROUTER_HISTORY_ITEMS || '3', 10),
     historyChars: parseInt(process.env.LLM_ROUTER_HISTORY_CHARS || '140', 10),
     cacheTtlMs: parseInt(process.env.LLM_ROUTER_CACHE_TTL_MS || '30000', 10),
   },

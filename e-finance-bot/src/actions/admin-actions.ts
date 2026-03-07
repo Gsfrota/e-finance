@@ -2086,6 +2086,113 @@ export async function generateMonthlyReport(tenantId: string): Promise<MonthlyRe
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+export interface InvestorPortfolioSummary {
+  totalContracts: number;
+  totalReceivable: number;
+  totalReceived: number;
+  nextDueDate: string | null;
+  nextDueAmount: number;
+  contracts: Array<{
+    contractId: number;
+    assetName: string;
+    openBalance: number;
+    receivedAmount: number;
+    pendingInstallments: number;
+    nextDueDate: string | null;
+    nextDueAmount: number;
+  }>;
+}
+
+export async function getInvestorPortfolio(tenantId: string, investorProfileId: string): Promise<InvestorPortfolioSummary> {
+  const { data: investments, error: invError } = await db()
+    .from('investments')
+    .select('id, asset_name, amount_invested')
+    .eq('tenant_id', tenantId)
+    .eq('user_id', investorProfileId)
+    .eq('status', 'active');
+
+  if (invError || !investments || investments.length === 0) {
+    return { totalContracts: 0, totalReceivable: 0, totalReceived: 0, nextDueDate: null, nextDueAmount: 0, contracts: [] };
+  }
+
+  const ids = investments.map(i => i.id);
+  const { data: installments, error: instError } = await db()
+    .from('loan_installments')
+    .select('investment_id, due_date, amount_total, amount_paid, status')
+    .in('investment_id', ids)
+    .order('due_date', { ascending: true });
+
+  if (instError) {
+    return { totalContracts: investments.length, totalReceivable: 0, totalReceived: 0, nextDueDate: null, nextDueAmount: 0, contracts: [] };
+  }
+
+  const byContract = new Map<number, typeof installments>();
+  for (const row of installments || []) {
+    const cid = Number(row.investment_id);
+    const list = byContract.get(cid) || [];
+    list.push(row);
+    byContract.set(cid, list);
+  }
+
+  let totalReceivable = 0;
+  let totalReceived = 0;
+  let nextDueDate: string | null = null;
+  let nextDueAmount = 0;
+
+  const contracts = investments.map(inv => {
+    const cid = Number(inv.id);
+    const rows = byContract.get(cid) || [];
+    let openBalance = 0;
+    let received = 0;
+    let pendingInstallments = 0;
+    let contractNextDue: string | null = null;
+    let contractNextAmount = 0;
+
+    for (const row of rows) {
+      const total = Number(row.amount_total || 0);
+      const paid = Number(row.amount_paid || 0);
+      const remaining = Math.max(0, total - paid);
+      received += paid;
+      if (remaining > 0) {
+        openBalance += remaining;
+        pendingInstallments += 1;
+        const dd = String(row.due_date || '').split('T')[0];
+        if (!contractNextDue || dd < contractNextDue) {
+          contractNextDue = dd;
+          contractNextAmount = remaining;
+        }
+      }
+    }
+
+    totalReceivable += openBalance;
+    totalReceived += received;
+
+    if (contractNextDue && (!nextDueDate || contractNextDue < nextDueDate)) {
+      nextDueDate = contractNextDue;
+      nextDueAmount = contractNextAmount;
+    }
+
+    return {
+      contractId: cid,
+      assetName: String(inv.asset_name || `Contrato #${cid}`),
+      openBalance: roundMoney(openBalance),
+      receivedAmount: roundMoney(received),
+      pendingInstallments,
+      nextDueDate: contractNextDue,
+      nextDueAmount: roundMoney(contractNextAmount),
+    };
+  });
+
+  return {
+    totalContracts: investments.length,
+    totalReceivable: roundMoney(totalReceivable),
+    totalReceived: roundMoney(totalReceived),
+    nextDueDate,
+    nextDueAmount: roundMoney(nextDueAmount),
+    contracts,
+  };
+}
+
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }

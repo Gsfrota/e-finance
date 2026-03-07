@@ -68,6 +68,12 @@ export function createActionPlan(
       return makePlan('generate_report', understanding);
     case 'gerar_convite':
       return makePlan('generate_invite', understanding);
+    case 'ver_minhas_parcelas':
+      return makePlan('view_my_installments', understanding);
+    case 'ver_meu_saldo_devedor':
+      return makePlan('view_my_debt_summary', understanding);
+    case 'ver_meu_portfolio':
+      return makePlan('view_my_portfolio', understanding);
     case 'desconectar':
       return makePlan('disconnect_bot', understanding);
     case 'ajuda':

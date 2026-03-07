@@ -16,6 +16,7 @@ import {
   getInstallmentByDebtorAndMonth,
 } from '../actions/admin-actions';
 import { logStructuredMessage } from '../observability/logger';
+import { estimateCostUsd } from '../observability/cost-estimator';
 import { config } from '../config';
 import type { LinkValidationResult, ContractOpenInstallment } from '../actions/admin-actions';
 import { detectPromptInjectionAttempt, sanitizeUserText } from '../security/prompt-guard';
@@ -51,11 +52,15 @@ export interface OutgoingMessage {
   text: string;
 }
 
-const WELCOME_MSG = (name: string) => `Oi ${name}! Sou o assistente e-finance.
-
-Pode falar comigo naturalmente para ver dashboard, recebiveis, criar contrato, baixar pagamento, buscar cliente ou pedir relatorio.
-
-Me conta o que voce precisa agora.`;
+function getWelcomeMessage(name: string, role: string): string {
+  if (role === 'debtor') {
+    return `Oi ${name}! Sou seu assistente financeiro.\n\nPosso mostrar suas *parcelas*, *saldo devedor* e *proximos vencimentos*.\n\nO que deseja saber?`;
+  }
+  if (role === 'investor') {
+    return `Oi ${name}! Sou seu assistente de carteira.\n\nPosso mostrar seus *contratos*, *recebiveis* e *rendimentos*.\n\nO que deseja saber?`;
+  }
+  return `Oi ${name}! Sou o assistente e-finance.\n\nPode falar comigo naturalmente para ver dashboard, recebiveis, criar contrato, baixar pagamento, buscar cliente ou pedir relatorio.\n\nMe conta o que voce precisa agora.`;
+}
 
 const NOT_LINKED_MSG = `Para te atender com seus dados, preciso vincular este chat a sua conta no e-finance.
 
@@ -551,11 +556,17 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
   const originalUserText = sanitizeUserText(msg.text || '');
   let textToProcess = originalUserText;
 
-  const finalize = async (text: string, patch: Partial<typeof telemetry> = {}): Promise<OutgoingMessage> => {
+  const llmUsage = { callCount: 0, tokensIn: 0, tokensOut: 0 };
+
+  const finalize = async (
+    text: string,
+    patch: Partial<typeof telemetry> = {},
+    opts: { skipLlm?: boolean } = {},
+  ): Promise<OutgoingMessage> => {
     Object.assign(telemetry, patch);
 
     const baseText = (text || '').trim() || 'Nao consegui montar uma resposta agora.';
-    if (shouldSkipConversationalLayer(String(telemetry.action || ''))) {
+    if (shouldSkipConversationalLayer(String(telemetry.action || '')) || opts.skipLlm) {
       return { text: baseText };
     }
 
@@ -566,7 +577,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
         : 'success';
 
     const naturalizeStartedAt = Date.now();
-    const conversationalText = await renderConversationalReply({
+    const reply = await renderConversationalReply({
       userMessage: textToProcess || originalUserText || '',
       baseText,
       action: String(telemetry.action || patch.action || 'resposta'),
@@ -576,7 +587,13 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
     latencyBreakdown.naturalizeMs += naturalizeElapsed;
     latencyBreakdown.llmMs += naturalizeElapsed;
 
-    return { text: conversationalText || baseText };
+    if (reply.text) {
+      llmUsage.callCount += 1;
+      llmUsage.tokensIn += reply.tokensIn;
+      llmUsage.tokensOut += reply.tokensOut;
+    }
+
+    return { text: reply.text || baseText };
   };
 
   if (!msg.audioBuffer && !msg.imageBuffer) {
@@ -767,6 +784,24 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
         });
       }
 
+      if (audioTranscript.quality === 'weak') {
+        const weakReply = getWeakAudioClarification(
+          audioTranscript.text,
+          'Não consegui entender o áudio com clareza. Pode digitar ou enviar novamente?',
+        );
+        logStructuredMessage('audio_weak_quality', {
+          channel: msg.channel,
+          messageId: msg.messageId,
+          sessionId: session.id,
+          mimeType: msg.audioMimeType,
+          audioKind: msg.audioKind,
+          result: 'weak',
+        });
+        await saveMessageTimed(session.id, 'user', `[áudio fraco] ${audioTranscript.text.slice(0, 60)}`, 'audio');
+        await saveMessageTimed(session.id, 'assistant', weakReply);
+        return { text: weakReply };
+      }
+
       textToProcess = sanitizeUserText(audioTranscript.text);
       logStructuredMessage('audio_transcription_completed', {
         channel: msg.channel,
@@ -808,7 +843,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
         await saveMessageTimed(session.id, 'assistant', NOT_LINKED_MSG);
         return finalize(NOT_LINKED_MSG, { action: 'start_not_linked' });
       }
-      const welcome = WELCOME_MSG(session.profile.name || 'Usuário');
+      const welcome = getWelcomeMessage(session.profile.name || 'Usuário', session.profile.role);
       await saveMessageTimed(session.id, 'assistant', welcome);
       return finalize(welcome, { action: 'start_welcome' });
     }
@@ -838,7 +873,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
         const resynced = await syncSessionProfileFromChannelBinding(session);
         session = resynced.session;
 
-        const response = WELCOME_MSG(linkResult.name);
+        const response = getWelcomeMessage(linkResult.name, session.profile?.role || 'admin');
         await saveMessageTimed(session.id, 'assistant', response);
         logStructuredMessage('link_code_success', {
           channel: msg.channel,
@@ -1150,6 +1185,11 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
 
     await saveMessageTimed(session.id, 'assistant', response);
 
+    // Skip response LLM for high-confidence rule-based plans with structured output
+    const skipResponseLlm = actionPlan.confidence === 'high'
+      && actionPlan.source === 'rule'
+      && execution.status === 'ok';
+
     return finalize(response, {
       action: `capability:${actionPlan.capability}`,
       result: execution.status === 'error'
@@ -1159,7 +1199,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
           : execution.status === 'ok'
             ? 'success'
             : 'clarification',
-    });
+    }, { skipLlm: skipResponseLlm });
   } catch (err) {
     console.error('[handleMessage error]', err);
     telemetry.result = 'error';
@@ -1218,6 +1258,14 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       presenceMode,
       messagePersistMode: config.messagePersistence.mode,
       durationMs: totalMs,
+      llmCallCount: llmUsage.callCount,
+      tokensInput: llmUsage.tokensIn || undefined,
+      tokensOutput: llmUsage.tokensOut || undefined,
+      llmModels: llmUsage.callCount > 0 ? ['gemini-2.5-flash-lite'] : undefined,
+      llmSkipped: llmUsage.callCount === 0,
+      estimatedCostUsd: llmUsage.tokensIn > 0 || llmUsage.tokensOut > 0
+        ? estimateCostUsd(llmUsage.tokensIn, llmUsage.tokensOut)
+        : undefined,
     });
   }
 }

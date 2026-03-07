@@ -30,6 +30,22 @@ body,
   min-height: 100%;
 }
 
+/* Previne área branca no overscroll iOS/Android */
+html,
+body {
+  overscroll-behavior-y: none;
+  background-color: #0f1d33;
+}
+
+/* Mobile scroll fluido */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+main {
+  -webkit-overflow-scrolling: touch;
+}
+
 body {
   margin: 0;
   color: var(--text-primary);
@@ -103,20 +119,30 @@ a {
   border-color: var(--border-subtle);
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+@media (min-width: 768px) {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: rgba(148, 180, 255, 0.14);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 180, 255, 0.26);
+  }
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+html {
+  scroll-behavior: smooth;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  border-radius: 9999px;
-  background: rgba(148, 180, 255, 0.14);
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 180, 255, 0.26);
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }

@@ -108,9 +108,9 @@ const DebtorDashboard: React.FC = () => {
                       <span className="text-3xl font-black text-white block">{formatCurrency(metrics.nextPayment.amount_total)}</span>
                       <span className="text-[10px] text-slate-500 font-mono uppercase truncate block">{metrics.nextPayment.contract_name}</span>
                   </div>
-                  <button 
+                  <button
                     onClick={() => handlePay(metrics.nextPayment)}
-                    className={`w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 ${
+                    className={`w-full min-h-[44px] py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 ${
                         metrics.nextPayment.is_late 
                             ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-900/30' 
                             : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-900/30'
@@ -187,7 +187,7 @@ const DebtorDashboard: React.FC = () => {
 
                       {/* BODY (Installments List) */}
                       {isOpen && (
-                          <div className="border-t border-slate-700/50 bg-slate-900/30 p-4 md:p-6 animate-fade-in-down">
+                          <div className="max-h-[60vh] overflow-y-auto border-t border-slate-700/50 bg-slate-900/30 p-4 animate-fade-in-down md:p-6">
                               <div className="overflow-x-auto">
                                   <table className="w-full text-left text-sm whitespace-nowrap">
                                       <thead>
@@ -226,7 +226,7 @@ const DebtorDashboard: React.FC = () => {
                                                           <button
                                                             data-testid="pay-btn"
                                                             onClick={() => handlePay(inst)}
-                                                            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 float-right transition-all ${
+                                                            className={`min-h-[44px] px-4 py-2 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 float-right transition-all ${
                                                                 inst.is_late
                                                                     ? 'bg-red-900/20 text-red-300 hover:bg-red-900/40 border border-red-900/50'
                                                                     : 'bg-teal-900/20 text-teal-300 hover:bg-teal-900/40 border border-teal-900/50'
@@ -253,7 +253,7 @@ const DebtorDashboard: React.FC = () => {
          href="https://wa.me/558431914090" 
          target="_blank" 
          rel="noopener noreferrer"
-         className="fixed bottom-6 right-6 z-40 bg-green-600 hover:bg-green-500 text-white p-4 rounded-full shadow-2xl shadow-green-900/50 transition-all transform hover:scale-110 flex items-center justify-center"
+         className="fixed right-6 z-40 flex items-center justify-center rounded-full bg-green-600 p-4 text-white shadow-2xl shadow-green-900/50 transition-all hover:scale-110 hover:bg-green-500 [bottom:calc(1.5rem+env(safe-area-inset-bottom,0px))]"
          title="Falar com Suporte"
       >
           <MessageCircle size={24} />

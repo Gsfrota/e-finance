@@ -23,6 +23,9 @@ export type Intent =
   | 'confirmar'
   | 'cancelar'
   | 'ajuda'
+  | 'ver_minhas_parcelas'
+  | 'ver_meu_saldo_devedor'
+  | 'ver_meu_portfolio'
   | 'desconhecido';
 
 export interface NormalizedEntities {
@@ -47,6 +50,7 @@ export interface ClassifiedIntent {
   entities: Record<string, string | number>;
   normalizedEntities: NormalizedEntities;
   confidence: 'high' | 'medium' | 'low';
+  usage?: { tokensInput: number; tokensOutput: number };
   meta?: {
     model?: string;
     timeout?: boolean;
@@ -463,7 +467,13 @@ async function classifyWithPrompt(
     },
   });
 
-  return parseClassificationResult(result.text?.trim() || '{}');
+  const classified = parseClassificationResult(result.text?.trim() || '{}');
+  const tokensInput = (result.usageMetadata as Record<string, number> | undefined)?.promptTokenCount ?? 0;
+  const tokensOutput = (result.usageMetadata as Record<string, number> | undefined)?.candidatesTokenCount ?? 0;
+  if (tokensInput > 0 || tokensOutput > 0) {
+    classified.usage = { tokensInput, tokensOutput };
+  }
+  return classified;
 }
 
 export async function classifyIntent(
