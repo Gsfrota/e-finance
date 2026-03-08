@@ -1,19 +1,25 @@
 
 import React, { useState } from 'react';
-import { Tenant } from '../types';
+import { Tenant, Profile } from '../types';
 import { getSupabase, cleanNumbers, isValidCPF } from '../services/supabase';
-import { Save, Building2, CheckCircle2, RefreshCw, QrCode, MessageCircle, Crown, User } from 'lucide-react';
+import { Save, Building2, CheckCircle2, RefreshCw, QrCode, MessageCircle, Crown, User, CreditCard } from 'lucide-react';
+import SubscriptionTab from './SubscriptionTab';
 
 interface AdminSettingsProps {
     tenant: Tenant;
     onUpdate: (tenant: Tenant) => void;
+    profile?: Profile;
 }
 
-const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate }) => {
+type SettingsTab = 'company' | 'subscription';
+
+const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile }) => {
+    const [activeTab, setActiveTab] = useState<SettingsTab>('company');
+
     // Company Info
     const [name, setName] = useState(tenant.name);
     const [logoUrl, setLogoUrl] = useState(tenant.logo_url || '');
-    
+
     // Owner Info
     const [ownerName, setOwnerName] = useState(tenant.owner_name || '');
     const [ownerEmail, setOwnerEmail] = useState(tenant.owner_email || '');
@@ -24,7 +30,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate }) => {
     const [pixName, setPixName] = useState(tenant.pix_name || '');
     const [pixCity, setPixCity] = useState(tenant.pix_city || '');
     const [whatsapp, setWhatsapp] = useState(tenant.support_whatsapp || '');
-    
+
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [fieldError, setFieldError] = useState<string | null>(null);
@@ -49,7 +55,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate }) => {
     const handleUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
         setFieldError(null);
-        
+
         const error = validatePixKey();
         if (error) {
             setFieldError(error);
@@ -58,7 +64,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate }) => {
 
         setLoading(true);
         const supabase = getSupabase();
-        
+
         // Saneamento final antes do Banco
         let sanitizedPixKey = pixKey.trim();
         if (pixKeyType === 'CPF' || pixKeyType === 'CNPJ' || pixKeyType === 'PHONE') {
@@ -72,7 +78,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate }) => {
 
         if (supabase) {
             const updates = {
-                name, 
+                name,
                 logo_url: logoUrl,
                 owner_name: ownerName,
                 owner_email: ownerEmail,
@@ -86,7 +92,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate }) => {
             const { error: dbError } = await supabase.from('tenants')
                 .update(updates)
                 .eq('id', tenant.id);
-            
+
             if (!dbError) {
                 onUpdate({ ...tenant, ...updates });
                 setSuccess(true);
@@ -102,99 +108,134 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate }) => {
         <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-12">
             <div className="border-b border-slate-800 pb-6">
                 <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Configurações</h2>
-                <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.2em] mt-1">Identidade, Propriedade e Financeiro</p>
+                <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.2em] mt-1">Identidade, Propriedade, Financeiro e Assinatura</p>
             </div>
 
-            <form onSubmit={handleUpdate} className="space-y-8">
-                
-                {/* 1. DADOS DA EMPRESA */}
-                <div className="bg-slate-800 border border-slate-700 rounded-[2.5rem] p-8 shadow-2xl">
-                    <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-700/50">
-                        <div className="p-3 bg-indigo-900/30 rounded-xl text-indigo-400">
-                            <Building2 size={24}/> 
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-black text-white uppercase">Identidade Visual</h3>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <input required type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Nome da Empresa" className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white" />
-                        <input type="url" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="URL do Logotipo" className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white" />
-                    </div>
-                </div>
+            {/* Abas */}
+            <div className="flex gap-2 bg-slate-800/50 p-1.5 rounded-2xl border border-slate-700/50">
+                <button
+                    onClick={() => setActiveTab('company')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${
+                        activeTab === 'company'
+                            ? 'bg-slate-700 text-white shadow'
+                            : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                >
+                    <Building2 size={14} /> Empresa & Financeiro
+                </button>
+                <button
+                    onClick={() => setActiveTab('subscription')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${
+                        activeTab === 'subscription'
+                            ? 'bg-slate-700 text-white shadow'
+                            : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                >
+                    <CreditCard size={14} /> Assinatura
+                </button>
+            </div>
 
-                {/* 2. DADOS DO PROPRIETÁRIO (NOVO) */}
-                <div className="bg-slate-800 border border-slate-700 rounded-[2.5rem] p-8 shadow-2xl">
-                    <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-700/50">
-                        <div className="p-3 bg-purple-900/30 rounded-xl text-purple-400">
-                            <Crown size={24}/> 
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-black text-white uppercase">Responsável Legal (Owner)</h3>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Dados oficiais do proprietário da conta</p>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="relative group">
-                             <User className="absolute left-4 top-4 text-slate-500 group-focus-within:text-purple-400 transition-colors" size={18} />
-                             <input type="text" value={ownerName} onChange={e => setOwnerName(e.target.value)} placeholder="Nome do Responsável" className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-12 pr-4 py-4 text-white focus:border-purple-500 outline-none transition-all" />
-                        </div>
-                        <div className="relative group">
-                             <Crown className="absolute left-4 top-4 text-slate-500 group-focus-within:text-purple-400 transition-colors" size={18} />
-                             <input type="email" value={ownerEmail} onChange={e => setOwnerEmail(e.target.value)} placeholder="E-mail Principal (Owner)" className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-12 pr-4 py-4 text-white focus:border-purple-500 outline-none transition-all" />
-                        </div>
-                    </div>
-                </div>
+            {/* Conteúdo da aba Empresa */}
+            {activeTab === 'company' && (
+                <form onSubmit={handleUpdate} className="space-y-8">
 
-                {/* 3. DADOS PIX */}
-                <div className="bg-slate-800 border border-slate-700 rounded-[2.5rem] p-8 shadow-2xl">
-                    <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-700/50">
-                        <div className="p-3 bg-teal-900/30 rounded-xl text-teal-400">
-                            <QrCode size={24}/> 
+                    {/* 1. DADOS DA EMPRESA */}
+                    <div className="bg-slate-800 border border-slate-700 rounded-[2.5rem] p-8 shadow-2xl">
+                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-700/50">
+                            <div className="p-3 bg-indigo-900/30 rounded-xl text-indigo-400">
+                                <Building2 size={24}/>
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-white uppercase">Identidade Visual</h3>
+                            </div>
                         </div>
-                        <div>
-                            <h3 className="text-lg font-black text-white uppercase">Dados de Recebimento (Pix)</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <input required type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Nome da Empresa" className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white" />
+                            <input type="url" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="URL do Logotipo" className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white" />
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <select value={pixKeyType} onChange={(e) => setPixKeyType(e.target.value as any)} className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white">
-                            <option value="CNPJ">CNPJ</option>
-                            <option value="CPF">CPF</option>
-                            <option value="EMAIL">E-mail</option>
-                            <option value="PHONE">Celular</option>
-                            <option value="EVP">Chave Aleatória (EVP)</option>
-                        </select>
-                        <div className="relative">
-                            <input required type="text" value={pixKey} onChange={e => setPixKey(e.target.value)} placeholder="Chave Pix" className={`w-full bg-slate-900 border ${fieldError ? 'border-red-500' : 'border-slate-700'} rounded-2xl p-4 text-white`} />
-                            {fieldError && <p className="text-red-500 text-[10px] mt-1 ml-2 font-bold uppercase">{fieldError}</p>}
+                    {/* 2. DADOS DO PROPRIETÁRIO */}
+                    <div className="bg-slate-800 border border-slate-700 rounded-[2.5rem] p-8 shadow-2xl">
+                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-700/50">
+                            <div className="p-3 bg-purple-900/30 rounded-xl text-purple-400">
+                                <Crown size={24}/>
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-white uppercase">Responsável Legal (Owner)</h3>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Dados oficiais do proprietário da conta</p>
+                            </div>
                         </div>
-                        <input required type="text" value={pixName} onChange={e => setPixName(e.target.value)} placeholder="Nome do Beneficiário" className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white uppercase" />
-                        <input required type="text" value={pixCity} onChange={e => setPixCity(e.target.value)} placeholder="Cidade" className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white uppercase" />
-                    </div>
-                </div>
-
-                <div className="bg-slate-800 border border-slate-700 rounded-[2.5rem] p-8 shadow-2xl">
-                    <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-700/50">
-                        <div className="p-3 bg-green-900/30 rounded-xl text-green-400">
-                            <MessageCircle size={24}/> 
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-black text-white uppercase">Atendimento</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="relative group">
+                                 <User className="absolute left-4 top-4 text-slate-500 group-focus-within:text-purple-400 transition-colors" size={18} />
+                                 <input type="text" value={ownerName} onChange={e => setOwnerName(e.target.value)} placeholder="Nome do Responsável" className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-12 pr-4 py-4 text-white focus:border-purple-500 outline-none transition-all" />
+                            </div>
+                            <div className="relative group">
+                                 <Crown className="absolute left-4 top-4 text-slate-500 group-focus-within:text-purple-400 transition-colors" size={18} />
+                                 <input type="email" value={ownerEmail} onChange={e => setOwnerEmail(e.target.value)} placeholder="E-mail Principal (Owner)" className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-12 pr-4 py-4 text-white focus:border-purple-500 outline-none transition-all" />
+                            </div>
                         </div>
                     </div>
-                    <input type="text" value={whatsapp} onChange={e => setWhatsapp(e.target.value)} placeholder="WhatsApp do Consultor" className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white" />
-                </div>
 
-                <div className="pt-4 sticky bottom-4 z-10">
-                    <button type="submit" disabled={loading} 
-                        className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 shadow-2xl ${
-                            success ? 'bg-green-600 text-white' : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-900/50'
-                        }`}>
-                        {loading ? <RefreshCw className="animate-spin" size={18}/> : success ? <><CheckCircle2 size={18}/> Salvo!</> : <><Save size={18}/> Salvar Todas as Alterações</>}
-                    </button>
-                </div>
-            </form>
+                    {/* 3. DADOS PIX */}
+                    <div className="bg-slate-800 border border-slate-700 rounded-[2.5rem] p-8 shadow-2xl">
+                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-700/50">
+                            <div className="p-3 bg-teal-900/30 rounded-xl text-teal-400">
+                                <QrCode size={24}/>
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-white uppercase">Dados de Recebimento (Pix)</h3>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <select value={pixKeyType} onChange={(e) => setPixKeyType(e.target.value as any)} className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white">
+                                <option value="CNPJ">CNPJ</option>
+                                <option value="CPF">CPF</option>
+                                <option value="EMAIL">E-mail</option>
+                                <option value="PHONE">Celular</option>
+                                <option value="EVP">Chave Aleatória (EVP)</option>
+                            </select>
+                            <div className="relative">
+                                <input required type="text" value={pixKey} onChange={e => setPixKey(e.target.value)} placeholder="Chave Pix" className={`w-full bg-slate-900 border ${fieldError ? 'border-red-500' : 'border-slate-700'} rounded-2xl p-4 text-white`} />
+                                {fieldError && <p className="text-red-500 text-[10px] mt-1 ml-2 font-bold uppercase">{fieldError}</p>}
+                            </div>
+                            <input required type="text" value={pixName} onChange={e => setPixName(e.target.value)} placeholder="Nome do Beneficiário" className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white uppercase" />
+                            <input required type="text" value={pixCity} onChange={e => setPixCity(e.target.value)} placeholder="Cidade" className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white uppercase" />
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-800 border border-slate-700 rounded-[2.5rem] p-8 shadow-2xl">
+                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-700/50">
+                            <div className="p-3 bg-green-900/30 rounded-xl text-green-400">
+                                <MessageCircle size={24}/>
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-white uppercase">Atendimento</h3>
+                            </div>
+                        </div>
+                        <input type="text" value={whatsapp} onChange={e => setWhatsapp(e.target.value)} placeholder="WhatsApp do Consultor" className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white" />
+                    </div>
+
+                    <div className="pt-4 sticky bottom-4 z-10">
+                        <button type="submit" disabled={loading}
+                            className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 shadow-2xl ${
+                                success ? 'bg-green-600 text-white' : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-900/50'
+                            }`}>
+                            {loading ? <RefreshCw className="animate-spin" size={18}/> : success ? <><CheckCircle2 size={18}/> Salvo!</> : <><Save size={18}/> Salvar Todas as Alterações</>}
+                        </button>
+                    </div>
+                </form>
+            )}
+
+            {/* Conteúdo da aba Assinatura */}
+            {activeTab === 'subscription' && (
+                <SubscriptionTab
+                    tenant={tenant}
+                    adminEmail={profile?.email || tenant.owner_email}
+                />
+            )}
         </div>
     );
 };

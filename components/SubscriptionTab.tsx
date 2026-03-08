@@ -1,0 +1,221 @@
+
+import React from 'react';
+import { Tenant } from '../types';
+import { Crown, Zap, CheckCircle2, ExternalLink, Lock, Star, Bot, BarChart3, Users, FileText, Settings } from 'lucide-react';
+
+const PRO_PAYMENT_LINK = 'https://buy.stripe.com/test_eVq14ma4Vdc7afr0jycIE00';
+const PRO_MAX_PAYMENT_LINK = 'https://buy.stripe.com/test_14A8wOdh77RNfzLaYccIE01';
+
+const STRIPE_CUSTOMER_PORTAL = 'https://billing.stripe.com/p/login/test_00w00000000000000000';
+
+interface SubscriptionTabProps {
+  tenant: Tenant;
+  adminEmail?: string;
+}
+
+const planLabel = (plan?: string) => {
+  if (plan === 'pro_max') return 'Pro Max';
+  if (plan === 'pro') return 'Pro';
+  return 'Free';
+};
+
+const planStatusLabel = (status?: string) => {
+  if (status === 'active') return { text: 'Ativo', color: 'text-teal-400' };
+  if (status === 'past_due') return { text: 'Inadimplente', color: 'text-yellow-400' };
+  if (status === 'canceled') return { text: 'Cancelado', color: 'text-red-400' };
+  return { text: 'Inativo', color: 'text-slate-400' };
+};
+
+const buildPaymentLink = (base: string, tenantId: string, email?: string) => {
+  const url = new URL(base);
+  url.searchParams.set('client_reference_id', tenantId);
+  if (email) url.searchParams.set('prefilled_email', email);
+  return url.toString();
+};
+
+const PRO_FEATURES = [
+  { icon: BarChart3, label: 'Dashboard financeiro completo' },
+  { icon: FileText, label: 'Gestão de contratos de crédito' },
+  { icon: Users, label: 'Gestão de investidores e devedores' },
+  { icon: Settings, label: 'Configurações e Pix integrado' },
+];
+
+const PRO_MAX_EXTRAS = [
+  { icon: Bot, label: 'Assistente IA com análise de portfólio' },
+  { icon: Zap, label: 'Briefing matinal automatizado' },
+  { icon: Zap, label: 'Follow-up por WhatsApp e Telegram' },
+];
+
+const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail }) => {
+  const currentPlan = tenant.plan ?? 'free';
+  const currentStatus = tenant.plan_status;
+  const status = planStatusLabel(currentStatus);
+  const hasPro = currentPlan === 'pro' || currentPlan === 'pro_max';
+  const hasProMax = currentPlan === 'pro_max';
+
+  return (
+    <div className="space-y-8 animate-fade-in">
+
+      {/* Plano atual */}
+      <div className="bg-slate-800 border border-slate-700 rounded-[2.5rem] p-8 shadow-2xl">
+        <div className="flex items-center gap-4 mb-2">
+          <div className={`p-3 rounded-xl ${hasProMax ? 'bg-yellow-900/30 text-yellow-400' : hasPro ? 'bg-teal-900/30 text-teal-400' : 'bg-slate-700 text-slate-400'}`}>
+            <Crown size={24} />
+          </div>
+          <div>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Plano Atual</p>
+            <h3 className="text-2xl font-black text-white uppercase">{planLabel(currentPlan)}</h3>
+          </div>
+          {hasPro && (
+            <span className={`ml-auto text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full ${status.color} bg-slate-700`}>
+              {status.text}
+            </span>
+          )}
+        </div>
+        {currentStatus === 'past_due' && (
+          <p className="mt-3 text-yellow-400 text-xs font-bold bg-yellow-900/20 rounded-xl px-4 py-3">
+            Pagamento pendente. Regularize para manter o acesso ao plano.
+          </p>
+        )}
+        {currentStatus === 'canceled' && (
+          <p className="mt-3 text-red-400 text-xs font-bold bg-red-900/20 rounded-xl px-4 py-3">
+            Assinatura cancelada. Assine novamente para reativar.
+          </p>
+        )}
+      </div>
+
+      {/* Cards de planos */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        {/* Plano Pro */}
+        <div className={`bg-slate-800 border rounded-[2.5rem] p-8 shadow-2xl flex flex-col ${currentPlan === 'pro' ? 'border-teal-500' : 'border-slate-700'}`}>
+          <div className="flex items-center gap-3 mb-1">
+            <Star size={20} className="text-teal-400" />
+            <h4 className="text-lg font-black text-white uppercase">Pro</h4>
+            {currentPlan === 'pro' && <span className="ml-auto text-[10px] font-black text-teal-400 bg-teal-900/30 px-2 py-0.5 rounded-full uppercase">Seu plano</span>}
+          </div>
+          <p className="text-3xl font-black text-white mt-2">R$99<span className="text-base text-slate-400 font-bold">/mês</span></p>
+          <ul className="mt-6 space-y-3 flex-1">
+            {PRO_FEATURES.map(({ icon: Icon, label }) => (
+              <li key={label} className="flex items-center gap-3 text-sm text-slate-300">
+                <CheckCircle2 size={16} className="text-teal-400 flex-shrink-0" />
+                {label}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-8">
+            {currentPlan === 'free' || currentStatus === 'canceled' ? (
+              <a
+                href={buildPaymentLink(PRO_PAYMENT_LINK, tenant.id, adminEmail)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-teal-600 hover:bg-teal-500 text-white transition-all"
+              >
+                <ExternalLink size={16} /> Assinar Pro
+              </a>
+            ) : currentPlan === 'pro' ? (
+              <a
+                href={STRIPE_CUSTOMER_PORTAL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-slate-700 hover:bg-slate-600 text-white transition-all"
+              >
+                <ExternalLink size={16} /> Gerenciar no Stripe
+              </a>
+            ) : (
+              <button disabled className="w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-slate-700 text-slate-500 cursor-not-allowed">
+                Incluído no Pro Max
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Plano Pro Max */}
+        <div className={`bg-slate-800 border rounded-[2.5rem] p-8 shadow-2xl flex flex-col relative overflow-hidden ${currentPlan === 'pro_max' ? 'border-yellow-500' : 'border-slate-700'}`}>
+          <div className="absolute top-4 right-4 bg-yellow-600 text-white text-[10px] font-black uppercase px-3 py-1 rounded-full">
+            Recomendado
+          </div>
+          <div className="flex items-center gap-3 mb-1">
+            <Crown size={20} className="text-yellow-400" />
+            <h4 className="text-lg font-black text-white uppercase">Pro Max</h4>
+            {currentPlan === 'pro_max' && <span className="ml-2 text-[10px] font-black text-yellow-400 bg-yellow-900/30 px-2 py-0.5 rounded-full uppercase">Seu plano</span>}
+          </div>
+          <p className="text-3xl font-black text-white mt-2">R$170<span className="text-base text-slate-400 font-bold">/mês</span></p>
+          <ul className="mt-6 space-y-3 flex-1">
+            {PRO_FEATURES.map(({ icon: Icon, label }) => (
+              <li key={label} className="flex items-center gap-3 text-sm text-slate-300">
+                <CheckCircle2 size={16} className="text-teal-400 flex-shrink-0" />
+                {label}
+              </li>
+            ))}
+            <li className="pt-2 text-[10px] font-black text-yellow-400 uppercase tracking-widest">+ Exclusivo Pro Max</li>
+            {PRO_MAX_EXTRAS.map(({ icon: Icon, label }) => (
+              <li key={label} className="flex items-center gap-3 text-sm text-yellow-200">
+                <CheckCircle2 size={16} className="text-yellow-400 flex-shrink-0" />
+                {label}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-8">
+            {(currentPlan === 'free' || currentStatus === 'canceled') ? (
+              <a
+                href={buildPaymentLink(PRO_MAX_PAYMENT_LINK, tenant.id, adminEmail)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-yellow-600 hover:bg-yellow-500 text-white transition-all"
+              >
+                <ExternalLink size={16} /> Assinar Pro Max
+              </a>
+            ) : currentPlan === 'pro' ? (
+              <a
+                href={buildPaymentLink(PRO_MAX_PAYMENT_LINK, tenant.id, adminEmail)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-yellow-600 hover:bg-yellow-500 text-white transition-all"
+              >
+                <Crown size={16} /> Upgrade para Pro Max
+              </a>
+            ) : (
+              <a
+                href={STRIPE_CUSTOMER_PORTAL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-slate-700 hover:bg-slate-600 text-white transition-all"
+              >
+                <ExternalLink size={16} /> Gerenciar no Stripe
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default SubscriptionTab;
+
+/* Paywall inline para o Assistente */
+export const AssistantPaywall: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
+  const proMaxLink = buildPaymentLink(PRO_MAX_PAYMENT_LINK, tenant.id, tenant.owner_email);
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-8 animate-fade-in">
+      <div className="p-5 bg-yellow-900/20 rounded-3xl mb-6">
+        <Lock size={48} className="text-yellow-400" />
+      </div>
+      <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-3">Recurso Pro Max</h2>
+      <p className="text-slate-400 text-sm max-w-md mb-8">
+        O Assistente IA com briefing matinal e automações por WhatsApp/Telegram está disponível apenas no plano <strong className="text-yellow-400">Pro Max</strong> (R$170/mês).
+      </p>
+      <div className="flex flex-col sm:flex-row gap-4">
+        <a
+          href={proMaxLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-yellow-600 hover:bg-yellow-500 text-white transition-all"
+        >
+          <Crown size={16} /> Assinar Pro Max — R$170/mês
+        </a>
+      </div>
+    </div>
+  );
+};

@@ -7,6 +7,7 @@ import AdminUsers from './components/AdminUsers';
 import AdminContracts from './components/AdminContracts';
 import AdminSettings from './components/AdminSettings';
 import AdminAssistant from './components/AdminAssistant';
+import { AssistantPaywall } from './components/SubscriptionTab';
 import AdminUserDetails from './components/AdminUserDetails';
 import SetupWizard from './components/SetupWizard';
 import ResetPassword from './components/ResetPassword';
@@ -452,10 +453,14 @@ const App: React.FC = () => {
               <AdminContracts />
           )}
           {currentView === AppView.SETTINGS && profile?.role === 'admin' && tenant && (
-              <AdminSettings tenant={tenant} onUpdate={(updated) => setTenant(updated)} />
+              <AdminSettings tenant={tenant} onUpdate={(updated) => setTenant(updated)} profile={profile} />
           )}
           {currentView === AppView.ASSISTANT && profile?.role === 'admin' && tenant && profile && (
-              <AdminAssistant tenant={tenant} profile={profile} />
+              tenant?.plan === 'pro_max' && tenant?.plan_status === 'active' ? (
+                <AdminAssistant tenant={tenant} profile={profile} />
+              ) : (
+                <AssistantPaywall tenant={tenant} />
+              )
           )}
         </Layout>
     </Router>

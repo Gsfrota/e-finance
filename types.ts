@@ -8,7 +8,7 @@ export interface Tenant {
   logo_url?: string;
   slug: string;
   created_at: string;
-  
+
   // Owner Info (Explicit)
   owner_name?: string;
   owner_email?: string;
@@ -20,6 +20,13 @@ export interface Tenant {
   pix_city?: string;
   // Support
   support_whatsapp?: string;
+
+  // Subscription (Stripe)
+  plan?: 'free' | 'pro' | 'pro_max';
+  plan_status?: 'active' | 'inactive' | 'past_due' | 'canceled';
+  stripe_customer_id?: string;
+  stripe_subscription_id?: string;
+  plan_updated_at?: string;
 }
 
 export interface Profile {
