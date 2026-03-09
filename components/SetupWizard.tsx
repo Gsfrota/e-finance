@@ -3,9 +3,8 @@ import { Database, ShieldCheck, ArrowRight, ExternalLink, AlertCircle, Info } fr
 import { saveExternalConfig } from '../services/supabase';
 
 const SetupWizard: React.FC = () => {
-  // Preenchendo com as chaves reais como sugestão inicial
-  const [url, setUrl] = useState('https://SUPABASE_PROJECT_URL_REMOVED');
-  const [key, setKey] = useState('SUPABASE_ANON_KEY_REMOVED');
+  const [url, setUrl] = useState('');
+  const [key, setKey] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const handleSave = (e: React.FormEvent) => {

@@ -6,9 +6,10 @@ const STORAGE_KEYS = {
   KEY: 'EF_EXTERNAL_SUPABASE_KEY'
 };
 
+// Configure via localStorage: EF_EXTERNAL_SUPABASE_URL e EF_EXTERNAL_SUPABASE_KEY
 const SYSTEM_DEFAULTS = {
-    URL: 'https://SUPABASE_PROJECT_URL_REMOVED',
-    KEY: 'SUPABASE_ANON_KEY_REMOVED'
+    URL: '',
+    KEY: ''
 };
 
 /**
