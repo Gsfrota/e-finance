@@ -1,19 +1,29 @@
 import React, { useMemo, useState } from 'react';
-import { AdminDashboardStats, DashboardKPIs, Investment, LoanInstallment, Tenant } from '../../types';
-import { PaymentModal, RefinanceModal, EditModal } from '../InstallmentModals';
+import { AdminDashboardStats, AppView, DashboardKPIs, Investment, LoanInstallment, Tenant } from '../../types';
+import { PaymentModal, RefinanceModal, EditModal, InterestOnlyModal } from '../InstallmentModals';
 import {
   AlertTriangle,
+  Bot,
   BriefcaseBusiness,
   Calendar,
   CalendarRange,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  CircleDollarSign,
   Clock3,
   Coins,
   DollarSign,
+  FileText,
+  Pencil,
+  Percent,
+  Phone,
+  PieChart,
   RefreshCw,
   Search,
+  TrendingUp,
+  Users,
+  Wallet,
   Zap,
 } from 'lucide-react';
 import {
@@ -22,6 +32,7 @@ import {
   Bar,
   CartesianGrid,
   Cell,
+  Label,
   Pie,
   PieChart as RechartsPieChart,
   Tooltip,
@@ -94,6 +105,85 @@ const currencyTick = (value: number) => {
 
 const panelClass = 'panel-card rounded-[1.8rem]';
 
+interface ResumoGeralProps {
+  kpis: DashboardKPIs;
+}
+
+export const ResumoGeral: React.FC<ResumoGeralProps> = ({ kpis }) => {
+  const lucroAReceber = Math.max(0, kpis.totalProfitPotential - kpis.totalProfitReceived);
+  const roi = kpis.totalInvestedHistorical > 0
+    ? ((kpis.totalProfitReceived / kpis.totalInvestedHistorical) * 100).toFixed(1)
+    : '0,0';
+
+  const items: Array<{
+    label: string;
+    desc: string;
+    value: string;
+    color: string;
+    bg: string;
+    ring: string;
+    Icon: React.ElementType;
+  }> = [
+    {
+      label: 'CAPITAL EM RUA',
+      desc: 'Dinheiro atualmente emprestado',
+      value: formatCurrency(kpis.activeStreetMoney),
+      color: 'var(--accent-brass)',
+      bg: 'rgba(202,176,122,0.12)',
+      ring: 'rgba(202,176,122,0.20)',
+      Icon: Wallet,
+    },
+    {
+      label: 'LUCRO RECEBIDO',
+      desc: 'Já entrou no seu bolso',
+      value: formatCurrency(kpis.totalProfitReceived),
+      color: 'var(--accent-positive)',
+      bg: 'rgba(143,179,157,0.12)',
+      ring: 'rgba(143,179,157,0.20)',
+      Icon: TrendingUp,
+    },
+    {
+      label: 'LUCRO A RECEBER',
+      desc: 'Juros futuros contratados',
+      value: formatCurrency(lucroAReceber),
+      color: 'var(--accent-steel)',
+      bg: 'rgba(74,101,133,0.18)',
+      ring: 'rgba(74,101,133,0.28)',
+      Icon: Percent,
+    },
+    {
+      label: 'RETORNO (ROI)',
+      desc: 'Lucro recebido ÷ capital total',
+      value: `${roi.replace('.', ',')}%`,
+      color: '#a78bfa',
+      bg: 'rgba(167,139,250,0.10)',
+      ring: 'rgba(167,139,250,0.20)',
+      Icon: CircleDollarSign,
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-3 md:gap-5 lg:grid-cols-4">
+      {items.map(({ label, desc, value, color, bg, ring, Icon }) => (
+        <div key={label} className={`${panelClass} flex flex-col gap-3 p-4 md:p-6`}>
+          <div className="flex items-center gap-2.5">
+            <div className="shrink-0 rounded-xl p-2.5" style={{ background: bg, boxShadow: `0 0 0 1px ${ring}` }}>
+              <Icon size={15} style={{ color }} />
+            </div>
+            <p className="text-[10px] font-extrabold uppercase leading-tight tracking-[0.13em] text-[color:var(--text-faint)]">{label}</p>
+          </div>
+          <div>
+            <p className="text-xl font-extrabold tracking-tight md:text-2xl" style={{ color }}>
+              {value}
+            </p>
+            <p className="mt-0.5 text-xs text-[color:var(--text-faint)]">{desc}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 interface KPICardsProps {
   stats: AdminDashboardStats;
   kpis: DashboardKPIs;
@@ -136,11 +226,11 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToCo
 
   return (
     <div className="grid grid-cols-1 gap-3 md:gap-5 lg:grid-cols-3">
-      {/* Faturamento do Mês */}
+      {/* Recebimentos do Mês */}
       <div className={`${panelClass} flex flex-col gap-4 p-4 md:p-7`}>
         <div className="flex items-center gap-3">
           <Calendar size={18} className="text-[color:var(--accent-brass)]" />
-          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">FATURAMENTO DO MÊS</p>
+          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">RECEBIMENTOS DO MÊS</p>
         </div>
         <div>
           <p className="mb-0.5 text-xs text-[color:var(--text-faint)]">Total esperado</p>
@@ -176,7 +266,9 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToCo
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Zap size={18} className="text-[color:var(--accent-brass)]" />
-            <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">A COBRAR</p>
+            <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
+              A COBRAR{cobraDias === 0 ? ' — HOJE' : ` — PRÓX. ${cobraDias}D`}
+            </p>
           </div>
           <div className="flex flex-wrap gap-1">
             {([0, 3, 6, 15, 30] as CobraDias[]).map((d) => (
@@ -241,9 +333,9 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({ kpis, installmen
   const agingData = useMemo(() => computeAgingBuckets(installments), [installments]);
   const compositionData = useMemo(
     () => [
-      { name: 'Capital próprio', value: kpis.activeOwnCapital, color: '#cab07a' },
-      { name: 'Lucro reinvestido', value: kpis.activeReinvestedCapital, color: '#90a0bd' },
-      { name: 'Principal recuperado', value: kpis.totalPrincipalRepaid, color: '#8fb39d' },
+      { name: 'Seu dinheiro', value: kpis.activeOwnCapital, color: '#cab07a' },
+      { name: 'Juros reinvestidos', value: kpis.activeReinvestedCapital, color: '#90a0bd' },
+      { name: 'Já devolvido', value: kpis.totalPrincipalRepaid, color: '#8fb39d' },
     ].filter((item) => item.value > 0),
     [kpis.activeOwnCapital, kpis.activeReinvestedCapital, kpis.totalPrincipalRepaid],
   );
@@ -261,90 +353,168 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({ kpis, installmen
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1.1fr]">
           <div className="grid gap-3">
             <div className="rounded-[1.4rem] border border-white/10 bg-black/10 p-4">
-              <p className="section-kicker mb-1">Aporte histórico</p>
+              <p className="section-kicker mb-1">Emprestado no total</p>
               <p className="text-2xl font-bold text-[color:var(--text-primary)]">{formatCurrency(kpis.totalInvestedHistorical)}</p>
             </div>
             <div className="rounded-[1.4rem] border border-white/10 bg-black/10 p-4">
-              <p className="section-kicker mb-1">Capital em circulação</p>
+              <p className="section-kicker mb-1">Em rua agora</p>
               <p className="text-2xl font-bold text-[color:var(--text-primary)]">{formatCurrency(kpis.activeStreetMoney)}</p>
             </div>
             <div className="rounded-[1.4rem] border border-white/10 bg-black/10 p-4">
-              <p className="section-kicker mb-1">Principal recuperado</p>
+              <p className="section-kicker mb-1">Já te devolveram</p>
               <p className="text-2xl font-bold text-[color:var(--accent-positive)]">{formatCurrency(kpis.totalPrincipalRepaid)}</p>
             </div>
           </div>
 
-          <div className="h-52 min-w-0 md:h-[280px]">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <RechartsPieChart>
-                <Tooltip
-                  formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                  contentStyle={{
-                    background: '#151922',
-                    borderRadius: 16,
-                    border: '1px solid rgba(245,239,226,0.08)',
-                    color: '#f5efe2',
-                  }}
-                  labelStyle={{ color: '#f5efe2' }}
-                  itemStyle={{ color: '#f5efe2' }}
-                />
-                <Pie
-                  data={compositionData}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={68}
-                  outerRadius={106}
-                  paddingAngle={2}
-                >
-                  {compositionData.map((item) => (
-                    <Cell key={item.name} fill={item.color} />
-                  ))}
-                </Pie>
-              </RechartsPieChart>
-            </ResponsiveContainer>
+          <div className="flex flex-col">
+            <div className="h-[230px] md:h-[220px]">
+              {compositionData.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-2 text-[color:var(--text-faint)]">
+                  <PieChart size={32} className="opacity-30" />
+                  <p className="text-xs font-bold uppercase tracking-widest">Sem dados ainda</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <RechartsPieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                    <Tooltip
+                      formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                      contentStyle={{
+                        background: '#151922',
+                        borderRadius: 16,
+                        border: '1px solid rgba(245,239,226,0.08)',
+                        color: '#f5efe2',
+                      }}
+                      labelStyle={{ color: '#f5efe2' }}
+                      itemStyle={{ color: '#f5efe2' }}
+                    />
+                    <Pie
+                      data={compositionData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={68}
+                      outerRadius={106}
+                      paddingAngle={3}
+                    >
+                      {compositionData.map((item) => (
+                        <Cell key={item.name} fill={item.color} stroke="transparent" />
+                      ))}
+                      <Label
+                        content={({ viewBox }: { viewBox?: { cx?: number; cy?: number } }) => {
+                          const cx = viewBox?.cx ?? 0;
+                          const cy = viewBox?.cy ?? 0;
+                          const activeTotal = kpis.activeOwnCapital + kpis.activeReinvestedCapital;
+                          return (
+                            <>
+                              <text
+                                x={cx}
+                                y={cy - 10}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                style={{ fill: 'var(--text-primary)', fontSize: 16, fontWeight: 800, fontFamily: 'inherit' }}
+                              >
+                                {formatCurrency(activeTotal)}
+                              </text>
+                              <text
+                                x={cx}
+                                y={cy + 12}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                style={{ fill: 'var(--text-muted)', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', fontFamily: 'inherit' }}
+                              >
+                                CAPITAL ATIVO
+                              </text>
+                            </>
+                          );
+                        }}
+                      />
+                    </Pie>
+                  </RechartsPieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {compositionData.length > 0 && (() => {
+              const totalAll = compositionData.reduce((acc, item) => acc + item.value, 0);
+              return (
+                <div className="mt-3 space-y-1.5 px-1">
+                  {compositionData.map((item) => {
+                    const pct = totalAll > 0 ? ((item.value / totalAll) * 100).toFixed(1) : '0';
+                    return (
+                      <div key={item.name} className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
+                          <span className="text-xs text-[color:var(--text-secondary)] truncate">{item.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs font-bold text-[color:var(--text-primary)]">{formatCurrency(item.value)}</span>
+                          <span className="text-[10px] font-black text-[color:var(--text-faint)] w-10 text-right">{pct}%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
 
       <div className={`${panelClass} p-6`}>
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <p className="section-kicker mb-1">Cobrança</p>
-            <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Inadimplência por prazo</h3>
-          </div>
-          <div className="rounded-2xl bg-[rgba(198,126,105,0.14)] p-3 text-[color:var(--accent-danger)] ring-1 ring-[rgba(198,126,105,0.18)]">
-            <AlertTriangle size={18} />
-          </div>
-        </div>
+        {(() => {
+          const temAtraso = agingData.some((b) => b.value > 0);
+          return (
+            <>
+              <div className="mb-6 flex items-start justify-between gap-4">
+                <div>
+                  <p className="section-kicker mb-1">Cobrança</p>
+                  <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Inadimplência por prazo</h3>
+                </div>
+                <div className={`rounded-2xl p-3 ring-1 ${temAtraso ? 'bg-[rgba(198,126,105,0.14)] text-[color:var(--accent-danger)] ring-[rgba(198,126,105,0.18)]' : 'bg-[rgba(143,179,157,0.12)] text-[color:var(--accent-positive)] ring-[rgba(143,179,157,0.20)]'}`}>
+                  {temAtraso ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />}
+                </div>
+              </div>
 
-        <div className="h-52 min-w-0 md:h-[300px]">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-            <BarChart data={agingData} barSize={34}>
-              <CartesianGrid stroke="rgba(245,239,226,0.05)" vertical={false} />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#8d919a', fontSize: 12, fontWeight: 700 }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: '#8d919a', fontSize: 11 }} tickFormatter={currencyTick} />
-              <Tooltip
-                formatter={(value: number) => [formatCurrency(value), 'Em atraso']}
-                contentStyle={{
-                  background: '#151922',
-                  borderRadius: 16,
-                  border: '1px solid rgba(245,239,226,0.08)',
-                  color: '#f5efe2',
-                }}
-                labelStyle={{ color: '#f5efe2' }}
-                itemStyle={{ color: '#f5efe2' }}
-              />
-              <Bar dataKey="value" radius={[12, 12, 0, 0]}>
-                {agingData.map((entry) => (
-                  <Cell key={entry.name} fill={(entry as any).color ?? '#c67e69'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+              {temAtraso ? (
+                <div className="h-52 min-w-0 md:h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    <BarChart data={agingData} barSize={34}>
+                      <CartesianGrid stroke="rgba(245,239,226,0.05)" vertical={false} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#8d919a', fontSize: 12, fontWeight: 700 }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#8d919a', fontSize: 11 }} tickFormatter={currencyTick} />
+                      <Tooltip
+                        formatter={(value: number) => [formatCurrency(value), 'Em atraso']}
+                        contentStyle={{
+                          background: '#151922',
+                          borderRadius: 16,
+                          border: '1px solid rgba(245,239,226,0.08)',
+                          color: '#f5efe2',
+                        }}
+                        labelStyle={{ color: '#f5efe2' }}
+                        itemStyle={{ color: '#f5efe2' }}
+                      />
+                      <Bar dataKey="value" radius={[12, 12, 0, 0]}>
+                        {agingData.map((entry) => (
+                          <Cell key={entry.name} fill={(entry as any).color ?? '#c67e69'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="flex h-52 flex-col items-center justify-center gap-3 md:h-[300px]">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[rgba(143,179,157,0.12)] ring-1 ring-[rgba(143,179,157,0.20)]">
+                    <CheckCircle2 size={28} className="text-[color:var(--accent-positive)]" />
+                  </div>
+                  <p className="text-base font-extrabold text-[color:var(--accent-positive)]">Carteira 100% saudável</p>
+                  <p className="text-xs text-[color:var(--text-faint)]">Nenhuma parcela em atraso</p>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
     </div>
   );
@@ -430,7 +600,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
-  const [modalType, setModalType] = useState<'pay' | 'refinance' | 'edit' | null>(null);
+  const [modalType, setModalType] = useState<'pay' | 'refinance' | 'edit' | 'interest_only' | null>(null);
 
   const targetMonth = currentDate.getMonth();
   const targetYear = currentDate.getFullYear();
@@ -499,7 +669,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
     setSelectedInstallment(null);
   };
 
-  const openAction = (type: 'pay' | 'refinance' | 'edit', installment: LoanInstallment) => {
+  const openAction = (type: 'pay' | 'refinance' | 'edit' | 'interest_only', installment: LoanInstallment) => {
     setSelectedInstallment(installment);
     setModalType(type);
   };
@@ -664,25 +834,50 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                       <td className="px-6 py-4 text-right font-semibold text-[color:var(--text-primary)]">{formatCurrency(outstanding)}</td>
                       <td className="px-6 py-4 text-right">
                         <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusTone}`}>{statusLabel}</span>
+                        {Number(installment.interest_payments_total) > 0 && (
+                          <div className="mt-1 text-[10px] font-bold text-[color:var(--accent-warning)]">
+                            Juros: {formatCurrency(Number(installment.interest_payments_total))}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex justify-end gap-2">
-                          {installment.status !== 'paid' && (
+                        <div className="flex justify-end gap-1.5 flex-wrap">
+                          {installment.status !== 'paid' ? (
                             <>
                               <button
                                 onClick={() => openAction('pay', installment)}
-                                className="rounded-lg border border-[rgba(143,179,157,0.3)] bg-[rgba(143,179,157,0.12)] px-5 py-2.5 text-sm font-bold text-[color:var(--accent-positive)] transition-colors hover:bg-[rgba(143,179,157,0.25)]"
+                                className="rounded-lg border border-[rgba(143,179,157,0.3)] bg-[rgba(143,179,157,0.12)] px-4 py-2.5 text-sm font-bold text-[color:var(--accent-positive)] transition-colors hover:bg-[rgba(143,179,157,0.25)]"
                               >
                                 ✓ RECEBIDO
                               </button>
                               <button
                                 onClick={() => openAction('refinance', installment)}
-                                className="rounded-lg border border-[rgba(144,160,189,0.3)] bg-[rgba(144,160,189,0.12)] px-5 py-2.5 text-sm font-bold text-[color:var(--accent-steel)] transition-colors hover:bg-[rgba(144,160,189,0.25)]"
+                                className="rounded-lg border border-[rgba(144,160,189,0.3)] bg-[rgba(144,160,189,0.12)] px-4 py-2.5 text-sm font-bold text-[color:var(--accent-steel)] transition-colors hover:bg-[rgba(144,160,189,0.25)]"
                               >
                                 ↺ RENEGOCIAR
                               </button>
+                              <button
+                                onClick={() => openAction('interest_only', installment)}
+                                className="rounded-lg border border-[rgba(200,154,85,0.3)] bg-[rgba(200,154,85,0.1)] px-4 py-2.5 text-sm font-bold text-[color:var(--accent-warning)] transition-colors hover:bg-[rgba(200,154,85,0.2)]"
+                              >
+                                % JUROS
+                              </button>
                             </>
+                          ) : (
+                            <button
+                              onClick={() => openAction('pay', installment)}
+                              className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-[color:var(--text-faint)] transition-colors hover:bg-white/[0.08]"
+                            >
+                              ↗ RECIBO
+                            </button>
                           )}
+                          <button
+                            onClick={() => openAction('edit', installment)}
+                            title="Editar"
+                            className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5 text-[color:var(--text-faint)] transition-colors hover:text-[color:var(--accent-steel)] hover:bg-white/[0.07]"
+                          >
+                            <Pencil size={14} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -724,21 +919,57 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                   <div className="mb-3 text-xs text-[color:var(--text-faint)]">{installment.investment?.asset_name || installment.contract_name || '—'}</div>
                   <div className="mb-3 flex items-center justify-between">
                     <span className="text-xl font-extrabold text-[color:var(--text-primary)]">{formatCurrency(outstanding)}</span>
-                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusTone}`}>{statusLabel}</span>
+                    <div className="text-right">
+                      <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusTone}`}>{statusLabel}</span>
+                      {Number(installment.interest_payments_total) > 0 && (
+                        <div className="mt-1 text-[10px] font-bold text-[color:var(--accent-warning)]">
+                          Juros: {formatCurrency(Number(installment.interest_payments_total))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {installment.status !== 'paid' && (
+                  {installment.status !== 'paid' ? (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          onClick={() => openAction('pay', installment)}
+                          className="min-h-[48px] rounded-xl border border-[rgba(143,179,157,0.3)] bg-[rgba(143,179,157,0.12)] py-3 text-sm font-bold text-[color:var(--accent-positive)] transition-colors hover:bg-[rgba(143,179,157,0.25)]"
+                        >
+                          ✓ BAIXA
+                        </button>
+                        <button
+                          onClick={() => openAction('refinance', installment)}
+                          className="min-h-[48px] rounded-xl border border-[rgba(144,160,189,0.3)] bg-[rgba(144,160,189,0.12)] py-3 text-sm font-bold text-[color:var(--accent-steel)] transition-colors hover:bg-[rgba(144,160,189,0.25)]"
+                        >
+                          ↺ RENEG.
+                        </button>
+                        <button
+                          onClick={() => openAction('interest_only', installment)}
+                          className="min-h-[48px] rounded-xl border border-[rgba(200,154,85,0.3)] bg-[rgba(200,154,85,0.1)] py-3 text-sm font-bold text-[color:var(--accent-warning)] transition-colors hover:bg-[rgba(200,154,85,0.2)]"
+                        >
+                          % JUROS
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => openAction('edit', installment)}
+                        className="flex w-full items-center justify-center gap-2 min-h-[40px] rounded-xl border border-white/10 bg-white/[0.03] py-2 text-xs font-bold text-[color:var(--text-faint)] transition-colors hover:bg-white/[0.07]"
+                      >
+                        <Pencil size={12} /> Editar
+                      </button>
+                    </div>
+                  ) : (
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => openAction('pay', installment)}
-                        className="min-h-[48px] rounded-xl border border-[rgba(143,179,157,0.3)] bg-[rgba(143,179,157,0.12)] py-3 text-sm font-bold text-[color:var(--accent-positive)] transition-colors hover:bg-[rgba(143,179,157,0.25)]"
+                        className="min-h-[48px] rounded-xl border border-white/10 bg-white/[0.04] py-3 text-sm font-bold text-[color:var(--text-faint)] transition-colors hover:bg-white/[0.08]"
                       >
-                        ✓ DAR BAIXA
+                        ↗ RECIBO
                       </button>
                       <button
-                        onClick={() => openAction('refinance', installment)}
-                        className="min-h-[48px] rounded-xl border border-[rgba(144,160,189,0.3)] bg-[rgba(144,160,189,0.12)] py-3 text-sm font-bold text-[color:var(--accent-steel)] transition-colors hover:bg-[rgba(144,160,189,0.25)]"
+                        onClick={() => openAction('edit', installment)}
+                        className="flex items-center justify-center gap-2 min-h-[48px] rounded-xl border border-white/10 bg-white/[0.03] py-3 text-sm font-bold text-[color:var(--text-faint)] transition-colors hover:bg-white/[0.07]"
                       >
-                        ↺ RENEGOCIAR
+                        <Pencil size={14} /> Editar
                       </button>
                     </div>
                   )}
@@ -759,6 +990,113 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
       <PaymentModal isOpen={modalType === 'pay'} onClose={closeModal} onSuccess={() => onUpdate?.()} installment={selectedInstallment} tenant={tenant} />
       <RefinanceModal isOpen={modalType === 'refinance'} onClose={closeModal} onSuccess={() => onUpdate?.()} installment={selectedInstallment} />
       <EditModal isOpen={modalType === 'edit'} onClose={closeModal} onSuccess={() => onUpdate?.()} installment={selectedInstallment} />
+      <InterestOnlyModal isOpen={modalType === 'interest_only'} onClose={closeModal} onSuccess={() => onUpdate?.()} installment={selectedInstallment} />
     </>
+  );
+};
+
+// ── QuickActionsGrid ──────────────────────────────────────────────────────────
+
+interface QuickActionsGridProps {
+  onNavigate: (view: AppView) => void;
+  onSwitchTab: (tab: 'receivables' | 'collection') => void;
+}
+
+export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({ onNavigate, onSwitchTab }) => {
+  const actions = [
+    { icon: Users,           label: 'Usuários',     onClick: () => onNavigate(AppView.USERS) },
+    { icon: BriefcaseBusiness, label: 'Contratos',  onClick: () => onNavigate(AppView.CONTRACTS) },
+    { icon: FileText,        label: 'Parcelas',     onClick: () => onSwitchTab('receivables') },
+    { icon: Phone,           label: 'Cobranças',    onClick: () => onSwitchTab('collection') },
+    { icon: AlertTriangle,   label: 'Inadimplentes',onClick: () => onSwitchTab('collection') },
+    { icon: Bot,             label: 'Assistente',   onClick: () => onNavigate(AppView.ASSISTANT) },
+  ];
+
+  return (
+    <div className={`${panelClass} px-4 py-5 md:px-6`}>
+      <p className="section-kicker mb-4">Acesso rápido</p>
+      <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
+        {actions.map(({ icon: Icon, label, onClick }) => (
+          <button
+            key={label}
+            onClick={onClick}
+            className="group flex flex-col items-center gap-2.5 overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.03] px-2 py-4 transition-all hover:border-[color:var(--accent-brass)]/30 hover:bg-[rgba(202,176,122,0.07)]"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-[color:var(--text-muted)] transition-colors group-hover:bg-[rgba(202,176,122,0.14)] group-hover:text-[color:var(--accent-brass)]">
+              <Icon size={18} />
+            </div>
+            <span className="w-full truncate text-center text-[0.68rem] font-extrabold uppercase tracking-[0.06em] text-[color:var(--text-faint)] transition-colors group-hover:text-[color:var(--text-primary)]">
+              {label}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ── DailyAlerts ───────────────────────────────────────────────────────────────
+
+interface DailyAlertsProps {
+  kpis: DashboardKPIs | null;
+  installments: LoanInstallment[];
+}
+
+export const DailyAlerts: React.FC<DailyAlertsProps> = ({ kpis, installments }) => {
+  const today = new Date().toISOString().split('T')[0];
+  const todayFormatted = today.split('-').reverse().join('/');
+
+  const vigentes = kpis?.activeContractsCount ?? 0;
+  const contratosMorosos = kpis?.overdueContractsCount ?? 0;
+  const vencendoHoje = installments.filter(
+    (i) => i.due_date === today && i.status !== 'paid'
+  ).length;
+  const atrasadas = installments.filter((i) => i.status === 'late').length;
+
+  const metrics = [
+    {
+      label: 'Contratos Vigentes',
+      value: vigentes,
+      color: vigentes > 0 ? 'var(--accent-teal)' : 'var(--text-muted)',
+    },
+    {
+      label: 'Contratos Atrasados',
+      value: contratosMorosos,
+      color: contratosMorosos > 0 ? 'var(--accent-danger)' : 'var(--text-muted)',
+    },
+    {
+      label: 'Parcelas Vencendo',
+      value: vencendoHoje,
+      color: vencendoHoje > 0 ? '#f59e0b' : 'var(--text-muted)',
+    },
+    {
+      label: 'Parcelas Atrasadas',
+      value: atrasadas,
+      color: atrasadas > 0 ? 'var(--accent-danger)' : 'var(--text-muted)',
+    },
+  ];
+
+  return (
+    <div className={`${panelClass} px-4 py-5 md:px-6`}>
+      <div className="mb-4 flex items-center justify-between">
+        <p className="section-kicker">Avisos do dia!</p>
+        <span className="text-xs font-semibold tabular-nums text-[color:var(--text-faint)]">{todayFormatted}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {metrics.map(({ label, value, color }) => (
+          <div
+            key={label}
+            className="flex flex-col items-center gap-1 rounded-2xl border border-white/[0.06] bg-white/[0.03] px-3 py-4"
+          >
+            <span className="text-3xl font-black tabular-nums leading-none" style={{ color }}>
+              {value}
+            </span>
+            <span className="mt-1 text-center text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-[color:var(--text-faint)]">
+              {label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 };

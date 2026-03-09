@@ -1,14 +1,16 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { getSupabase, parseSupabaseError } from '../services/supabase';
+import { getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { Investment, Tenant, Profile } from '../types';
 import QuickContractInput from './QuickContractInput';
+import ContractDetail from './ContractDetail';
+import ContractRenewalModal from './ContractRenewalModal';
 import {
     Search, PlusCircle, CheckCircle2, X, RefreshCw,
     ArrowRight, Calendar, Zap, Wallet, ChevronRight,
     Minus, Plus, Banknote, Percent, CalendarDays,
     CalendarClock, UserPlus, Loader2, UserCog, ShieldCheck, Eye, ChevronDown, Coins, TrendingUp, Sparkles,
-    Trash2, Pencil
+    Trash2, Pencil, Mail, Phone, Key, MapPin, Activity
 } from 'lucide-react';
 
 // --- PURE BUSINESS LOGIC (No React Dependencies) ---
@@ -30,11 +32,12 @@ const distributeEvenly = (total: number, count: number): number[] => {
 };
 
 const calculateInstallmentDates = (
-    frequency: string, 
-    dueDay: number, 
-    weekday: number, 
-    startDateStr: string, 
-    count: number
+    frequency: string,
+    dueDay: number,
+    weekday: number,
+    startDateStr: string,
+    count: number,
+    skipWeekends: boolean = false
 ): Date[] => {
     const dates: Date[] = [];
     const now = new Date();
@@ -46,20 +49,37 @@ const calculateInstallmentDates = (
             cursorDate.setMonth(cursorDate.getMonth() + 1);
         }
     } else if (frequency === 'weekly') {
-        const currentDay = now.getDay(); 
+        const currentDay = now.getDay();
         let diff = weekday - currentDay;
-        if (diff <= 0) diff += 7; 
+        if (diff <= 0) diff += 7;
         cursorDate.setDate(now.getDate() + diff);
     } else if (startDateStr) {
         const [y, m, d] = startDateStr.split('-').map(Number);
         cursorDate = new Date(y, m - 1, d);
     }
 
+    if (frequency === 'daily' && skipWeekends) {
+        let start = new Date(cursorDate);
+        while (start.getDay() === 0 || start.getDay() === 6) {
+            start.setDate(start.getDate() + 1);
+        }
+        for (let i = 0; i < count; i++) {
+            const candidate = new Date(start);
+            let bDaysLeft = i;
+            while (bDaysLeft > 0) {
+                candidate.setDate(candidate.getDate() + 1);
+                if (candidate.getDay() !== 0 && candidate.getDay() !== 6) bDaysLeft--;
+            }
+            dates.push(new Date(candidate));
+        }
+        return dates;
+    }
+
     for (let i = 0; i < count; i++) {
         const d = new Date(cursorDate);
         if (frequency === 'monthly') {
             d.setMonth(d.getMonth() + i);
-            if (d.getDate() !== dueDay) d.setDate(0); 
+            if (d.getDate() !== dueDay) d.setDate(0);
         } else if (frequency === 'weekly') {
             d.setDate(d.getDate() + (i * 7));
         } else if (frequency === 'daily') {
@@ -242,7 +262,10 @@ const AdminContracts: React.FC = () => {
   const [availableProfit, setAvailableProfit] = useState(0);
 
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
-  const [newDebtorData, setNewDebtorData] = useState({ full_name: '', email: '' });
+  const [newDebtorData, setNewDebtorData] = useState({ full_name: '', email: '', phone_number: '', cpf: '', cep: '', logradouro: '', numero: '', bairro: '', cidade: '', uf: '' });
+  const [quickCreateCpfError, setQuickCreateCpfError] = useState('');
+  const [quickCreateCepLoading, setQuickCreateCepLoading] = useState(false);
+  const [quickCreateCepError, setQuickCreateCepError] = useState('');
   const [quickCreateLoading, setQuickCreateLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -254,17 +277,21 @@ const AdminContracts: React.FC = () => {
       weekday: 1,
       start_date: new Date().toISOString().split('T')[0],
       interest_rate: 10,
-      installment_value: 0, 
+      installment_value: 0,
       current_value: 0,
       calculation_mode: 'auto' as 'auto' | 'manual',
-      source_profit_amount: 0 
+      source_profit_amount: 0,
+      skip_weekends: false
   });
 
   const [selectedInvestor, setSelectedInvestor] = useState<Profile | null>(null);
   const [selectedPayer, setSelectedPayer] = useState<Profile | null>(null);
   const [previewDateStrings, setPreviewDateStrings] = useState<string[]>([]);
+  const [viewingContractId, setViewingContractId] = useState<number | null>(null);
   const [viewingContract, setViewingContract] = useState<Investment | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isRenewalOpen, setIsRenewalOpen] = useState(false);
+  const [renewalSource, setRenewalSource] = useState<Investment | null>(null);
 
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [contractToDelete, setContractToDelete] = useState<Investment | null>(null);
@@ -388,18 +415,19 @@ const AdminContracts: React.FC = () => {
       nextMonth.setDate(today.getDate() + 1);
 
       setFormData({
-          asset_name: '', 
-          amount_invested: 0, 
-          total_installments: 12, 
+          asset_name: '',
+          amount_invested: 0,
+          total_installments: 12,
           frequency: 'monthly',
-          due_day: 10, 
-          weekday: 1, 
-          start_date: nextMonth.toISOString().split('T')[0], 
-          interest_rate: 10, 
-          installment_value: 0, 
-          current_value: 0, 
+          due_day: 10,
+          weekday: 1,
+          start_date: nextMonth.toISOString().split('T')[0],
+          interest_rate: 10,
+          installment_value: 0,
+          current_value: 0,
           calculation_mode: 'auto',
-          source_profit_amount: 0
+          source_profit_amount: 0,
+          skip_weekends: false
       });
       
       let defaultInvestor = null;
@@ -449,13 +477,16 @@ const AdminContracts: React.FC = () => {
       }));
 
       const dateObjects = calculateInstallmentDates(
-          merged.frequency, 
-          merged.due_day, 
-          merged.weekday, 
-          merged.start_date, 
-          3 
+          merged.frequency,
+          merged.due_day,
+          merged.weekday,
+          merged.start_date,
+          merged.total_installments,
+          merged.skip_weekends
       );
-      setPreviewDateStrings(dateObjects.map(d => d.toLocaleDateString('pt-BR')));
+      setPreviewDateStrings(dateObjects.map(d =>
+          d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })
+      ));
   };
 
   const handleCreateContract = async () => {
@@ -481,7 +512,8 @@ const AdminContracts: React.FC = () => {
               p_due_day: formData.frequency === 'monthly' ? formData.due_day : null,
               p_weekday: formData.frequency === 'weekly' ? formData.weekday : null,
               p_start_date: ['daily', 'freelancer'].includes(formData.frequency) ? formData.start_date : null,
-              p_calculation_mode: formData.calculation_mode
+              p_calculation_mode: formData.calculation_mode,
+              p_skip_weekends: formData.frequency === 'daily' ? formData.skip_weekends : false
           });
 
           if (rpcError) throw rpcError;
@@ -495,36 +527,88 @@ const AdminContracts: React.FC = () => {
       }
   };
 
+  const handleQuickCepLookup = async (digits: string) => {
+      if (digits.length !== 8) return;
+      setQuickCreateCepLoading(true);
+      setQuickCreateCepError('');
+      try {
+          const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+          const d = await res.json();
+          if (d.erro) { setQuickCreateCepError('CEP não encontrado.'); return; }
+          setNewDebtorData(p => ({ ...p, logradouro: d.logradouro || '', bairro: d.bairro || '', cidade: d.localidade || '', uf: d.uf || '' }));
+      } catch { setQuickCreateCepError('Erro ao buscar CEP.'); }
+      finally { setQuickCreateCepLoading(false); }
+  };
+
+  const maskCPFAdmin = (v: string) => {
+      const d = v.replace(/\D/g, '').slice(0, 11);
+      return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+              .replace(/(\d{3})(\d{3})(\d{0,3})/, '$1.$2.$3')
+              .replace(/(\d{3})(\d{0,3})/, '$1.$2');
+  };
+
   const handleQuickCreateDebtor = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!newDebtorData.full_name || !newDebtorData.email || !currentTenant) return;
-      
+      if (!newDebtorData.full_name || !currentTenant) return;
+
+      const cpfDigits = newDebtorData.cpf.replace(/\D/g, '');
+      if (cpfDigits && !isValidCPF(cpfDigits)) {
+          setQuickCreateCpfError('CPF inválido');
+          return;
+      }
+
       setQuickCreateLoading(true);
+      setQuickCreateCpfError('');
       const supabase = getSupabase();
       if (!supabase) return;
 
       try {
-          const newUserId = crypto.randomUUID();
-          const now = new Date().toISOString();
-
-          const { data, error } = await supabase.from('profiles').insert({
-              id: newUserId,
-              email: newDebtorData.email,
-              full_name: newDebtorData.full_name,
-              role: 'debtor',
-              tenant_id: currentTenant.id,
-              created_at: now,
-              updated_at: now
-          }).select().single();
+          const { data, error } = await supabase.rpc('create_client_direct', {
+              p_full_name:    newDebtorData.full_name,
+              p_email:        newDebtorData.email.trim() || null,
+              p_role:         'debtor',
+              p_phone_number: newDebtorData.phone_number.trim() || null,
+              p_cpf:          cpfDigits || null,
+              p_photo_url:    null,
+          });
 
           if (error) throw error;
-          
-          if (data) {
-              setProfiles(prev => [...prev, data as Profile]);
-              setSelectedPayer(data as Profile);
+          const newId = data as string;
+
+          // Salvar endereço separadamente (RPC não suporta esses campos)
+          const hasAddress = newDebtorData.cep || newDebtorData.logradouro || newDebtorData.numero || newDebtorData.bairro || newDebtorData.cidade || newDebtorData.uf;
+          if (hasAddress) {
+              await supabase.from('profiles').update({
+                  cep: newDebtorData.cep || null,
+                  logradouro: newDebtorData.logradouro || null,
+                  numero: newDebtorData.numero || null,
+                  bairro: newDebtorData.bairro || null,
+                  cidade: newDebtorData.cidade || null,
+                  uf: newDebtorData.uf || null,
+              }).eq('id', newId);
           }
+
+          const newProfile: Profile = {
+              id: newId,
+              full_name: newDebtorData.full_name,
+              email: newDebtorData.email || '',
+              role: 'debtor',
+              tenant_id: currentTenant.id,
+              phone_number: newDebtorData.phone_number || null,
+              cpf: cpfDigits || null,
+              cep: newDebtorData.cep || null,
+              logradouro: newDebtorData.logradouro || null,
+              numero: newDebtorData.numero || null,
+              bairro: newDebtorData.bairro || null,
+              cidade: newDebtorData.cidade || null,
+              uf: newDebtorData.uf || null,
+          } as Profile;
+
+          setProfiles(prev => [...prev, newProfile]);
+          setSelectedPayer(newProfile);
           setIsQuickCreateOpen(false);
-          setNewDebtorData({ full_name: '', email: '' });
+          setNewDebtorData({ full_name: '', email: '', phone_number: '', cpf: '', cep: '', logradouro: '', numero: '', bairro: '', cidade: '', uf: '' });
+          setQuickCreateCepError('');
       } catch (err: any) {
           alert(`Erro: ${parseSupabaseError(err)}`);
       } finally {
@@ -726,7 +810,7 @@ const AdminContracts: React.FC = () => {
                         <div className="flex justify-between items-start mb-6">
                             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]"><Wallet size={20}/></div>
                             <div className="flex items-center gap-1">
-                                <button onClick={() => { setViewingContract(contract); setIsDetailsModalOpen(true); }} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-white" title="Ver detalhes"><Eye size={16}/></button>
+                                <button onClick={() => { setViewingContractId(contract.id); setViewingContract(contract); setIsDetailsModalOpen(true); }} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-white" title="Ver detalhes"><Eye size={16}/></button>
                                 <button onClick={() => handleOpenContractEdit(contract)} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-[color:var(--accent-brass)]" title="Editar contrato"><Pencil size={16}/></button>
                                 <button onClick={() => { setContractToDelete(contract); setIsDeleteConfirmOpen(true); }} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-[color:var(--accent-danger)]" title="Excluir contrato"><Trash2 size={16}/></button>
                             </div>
@@ -982,14 +1066,51 @@ const AdminContracts: React.FC = () => {
                                 )}
                             </div>
 
-                            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                                {previewDateStrings.map((dateStr, idx) => (
-                                    <div key={idx} className="flex-none bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2 text-center min-w-[80px]">
-                                        <p className="text-[9px] text-[color:var(--text-muted)] font-bold uppercase">{idx + 1}ª Parc</p>
-                                        <p className="text-xs font-bold text-[color:var(--text-primary)] font-mono">{dateStr.slice(0, 5)}</p>
+                            {formData.frequency === 'daily' && (
+                                <button
+                                    onClick={() => updateFormState({ skip_weekends: !formData.skip_weekends })}
+                                    className={`flex items-center gap-3 w-full p-3 rounded-2xl border transition-all animate-fade-in ${
+                                        formData.skip_weekends
+                                            ? 'bg-teal-950/40 border-teal-500/40 text-teal-300'
+                                            : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)]'
+                                    }`}
+                                >
+                                    <div className={`w-9 h-5 rounded-full relative transition-all flex-shrink-0 ${formData.skip_weekends ? 'bg-teal-600' : 'bg-[color:var(--bg-elevated)]'}`}>
+                                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${formData.skip_weekends ? 'left-4' : 'left-0.5'}`} />
                                     </div>
-                                ))}
-                            </div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest">Pular finais de semana</span>
+                                </button>
+                            )}
+
+                            {previewDateStrings.length > 0 && (
+                                <div className="rounded-2xl border border-[color:var(--border-subtle)] overflow-hidden animate-fade-in">
+                                    <div className="flex items-center justify-between px-4 py-3 bg-[color:var(--bg-base)] border-b border-[color:var(--border-subtle)]">
+                                        <span className="text-[10px] font-black uppercase text-[color:var(--text-muted)]">
+                                            Preview das {previewDateStrings.length} parcelas
+                                        </span>
+                                        <span className="text-[10px] font-bold text-[color:var(--accent-brass)]">
+                                            {formatCurrency(formData.installment_value)} cada
+                                        </span>
+                                    </div>
+                                    <div className="max-h-48 overflow-y-auto divide-y divide-[color:var(--border-subtle)]">
+                                        {previewDateStrings.map((dateStr, idx) => (
+                                            <div key={idx} className="flex items-center justify-between px-4 py-2.5">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-[10px] font-black text-[color:var(--text-faint)] w-6 text-right">
+                                                        {idx + 1}
+                                                    </span>
+                                                    <span className="text-xs font-bold text-[color:var(--text-primary)] font-mono">
+                                                        {dateStr}
+                                                    </span>
+                                                </div>
+                                                <span className="text-xs font-bold text-[color:var(--accent-positive)]">
+                                                    {formatCurrency(formData.installment_value)}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="bg-[color:var(--bg-base)] p-1.5 rounded-2xl border border-[color:var(--border-subtle)] flex relative">
                                 <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-[color:var(--bg-elevated)] rounded-xl transition-all duration-300 shadow-md ${formData.calculation_mode === 'manual' ? 'translate-x-full left-1.5' : 'left-1.5'}`}></div>
@@ -1123,24 +1244,111 @@ const AdminContracts: React.FC = () => {
       )}
 
       {isQuickCreateOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-              <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 animate-fade-in-up">
-                  <div className="flex justify-between items-center mb-8">
-                      <h3 className="text-xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter">Novo Cliente</h3>
-                      <button onClick={() => setIsQuickCreateOpen(false)}><X className="text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]" size={24}/></button>
+          <div className="fixed inset-0 z-[60] flex justify-end">
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsQuickCreateOpen(false)} />
+              <div className="relative z-10 flex h-full w-full max-w-lg flex-col bg-[color:var(--bg-elevated)] shadow-2xl border-l border-[color:var(--border-subtle)] animate-slide-in-right">
+                  {/* Header fixo */}
+                  <div className="shrink-0 flex items-center justify-between px-6 py-5 border-b border-[color:var(--border-subtle)]">
+                      <div>
+                          <h3 className="text-lg font-black text-[color:var(--text-primary)] uppercase tracking-tighter">Novo Cliente</h3>
+                          <p className="text-[10px] text-[color:var(--text-muted)] font-bold uppercase tracking-widest">Cadastro para emissão imediata</p>
+                      </div>
+                      <button onClick={() => setIsQuickCreateOpen(false)}><X className="text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]" size={22}/></button>
                   </div>
-                  <div className="mb-6 p-4 bg-blue-900/10 border border-blue-900/30 rounded-2xl text-blue-300 text-xs font-medium text-center leading-relaxed">
-                    Cadastro simplificado para emissão imediata.
-                  </div>
-                  <form onSubmit={handleQuickCreateDebtor} className="space-y-5">
-                      <input required type="text" className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.full_name} onChange={e => setNewDebtorData({...newDebtorData, full_name: e.target.value})} placeholder="Nome Completo" />
-                      <input required type="email" className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.email} onChange={e => setNewDebtorData({...newDebtorData, email: e.target.value})} placeholder="E-mail do Cliente" />
-                      <div className="pt-2">
-                        <button type="submit" disabled={quickCreateLoading} className="w-full bg-teal-600 hover:bg-teal-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg">
-                            {quickCreateLoading ? <Loader2 className="animate-spin" size={18}/> : <UserPlus size={18}/>} Cadastrar Rápido
-                        </button>
+                  {/* Body scrollável */}
+                  <div className="flex-1 overflow-y-auto p-6 pb-2 custom-scrollbar">
+                  <form id="quick-create-debtor-form" onSubmit={handleQuickCreateDebtor} className="space-y-4">
+                      {/* Identificação */}
+                      <div className="bg-[color:var(--bg-base)] rounded-2xl p-4 border border-[color:var(--border-subtle)] space-y-3">
+                          <p className="text-[10px] font-black uppercase text-[color:var(--text-muted)] tracking-widest">Identificação</p>
+                          <div>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Nome Completo *</label>
+                              <div className="relative">
+                                  <UserPlus size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
+                                  <input required type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.full_name} onChange={e => setNewDebtorData({...newDebtorData, full_name: e.target.value})} placeholder="Nome completo" />
+                              </div>
+                          </div>
+                          <div>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">E-mail</label>
+                              <div className="relative">
+                                  <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
+                                  <input type="email" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.email} onChange={e => setNewDebtorData({...newDebtorData, email: e.target.value})} placeholder="email@exemplo.com (opcional)" />
+                              </div>
+                          </div>
+                          <div>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Telefone</label>
+                              <div className="relative">
+                                  <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
+                                  <input type="tel" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.phone_number} onChange={e => setNewDebtorData({...newDebtorData, phone_number: e.target.value})} placeholder="(11) 99999-9999 (opcional)" />
+                              </div>
+                          </div>
+                      </div>
+                      {/* Documento */}
+                      <div className="bg-[color:var(--bg-base)] rounded-2xl p-4 border border-[color:var(--border-subtle)] space-y-3">
+                          <p className="text-[10px] font-black uppercase text-[color:var(--text-muted)] tracking-widest">Documento</p>
+                          <div>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">CPF</label>
+                              <div className="relative">
+                                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
+                                  <input type="text" maxLength={14} className={`w-full bg-[color:var(--bg-elevated)] border rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)] ${quickCreateCpfError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'}`} value={newDebtorData.cpf} onChange={e => { setQuickCreateCpfError(''); setNewDebtorData({...newDebtorData, cpf: maskCPFAdmin(e.target.value)}); }} placeholder="000.000.000-00 (opcional)" />
+                              </div>
+                              {quickCreateCpfError && <p className="text-red-400 text-[10px] mt-1 font-bold">{quickCreateCpfError}</p>}
+                          </div>
+                      </div>
+                      {/* Endereço */}
+                      <div className="bg-[color:var(--bg-base)] rounded-2xl p-4 border border-[color:var(--border-subtle)] space-y-3">
+                          <p className="text-[10px] font-black uppercase text-[color:var(--text-muted)] tracking-widest">Endereço</p>
+                          <div>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">CEP</label>
+                              <div className="relative">
+                                  <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
+                                  <input type="text" maxLength={9} className={`w-full bg-[color:var(--bg-elevated)] border rounded-xl pl-9 pr-9 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)] ${quickCreateCepError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'}`}
+                                      value={newDebtorData.cep}
+                                      onChange={e => {
+                                          const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+                                          const formatted = digits.length > 5 ? `${digits.slice(0,5)}-${digits.slice(5)}` : digits;
+                                          setNewDebtorData(p => ({ ...p, cep: formatted }));
+                                          setQuickCreateCepError('');
+                                          if (digits.length === 8) handleQuickCepLookup(digits);
+                                      }}
+                                      placeholder="00000-000 (opcional)" />
+                                  {quickCreateCepLoading && <Activity size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-teal-500 animate-spin" />}
+                              </div>
+                              {quickCreateCepError && <p className="text-red-400 text-[10px] mt-1 font-bold">{quickCreateCepError}</p>}
+                          </div>
+                          <div>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Logradouro</label>
+                              <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.logradouro} onChange={e => setNewDebtorData(p => ({ ...p, logradouro: e.target.value }))} placeholder="Rua, Av..." />
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                  <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Número</label>
+                                  <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.numero} onChange={e => setNewDebtorData(p => ({ ...p, numero: e.target.value }))} placeholder="Nº" />
+                              </div>
+                              <div className="col-span-2">
+                                  <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Bairro</label>
+                                  <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.bairro} onChange={e => setNewDebtorData(p => ({ ...p, bairro: e.target.value }))} placeholder="Bairro" />
+                              </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                              <div className="col-span-2">
+                                  <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Cidade</label>
+                                  <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.cidade} onChange={e => setNewDebtorData(p => ({ ...p, cidade: e.target.value }))} placeholder="Cidade" />
+                              </div>
+                              <div>
+                                  <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">UF</label>
+                                  <input type="text" maxLength={2} className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)] uppercase" value={newDebtorData.uf} onChange={e => setNewDebtorData(p => ({ ...p, uf: e.target.value.toUpperCase() }))} placeholder="SP" />
+                              </div>
+                          </div>
                       </div>
                   </form>
+                  </div>
+                  {/* Footer fixo — acima da nav bar em mobile */}
+                  <div className="shrink-0 border-t border-[color:var(--border-subtle)] bg-[color:var(--bg-elevated)]/90 px-6 pt-4 pb-[max(calc(env(safe-area-inset-bottom,0px)+5.5rem),5.5rem)] md:pb-5 backdrop-blur">
+                      <button type="submit" form="quick-create-debtor-form" disabled={quickCreateLoading} className="w-full bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-teal-900/30">
+                          {quickCreateLoading ? <Loader2 className="animate-spin" size={18}/> : <UserPlus size={18}/>} Cadastrar Rápido
+                      </button>
+                  </div>
               </div>
           </div>
       )}
@@ -1332,28 +1540,23 @@ const AdminContracts: React.FC = () => {
           </div>
       )}
 
-      {isDetailsModalOpen && viewingContract && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-             <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[3rem] w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh] animate-fade-in-up">
-                <div className="p-8 border-b border-[color:var(--border-subtle)] flex justify-between items-center bg-[color:var(--bg-base)]/50">
-                    <div>
-                        <h3 className="text-2xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter">Detalhes do Contrato</h3>
-                        <p className="text-xs text-[color:var(--text-muted)] font-bold mt-1">ID #{viewingContract.id} • {viewingContract.asset_name}</p>
-                    </div>
-                    <button onClick={() => setIsDetailsModalOpen(false)} className="p-3 hover:bg-[color:var(--bg-soft)] rounded-full transition-colors text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]"><X size={24}/></button>
-                </div>
-                <div className="p-10 text-center">
-                     <div className="bg-gradient-to-b from-[color:var(--bg-base)] to-[color:var(--bg-elevated)] p-8 rounded-[2.5rem] border border-[color:var(--border-subtle)] inline-block w-full max-w-sm shadow-xl">
-                         <p className="text-[color:var(--text-muted)] text-xs font-black uppercase tracking-widest mb-2">Resumo Financeiro</p>
-                         <p className="text-5xl font-black text-[color:var(--text-primary)] mb-4 tracking-tight">{formatCurrency(viewingContract.current_value)}</p>
-                         <div className="inline-flex items-center gap-2 bg-teal-900/30 border border-teal-500/20 px-4 py-2 rounded-xl">
-                            <p className="text-sm text-teal-400 font-bold uppercase">{viewingContract.total_installments}x de {formatCurrency(viewingContract.installment_value)}</p>
-                         </div>
-                     </div>
-                </div>
-             </div>
-          </div>
+      {/* ContractDetail slide-over */}
+      {isDetailsModalOpen && (
+        <ContractDetail
+          investmentId={viewingContractId}
+          onClose={() => { setIsDetailsModalOpen(false); setViewingContractId(null); setViewingContract(null); }}
+          onRenew={(inv) => { setRenewalSource(inv); setIsRenewalOpen(true); }}
+          onRefreshList={fetchData}
+        />
       )}
+
+      {/* ContractRenewalModal */}
+      <ContractRenewalModal
+        isOpen={isRenewalOpen}
+        sourceContract={renewalSource}
+        onClose={() => { setIsRenewalOpen(false); setRenewalSource(null); }}
+        onSuccess={() => { fetchData(); setIsDetailsModalOpen(false); setViewingContractId(null); }}
+      />
 
       <QuickContractInput
         isOpen={isNLContractOpen}

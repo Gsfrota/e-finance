@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { getSupabase, logError, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { Profile, UserRole, Tenant, Invite } from '../types';
-import { User, PlusCircle, Search, X, DollarSign, Activity, Users, CreditCard, Pencil, AlertTriangle, FileSearch, RefreshCw, Crown, Shield, Clipboard, Check, Key, Mail, Phone, Briefcase, Send, Trash2, Hourglass, UserPlus, MapPin, Image } from 'lucide-react';
+import { User, PlusCircle, Search, X, DollarSign, Activity, Users, CreditCard, Pencil, AlertTriangle, FileSearch, RefreshCw, Crown, Shield, Clipboard, Check, Key, Mail, Phone, Briefcase, Send, Trash2, Hourglass, UserPlus, MapPin, Upload, CheckCircle2 } from 'lucide-react';
 
 // View Model para unificar a exibição
 type DisplayUser = {
@@ -52,6 +52,9 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [copiedInviteCode, setCopiedInviteCode] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [clientCreated, setClientCreated] = useState(false);
 
   const [editForm, setEditForm] = useState({ full_name: '', role: 'investor' as UserRole, cpf: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -69,7 +72,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
         const { data: adminProfile, error: profError } = await supabase
             .from('profiles')
             .select(`*, tenants!profiles_tenant_id_fkey (*)`)
-            .eq('id', authUser?.id)
+            .eq('auth_user_id', authUser?.id)
             .single();
 
         if (profError) throw profError;
@@ -145,7 +148,28 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
     }
   };
 
-  const handleGenerateInvite = async (e: React.FormEvent) => {
+  const handlePhotoUpload = async (file: File) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage
+        .from('profile-photos')
+        .upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data } = supabase.storage.from('profile-photos').getPublicUrl(path);
+      setInviteForm(f => ({ ...f, photo_url: data.publicUrl }));
+    } catch {
+      setUploadError('Erro ao enviar foto. Tente novamente.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
     setCpfError(null);
 
@@ -158,30 +182,25 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
     setSubmitting(true);
     setErrorMessage(null);
     try {
-        const supabase = getSupabase();
-        if (!supabase) throw new Error("Supabase não inicializado.");
-        const toNull = (v: string) => v.trim() || null;
-        const { data, error } = await supabase.rpc('generate_invite_code', {
-            p_full_name: inviteForm.full_name,
-            p_email: inviteForm.email,
-            p_phone_number: toNull(inviteForm.phone_number),
-            p_role: inviteForm.role,
-            p_cpf: toNull(cpfDigits),
-            p_cep: toNull(inviteForm.cep),
-            p_logradouro: toNull(inviteForm.logradouro),
-            p_numero: toNull(inviteForm.numero),
-            p_bairro: toNull(inviteForm.bairro),
-            p_cidade: toNull(inviteForm.cidade),
-            p_uf: toNull(inviteForm.uf),
-            p_photo_url: toNull(inviteForm.photo_url),
-        });
-        if (error) throw error;
-        setGeneratedCode(data);
-    } catch(err: any) {
-        logError("GenerateInvite", err);
-        setErrorMessage(parseSupabaseError(err));
+      const supabase = getSupabase();
+      if (!supabase) throw new Error('Supabase não inicializado.');
+      const toNull = (v: string) => v.trim() || null;
+      const { error } = await supabase.rpc('create_client_direct', {
+        p_full_name:    inviteForm.full_name,
+        p_email:        toNull(inviteForm.email),
+        p_role:         inviteForm.role,
+        p_phone_number: toNull(inviteForm.phone_number),
+        p_cpf:          toNull(cpfDigits),
+        p_photo_url:    toNull(inviteForm.photo_url),
+      });
+      if (error) throw error;
+      setClientCreated(true);
+      fetchUsersAndInvites();
+    } catch (err: any) {
+      logError('CreateClientDirect', err);
+      setErrorMessage(parseSupabaseError(err));
     } finally {
-        setSubmitting(false);
+      setSubmitting(false);
     }
   };
 
@@ -202,9 +221,11 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
   const resetInviteModal = () => {
     setInviteForm({ full_name: '', email: '', phone_number: '', role: 'debtor', cpf: '', cep: '', logradouro: '', numero: '', bairro: '', cidade: '', uf: '', photo_url: '' });
     setGeneratedCode(null);
+    setClientCreated(false);
     setErrorMessage(null);
     setCpfError(null);
     setCepError(null);
+    setUploadError(null);
     setSubmitting(false);
     fetchUsersAndInvites();
   };
@@ -393,32 +414,31 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                     <button onClick={() => { setIsInviteModalOpen(false); resetInviteModal(); }} className="text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition-colors"><X size={24} /></button>
                 </div>
                 {errorMessage && (<div className="mb-4 bg-red-900/20 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2"><AlertTriangle size={14}/> {errorMessage}</div>)}
-                {generatedCode ? (
-                    <div className="text-center space-y-6">
-                        <div className="bg-teal-900/20 border border-teal-900/50 p-6 rounded-3xl">
-                            <p className="text-sm text-teal-400 font-bold uppercase tracking-widest mb-2">Cliente Cadastrado!</p>
-                            <div className="bg-[color:var(--bg-base)] p-4 rounded-2xl border border-[color:var(--border-subtle)] flex items-center justify-center gap-4"><Key size={24} className="text-teal-500"/><p data-testid="invite-code" className="text-2xl font-black text-[color:var(--text-primary)] tracking-[0.1em] font-mono sm:text-4xl sm:tracking-[0.2em]">{generatedCode}</p></div>
-                            <p className="text-xs text-[color:var(--text-muted)] mt-4">Copie o link abaixo e envie para o cliente realizar o cadastro.</p>
-                        </div>
+                {clientCreated ? (
+                    <div className="flex flex-col items-center gap-5 py-4 text-center">
+                        <CheckCircle2 size={48} className="text-teal-400" />
+                        <p className="font-black text-lg text-[color:var(--text-primary)]">Cliente cadastrado!</p>
+                        <p className="text-sm text-[color:var(--text-muted)]">
+                            O perfil foi criado. Você pode gerar um link de acesso depois, se necessário.
+                        </p>
                         <button
-                          onClick={() => {
-                            const inviteLink = `${window.location.origin}${window.location.pathname}?convite=${generatedCode}`;
-                            navigator.clipboard.writeText(inviteLink);
-                            setCopied(true);
-                            setTimeout(() => setCopied(false), 2000);
-                          }}
-                          className={`w-full py-4 rounded-xl text-xs font-black uppercase flex items-center justify-center gap-2 transition-all ${copied ? 'bg-green-600' : 'bg-teal-600 hover:bg-teal-500 text-white'}`}
+                            onClick={() => {
+                                setClientCreated(false);
+                                setIsInviteModalOpen(false);
+                                setInviteForm({ full_name:'', email:'', phone_number:'', role:'debtor', cpf:'', cep:'', logradouro:'', numero:'', bairro:'', cidade:'', uf:'', photo_url:'' });
+                            }}
+                            className="w-full py-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-black uppercase tracking-widest"
                         >
-                          {copied ? <Check/> : <Send/>} {copied ? 'Copiado!' : 'Copiar Link de Cadastro'}
+                            Fechar
                         </button>
                     </div>
                 ) : (
-                    <form onSubmit={handleGenerateInvite} className="space-y-3 sm:space-y-5">
+                    <form onSubmit={handleCreateClient} className="space-y-3 sm:space-y-5">
                         {/* Seção 1 — Identificação */}
                         <div className="space-y-3">
                             <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Identificação</p>
                             <div className="relative"><User className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><input required type="text" value={inviteForm.full_name} onChange={e => setInviteForm({...inviteForm, full_name: e.target.value})} placeholder="Nome Completo" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" /></div>
-                            <div className="relative"><Mail className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><input required type="email" value={inviteForm.email} onChange={e => setInviteForm({...inviteForm, email: e.target.value})} placeholder="E-mail" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" /></div>
+                            <div className="relative"><Mail className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><input type="email" value={inviteForm.email} onChange={e => setInviteForm({...inviteForm, email: e.target.value})} placeholder="E-mail (Opcional)" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" /></div>
                             <div className="relative"><Phone className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><input type="tel" value={inviteForm.phone_number} onChange={e => setInviteForm({...inviteForm, phone_number: e.target.value})} placeholder="Telefone (Opcional)" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" /></div>
                             <div className="relative"><Briefcase className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><select required value={inviteForm.role} onChange={e => setInviteForm({...inviteForm, role: e.target.value as UserRole})} className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl appearance-none text-[color:var(--text-primary)]"><option value="debtor">Devedor</option><option value="investor">Investidor</option></select></div>
                         </div>
@@ -477,20 +497,27 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                         <div className="space-y-2">
                             <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Foto <span className="text-[color:var(--text-faint)]">(Opcional)</span></p>
                             <div className="flex items-center gap-3">
-                                <div className="relative flex-1">
-                                    <Image className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
-                                    <input type="text" value={inviteForm.photo_url} onChange={e => setInviteForm({...inviteForm, photo_url: e.target.value})} placeholder="URL da foto" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" />
-                                </div>
-                                {inviteForm.photo_url && (
-                                    <img
-                                      src={inviteForm.photo_url}
-                                      alt="Preview"
-                                      className="w-10 h-10 rounded-xl object-cover border border-slate-600 shrink-0"
-                                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                      onLoad={e => { (e.target as HTMLImageElement).style.display = 'block'; }}
+                                <label className="flex-1 cursor-pointer">
+                                    <div className="flex items-center gap-3 bg-[color:var(--bg-base)] p-4 rounded-2xl border border-dashed border-[color:var(--border-subtle)] hover:border-[color:var(--accent-brass)] transition-colors">
+                                        {uploading
+                                            ? <Activity className="text-teal-500 animate-spin" size={18} />
+                                            : <Upload className="text-[color:var(--text-muted)]" size={18} />
+                                        }
+                                        <span className="text-sm text-[color:var(--text-muted)]">
+                                            {uploading ? 'Enviando...' : inviteForm.photo_url ? 'Trocar foto' : 'Selecionar foto'}
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="file" accept="image/*" className="hidden" disabled={uploading}
+                                        onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); }}
                                     />
+                                </label>
+                                {inviteForm.photo_url && (
+                                    <img src={inviteForm.photo_url} alt="Preview"
+                                        className="w-12 h-12 rounded-xl object-cover border border-slate-600 shrink-0" />
                                 )}
                             </div>
+                            {uploadError && <p className="text-red-400 text-xs pl-1">{uploadError}</p>}
                         </div>
 
                         <button type="submit" disabled={submitting} className="w-full bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] py-5 rounded-2xl font-black text-xs uppercase tracking-widest text-[#17120b] flex items-center justify-center gap-2 transition-colors">

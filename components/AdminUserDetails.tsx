@@ -2,18 +2,21 @@
 import React, { useEffect, useState } from 'react';
 import { getSupabase } from '../services/supabase';
 import { Profile, Investment, LoanInstallment, InvestorBalanceView, Tenant } from '../types';
-import InstallmentRowActions from './InstallmentRowActions';
-import { PaymentModal, RefinanceModal, EditModal } from './InstallmentModals';
-import { 
-  ArrowLeft, 
-  User, 
-  Wallet, 
-  ChevronDown, 
-  CheckCircle2, 
-  Clock, 
+import { PaymentModal, RefinanceModal, EditModal, InterestOnlyModal } from './InstallmentModals';
+import {
+  ArrowLeft,
+  User,
+  Wallet,
+  ChevronDown,
+  CheckCircle2,
+  Clock,
   AlertTriangle,
   TrendingUp,
-  Briefcase
+  Briefcase,
+  RefreshCw,
+  Pencil,
+  Percent,
+  FileText
 } from 'lucide-react';
 
 interface AdminUserDetailsProps {
@@ -33,6 +36,7 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const [isRefinanceModalOpen, setIsRefinanceModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isInterestOnlyModalOpen, setIsInterestOnlyModalOpen] = useState(false);
 
   const [stats, setStats] = useState({
     totalLoaned: 0,
@@ -152,6 +156,11 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
   const handleOpenEdit = (inst: LoanInstallment) => {
     setSelectedInstallment(inst);
     setIsEditModalOpen(true);
+  };
+
+  const handleOpenInterestOnly = (inst: LoanInstallment) => {
+    setSelectedInstallment(inst);
+    setIsInterestOnlyModalOpen(true);
   };
 
   const handleActionSuccess = () => {
@@ -286,30 +295,50 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
                   Nenhum contrato encontrado para este usuário.
               </div>
           ) : (
-              contracts.map(contract => (
+              contracts.map(contract => {
+                  const installments = contract.loan_installments || [];
+                  const paidCount = installments.filter(i => i.status === 'paid').length;
+                  const lateCount = installments.filter(i => i.status !== 'paid' && new Date(i.due_date + 'T12:00:00') < new Date()).length;
+                  const openCount = installments.filter(i => i.status !== 'paid').length;
+                  const progressPct = installments.length > 0 ? (paidCount / installments.length) * 100 : 0;
+                  return (
                   <div key={contract.id} className="bg-slate-800 border border-slate-700 rounded-3xl overflow-hidden shadow-lg">
                       {/* Accordion Header */}
-                      <div 
+                      <div
                         onClick={() => toggleContract(contract.id)}
-                        className="p-6 cursor-pointer hover:bg-slate-700/30 transition-colors flex justify-between items-center"
+                        className="p-6 cursor-pointer hover:bg-slate-700/30 transition-colors"
                       >
-                          <div>
-                              <div className="flex items-center gap-3">
-                                  <h3 className="text-lg font-black text-white">{contract.asset_name}</h3>
-                                  <span className="text-[10px] bg-slate-900 text-slate-400 px-2 py-0.5 rounded border border-slate-700 font-black uppercase">{contract.type}</span>
+                          <div className="flex justify-between items-center">
+                              <div>
+                                  <div className="flex items-center gap-3">
+                                      <h3 className="text-lg font-black text-white">{contract.asset_name}</h3>
+                                      <span className="text-[10px] bg-slate-900 text-slate-400 px-2 py-0.5 rounded border border-slate-700 font-black uppercase">{contract.type}</span>
+                                      {lateCount > 0 && (
+                                          <span className="text-[9px] bg-red-500/15 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full font-black uppercase">
+                                              {lateCount} atrasada{lateCount > 1 ? 's' : ''}
+                                          </span>
+                                      )}
+                                  </div>
+                                  <p className="text-xs text-slate-500 font-medium mt-1">
+                                      Contrato #{contract.id} • Criado em {formatDate(contract.created_at)}
+                                      <span className="ml-3 text-slate-600">
+                                          {paidCount} paga{paidCount !== 1 ? 's' : ''} · {openCount} em aberto{lateCount > 0 ? ` · ${lateCount} atrasada${lateCount > 1 ? 's' : ''}` : ''}
+                                      </span>
+                                  </p>
                               </div>
-                              <p className="text-xs text-slate-500 font-medium mt-1">
-                                  Contrato #{contract.id} • Criado em {formatDate(contract.created_at)}
-                              </p>
+                              <div className="flex items-center gap-6">
+                                  <div className="text-right hidden sm:block">
+                                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Valor do Contrato</p>
+                                      <p className="text-white font-black">{formatCurrency(Number(contract.current_value))}</p>
+                                  </div>
+                                  <div className={`p-2 rounded-full bg-slate-900 text-slate-400 transition-transform ${expandedContractId === contract.id ? 'rotate-180' : ''}`}>
+                                      <ChevronDown size={20}/>
+                                  </div>
+                              </div>
                           </div>
-                          <div className="flex items-center gap-6">
-                              <div className="text-right hidden sm:block">
-                                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Valor do Contrato</p>
-                                  <p className="text-white font-black">{formatCurrency(Number(contract.current_value))}</p>
-                              </div>
-                              <div className={`p-2 rounded-full bg-slate-900 text-slate-400 transition-transform ${expandedContractId === contract.id ? 'rotate-180' : ''}`}>
-                                  <ChevronDown size={20}/>
-                              </div>
+                          {/* Barra de progresso */}
+                          <div className="mt-3 h-1 bg-slate-700 rounded-full overflow-hidden">
+                              <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${progressPct}%` }}/>
                           </div>
                       </div>
 
@@ -319,30 +348,35 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
                                   <table className="w-full text-left text-sm whitespace-nowrap bg-slate-800/50">
                                       <thead>
                                           <tr className="bg-slate-900 text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">
-                                              <th className="px-6 py-4">#</th>
-                                              <th className="px-6 py-4">Vencimento</th>
-                                              <th className="px-6 py-4 text-right">Valor Original</th>
-                                              <th className="px-6 py-4 text-right">Multa / Juros</th>
-                                              <th className="px-6 py-4 text-right">Total</th>
-                                              <th className="px-6 py-4 text-center">Status</th>
-                                              <th className="px-6 py-4 text-right">Ações</th>
+                                              <th className="px-4 py-4">#</th>
+                                              <th className="px-4 py-4">Vencimento</th>
+                                              <th className="px-4 py-4 text-right">Valor Original</th>
+                                              <th className="px-4 py-4 text-right">Multa / Juros</th>
+                                              <th className="px-4 py-4 text-right">Total</th>
+                                              <th className="px-4 py-4 text-center">Status</th>
+                                              <th className="px-4 py-4 text-right">Ações</th>
                                           </tr>
                                       </thead>
                                       <tbody className="divide-y divide-slate-700/30">
-                                          {contract.loan_installments?.map(inst => {
+                                          {installments.map(inst => {
                                               const isLate = inst.status !== 'paid' && new Date(inst.due_date + 'T12:00:00') < new Date();
                                               const hasFine = (Number(inst.fine_amount) + Number(inst.interest_delay_amount)) > 0;
+                                              const isPartial = inst.status === 'partial';
+                                              const rowAccent =
+                                                  inst.status === 'paid' ? 'border-l-2 border-l-green-500/40 bg-green-500/[0.03]' :
+                                                  isLate ? 'border-l-2 border-l-red-500/50 bg-red-500/[0.04]' :
+                                                  isPartial ? 'border-l-2 border-l-amber-500/40 bg-amber-500/[0.03]' : '';
 
                                               return (
-                                                  <tr key={inst.id} className="hover:bg-slate-700/20 transition-colors relative">
-                                                      <td className="px-6 py-4 text-slate-400 font-mono text-xs">{inst.number}</td>
-                                                      <td className={`px-6 py-4 font-bold text-xs ${isLate ? 'text-red-400' : 'text-slate-300'}`}>
+                                                  <tr key={inst.id} className={`hover:bg-slate-700/20 transition-colors ${rowAccent}`}>
+                                                      <td className="px-4 py-4 text-slate-400 font-mono text-xs">{inst.number}</td>
+                                                      <td className={`px-4 py-4 font-bold text-xs ${isLate ? 'text-red-400' : 'text-slate-300'}`}>
                                                           {formatDate(inst.due_date)}
                                                       </td>
-                                                      <td className="px-6 py-4 text-right text-slate-400 font-mono text-xs">
+                                                      <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">
                                                           {formatCurrency(Number(inst.amount_principal) + Number(inst.amount_interest))}
                                                       </td>
-                                                      <td className="px-6 py-4 text-right">
+                                                      <td className="px-4 py-4 text-right">
                                                           {hasFine ? (
                                                               <span className="text-red-400 font-bold text-xs">
                                                                   +{formatCurrency(Number(inst.fine_amount) + Number(inst.interest_delay_amount))}
@@ -351,26 +385,48 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
                                                               <span className="text-slate-600 text-[10px]">-</span>
                                                           )}
                                                       </td>
-                                                      <td className="px-6 py-4 text-right font-black text-white">
+                                                      <td className="px-4 py-4 text-right font-black text-white">
                                                           {formatCurrency(Number(inst.amount_total))}
                                                       </td>
-                                                      <td className="px-6 py-4 text-center">
-                                                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${
-                                                              inst.status === 'paid' ? 'bg-green-900/20 border-green-900/50 text-green-400' :
-                                                              isLate ? 'bg-red-900/20 border-red-900/50 text-red-400' :
-                                                              'bg-slate-700/50 border-slate-600 text-slate-300'
+                                                      <td className="px-4 py-4 text-center">
+                                                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                                                              inst.status === 'paid' ? 'text-green-400' :
+                                                              isLate ? 'text-red-400' :
+                                                              isPartial ? 'text-amber-400' :
+                                                              'text-slate-400'
                                                           }`}>
-                                                              {inst.status === 'paid' ? <CheckCircle2 size={12}/> : isLate ? <AlertTriangle size={12}/> : <Clock size={12}/>}
-                                                              {inst.status === 'paid' ? 'Pago' : isLate ? 'Atrasado' : 'A Vencer'}
+                                                              {inst.status === 'paid' ? <CheckCircle2 size={12}/> : isLate ? <AlertTriangle size={12}/> : isPartial ? <Percent size={12}/> : <Clock size={12}/>}
+                                                              {inst.status === 'paid' ? 'Pago' : isLate ? 'Atrasado' : isPartial ? 'Parcial' : 'A Vencer'}
                                                           </span>
+                                                          {Number(inst.interest_payments_total) > 0 && (
+                                                              <span className="block text-[9px] text-amber-400/70 font-bold mt-0.5">
+                                                                  Juros: {formatCurrency(Number(inst.interest_payments_total))}
+                                                              </span>
+                                                          )}
                                                       </td>
-                                                      <td className="px-6 py-4 text-right">
-                                                          <InstallmentRowActions 
-                                                              installment={inst}
-                                                              onPay={handleOpenPay}
-                                                              onRefinance={handleOpenRefinance}
-                                                              onEdit={handleOpenEdit}
-                                                          />
+                                                      <td className="px-4 py-4">
+                                                          <div className="flex items-center justify-end gap-1">
+                                                              {inst.status !== 'paid' ? (
+                                                                  <>
+                                                                      <button onClick={() => handleOpenPay(inst)} title="Baixar" className="px-2 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-[9px] font-black uppercase flex items-center gap-1 transition-all">
+                                                                          <CheckCircle2 size={10}/> Baixar
+                                                                      </button>
+                                                                      <button onClick={() => handleOpenRefinance(inst)} title="Renegociar" className="px-2 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 text-[9px] font-black uppercase flex items-center gap-1 transition-all">
+                                                                          <RefreshCw size={10}/> Reneg.
+                                                                      </button>
+                                                                      <button onClick={() => handleOpenInterestOnly(inst)} title="Pagar Só Juros" className="px-2 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 text-[9px] font-black uppercase flex items-center gap-1 transition-all">
+                                                                          <Percent size={10}/> Juros
+                                                                      </button>
+                                                                  </>
+                                                              ) : (
+                                                                  <button onClick={() => handleOpenPay(inst)} title="Ver Comprovante" className="px-2 py-1.5 rounded-lg bg-slate-700/50 text-slate-400 hover:bg-slate-700 text-[9px] font-black uppercase flex items-center gap-1 transition-all">
+                                                                      <FileText size={10}/> Recibo
+                                                                  </button>
+                                                              )}
+                                                              <button onClick={() => handleOpenEdit(inst)} title="Editar" className="p-1.5 rounded-lg text-slate-500 hover:text-sky-400 hover:bg-sky-500/10 transition-all">
+                                                                  <Pencil size={12}/>
+                                                              </button>
+                                                          </div>
                                                       </td>
                                                   </tr>
                                               );
@@ -381,7 +437,8 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
                           </div>
                       )}
                   </div>
-              ))
+                  );
+              })
           )}
       </div>
 
@@ -401,11 +458,18 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
         installment={selectedInstallment} 
       />
 
-      <EditModal 
-        isOpen={isEditModalOpen} 
-        onClose={() => setIsEditModalOpen(false)} 
-        onSuccess={handleActionSuccess} 
-        installment={selectedInstallment} 
+      <EditModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSuccess={handleActionSuccess}
+        installment={selectedInstallment}
+      />
+
+      <InterestOnlyModal
+        isOpen={isInterestOnlyModalOpen}
+        onClose={() => setIsInterestOnlyModalOpen(false)}
+        onSuccess={handleActionSuccess}
+        installment={selectedInstallment}
       />
 
     </div>

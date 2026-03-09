@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { LoanInstallment, Tenant } from '../types';
 import { getSupabase } from '../services/supabase';
-import { X, CheckCircle2, Calendar, DollarSign, Loader2, AlertTriangle, RefreshCw, Pencil, Save, Printer } from 'lucide-react';
+import { X, CheckCircle2, Calendar, DollarSign, Loader2, AlertTriangle, RefreshCw, Pencil, Save, Printer, Percent } from 'lucide-react';
+import { parseSupabaseError } from '../services/supabase';
 import ReceiptTemplate from './ReceiptTemplate';
 
 // --- SHARED TYPES & HELPERS ---
@@ -457,12 +458,118 @@ export const EditModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess
           )}
         </div>
 
-        <button 
+        <button
           type="submit" disabled={loading}
           className="w-full bg-sky-600 hover:bg-sky-500 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-sky-900/20 transition-all active:scale-[0.98]"
         >
           {loading ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>}
           {loading ? 'Salvando...' : 'Salvar Alterações'}
+        </button>
+      </form>
+    </ModalBackdrop>
+  );
+};
+
+// --- 4. INTEREST ONLY MODAL (Pagar Só Juros) ---
+
+export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess, installment }) => {
+  const [amount, setAmount] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setAmount('');
+      setError(null);
+    }
+  }, [isOpen]);
+
+  const outstanding = calculateOutstanding(installment);
+  const totalInterestPaid = normalizeNumber(installment?.interest_payments_total);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = parseFloat(amount);
+    if (!val || val <= 0 || !installment) { setError('Informe um valor válido.'); return; }
+    setLoading(true);
+    setError(null);
+    const supabase = getSupabase();
+    if (!supabase) return;
+    try {
+      const { error: rpcError } = await supabase.rpc('pay_interest_only', {
+        p_installment_id: installment.id,
+        p_interest_amount: val
+      });
+      if (rpcError) throw rpcError;
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      setError(parseSupabaseError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen || !installment) return null;
+
+  return (
+    <ModalBackdrop onClose={onClose}>
+      <Header
+        title="Pagar Só Juros"
+        subtitle={`Parcela #${installment.number}`}
+        icon={<Percent size={24}/>}
+        onClose={onClose}
+        colorClass="text-amber-400"
+      />
+
+      <form onSubmit={handleSubmit} className="p-8 space-y-5">
+        <div className="bg-amber-900/10 border border-amber-900/30 p-4 rounded-2xl">
+          <p className="text-[10px] text-amber-400/80 font-black uppercase tracking-widest mb-1">Parcela Original</p>
+          <p className="text-2xl font-black text-white">{formatCurrency(outstanding)}</p>
+          <p className="text-[10px] text-amber-500/70 mt-1 font-bold uppercase">Ainda em aberto</p>
+        </div>
+
+        {totalInterestPaid > 0 && (
+          <div className="bg-slate-900/50 border border-slate-700/50 p-3 rounded-xl flex justify-between items-center">
+            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Juros já cobrados</span>
+            <span className="text-amber-400 font-black text-sm">{formatCurrency(totalInterestPaid)}</span>
+          </div>
+        )}
+
+        <div>
+          <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+            Valor dos Juros (R$)
+          </label>
+          <div className="relative">
+            <Percent size={16} className="absolute left-4 top-4 text-amber-400"/>
+            <input
+              type="number" step="0.01" required autoFocus
+              value={amount} onChange={e => setAmount(e.target.value)}
+              placeholder="0,00"
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+            />
+          </div>
+        </div>
+
+        <div className="bg-amber-900/10 border border-amber-800/30 p-3 rounded-xl flex gap-2.5 items-start">
+          <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5"/>
+          <p className="text-[10px] text-amber-200/80 leading-relaxed font-medium">
+            O valor da parcela <strong>não será descontado</strong>. A parcela continua em aberto após este registro.
+          </p>
+        </div>
+
+        {error && (
+          <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+            <AlertTriangle size={14}/> {error}
+          </div>
+        )}
+
+        <button
+          type="submit" disabled={loading}
+          className="w-full bg-amber-600 hover:bg-amber-500 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-amber-900/20 transition-all active:scale-[0.98]"
+        >
+          {loading ? <Loader2 className="animate-spin" size={18}/> : <Percent size={18}/>}
+          {loading ? 'Registrando...' : 'Registrar Pagamento de Juros'}
         </button>
       </form>
     </ModalBackdrop>

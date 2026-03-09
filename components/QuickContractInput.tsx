@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { Zap, X, Loader2, CheckCircle2, AlertTriangle, User, UserPlus, ArrowLeft, Pencil } from 'lucide-react';
+import { Zap, X, Loader2, CheckCircle2, AlertTriangle, User, UserPlus, ArrowLeft, Pencil, Mail, Phone, Key } from 'lucide-react';
 import { parseContractFromText, ParsedContract } from '../services/gemini';
-import { getSupabase, parseSupabaseError } from '../services/supabase';
+import { getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { Profile, Tenant } from '../types';
 
 interface QuickContractInputProps {
@@ -62,7 +62,8 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
   const [editable, setEditable] = useState<EditableContract | null>(null);
   const [matchedDebtor, setMatchedDebtor] = useState<Profile | null>(null);
   const [parseError, setParseError] = useState('');
-  const [newDebtor, setNewDebtor] = useState({ full_name: '', email: '' });
+  const [newDebtor, setNewDebtor] = useState({ full_name: '', email: '', phone_number: '', cpf: '' });
+  const [cpfError, setCpfError] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [sourceType, setSourceType] = useState<'own' | 'profit'>('own');
@@ -75,7 +76,8 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
     setEditable(null);
     setParseError('');
     setMatchedDebtor(null);
-    setNewDebtor({ full_name: '', email: '' });
+    setNewDebtor({ full_name: '', email: '', phone_number: '', cpf: '' });
+    setCpfError('');
     setCreateError('');
     setSourceType('own');
     onClose();
@@ -165,35 +167,50 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
 
   const handleCreateDebtorAndConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDebtor.full_name || !newDebtor.email || !currentTenant) return;
+    if (!newDebtor.full_name || !currentTenant) return;
+
+    const cpfDigits = newDebtor.cpf.replace(/\D/g, '');
+    if (cpfDigits && !isValidCPF(cpfDigits)) {
+      setCpfError('CPF inválido');
+      return;
+    }
+
     setCreating(true);
     setCreateError('');
+    setCpfError('');
     const supabase = getSupabase();
     if (!supabase) return;
 
     try {
-      const now = new Date().toISOString();
-      const { data, error } = await supabase.from('profiles').insert({
-        id: crypto.randomUUID(),
-        email: newDebtor.email,
-        full_name: newDebtor.full_name,
-        role: 'debtor',
-        tenant_id: currentTenant.id,
-        updated_at: now,
-      }).select().single();
+      const { data, error } = await supabase.rpc('create_client_direct', {
+        p_full_name:    newDebtor.full_name,
+        p_email:        newDebtor.email.trim() || null,
+        p_role:         'debtor',
+        p_phone_number: newDebtor.phone_number.trim() || null,
+        p_cpf:          cpfDigits || null,
+        p_photo_url:    null,
+      });
 
       if (error) throw error;
-      await handleConfirm(data.id);
+      await handleConfirm(data as string);
     } catch (err: any) {
       setCreateError(parseSupabaseError(err));
       setCreating(false);
     }
   };
 
+  const maskCPF = (v: string) => {
+    const d = v.replace(/\D/g, '').slice(0, 11);
+    return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+            .replace(/(\d{3})(\d{3})(\d{0,3})/, '$1.$2.$3')
+            .replace(/(\d{3})(\d{0,3})/, '$1.$2');
+  };
+
   const inputCls = "w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:border-teal-500 outline-none transition-all";
   const labelCls = "text-[9px] font-black uppercase text-slate-500 tracking-widest block mb-1";
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-slate-900 border border-slate-700 rounded-[2rem] w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
 
@@ -374,7 +391,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                   </button>
                 ) : (
                   <button
-                    onClick={() => { setNewDebtor({ full_name: editable.debtor_name, email: '' }); setStep('new-debtor'); }}
+                    onClick={() => { setNewDebtor({ full_name: editable.debtor_name, email: '', phone_number: '', cpf: '' }); setCpfError(''); setStep('new-debtor'); }}
                     className="flex-[2] bg-amber-600 hover:bg-amber-500 text-white py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
                   >
                     <UserPlus size={14}/> Cadastrar Devedor
@@ -382,40 +399,6 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                 )}
               </div>
             </div>
-          )}
-
-          {/* STEP: NEW DEBTOR */}
-          {step === 'new-debtor' && (
-            <form onSubmit={handleCreateDebtorAndConfirm} className="p-6 space-y-4">
-              <p className="text-slate-400 text-xs">Preencha os dados do novo devedor:</p>
-              <input
-                required type="text" placeholder="Nome Completo"
-                value={newDebtor.full_name}
-                onChange={e => setNewDebtor({ ...newDebtor, full_name: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600"
-              />
-              <input
-                required type="email" placeholder="E-mail do Cliente"
-                value={newDebtor.email}
-                onChange={e => setNewDebtor({ ...newDebtor, email: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600"
-              />
-              {createError && (
-                <div className="flex items-start gap-2 p-3 bg-red-900/20 border border-red-900/30 rounded-xl text-xs text-red-400">
-                  <AlertTriangle size={14} className="mt-0.5 shrink-0" />{createError}
-                </div>
-              )}
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setStep('confirm')}
-                  className="flex-1 py-3 rounded-2xl border border-slate-700 text-slate-400 hover:text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:bg-slate-800">
-                  <ArrowLeft size={14}/> Voltar
-                </button>
-                <button type="submit" disabled={creating}
-                  className="flex-[2] bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
-                  {creating ? <><Loader2 size={14} className="animate-spin"/> Criando...</> : <><CheckCircle2 size={14}/> Cadastrar e Criar</>}
-                </button>
-              </div>
-            </form>
           )}
 
           {/* STEP: DONE */}
@@ -438,6 +421,81 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
         </div>
       </div>
     </div>
+
+    {/* SLIDE-OVER: NEW DEBTOR — renderizado fora do modal principal */}
+    {step === 'new-debtor' && (
+      <div className="fixed inset-0 z-[60] flex justify-end">
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setStep('confirm'); setCpfError(''); }} />
+        <div className="relative z-10 flex h-full w-full max-w-lg flex-col bg-slate-900 shadow-2xl border-l border-slate-700 animate-slide-in-right">
+          {/* Header fixo */}
+          <div className="shrink-0 flex items-center gap-3 px-6 py-5 border-b border-slate-800">
+            <button type="button" onClick={() => { setStep('confirm'); setCpfError(''); }} className="text-slate-400 hover:text-white transition-colors">
+              <ArrowLeft size={18} />
+            </button>
+            <div className="flex-1">
+              <h3 className="text-white font-black text-base uppercase tracking-wide">Novo Devedor</h3>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Dados do cliente</p>
+            </div>
+            <button type="button" onClick={resetAndClose} className="text-slate-500 hover:text-white transition-colors">
+              <X size={20} />
+            </button>
+          </div>
+          {/* Body scrollável */}
+          <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+            <form onSubmit={handleCreateDebtorAndConfirm} className="space-y-4">
+              {/* Identificação */}
+              <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
+                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Identificação</p>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Nome Completo *</label>
+                  <div className="relative">
+                    <User size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                    <input required type="text" value={newDebtor.full_name} onChange={e => setNewDebtor({ ...newDebtor, full_name: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600" placeholder="Nome completo" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">E-mail</label>
+                  <div className="relative">
+                    <Mail size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                    <input type="email" value={newDebtor.email} onChange={e => setNewDebtor({ ...newDebtor, email: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600" placeholder="email@exemplo.com (opcional)" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Telefone</label>
+                  <div className="relative">
+                    <Phone size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                    <input type="tel" value={newDebtor.phone_number} onChange={e => setNewDebtor({ ...newDebtor, phone_number: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600" placeholder="(11) 99999-9999 (opcional)" />
+                  </div>
+                </div>
+              </div>
+              {/* Documento */}
+              <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
+                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Documento</p>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">CPF</label>
+                  <div className="relative">
+                    <Key size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                    <input type="text" value={newDebtor.cpf} onChange={e => { setCpfError(''); setNewDebtor({ ...newDebtor, cpf: maskCPF(e.target.value) }); }} className={`w-full bg-slate-950 border rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600 ${cpfError ? 'border-red-500' : 'border-slate-700'}`} placeholder="000.000.000-00 (opcional)" maxLength={14} />
+                  </div>
+                  {cpfError && <p className="text-red-400 text-[10px] mt-1 font-bold">{cpfError}</p>}
+                </div>
+              </div>
+              {createError && (
+                <div className="flex items-start gap-2 p-3 bg-red-900/20 border border-red-900/30 rounded-xl text-xs text-red-400">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0" />{createError}
+                </div>
+              )}
+              <div className="pb-4">
+                <button type="submit" disabled={creating} className="w-full bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+                  {creating ? <><Loader2 size={14} className="animate-spin"/> Criando...</> : <><CheckCircle2 size={14}/> Cadastrar e Criar</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

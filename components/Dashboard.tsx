@@ -2,8 +2,9 @@
 import React, { useState } from 'react';
 import { useDashboardData } from '../hooks/useDashboardData';
 import {
-  KPICards, OverviewCharts,
-  InvestmentsTable, InstallmentsTable
+  KPICards, OverviewCharts, ResumoGeral,
+  InvestmentsTable, InstallmentsTable,
+  QuickActionsGrid, DailyAlerts,
 } from './dashboard/DashboardWidgets';
 import {
   LayoutDashboard,
@@ -13,7 +14,7 @@ import {
   AlertCircle,
   WalletCards,
 } from 'lucide-react';
-import { UserRole, Tenant } from '../types';
+import { AppView, UserRole, Tenant } from '../types';
 import InvestorDashboard from './InvestorDashboard';
 import DebtorDashboard from './DebtorDashboard';
 import { CollectionDashboard } from './dashboard/CollectionDashboard';
@@ -21,13 +22,14 @@ import { CollectionDashboard } from './dashboard/CollectionDashboard';
 interface DashboardProps {
     targetUserId?: string;
     onBack?: () => void;
+    onNavigate?: (view: AppView) => void;
     userRole?: UserRole;
     tenant?: Tenant | null;
     defaultTab?: 'overview' | 'receivables' | 'collection';
 }
 
 // Sub-component for Admin View
-const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultTab?: 'overview' | 'receivables' | 'collection' }> = ({ tenant, defaultTab = 'overview' }) => {
+const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultTab?: 'overview' | 'receivables' | 'collection'; onNavigate?: (view: AppView) => void }> = ({ tenant, defaultTab = 'overview', onNavigate }) => {
   const { stats, detailedKPIs, investments, installments, loading, error, refetch } = useDashboardData(tenant?.id);
   const [activeTab, setActiveTab] = useState<'overview' | 'receivables' | 'collection'>(defaultTab);
   // Pass all installments to the table so the internal filters (All/Paid/Pending) work correctly
@@ -102,8 +104,11 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
       <div>
         {activeTab === 'overview' && (
           <div className="space-y-6 animate-fade-in">
+            <QuickActionsGrid onNavigate={onNavigate ?? (() => {})} onSwitchTab={setActiveTab} />
+            <DailyAlerts kpis={detailedKPIs} installments={installments} />
+            <ResumoGeral kpis={detailedKPIs} />
             <KPICards stats={stats} kpis={detailedKPIs} installments={installments} onGoToCollection={() => setActiveTab('collection')} />
-            
+
             <OverviewCharts kpis={detailedKPIs} installments={installments} />
             
             <div>
@@ -134,13 +139,13 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
 };
 
 // Main Component acting as Router/Controller based on Role
-const Dashboard: React.FC<DashboardProps> = ({ targetUserId, userRole, tenant, onBack, defaultTab }) => {
+const Dashboard: React.FC<DashboardProps> = ({ targetUserId, userRole, tenant, onBack, defaultTab, onNavigate }) => {
   // If explicitly targeting a user (e.g. Admin viewing specific investor), or if role is Investor/Debtor
   if (userRole === 'investor' && !targetUserId) return <InvestorDashboard />;
   if (userRole === 'debtor' && !targetUserId) return <DebtorDashboard />;
 
   // Default to Admin Dashboard
-  return <AdminDashboardView tenant={tenant} defaultTab={defaultTab} />;
+  return <AdminDashboardView tenant={tenant} defaultTab={defaultTab} onNavigate={onNavigate} />;
 };
 
 export default Dashboard;

@@ -27,6 +27,7 @@ export interface Tenant {
   stripe_customer_id?: string;
   stripe_subscription_id?: string;
   plan_updated_at?: string;
+  trial_ends_at?: string;
 }
 
 export interface Profile {
@@ -74,6 +75,7 @@ export interface LoanInstallment {
   
   status: 'pending' | 'paid' | 'late' | 'partial';
   paid_at?: string;
+  interest_payments_total?: number;
   contract_name?: string; // Virtual for UI
   investment?: Investment; // Join
 }
@@ -106,13 +108,51 @@ export interface Investment {
   source_capital?: number; // Aporte do Bolso
   source_profit?: number;  // Lucro Reinvestido
 
+  // Ciclo de vida e renovação (V18)
+  parent_investment_id?: number | null;
+  status?: 'active' | 'completed' | 'defaulted' | 'renewed';
+  notes?: string | null;
+
   // Campos virtuais (Joins)
   investor?: { full_name: string; cpf?: string; email?: string; role?: UserRole };
   payer?: { full_name: string; cpf?: string; email?: string };
   investor_name?: string;
   payer_name?: string;
-  status?: string;
   loan_installments?: LoanInstallment[];
+  renewals?: Investment[];
+}
+
+// Histórico de renegociação (V18)
+export interface ContractRenegotiation {
+  id: number;
+  investment_id: number;
+  tenant_id: string;
+  renegotiated_at: string;
+  old_installment_value?: number | null;
+  new_installment_value?: number | null;
+  old_total_installments?: number | null;
+  new_total_installments?: number | null;
+  old_due_date?: string | null;
+  new_due_date?: string | null;
+  reason?: string | null;
+  created_by?: string | null;
+  created_at: string;
+}
+
+// Métricas calculadas para o detalhe de um contrato
+export interface ContractMetrics {
+  jurosPagos: number;
+  principalRecuperado: number;
+  totalRecebido: number;
+  jurosAReceber: number;
+  principalAReceber: number;
+  fineAcumulada: number;
+  rentabilidadeReal: number;
+  parcelasPagas: number;
+  parcelasPendentes: number;
+  parcelasAtrasadas: number;
+  parcelasTotal: number;
+  saudeContrato: number;
 }
 
 export interface AdminDashboardStats {

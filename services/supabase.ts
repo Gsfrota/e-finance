@@ -66,10 +66,16 @@ export const logError = (context: string, error: any) => {
 };
 
 const getSupabaseConfig = () => {
+  // 1. localStorage (manual override pelo usuário)
   const localUrl = localStorage.getItem(STORAGE_KEYS.URL);
   const localKey = localStorage.getItem(STORAGE_KEYS.KEY);
-  const finalUrl = localUrl || process.env.SUPABASE_URL || SYSTEM_DEFAULTS.URL;
-  const finalKey = localKey || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || SYSTEM_DEFAULTS.KEY;
+  // 2. window._env_ (injetado pelo docker-entrypoint.sh com secrets do Cloud Run)
+  const envConfig = (window as any)._env_ || {};
+  const runtimeUrl = envConfig.SUPABASE_URL;
+  const runtimeKey = envConfig.SUPABASE_KEY;
+  // 3. build-time (Vite define) → fallback
+  const finalUrl = localUrl || runtimeUrl || process.env.SUPABASE_URL || SYSTEM_DEFAULTS.URL;
+  const finalKey = localKey || runtimeKey || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || SYSTEM_DEFAULTS.KEY;
   return { url: finalUrl, key: finalKey };
 };
 

@@ -2,20 +2,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { LoanInstallment } from '../types';
-import { MoreVertical, CheckCircle2, Banknote, Pencil, Receipt, FileText } from 'lucide-react';
+import { MoreVertical, CheckCircle2, Banknote, Pencil, Receipt, FileText, Percent } from 'lucide-react';
 
 interface InstallmentRowActionsProps {
   installment: LoanInstallment;
   onPay: (installment: LoanInstallment) => void;
   onRefinance: (installment: LoanInstallment) => void;
   onEdit: (installment: LoanInstallment) => void;
+  onInterestOnly?: (installment: LoanInstallment) => void;
 }
 
-const InstallmentRowActions: React.FC<InstallmentRowActionsProps> = ({ 
-  installment, 
-  onPay, 
-  onRefinance, 
-  onEdit 
+const InstallmentRowActions: React.FC<InstallmentRowActionsProps> = ({
+  installment,
+  onPay,
+  onRefinance,
+  onEdit,
+  onInterestOnly
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0 });
@@ -83,6 +85,16 @@ const InstallmentRowActions: React.FC<InstallmentRowActionsProps> = ({
                     <Banknote size={14} className="text-purple-400 group-hover:scale-110 transition-transform"/>
                     <span className="text-[10px] font-black uppercase tracking-widest text-purple-300">Refinanciar</span>
                 </button>
+
+                {onInterestOnly && (
+                    <button
+                        onClick={() => { onInterestOnly(installment); setIsOpen(false); }}
+                        className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-amber-900/10 group transition-colors border-b border-slate-700/50"
+                    >
+                        <Percent size={14} className="text-amber-400 group-hover:scale-110 transition-transform"/>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">Pagar Só Juros</span>
+                    </button>
+                )}
             </>
         )}
 
