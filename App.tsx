@@ -9,10 +9,9 @@ import AdminSettings from './components/AdminSettings';
 import AdminAssistant from './components/AdminAssistant';
 import { AssistantPaywall } from './components/SubscriptionTab';
 import AdminUserDetails from './components/AdminUserDetails';
-import SetupWizard from './components/SetupWizard';
 import ResetPassword from './components/ResetPassword';
 import { AppView, UserRole, Tenant, Profile } from './types';
-import { getSupabase, isProduction, isSupabaseConfigured, logError } from './services/supabase';
+import { getSupabase, isProduction, logError } from './services/supabase';
 import {
   LayoutDashboard,
   LogOut,
@@ -33,7 +32,18 @@ import {
   ChevronsRight,
   Sun,
   Moon,
+  Clock,
 } from 'lucide-react';
+
+const isInTrial = (tenant: Tenant | null | undefined): boolean => {
+  if (!tenant?.trial_ends_at) return false;
+  return new Date(tenant.trial_ends_at) > new Date();
+};
+
+const getTrialDaysLeft = (trial_ends_at: string): number => {
+  const diff = new Date(trial_ends_at).getTime() - Date.now();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+};
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -239,6 +249,32 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
             </button>
           )}
 
+          {/* Banner de trial */}
+          {tenant && isInTrial(tenant) && (
+            collapsed ? (
+              <button
+                onClick={() => handleViewChange(AppView.SETTINGS)}
+                title={`${getTrialDaysLeft(tenant.trial_ends_at!)}d de trial`}
+                className={`${btnBase} ${btnCollapsed} text-yellow-400 hover:bg-yellow-900/20`}
+              >
+                <Clock size={18} className="shrink-0" />
+              </button>
+            ) : (
+              <button
+                onClick={() => handleViewChange(AppView.SETTINGS)}
+                className="w-full rounded-2xl bg-yellow-900/20 border border-yellow-700/30 px-4 py-3 text-left transition-all hover:bg-yellow-900/30"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock size={14} className="text-yellow-400 shrink-0" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-yellow-400">
+                    {getTrialDaysLeft(tenant.trial_ends_at!)} dias de trial
+                  </span>
+                </div>
+                <p className="text-[10px] text-yellow-200/60 leading-relaxed">Período gratuito. Clique para assinar.</p>
+              </button>
+            )
+          )}
+
           {/* Sair */}
           <button
             onClick={onLogout}
@@ -358,9 +394,12 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [appError, setAppError] = useState<string | null>(null);
 
-  if (!isSupabaseConfigured()) {
-      return <SetupWizard />;
-  }
+  const refreshTenant = async (tenantId: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    const { data } = await supabase.from('tenants').select('*').eq('id', tenantId).maybeSingle();
+    if (data) setTenant(data as Tenant);
+  };
 
   const loadAppData = async (sessionUser: any) => {
     const supabase = getSupabase();
@@ -382,7 +421,16 @@ const App: React.FC = () => {
 
         if (dbData && dbData.tenants) {
             setProfile(dbData);
-            setTenant(dbData.tenants as unknown as Tenant);
+            const tenantData = dbData.tenants as unknown as Tenant;
+            setTenant(tenantData);
+
+            // Detecta retorno do Stripe Checkout e agenda re-fetch do tenant
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('checkout') === 'success') {
+                window.history.replaceState({}, '', window.location.pathname);
+                setTimeout(() => refreshTenant(tenantData.id), 4000);
+                setTimeout(() => refreshTenant(tenantData.id), 10000);
+            }
         } else {
             const meta = sessionUser.user_metadata || {};
             setProfile({
@@ -519,6 +567,10 @@ const App: React.FC = () => {
                 tenant={tenant}
                 defaultTab={currentView === AppView.COLLECTION ? 'collection' : 'overview'}
                 onBack={targetUserId ? () => { setTargetUserId(undefined); setCurrentView(AppView.USERS); } : undefined}
+                onNavigate={(view) => {
+                    if (view !== AppView.DASHBOARD && view !== AppView.USER_DETAILS) setTargetUserId(undefined);
+                    setCurrentView(view);
+                }}
             />
           )}
           {currentView === AppView.USERS && profile?.role === 'admin' && (
@@ -534,7 +586,7 @@ const App: React.FC = () => {
               <AdminSettings tenant={tenant} onUpdate={(updated) => setTenant(updated)} profile={profile} />
           )}
           {currentView === AppView.ASSISTANT && profile?.role === 'admin' && tenant && profile && (
-              tenant?.plan === 'pro_max' && tenant?.plan_status === 'active' ? (
+              (tenant?.plan === 'pro_max' && tenant?.plan_status === 'active') || isInTrial(tenant) ? (
                 <AdminAssistant tenant={tenant} profile={profile} />
               ) : (
                 <AssistantPaywall tenant={tenant} />

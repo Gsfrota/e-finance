@@ -1,12 +1,17 @@
 
 import React from 'react';
 import { Tenant } from '../types';
-import { Crown, Zap, CheckCircle2, ExternalLink, Lock, Star, Bot, BarChart3, Users, FileText, Settings } from 'lucide-react';
+import { Crown, Zap, CheckCircle2, ExternalLink, Lock, Star, Bot, BarChart3, Users, FileText, Settings, Clock, AlertCircle } from 'lucide-react';
+
+const getTrialDaysLeft = (trial_ends_at: string): number => {
+  const diff = new Date(trial_ends_at).getTime() - Date.now();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+};
 
 const PRO_PAYMENT_LINK = 'https://buy.stripe.com/test_eVq14ma4Vdc7afr0jycIE00';
 const PRO_MAX_PAYMENT_LINK = 'https://buy.stripe.com/test_14A8wOdh77RNfzLaYccIE01';
 
-const STRIPE_CUSTOMER_PORTAL = 'https://billing.stripe.com/p/login/test_00w00000000000000000';
+const STRIPE_CUSTOMER_PORTAL = 'https://billing.stripe.com/p/login/test_eVq14ma4Vdc7afr0jycIE00';
 
 interface SubscriptionTabProps {
   tenant: Tenant;
@@ -53,8 +58,61 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
   const hasPro = currentPlan === 'pro' || currentPlan === 'pro_max';
   const hasProMax = currentPlan === 'pro_max';
 
+  const trialDaysLeft = tenant.trial_ends_at ? getTrialDaysLeft(tenant.trial_ends_at) : null;
+  const trialActive = trialDaysLeft !== null && trialDaysLeft > 0;
+  const trialExpired = tenant.trial_ends_at && trialDaysLeft === 0;
+  const trialProgress = trialActive ? Math.round(((15 - trialDaysLeft) / 15) * 100) : 100;
+
   return (
     <div className="space-y-8 animate-fade-in">
+
+      {/* Banner de trial */}
+      {tenant.trial_ends_at && (
+        trialActive ? (
+          <div className="bg-yellow-900/20 border border-yellow-700/40 rounded-[2.5rem] p-8 shadow-xl">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="p-3 rounded-xl bg-yellow-900/40 text-yellow-400">
+                <Clock size={24} />
+              </div>
+              <div>
+                <p className="text-[10px] text-yellow-400/70 font-bold uppercase tracking-widest">Período de Teste</p>
+                <h3 className="text-xl font-black text-yellow-300">Trial gratuito — {trialDaysLeft} {trialDaysLeft === 1 ? 'dia restante' : 'dias restantes'}</h3>
+              </div>
+              <span className="ml-auto text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full text-yellow-400 bg-yellow-900/40">
+                Ativo
+              </span>
+            </div>
+            <p className="text-sm text-yellow-200/60 mb-4">
+              Você está aproveitando acesso completo ao E-Finance, incluindo o Assistente IA. Assine antes do período encerrar para não perder o acesso.
+            </p>
+            <div className="w-full bg-yellow-900/40 rounded-full h-2">
+              <div
+                className="bg-yellow-400 h-2 rounded-full transition-all"
+                style={{ width: `${trialProgress}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-yellow-400/50 mt-2 text-right">{15 - trialDaysLeft} de 15 dias utilizados</p>
+          </div>
+        ) : trialExpired ? (
+          <div className="bg-red-900/20 border border-red-700/40 rounded-[2.5rem] p-8 shadow-xl">
+            <div className="flex items-center gap-4 mb-3">
+              <div className="p-3 rounded-xl bg-red-900/40 text-red-400">
+                <AlertCircle size={24} />
+              </div>
+              <div>
+                <p className="text-[10px] text-red-400/70 font-bold uppercase tracking-widest">Período de Teste</p>
+                <h3 className="text-xl font-black text-red-300">Período de teste encerrado</h3>
+              </div>
+              <span className="ml-auto text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full text-red-400 bg-red-900/40">
+                Expirado
+              </span>
+            </div>
+            <p className="text-sm text-red-200/60">
+              Seu trial gratuito expirou. Assine um plano para continuar usando o E-Finance e manter o acesso às suas operações.
+            </p>
+          </div>
+        ) : null
+      )}
 
       {/* Plano atual */}
       <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[2.5rem] p-8 shadow-2xl">

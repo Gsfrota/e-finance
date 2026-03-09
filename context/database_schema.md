@@ -34,6 +34,13 @@ CREATE TABLE IF NOT EXISTS public.tenants (
     pix_name TEXT,
     pix_city TEXT,
     support_whatsapp TEXT,
+    trial_ends_at TIMESTAMPTZ,
+    -- Stripe / Billing (V20)
+    plan TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'pro', 'pro_max')),
+    plan_status TEXT DEFAULT 'inactive' CHECK (plan_status IN ('active', 'inactive', 'past_due', 'canceled')),
+    stripe_customer_id TEXT,
+    stripe_subscription_id TEXT,
+    plan_updated_at TIMESTAMPTZ,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -180,6 +187,7 @@ $$;
 
 -- 8a. Função RPC: create_investment_validated
 -- Cria o investimento e gera as parcelas com amount_principal e amount_interest populados.
+-- p_skip_weekends: quando true e frequency='daily', pula sábados e domingos nas datas das parcelas.
 CREATE OR REPLACE FUNCTION public.create_investment_validated(
     p_tenant_id UUID,
     p_user_id UUID,
@@ -196,7 +204,8 @@ CREATE OR REPLACE FUNCTION public.create_investment_validated(
     p_due_day INTEGER DEFAULT NULL,
     p_weekday INTEGER DEFAULT NULL,
     p_start_date DATE DEFAULT NULL,
-    p_calculation_mode TEXT DEFAULT 'manual'
+    p_calculation_mode TEXT DEFAULT 'manual',
+    p_skip_weekends BOOLEAN DEFAULT false
 ) RETURNS BIGINT LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
     v_investment_id BIGINT;
@@ -205,6 +214,8 @@ DECLARE
     v_due_date DATE;
     v_base_date DATE;
     v_effective_day INTEGER;
+    v_bd_count INTEGER;
+    v_candidate DATE;
     i INTEGER;
 BEGIN
     -- Insere o investimento
@@ -247,8 +258,25 @@ BEGIN
                 (DATE_TRUNC('month', v_due_date) + INTERVAL '1 month' - INTERVAL '1 day')::DATE);
         ELSIF p_frequency = 'weekly' THEN
             v_due_date := (CURRENT_DATE + (i * 7 || ' days')::INTERVAL)::DATE;
-        ELSE -- daily
-            v_due_date := (COALESCE(p_start_date, CURRENT_DATE) + (i - 1) * INTERVAL '1 day')::DATE;
+        ELSE -- daily / freelancer
+            IF p_skip_weekends THEN
+                v_candidate := COALESCE(p_start_date, CURRENT_DATE);
+                -- Avança para o primeiro dia útil
+                WHILE EXTRACT(DOW FROM v_candidate) IN (0, 6) LOOP
+                    v_candidate := v_candidate + INTERVAL '1 day';
+                END LOOP;
+                -- Conta i-1 dias úteis a partir do primeiro dia útil
+                v_bd_count := i - 1;
+                WHILE v_bd_count > 0 LOOP
+                    v_candidate := v_candidate + INTERVAL '1 day';
+                    IF EXTRACT(DOW FROM v_candidate) NOT IN (0, 6) THEN
+                        v_bd_count := v_bd_count - 1;
+                    END IF;
+                END LOOP;
+                v_due_date := v_candidate;
+            ELSE
+                v_due_date := (COALESCE(p_start_date, CURRENT_DATE) + (i - 1) * INTERVAL '1 day')::DATE;
+            END IF;
         END IF;
 
         INSERT INTO public.loan_installments (
@@ -267,7 +295,7 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.create_investment_validated(
     UUID, UUID, UUID, TEXT, NUMERIC, NUMERIC, NUMERIC, NUMERIC,
-    NUMERIC, NUMERIC, INTEGER, TEXT, INTEGER, INTEGER, DATE, TEXT
+    NUMERIC, NUMERIC, INTEGER, TEXT, INTEGER, INTEGER, DATE, TEXT, BOOLEAN
 ) TO authenticated;
 
 -- 8b. Função RPC: get_admin_dashboard_stats
@@ -508,5 +536,71 @@ CREATE POLICY IF NOT EXISTS "admin_write_bot_config" ON public.bot_tenant_config
 
 GRANT ALL ON public.bot_tenant_config TO service_role;
 GRANT SELECT, INSERT, UPDATE ON public.bot_tenant_config TO authenticated;
+```
+
+## Migração V19 — Email opcional + Upload de foto + Cliente direto
+
+```sql
+-- 1. Desacoplar profiles.id de auth.users; adicionar auth_user_id
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_id_fkey;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS auth_user_id UUID UNIQUE;
+UPDATE public.profiles p SET auth_user_id = p.id
+  WHERE EXISTS (SELECT 1 FROM auth.users u WHERE u.id = p.id) AND auth_user_id IS NULL;
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_auth_user_id_fkey
+  FOREIGN KEY (auth_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+-- 2. Colunas photo_url
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE public.invites  ADD COLUMN IF NOT EXISTS photo_url TEXT;
+
+-- 3. get_tenant_id_safe() usa auth_user_id
+CREATE OR REPLACE FUNCTION public.get_tenant_id_safe() RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth, extensions AS $$
+DECLARE tid uuid;
+BEGIN
+  SELECT (current_setting('request.jwt.claims', true)::jsonb -> 'app_metadata' ->> 'tenant_id')::uuid INTO tid;
+  IF tid IS NULL THEN
+    SELECT tenant_id INTO tid FROM public.profiles WHERE auth_user_id = auth.uid();
+  END IF;
+  RETURN tid;
+END; $$;
+
+-- 4. RPC create_client_direct
+CREATE OR REPLACE FUNCTION public.create_client_direct(
+  p_full_name TEXT, p_email TEXT DEFAULT NULL, p_role TEXT DEFAULT 'debtor',
+  p_phone_number TEXT DEFAULT NULL, p_cpf TEXT DEFAULT NULL, p_photo_url TEXT DEFAULT NULL
+) RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE new_id UUID := gen_random_uuid(); admin_tenant_id UUID;
+BEGIN
+  SELECT tenant_id INTO admin_tenant_id FROM public.profiles WHERE auth_user_id = auth.uid();
+  IF admin_tenant_id IS NULL THEN RAISE EXCEPTION 'Admin não encontrado'; END IF;
+  INSERT INTO public.profiles (id, email, full_name, role, tenant_id, cpf, photo_url, whatsapp_phone)
+  VALUES (new_id, p_email, p_full_name, p_role, admin_tenant_id, p_cpf, p_photo_url, p_phone_number);
+  RETURN new_id;
+END; $$;
+GRANT EXECUTE ON FUNCTION public.create_client_direct(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
+
+-- 5. handle_new_user: vincula profile pré-criado ao auth user pelo email
+-- (ver SQL completo na execução — lógica de UPSERT por email no mesmo tenant)
+
+-- 6. RLS recriadas usando auth_user_id em vez de id = auth.uid()
+-- (dropar todas as policies públicas e recriar conforme migração aplicada)
+
+-- 7. Bucket profile-photos (público)
+INSERT INTO storage.buckets (id, name, public) VALUES ('profile-photos', 'profile-photos', true) ON CONFLICT DO NOTHING;
+CREATE POLICY "Public read profile photos" ON storage.objects FOR SELECT USING (bucket_id = 'profile-photos');
+CREATE POLICY "Authenticated upload profile photos" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'profile-photos');
+CREATE POLICY "Authenticated delete profile photos" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'profile-photos');
+```
+
+## Migração V20 — Stripe Billing
+
+```sql
+-- Colunas de billing Stripe na tabela tenants
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'pro', 'pro_max'));
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS plan_status TEXT DEFAULT 'inactive' CHECK (plan_status IN ('active', 'inactive', 'past_due', 'canceled'));
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS plan_updated_at TIMESTAMPTZ;
 ```
 
