@@ -10,7 +10,8 @@ PROJECT="tribal-pillar-476701-a3"
 REGION="us-west1"
 SERVICE="e-finance"
 IMAGE="us-west1-docker.pkg.dev/${PROJECT}/cloud-run-source-deploy/${SERVICE}"
-GEMINI_API_KEY="GEMINI_API_KEY_REMOVED"
+# Defina GEMINI_API_KEY no seu ambiente antes de rodar: export GEMINI_API_KEY="sua-chave"
+GEMINI_API_KEY="${GEMINI_API_KEY:?'Erro: variável GEMINI_API_KEY não definida. Execute: export GEMINI_API_KEY=sua-chave'}"
 
 # ── Helpers ──────────────────────────────────────────────────
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
