@@ -4,6 +4,7 @@ import { X, Copy, MessageCircle, AlertTriangle, CheckCircle2, Loader2, RefreshCw
 import { DebtorInstallment } from '../hooks/useDebtorFinance';
 import { getSupabase } from '../services/supabase';
 import { useGeneratePix } from '../hooks/useGeneratePix';
+import { useToast } from './Toast';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -15,7 +16,8 @@ interface PaymentModalProps {
 const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installment, payerName }) => {
   // Hook Customizado
   const { generatePix, loading, error, data, reset } = useGeneratePix();
-  
+  const { showToast } = useToast();
+
   // UI States Locais
   const [beneficiary, setBeneficiary] = useState<{name: string, city: string} | null>(null);
   const [copied, setCopied] = useState(false);
@@ -53,6 +55,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
     if (!data?.payload) return;
     navigator.clipboard.writeText(data.payload);
     setCopied(true);
+    showToast('Código PIX copiado!', 'success');
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -69,7 +72,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
   const displayDescription = data?.description ?? `Pagamento Parcela ${installment.number}`;
 
   return (
-    <div data-testid="payment-modal" className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-fade-in">
+    <div data-testid="payment-modal" className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in transition-opacity duration-200">
       <div className="bg-slate-800 border border-slate-700 rounded-3xl w-full max-w-md shadow-2xl flex flex-col relative overflow-hidden">
         
         {/* Header */}
@@ -80,7 +83,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
               </h3>
               <p className="text-xs text-slate-400 font-bold">{installment.contract_name} - Parc. {installment.number}</p>
           </div>
-          <button data-testid="close-modal-btn" onClick={onClose} className="p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors">
+          <button data-testid="close-modal-btn" onClick={onClose} aria-label="Fechar modal de pagamento" className="p-3 min-h-[44px] min-w-[44px] bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors flex items-center justify-center">
             <X size={20} />
           </button>
         </div>
@@ -144,7 +147,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
             ) : data && (
                 <>
                     {/* QR Code Area */}
-                    <div data-testid="qr-code" className="bg-white p-4 rounded-2xl shadow-lg shadow-black/50 relative group">
+                    <div data-testid="qr-code" role="img" aria-label="QR Code PIX para pagamento" className="bg-white p-4 rounded-2xl shadow-lg shadow-black/50 relative group">
                          <div className="absolute -top-3 -right-3 bg-green-500 text-white p-1 rounded-full shadow-lg border-2 border-slate-800 z-10" title="Validado pelo Servidor">
                              <CheckCircle2 size={16} />
                          </div>
@@ -163,7 +166,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
                             <button
                                 data-testid="copy-pix-btn"
                                 onClick={handleCopy}
-                                className={`shrink-0 px-4 py-2.5 rounded-lg text-xs font-bold uppercase flex items-center gap-2 transition-all ${
+                                aria-label="Copiar código PIX"
+                                className={`shrink-0 px-4 py-2.5 min-h-[44px] rounded-lg text-xs font-bold uppercase flex items-center gap-2 transition-all ${
                                     copied ? 'bg-green-600 text-white' : 'bg-teal-600 hover:bg-teal-500 text-white'
                                 }`}
                             >

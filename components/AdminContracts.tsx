@@ -149,17 +149,17 @@ const UserSelectionCard: React.FC<{
                             {label}
                         </p>
                         <div className="flex items-center gap-2">
-                            <p className="text-white font-bold text-lg leading-none">{selectedProfile.full_name}</p>
+                            <p className="text-[color:var(--text-primary)] font-bold text-lg leading-none">{selectedProfile.full_name}</p>
                             {selectedProfile.role === 'admin' && (
-                                <div className="bg-slate-800 p-1 rounded-md border border-slate-600" title="Administrador">
+                                <div className="bg-[color:var(--bg-elevated)] p-1 rounded-md border border-[color:var(--border-subtle)]" title="Administrador">
                                     <ShieldCheck size={12} className="text-teal-400"/>
                                 </div>
                             )}
                         </div>
-                        <p className="text-slate-500 text-xs mt-0.5 font-medium">{selectedProfile.email}</p>
+                        <p className="text-[color:var(--text-muted)] text-xs mt-0.5 font-medium">{selectedProfile.email}</p>
                     </div>
                 </div>
-                <button onClick={onClear} className="p-3 bg-slate-900 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-all border border-slate-800 hover:border-slate-600 shadow-xl" title="Alterar">
+                <button onClick={onClear} className="p-3 bg-[color:var(--bg-base)] hover:bg-[color:var(--bg-elevated)] rounded-xl text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] transition-all border border-[color:var(--border-subtle)] shadow-xl" title="Alterar">
                     {role === 'investor' ? <UserCog size={20}/> : <X size={20} />}
                 </button>
             </div>
@@ -177,32 +177,32 @@ const UserSelectionCard: React.FC<{
                 )}
             </div>
             <div className="relative group">
-                <Search className="absolute left-4 top-4 text-slate-500 group-focus-within:text-teal-500 transition-colors" size={20} />
+                <Search className="absolute left-4 top-4 text-[color:var(--text-muted)] group-focus-within:text-teal-500 transition-colors" size={20} />
                 <input 
                     type="text" 
                     placeholder={role === 'investor' ? "Selecione o credor..." : "Busque ou selecione o cliente..."}
-                    className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl pl-12 pr-10 p-4 text-sm text-white focus:border-slate-500 outline-none transition-all shadow-inner focus:ring-1 focus:ring-slate-700 cursor-pointer"
+                    className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl pl-12 pr-10 p-4 text-sm text-[color:var(--text-primary)] focus:border-[color:var(--border-subtle)] outline-none transition-all shadow-inner focus:ring-1 focus:ring-[color:var(--border-subtle)] cursor-pointer"
                     value={searchTerm}
                     onChange={e => { setSearchTerm(e.target.value); setShowDropdown(true); }}
                     onFocus={() => setShowDropdown(true)}
                     onBlur={() => setTimeout(() => setShowDropdown(false), 200)} 
                 />
-                <ChevronDown size={20} className={`absolute right-4 top-4 text-slate-500 transition-transform duration-300 pointer-events-none ${showDropdown ? 'rotate-180 text-teal-500' : ''}`} />
+                <ChevronDown size={20} className={`absolute right-4 top-4 text-[color:var(--text-muted)] transition-transform duration-300 pointer-events-none ${showDropdown ? 'rotate-180 text-teal-500' : ''}`} />
                 {showDropdown && filtered.length > 0 && (
-                    <div className="absolute top-full left-0 w-full mt-2 bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in-down max-h-60 overflow-y-auto custom-scrollbar">
+                    <div className="absolute top-full left-0 w-full mt-2 bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in-down max-h-60 overflow-y-auto custom-scrollbar">
                         {filtered.map(p => (
-                            <button 
-                                key={p.id} 
+                            <button
+                                key={p.id}
                                 onClick={() => { onSelect(p); setSearchTerm(''); }}
-                                className="w-full text-left p-4 hover:bg-slate-700/50 border-b border-slate-700/50 last:border-0 transition-colors flex items-center justify-between group/item"
+                                className="w-full text-left p-4 hover:bg-[color:var(--bg-soft)] border-b border-[color:var(--border-subtle)] last:border-0 transition-colors flex items-center justify-between group/item"
                             >
                                 <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-xs font-bold text-slate-400 border border-slate-700">
+                                    <div className="w-8 h-8 rounded-lg bg-[color:var(--bg-base)] flex items-center justify-center text-xs font-bold text-[color:var(--text-secondary)] border border-[color:var(--border-subtle)]">
                                         {p.full_name.charAt(0).toUpperCase()}
                                     </div>
                                     <div>
-                                        <p className="text-white font-bold text-sm group-hover/item:text-teal-400 transition-colors">{p.full_name}</p>
-                                        <p className="text-slate-500 text-[10px]">{p.email}</p>
+                                        <p className="text-[color:var(--text-primary)] font-bold text-sm group-hover/item:text-teal-400 transition-colors">{p.full_name}</p>
+                                        <p className="text-[color:var(--text-muted)] text-[10px]">{p.email}</p>
                                     </div>
                                 </div>
                                 {p.role === 'admin' && <span className="text-[9px] bg-teal-950 text-teal-400 px-2 py-1 rounded font-black uppercase border border-teal-900">Admin</span>}
@@ -726,9 +726,9 @@ const AdminContracts: React.FC = () => {
                         <div className="flex justify-between items-start mb-6">
                             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]"><Wallet size={20}/></div>
                             <div className="flex items-center gap-1">
-                                <button onClick={() => { setViewingContract(contract); setIsDetailsModalOpen(true); }} className="rounded-full border border-white/10 bg-white/[0.03] p-2.5 text-[color:var(--text-muted)] transition-all hover:text-white" title="Ver detalhes"><Eye size={16}/></button>
-                                <button onClick={() => handleOpenContractEdit(contract)} className="rounded-full border border-white/10 bg-white/[0.03] p-2.5 text-[color:var(--text-muted)] transition-all hover:text-[color:var(--accent-brass)]" title="Editar contrato"><Pencil size={16}/></button>
-                                <button onClick={() => { setContractToDelete(contract); setIsDeleteConfirmOpen(true); }} className="rounded-full border border-white/10 bg-white/[0.03] p-2.5 text-[color:var(--text-muted)] transition-all hover:text-[color:var(--accent-danger)]" title="Excluir contrato"><Trash2 size={16}/></button>
+                                <button onClick={() => { setViewingContract(contract); setIsDetailsModalOpen(true); }} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-white" title="Ver detalhes"><Eye size={16}/></button>
+                                <button onClick={() => handleOpenContractEdit(contract)} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-[color:var(--accent-brass)]" title="Editar contrato"><Pencil size={16}/></button>
+                                <button onClick={() => { setContractToDelete(contract); setIsDeleteConfirmOpen(true); }} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-[color:var(--accent-danger)]" title="Excluir contrato"><Trash2 size={16}/></button>
                             </div>
                         </div>
                         <div className="section-kicker mb-2">Contrato #{contract.id}</div>
@@ -785,31 +785,31 @@ const AdminContracts: React.FC = () => {
       {/* --- WIZARD MODAL --- */}
       {isWizardOpen && (
           <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/90 backdrop-blur-sm sm:p-4">
-             <div className="bg-slate-800 border-t md:border border-slate-700 rounded-t-[3rem] md:rounded-[3rem] w-full max-w-lg shadow-2xl flex flex-col h-[95vh] md:h-auto md:max-h-[90vh] overflow-hidden animate-fade-in-up">
-                
-                <div className="px-8 py-6 border-b border-slate-700 flex justify-between items-center bg-slate-900/50">
+             <div className="bg-[color:var(--bg-elevated)] border-t md:border border-[color:var(--border-subtle)] rounded-t-[3rem] md:rounded-[3rem] w-full max-w-lg shadow-2xl flex flex-col h-[95vh] md:h-auto md:max-h-[90vh] overflow-hidden animate-fade-in-up">
+
+                <div className="px-8 py-6 border-b border-[color:var(--border-subtle)] flex justify-between items-center bg-[color:var(--bg-base)]/50">
                     <div>
-                        <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                        <h3 className="text-sm font-black text-[color:var(--text-primary)] uppercase tracking-widest flex items-center gap-2">
                             Novo Contrato
                         </h3>
                         <div className="flex gap-1.5 mt-2">
                             {[1, 2, 3].map(i => (
-                                <div key={i} className={`h-1.5 w-8 rounded-full transition-all duration-300 ${step >= i ? 'bg-teal-500' : 'bg-slate-700'}`}></div>
+                                <div key={i} className={`h-1.5 w-8 rounded-full transition-all duration-300 ${step >= i ? 'bg-teal-500' : 'bg-[color:var(--border-subtle)]'}`}></div>
                             ))}
                         </div>
                     </div>
-                    <button onClick={() => setIsWizardOpen(false)} className="p-3 hover:bg-slate-700 rounded-full transition-colors group">
-                        <X className="text-slate-500 group-hover:text-white" size={24}/>
+                    <button onClick={() => setIsWizardOpen(false)} className="p-3 hover:bg-[color:var(--bg-soft)] rounded-full transition-colors group">
+                        <X className="text-[color:var(--text-muted)] group-hover:text-[color:var(--text-primary)]" size={24}/>
                     </button>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar bg-slate-800">
+                <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar bg-[color:var(--bg-elevated)]">
                     
                     {step === 1 && (
                         <div className="space-y-8 animate-fade-in-right">
                             <div className="text-center mb-2">
-                                <h3 className="text-2xl font-black text-white uppercase tracking-tight">Partes Envolvidas</h3>
-                                <p className="text-slate-400 text-xs font-medium">Defina quem está emprestando e quem irá pagar.</p>
+                                <h3 className="text-2xl font-black text-[color:var(--text-primary)] uppercase tracking-tight">Partes Envolvidas</h3>
+                                <p className="text-[color:var(--text-secondary)] text-xs font-medium">Defina quem está emprestando e quem irá pagar.</p>
                             </div>
                             <UserSelectionCard 
                                 label="Quem Empresta (Credor)"
@@ -821,8 +821,8 @@ const AdminContracts: React.FC = () => {
                                 isDefault={selectedInvestor?.id === currentUserId}
                             />
                             <div className="flex justify-center -my-2 relative z-10">
-                                <div className="bg-slate-800 p-2 rounded-full border border-slate-700 shadow-xl">
-                                    <ArrowRight className="text-slate-500 rotate-90 md:rotate-0" size={24}/>
+                                <div className="bg-[color:var(--bg-elevated)] p-2 rounded-full border border-[color:var(--border-subtle)] shadow-xl">
+                                    <ArrowRight className="text-[color:var(--text-muted)] rotate-90 md:rotate-0" size={24}/>
                                 </div>
                             </div>
                             <UserSelectionCard 
@@ -840,16 +840,16 @@ const AdminContracts: React.FC = () => {
                     {step === 2 && (
                         <div className="space-y-6 animate-fade-in-right pb-20">
                             <div className="text-center mb-4">
-                                <h3 className="text-2xl font-black text-white uppercase tracking-tight">Termos Financeiros</h3>
-                                <p className="text-slate-400 text-xs mt-1">Detalhes do fluxo de caixa e prazos.</p>
+                                <h3 className="text-2xl font-black text-[color:var(--text-primary)] uppercase tracking-tight">Termos Financeiros</h3>
+                                <p className="text-[color:var(--text-secondary)] text-xs mt-1">Detalhes do fluxo de caixa e prazos.</p>
                             </div>
 
                             <div className="grid grid-cols-1 gap-6">
                                 <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-500 ml-1 mb-1 block">Nome do Ativo</label>
-                                    <input 
-                                        type="text" 
-                                        className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl p-4 text-white font-bold focus:border-teal-500 outline-none transition-all"
+                                    <label className="text-[10px] font-black uppercase text-[color:var(--text-muted)] ml-1 mb-1 block">Nome do Ativo</label>
+                                    <input
+                                        type="text"
+                                        className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold focus:border-teal-500 outline-none transition-all"
                                         placeholder={`Ex: Empréstimo ${selectedPayer?.full_name.split(' ')[0]}`}
                                         value={formData.asset_name}
                                         onChange={e => setFormData({...formData, asset_name: e.target.value})}
@@ -858,12 +858,12 @@ const AdminContracts: React.FC = () => {
                                 
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="text-[10px] font-black uppercase text-slate-500 ml-1 mb-1 block">Valor Principal (Aporte)</label>
+                                        <label className="text-[10px] font-black uppercase text-[color:var(--text-muted)] ml-1 mb-1 block">Valor Principal (Aporte)</label>
                                         <div className="relative group">
                                             <span className="absolute left-4 top-4 text-teal-500 font-bold group-focus-within:text-teal-400 transition-colors">R$</span>
-                                            <input 
+                                            <input
                                                 type="number" inputMode="decimal" step="0.01"
-                                                className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl pl-12 pr-4 py-4 text-2xl font-black text-white outline-none focus:border-teal-500 transition-all"
+                                                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl pl-12 pr-4 py-4 text-2xl font-black text-[color:var(--text-primary)] outline-none focus:border-teal-500 transition-all"
                                                 value={formData.amount_invested || ''}
                                                 onChange={e => updateFormState({ amount_invested: parseFloat(e.target.value) })}
                                                 placeholder="0.00"
@@ -872,7 +872,7 @@ const AdminContracts: React.FC = () => {
                                     </div>
 
                                     {/* SLIDER DE FONTE DE RECURSOS */}
-                                    <div className="bg-slate-900 border border-slate-700 rounded-2xl p-4 relative overflow-hidden">
+                                    <div className="bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 relative overflow-hidden">
                                         {/* Background Decor */}
                                         <div className="absolute -right-4 -top-4 bg-emerald-500/10 w-24 h-24 rounded-full blur-2xl pointer-events-none"></div>
 
@@ -880,7 +880,7 @@ const AdminContracts: React.FC = () => {
                                             <h4 className="text-[10px] font-black uppercase text-emerald-400 flex items-center gap-1.5">
                                                 <Coins size={12}/> Fonte de Recursos
                                             </h4>
-                                            <div className="text-[9px] text-slate-500 font-bold bg-slate-950 px-2 py-1 rounded border border-slate-800">
+                                            <div className="text-[9px] text-[color:var(--text-muted)] font-bold bg-[color:var(--bg-base)] px-2 py-1 rounded border border-[color:var(--border-subtle)]">
                                                 Caixa Livre: <span className="text-emerald-400">{formatCurrency(availableProfit)}</span>
                                             </div>
                                         </div>
@@ -898,16 +898,16 @@ const AdminContracts: React.FC = () => {
                                                     step={0.01}
                                                     value={formData.source_profit_amount}
                                                     onChange={(e) => updateFormState({ source_profit_amount: Number(e.target.value) })}
-                                                    className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500 hover:accent-emerald-400 transition-all"
+                                                    className="w-full h-2 bg-[color:var(--bg-elevated)] rounded-lg appearance-none cursor-pointer accent-emerald-500 hover:accent-emerald-400 transition-all"
                                                     disabled={availableProfit <= 0 || formData.amount_invested <= 0}
                                                 />
                                             </div>
 
-                                            <div className="flex justify-between items-center pt-3 border-t border-slate-800/80">
-                                                <div className="text-[10px] font-bold uppercase text-slate-500">
+                                            <div className="flex justify-between items-center pt-3 border-t border-[color:var(--border-subtle)]">
+                                                <div className="text-[10px] font-bold uppercase text-[color:var(--text-muted)]">
                                                     Dinheiro Novo (Aporte)
                                                 </div>
-                                                <div className="text-sm font-black text-white">
+                                                <div className="text-sm font-black text-[color:var(--text-primary)]">
                                                     {formatCurrency(formData.amount_invested - formData.source_profit_amount)}
                                                 </div>
                                             </div>
@@ -916,15 +916,15 @@ const AdminContracts: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="bg-slate-900/50 p-5 rounded-3xl border border-slate-800/50">
-                                <label className="text-[10px] font-black uppercase text-slate-400 mb-3 block text-center">Duração do Contrato</label>
-                                <div className="flex items-center justify-between bg-slate-950 rounded-2xl p-1 border border-slate-800">
-                                    <button onClick={() => updateFormState({ total_installments: Math.max(1, formData.total_installments - 1) })} className="w-12 h-12 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all"><Minus size={20}/></button>
+                            <div className="bg-[color:var(--bg-base)]/50 p-5 rounded-3xl border border-[color:var(--border-subtle)]">
+                                <label className="text-[10px] font-black uppercase text-[color:var(--text-secondary)] mb-3 block text-center">Duração do Contrato</label>
+                                <div className="flex items-center justify-between bg-[color:var(--bg-base)] rounded-2xl p-1 border border-[color:var(--border-subtle)]">
+                                    <button onClick={() => updateFormState({ total_installments: Math.max(1, formData.total_installments - 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Minus size={20}/></button>
                                     <div className="text-center">
-                                        <span className="block font-black text-white text-2xl">{formData.total_installments}</span>
-                                        <span className="text-[9px] text-slate-500 uppercase font-bold tracking-widest">Parcelas</span>
+                                        <span className="block font-black text-[color:var(--text-primary)] text-2xl">{formData.total_installments}</span>
+                                        <span className="text-[9px] text-[color:var(--text-muted)] uppercase font-bold tracking-widest">Parcelas</span>
                                     </div>
-                                    <button onClick={() => updateFormState({ total_installments: Math.min(120, formData.total_installments + 1) })} className="w-12 h-12 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all"><Plus size={20}/></button>
+                                    <button onClick={() => updateFormState({ total_installments: Math.min(120, formData.total_installments + 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Plus size={20}/></button>
                                 </div>
                             </div>
 
@@ -942,7 +942,7 @@ const AdminContracts: React.FC = () => {
                                             className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all gap-1.5 ${
                                                 formData.frequency === opt.id 
                                                 ? 'bg-teal-600 border-teal-500 text-white shadow-lg' 
-                                                : 'bg-slate-900 border-slate-800 text-slate-500 hover:bg-slate-800'
+                                                : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
                                             }`}
                                         >
                                             <opt.icon size={18} />
@@ -952,51 +952,51 @@ const AdminContracts: React.FC = () => {
                                 </div>
 
                                 {formData.frequency === 'monthly' && (
-                                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-2 flex items-center animate-fade-in">
-                                        <div className="px-4 text-[10px] font-black text-slate-500 uppercase">Todo dia</div>
+                                    <div className="bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-2 flex items-center animate-fade-in">
+                                        <div className="px-4 text-[10px] font-black text-[color:var(--text-muted)] uppercase">Todo dia</div>
                                         <select
                                                 value={formData.due_day}
                                                 onChange={e => updateFormState({ due_day: parseInt(e.target.value) })}
-                                                className="flex-1 bg-transparent text-white font-bold text-center outline-none cursor-pointer text-lg"
+                                                className="flex-1 bg-transparent text-[color:var(--text-primary)] font-bold text-center outline-none cursor-pointer text-lg"
                                             >
                                                 {Array.from({length: 31}, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
                                             </select>
-                                            <div className="px-4 text-slate-500"><ChevronRight size={16}/></div>
+                                            <div className="px-4 text-[color:var(--text-muted)]"><ChevronRight size={16}/></div>
                                     </div>
                                 )}
 
                                 {formData.frequency === 'weekly' && (
-                                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-2 flex items-center animate-fade-in">
-                                        <div className="px-4 text-[10px] font-black text-slate-500 uppercase">Toda</div>
+                                    <div className="bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-2 flex items-center animate-fade-in">
+                                        <div className="px-4 text-[10px] font-black text-[color:var(--text-muted)] uppercase">Toda</div>
                                         <select
                                             value={formData.weekday}
                                             onChange={e => updateFormState({ weekday: parseInt(e.target.value) })}
-                                            className="flex-1 bg-transparent text-white font-bold text-center outline-none cursor-pointer text-lg"
+                                            className="flex-1 bg-transparent text-[color:var(--text-primary)] font-bold text-center outline-none cursor-pointer text-lg"
                                         >
                                             {['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map((day, idx) => (
                                                 <option key={idx} value={idx}>{day}</option>
                                             ))}
                                         </select>
-                                        <div className="px-4 text-slate-500"><ChevronRight size={16}/></div>
+                                        <div className="px-4 text-[color:var(--text-muted)]"><ChevronRight size={16}/></div>
                                     </div>
                                 )}
                             </div>
 
                             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                                 {previewDateStrings.map((dateStr, idx) => (
-                                    <div key={idx} className="flex-none bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-center min-w-[80px]">
-                                        <p className="text-[9px] text-slate-500 font-bold uppercase">{idx + 1}ª Parc</p>
-                                        <p className="text-xs font-bold text-white font-mono">{dateStr.slice(0, 5)}</p>
+                                    <div key={idx} className="flex-none bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2 text-center min-w-[80px]">
+                                        <p className="text-[9px] text-[color:var(--text-muted)] font-bold uppercase">{idx + 1}ª Parc</p>
+                                        <p className="text-xs font-bold text-[color:var(--text-primary)] font-mono">{dateStr.slice(0, 5)}</p>
                                     </div>
                                 ))}
                             </div>
 
-                            <div className="bg-slate-950 p-1.5 rounded-2xl border border-slate-800 flex relative">
-                                <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-slate-800 rounded-xl transition-all duration-300 shadow-md ${formData.calculation_mode === 'manual' ? 'translate-x-full left-1.5' : 'left-1.5'}`}></div>
-                                <button onClick={() => updateFormState({ calculation_mode: 'auto' })} className={`flex-1 py-3 relative z-10 text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-colors ${formData.calculation_mode === 'auto' ? 'text-white' : 'text-slate-500'}`}>
+                            <div className="bg-[color:var(--bg-base)] p-1.5 rounded-2xl border border-[color:var(--border-subtle)] flex relative">
+                                <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-[color:var(--bg-elevated)] rounded-xl transition-all duration-300 shadow-md ${formData.calculation_mode === 'manual' ? 'translate-x-full left-1.5' : 'left-1.5'}`}></div>
+                                <button onClick={() => updateFormState({ calculation_mode: 'auto' })} className={`flex-1 py-3 relative z-10 text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-colors ${formData.calculation_mode === 'auto' ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-muted)]'}`}>
                                     <Percent size={14}/> Taxa (%)
                                 </button>
-                                <button onClick={() => updateFormState({ calculation_mode: 'manual' })} className={`flex-1 py-3 relative z-10 text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-colors ${formData.calculation_mode === 'manual' ? 'text-white' : 'text-slate-500'}`}>
+                                <button onClick={() => updateFormState({ calculation_mode: 'manual' })} className={`flex-1 py-3 relative z-10 text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-colors ${formData.calculation_mode === 'manual' ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-muted)]'}`}>
                                     <Banknote size={14}/> Valor Fixo
                                 </button>
                             </div>
@@ -1004,31 +1004,31 @@ const AdminContracts: React.FC = () => {
                             {formData.calculation_mode === 'auto' ? (
                                 <div className="space-y-2">
                                     <div className="relative">
-                                        <input 
+                                        <input
                                             type="number" inputMode="decimal" step="0.1"
-                                            className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 text-white font-bold text-lg outline-none focus:border-teal-500 transition-all text-center"
+                                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-teal-500 transition-all text-center"
                                             value={formData.interest_rate}
                                             onChange={e => updateFormState({ interest_rate: parseFloat(e.target.value) })}
                                         />
-                                        <span className="absolute right-6 top-5 text-slate-500 font-bold">%</span>
+                                        <span className="absolute right-6 top-5 text-[color:var(--text-muted)] font-bold">%</span>
                                     </div>
-                                    <div className="text-center text-xs text-slate-400">
-                                        Parcela Estimada: <strong className="text-white">{formatCurrency(formData.installment_value)}</strong>
+                                    <div className="text-center text-xs text-[color:var(--text-secondary)]">
+                                        Parcela Estimada: <strong className="text-[color:var(--text-primary)]">{formatCurrency(formData.installment_value)}</strong>
                                     </div>
                                 </div>
                             ) : (
                                 <div className="space-y-2">
                                     <div className="relative">
-                                        <input 
+                                        <input
                                             type="number" inputMode="decimal" step="0.01"
-                                            className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 text-white font-bold text-lg outline-none focus:border-indigo-500 transition-all text-center"
+                                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-indigo-500 transition-all text-center"
                                             value={formData.installment_value}
                                             onChange={e => updateFormState({ installment_value: parseFloat(e.target.value) })}
                                         />
-                                        <span className="absolute left-6 top-5 text-slate-500 font-bold">R$</span>
+                                        <span className="absolute left-6 top-5 text-[color:var(--text-muted)] font-bold">R$</span>
                                     </div>
-                                    <div className="text-center text-xs text-slate-400">
-                                        Taxa Implícita: <strong className="text-white">{formData.interest_rate.toFixed(2)}%</strong>
+                                    <div className="text-center text-xs text-[color:var(--text-secondary)]">
+                                        Taxa Implícita: <strong className="text-[color:var(--text-primary)]">{formData.interest_rate.toFixed(2)}%</strong>
                                     </div>
                                 </div>
                             )}
@@ -1038,17 +1038,17 @@ const AdminContracts: React.FC = () => {
                     {step === 3 && (
                         <div className="space-y-8 animate-fade-in-right">
                             <div className="text-center">
-                                <h3 className="text-2xl font-black text-white uppercase tracking-tight">Revisão Final</h3>
-                                <p className="text-slate-400 text-xs mt-1">Confirme os dados para gerar o contrato.</p>
+                                <h3 className="text-2xl font-black text-[color:var(--text-primary)] uppercase tracking-tight">Revisão Final</h3>
+                                <p className="text-[color:var(--text-secondary)] text-xs mt-1">Confirme os dados para gerar o contrato.</p>
                             </div>
 
-                            <div className="bg-gradient-to-b from-slate-800 to-slate-900 border border-slate-700 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+                            <div className="bg-gradient-to-b from-[color:var(--bg-elevated)] to-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
 
-                                <div className="flex justify-between items-end border-b border-slate-700/50 pb-6 mb-6">
+                                <div className="flex justify-between items-end border-b border-[color:var(--border-subtle)] pb-6 mb-6">
                                     <div>
-                                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Total a Receber</p>
-                                        <p className="text-4xl font-black text-white tracking-tight">{formatCurrency(formData.current_value)}</p>
+                                        <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Total a Receber</p>
+                                        <p className="text-4xl font-black text-[color:var(--text-primary)] tracking-tight">{formatCurrency(formData.current_value)}</p>
                                     </div>
                                     <div className="text-right">
                                         <div className="bg-teal-900/30 border border-teal-500/20 text-teal-400 px-3 py-1 rounded-lg text-xs font-bold inline-block mb-1">
@@ -1059,32 +1059,32 @@ const AdminContracts: React.FC = () => {
 
                                 <div className="grid grid-cols-2 gap-y-6 gap-x-4 text-sm mb-4">
                                     <div>
-                                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Investimento Total</p>
-                                        <p className="text-white font-bold">{formatCurrency(formData.amount_invested)}</p>
+                                        <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Investimento Total</p>
+                                        <p className="text-[color:var(--text-primary)] font-bold">{formatCurrency(formData.amount_invested)}</p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Fluxo</p>
-                                        <p className="text-white font-bold">{formData.total_installments}x de {formatCurrency(formData.installment_value)}</p>
+                                        <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Fluxo</p>
+                                        <p className="text-[color:var(--text-primary)] font-bold">{formData.total_installments}x de {formatCurrency(formData.installment_value)}</p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Investidor</p>
-                                        <p className="text-white font-bold truncate">{selectedInvestor?.full_name}</p>
+                                        <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Investidor</p>
+                                        <p className="text-[color:var(--text-primary)] font-bold truncate">{selectedInvestor?.full_name}</p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Cliente</p>
-                                        <p className="text-white font-bold truncate">{selectedPayer?.full_name}</p>
+                                        <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Cliente</p>
+                                        <p className="text-[color:var(--text-primary)] font-bold truncate">{selectedPayer?.full_name}</p>
                                     </div>
                                 </div>
                                 
                                 {/* Funding Breakdown for Review */}
-                                <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 mt-4">
-                                    <div className="text-[9px] text-slate-500 font-black uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <div className="bg-[color:var(--bg-base)]/50 p-4 rounded-xl border border-[color:var(--border-subtle)] mt-4">
+                                    <div className="text-[9px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
                                         <Sparkles size={10} className="text-teal-500"/> Composição do Aporte
                                     </div>
                                     <div className="flex gap-4">
-                                        <div className="flex-1 bg-slate-900 border border-slate-700 p-3 rounded-xl text-center">
-                                            <p className="text-[9px] text-slate-400 font-bold uppercase mb-1">Novo</p>
-                                            <p className="text-sm font-black text-white">{formatCurrency(formData.amount_invested - formData.source_profit_amount)}</p>
+                                        <div className="flex-1 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] p-3 rounded-xl text-center">
+                                            <p className="text-[9px] text-[color:var(--text-secondary)] font-bold uppercase mb-1">Novo</p>
+                                            <p className="text-sm font-black text-[color:var(--text-primary)]">{formatCurrency(formData.amount_invested - formData.source_profit_amount)}</p>
                                         </div>
                                         <div className="flex-1 bg-emerald-900/20 border border-emerald-900/40 p-3 rounded-xl text-center">
                                             <p className="text-[9px] text-emerald-500 font-bold uppercase mb-1">Reinvestido</p>
@@ -1094,16 +1094,16 @@ const AdminContracts: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-center gap-2 text-xs text-slate-500 font-medium">
+                            <div className="flex items-center justify-center gap-2 text-xs text-[color:var(--text-muted)] font-medium">
                                 <ShieldCheck size={14} className="text-teal-500"/> Contrato Validado pelo Banco
                             </div>
                         </div>
                     )}
                 </div>
 
-                <div className="flex gap-4 border-t border-slate-700 bg-slate-900/90 p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] backdrop-blur">
+                <div className="flex gap-4 border-t border-[color:var(--border-subtle)] bg-[color:var(--bg-base)]/90 px-6 pt-6 pb-[max(calc(env(safe-area-inset-bottom,0px)+5.5rem),5.5rem)] md:pb-6 backdrop-blur">
                     {step > 1 && (
-                        <button onClick={() => setStep(s => s - 1)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all border border-slate-700">
+                        <button onClick={() => setStep(s => s - 1)} className="flex-1 bg-[color:var(--bg-elevated)] hover:bg-[color:var(--bg-soft)] text-[color:var(--text-primary)] py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all border border-[color:var(--border-subtle)]">
                             Voltar
                         </button>
                     )}
@@ -1124,17 +1124,17 @@ const AdminContracts: React.FC = () => {
 
       {isQuickCreateOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-              <div className="bg-slate-800 border border-slate-700 rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 animate-fade-in-up">
+              <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 animate-fade-in-up">
                   <div className="flex justify-between items-center mb-8">
-                      <h3 className="text-xl font-black text-white uppercase tracking-tighter">Novo Cliente</h3>
-                      <button onClick={() => setIsQuickCreateOpen(false)}><X className="text-slate-500 hover:text-white" size={24}/></button>
+                      <h3 className="text-xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter">Novo Cliente</h3>
+                      <button onClick={() => setIsQuickCreateOpen(false)}><X className="text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]" size={24}/></button>
                   </div>
                   <div className="mb-6 p-4 bg-blue-900/10 border border-blue-900/30 rounded-2xl text-blue-300 text-xs font-medium text-center leading-relaxed">
                     Cadastro simplificado para emissão imediata.
                   </div>
                   <form onSubmit={handleQuickCreateDebtor} className="space-y-5">
-                      <input required type="text" className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white focus:border-teal-500 outline-none transition-all placeholder:text-slate-600" value={newDebtorData.full_name} onChange={e => setNewDebtorData({...newDebtorData, full_name: e.target.value})} placeholder="Nome Completo" />
-                      <input required type="email" className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white focus:border-teal-500 outline-none transition-all placeholder:text-slate-600" value={newDebtorData.email} onChange={e => setNewDebtorData({...newDebtorData, email: e.target.value})} placeholder="E-mail do Cliente" />
+                      <input required type="text" className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.full_name} onChange={e => setNewDebtorData({...newDebtorData, full_name: e.target.value})} placeholder="Nome Completo" />
+                      <input required type="email" className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.email} onChange={e => setNewDebtorData({...newDebtorData, email: e.target.value})} placeholder="E-mail do Cliente" />
                       <div className="pt-2">
                         <button type="submit" disabled={quickCreateLoading} className="w-full bg-teal-600 hover:bg-teal-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg">
                             {quickCreateLoading ? <Loader2 className="animate-spin" size={18}/> : <UserPlus size={18}/>} Cadastrar Rápido
@@ -1148,17 +1148,17 @@ const AdminContracts: React.FC = () => {
       {/* --- MODAL: CONFIRMAÇÃO DE EXCLUSÃO --- */}
       {isDeleteConfirmOpen && contractToDelete && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
-              <div className="bg-slate-800 border border-red-900/50 rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 animate-fade-in-up">
+              <div className="bg-[color:var(--bg-elevated)] border border-red-900/50 rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 animate-fade-in-up">
                   <div className="text-center mb-6">
                       <div className="w-16 h-16 bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
                           <Trash2 size={28} className="text-red-400"/>
                       </div>
-                      <h3 className="text-xl font-black text-white uppercase tracking-tight">Excluir Contrato</h3>
-                      <p className="text-slate-400 text-sm mt-2">Esta ação é <strong className="text-red-400">irreversível</strong>. Todas as parcelas do contrato serão apagadas.</p>
-                      <p className="text-white font-bold mt-3 bg-slate-900 px-4 py-2 rounded-xl border border-slate-700 truncate">"{contractToDelete.asset_name}"</p>
+                      <h3 className="text-xl font-black text-[color:var(--text-primary)] uppercase tracking-tight">Excluir Contrato</h3>
+                      <p className="text-[color:var(--text-secondary)] text-sm mt-2">Esta ação é <strong className="text-red-400">irreversível</strong>. Todas as parcelas do contrato serão apagadas.</p>
+                      <p className="text-[color:var(--text-primary)] font-bold mt-3 bg-[color:var(--bg-base)] px-4 py-2 rounded-xl border border-[color:var(--border-subtle)] truncate">"{contractToDelete.asset_name}"</p>
                   </div>
                   <div className="flex gap-3">
-                      <button onClick={() => { setIsDeleteConfirmOpen(false); setContractToDelete(null); }} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all">
+                      <button onClick={() => { setIsDeleteConfirmOpen(false); setContractToDelete(null); }} className="flex-1 bg-[color:var(--bg-soft)] hover:bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)] py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all">
                           Cancelar
                       </button>
                       <button onClick={handleDeleteContract} disabled={deleteLoading} className="flex-1 bg-red-600 hover:bg-red-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
@@ -1179,8 +1179,8 @@ const AdminContracts: React.FC = () => {
                           <p className="section-kicker mb-2">Ajuste operacional</p>
                           <h3 className="font-display text-4xl leading-none text-[color:var(--text-primary)]">Editar contrato</h3>
                       </div>
-                      <button onClick={() => setIsEditContractOpen(false)} className="p-2 hover:bg-slate-700 rounded-full transition-colors">
-                          <X className="text-slate-400" size={20}/>
+                      <button onClick={() => setIsEditContractOpen(false)} className="p-2 hover:bg-[color:var(--bg-soft)] rounded-full transition-colors">
+                          <X className="text-[color:var(--text-secondary)]" size={20}/>
                       </button>
                   </div>
                   <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
@@ -1320,7 +1320,7 @@ const AdminContracts: React.FC = () => {
                   )}
 
                   <div className="flex gap-3 mt-6">
-                      <button onClick={() => setIsEditContractOpen(false)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all">
+                      <button onClick={() => setIsEditContractOpen(false)} className="flex-1 bg-[color:var(--bg-soft)] hover:bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)] py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all">
                           Cancelar
                       </button>
                       <button onClick={handleEditContractSave} disabled={editContractLoading || !editContractName.trim()} className="flex-1 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
@@ -1334,18 +1334,18 @@ const AdminContracts: React.FC = () => {
 
       {isDetailsModalOpen && viewingContract && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-             <div className="bg-slate-800 border border-slate-700 rounded-[3rem] w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh] animate-fade-in-up">
-                <div className="p-8 border-b border-slate-700 flex justify-between items-center bg-slate-900/50">
+             <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[3rem] w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh] animate-fade-in-up">
+                <div className="p-8 border-b border-[color:var(--border-subtle)] flex justify-between items-center bg-[color:var(--bg-base)]/50">
                     <div>
-                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Detalhes do Contrato</h3>
-                        <p className="text-xs text-slate-500 font-bold mt-1">ID #{viewingContract.id} • {viewingContract.asset_name}</p>
+                        <h3 className="text-2xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter">Detalhes do Contrato</h3>
+                        <p className="text-xs text-[color:var(--text-muted)] font-bold mt-1">ID #{viewingContract.id} • {viewingContract.asset_name}</p>
                     </div>
-                    <button onClick={() => setIsDetailsModalOpen(false)} className="p-3 hover:bg-slate-700 rounded-full transition-colors text-slate-400 hover:text-white"><X size={24}/></button>
+                    <button onClick={() => setIsDetailsModalOpen(false)} className="p-3 hover:bg-[color:var(--bg-soft)] rounded-full transition-colors text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]"><X size={24}/></button>
                 </div>
                 <div className="p-10 text-center">
-                     <div className="bg-gradient-to-b from-slate-900 to-slate-800 p-8 rounded-[2.5rem] border border-slate-700 inline-block w-full max-w-sm shadow-xl">
-                         <p className="text-slate-500 text-xs font-black uppercase tracking-widest mb-2">Resumo Financeiro</p>
-                         <p className="text-5xl font-black text-white mb-4 tracking-tight">{formatCurrency(viewingContract.current_value)}</p>
+                     <div className="bg-gradient-to-b from-[color:var(--bg-base)] to-[color:var(--bg-elevated)] p-8 rounded-[2.5rem] border border-[color:var(--border-subtle)] inline-block w-full max-w-sm shadow-xl">
+                         <p className="text-[color:var(--text-muted)] text-xs font-black uppercase tracking-widest mb-2">Resumo Financeiro</p>
+                         <p className="text-5xl font-black text-[color:var(--text-primary)] mb-4 tracking-tight">{formatCurrency(viewingContract.current_value)}</p>
                          <div className="inline-flex items-center gap-2 bg-teal-900/30 border border-teal-500/20 px-4 py-2 rounded-xl">
                             <p className="text-sm text-teal-400 font-bold uppercase">{viewingContract.total_installments}x de {formatCurrency(viewingContract.installment_value)}</p>
                          </div>

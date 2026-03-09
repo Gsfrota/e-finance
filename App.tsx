@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { HashRouter as Router } from 'react-router-dom'; 
+import { HashRouter as Router } from 'react-router-dom';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import AdminUsers from './components/AdminUsers';
@@ -29,6 +29,10 @@ import {
   Bot,
   ListChecks,
   Settings,
+  ChevronsLeft,
+  ChevronsRight,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -43,6 +47,33 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onLogout, userRole, tenant, profile }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem('EF_SIDEBAR_COLLAPSED') === 'true';
+  });
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    return (localStorage.getItem('EF_THEME') as 'dark' | 'light') || 'dark';
+  });
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(v => {
+      const next = !v;
+      localStorage.setItem('EF_SIDEBAR_COLLAPSED', String(next));
+      return next;
+    });
+  };
+
+  const toggleTheme = () => {
+    setTheme(t => {
+      const next = t === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('EF_THEME', next);
+      document.documentElement.setAttribute('data-theme', next);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   const currentSectionLabel: Record<AppView, string> = {
     [AppView.LOGIN]: 'Acesso',
@@ -52,6 +83,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
     [AppView.CONTRACTS]: 'Contratos',
     [AppView.SETTINGS]: 'Configurações',
     [AppView.ASSISTANT]: 'Assistente',
+    [AppView.COLLECTION]: 'Cobranças',
     [AppView.RESET_PASSWORD]: 'Segurança',
   };
 
@@ -60,18 +92,33 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
     setMobileMenuOpen(false);
   };
 
-  const NavContent = () => (
-    <>
-      <div className="border-b soft-divider px-7 py-7">
-        <div className="flex items-center gap-4">
-            {tenant?.logo_url ? (
+  const NavContent = ({ collapsed = false, showCollapseToggle = true }: { collapsed?: boolean; showCollapseToggle?: boolean }) => {
+    const btnBase = `flex w-full items-center rounded-2xl py-3 transition-all`;
+    const btnExpanded = `gap-3 px-4 text-left`;
+    const btnCollapsed = `justify-center px-3`;
+    const activeClass = `bg-[rgba(202,176,122,0.12)] text-[color:var(--text-primary)] ring-1 ring-[rgba(202,176,122,0.2)]`;
+    const inactiveClass = `text-[color:var(--text-muted)] hover:bg-white/[0.03] hover:text-[color:var(--text-primary)]`;
+
+    return (
+      <>
+        {/* Cabeçalho */}
+        <div className={`border-b soft-divider ${collapsed ? 'flex justify-center px-4 py-5' : 'px-7 py-7'}`}>
+          {collapsed ? (
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.16)] overflow-hidden">
+              {tenant?.logo_url
+                ? <img src={tenant.logo_url} alt="Logo" className="h-full w-full rounded-2xl object-cover" />
+                : (tenant?.name?.charAt(0)?.toUpperCase() || <ShieldCheck size={16} />)}
+            </div>
+          ) : (
+            <div className="flex items-center gap-4">
+              {tenant?.logo_url ? (
                 <img src={tenant.logo_url} alt="Logo" className="h-11 w-11 rounded-2xl object-cover ring-1 ring-white/10" />
-            ) : (
+              ) : (
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.16)]">
-                    {tenant?.name?.charAt(0) || <ShieldCheck size={16} />}
+                  {tenant?.name?.charAt(0)?.toUpperCase() || <ShieldCheck size={16} />}
                 </div>
-            )}
-            <div className="min-w-0">
+              )}
+              <div className="min-w-0">
                 <p className="section-kicker mb-1">E-Finance</p>
                 <h2 className="font-display truncate text-[1.9rem] leading-none text-[color:var(--text-primary)]">
                   {tenant?.name || 'Workspace'}
@@ -79,108 +126,138 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
                 <p className="mt-1 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
                   {isProduction() ? 'Ambiente Operacional' : 'Ambiente de Desenvolvimento'}
                 </p>
+              </div>
             </div>
+          )}
         </div>
-      </div>
-      
-      <nav className="flex-1 space-y-1 overflow-y-auto px-5 py-5">
-        <button 
-          onClick={() => handleViewChange(AppView.DASHBOARD)}
-          className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${
-            activeView === AppView.DASHBOARD
-              ? 'bg-[rgba(202,176,122,0.12)] text-[color:var(--text-primary)] ring-1 ring-[rgba(202,176,122,0.2)]'
-              : 'text-[color:var(--text-muted)] hover:bg-white/[0.03] hover:text-[color:var(--text-primary)]'
-          }`}
-        >
-          <LayoutDashboard size={20} />
-          <div className="flex-1">
-            <div className="text-sm font-semibold">Dashboard</div>
-            <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Leitura financeira</div>
-          </div>
-        </button>
 
-        {userRole === 'admin' && (
+        {/* Navegação */}
+        <nav className={`flex-1 space-y-1 overflow-y-auto py-5 ${collapsed ? 'px-3' : 'px-5'}`}>
+          <button
+            onClick={() => handleViewChange(AppView.DASHBOARD)}
+            title={collapsed ? 'Dashboard' : undefined}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.DASHBOARD ? activeClass : inactiveClass}`}
+          >
+            <LayoutDashboard size={20} className="shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold">Dashboard</div>
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Leitura financeira</div>
+              </div>
+            )}
+          </button>
+
+          {userRole === 'admin' && (
             <>
-                <button 
+              <button
                 onClick={() => handleViewChange(AppView.USERS)}
-                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${
-                  activeView === AppView.USERS || activeView === AppView.USER_DETAILS
-                    ? 'bg-[rgba(202,176,122,0.12)] text-[color:var(--text-primary)] ring-1 ring-[rgba(202,176,122,0.2)]'
-                    : 'text-[color:var(--text-muted)] hover:bg-white/[0.03] hover:text-[color:var(--text-primary)]'
-                }`}
-                >
-                <Users size={20} />
-                <div className="flex-1">
-                  <div className="text-sm font-semibold">Usuários</div>
-                  <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Relacionamentos</div>
-                </div>
-                </button>
+                title={collapsed ? 'Usuários' : undefined}
+                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${(activeView === AppView.USERS || activeView === AppView.USER_DETAILS) ? activeClass : inactiveClass}`}
+              >
+                <Users size={20} className="shrink-0" />
+                {!collapsed && (
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold">Usuários</div>
+                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Relacionamentos</div>
+                  </div>
+                )}
+              </button>
 
-                <button 
+              <button
                 onClick={() => handleViewChange(AppView.CONTRACTS)}
-                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${
-                  activeView === AppView.CONTRACTS
-                    ? 'bg-[rgba(202,176,122,0.12)] text-[color:var(--text-primary)] ring-1 ring-[rgba(202,176,122,0.2)]'
-                    : 'text-[color:var(--text-muted)] hover:bg-white/[0.03] hover:text-[color:var(--text-primary)]'
-                }`}
-                >
-                <BriefcaseBusiness size={20} />
-                <div className="flex-1">
-                  <div className="text-sm font-semibold">Contratos</div>
-                  <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Crédito e prazos</div>
-                </div>
-                </button>
+                title={collapsed ? 'Contratos' : undefined}
+                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.CONTRACTS ? activeClass : inactiveClass}`}
+              >
+                <BriefcaseBusiness size={20} className="shrink-0" />
+                {!collapsed && (
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold">Contratos</div>
+                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Crédito e prazos</div>
+                  </div>
+                )}
+              </button>
 
-                <button
+              <button
                 onClick={() => handleViewChange(AppView.ASSISTANT)}
-                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${
-                  activeView === AppView.ASSISTANT
-                    ? 'bg-[rgba(202,176,122,0.12)] text-[color:var(--text-primary)] ring-1 ring-[rgba(202,176,122,0.2)]'
-                    : 'text-[color:var(--text-muted)] hover:bg-white/[0.03] hover:text-[color:var(--text-primary)]'
-                }`}
-                >
-                <Bot size={20} />
-                <div className="flex-1">
-                  <div className="text-sm font-semibold">Assistente</div>
-                  <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Automações e conexões</div>
-                </div>
-                </button>
+                title={collapsed ? 'Assistente' : undefined}
+                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.ASSISTANT ? activeClass : inactiveClass}`}
+              >
+                <Bot size={20} className="shrink-0" />
+                {!collapsed && (
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold">Assistente</div>
+                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Automações e conexões</div>
+                  </div>
+                )}
+              </button>
 
-                <button
+              <button
                 onClick={() => handleViewChange(AppView.SETTINGS)}
-                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${
-                  activeView === AppView.SETTINGS
-                    ? 'bg-[rgba(202,176,122,0.12)] text-[color:var(--text-primary)] ring-1 ring-[rgba(202,176,122,0.2)]'
-                    : 'text-[color:var(--text-muted)] hover:bg-white/[0.03] hover:text-[color:var(--text-primary)]'
-                }`}
-                >
-                <Building2 size={20} />
-                <div className="flex-1">
-                  <div className="text-sm font-semibold">Ajustes</div>
-                  <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Empresa e financeiro</div>
-                </div>
-                </button>
+                title={collapsed ? 'Ajustes' : undefined}
+                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.SETTINGS ? activeClass : inactiveClass}`}
+              >
+                <Building2 size={20} className="shrink-0" />
+                {!collapsed && (
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold">Ajustes</div>
+                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Empresa e financeiro</div>
+                  </div>
+                )}
+              </button>
             </>
-        )}
-      </nav>
+          )}
+        </nav>
 
-      <div className="border-t soft-divider p-5">
-        <button 
-          onClick={onLogout}
-          className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[color:var(--text-muted)] transition-all hover:bg-[rgba(198,126,105,0.08)] hover:text-[color:var(--accent-danger)]"
-        >
-          <LogOut size={18} />
-          <span className="text-sm font-semibold">Encerrar sessão</span>
-        </button>
-      </div>
-    </>
-  );
+        {/* Rodapé */}
+        <div className={`border-t soft-divider space-y-1 ${collapsed ? 'p-3' : 'p-5'}`}>
+          {/* Alternador de tema */}
+          <button
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+            className={`${btnBase} ${collapsed ? btnCollapsed : 'gap-3 px-4'} text-[color:var(--text-muted)] hover:bg-white/[0.04] hover:text-[color:var(--text-primary)]`}
+          >
+            {theme === 'dark'
+              ? <Sun size={18} className="text-[color:var(--accent-brass)] shrink-0" />
+              : <Moon size={18} className="shrink-0" />}
+            {!collapsed && (
+              <span className="text-xs font-bold uppercase tracking-widest">
+                {theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}
+              </span>
+            )}
+          </button>
+
+          {/* Recolher sidebar */}
+          {showCollapseToggle && (
+            <button
+              onClick={toggleSidebar}
+              title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+              className={`${btnBase} ${collapsed ? btnCollapsed : 'gap-3 px-4'} text-[color:var(--text-muted)] hover:bg-white/[0.04] hover:text-[color:var(--text-primary)]`}
+            >
+              {collapsed
+                ? <ChevronsRight size={18} className="shrink-0" />
+                : <><ChevronsLeft size={18} className="shrink-0" /><span className="text-xs font-bold uppercase tracking-widest">Recolher</span></>}
+            </button>
+          )}
+
+          {/* Sair */}
+          <button
+            onClick={onLogout}
+            title={collapsed ? 'Encerrar sessão' : undefined}
+            className={`${btnBase} ${collapsed ? btnCollapsed : 'gap-3 px-4'} text-[color:var(--text-muted)] hover:bg-[rgba(198,126,105,0.08)] hover:text-[color:var(--accent-danger)]`}
+          >
+            <LogOut size={18} className="shrink-0" />
+            {!collapsed && <span className="text-sm font-semibold">Encerrar sessão</span>}
+          </button>
+        </div>
+      </>
+    );
+  };
 
   return (
     <div className="flex min-h-screen bg-transparent text-[color:var(--text-primary)] overflow-x-hidden font-sans">
-      
-      <aside className="glass-border hidden w-[280px] flex-col border-r md:flex">
-        <NavContent />
+
+      <aside className={`glass-border hidden shrink-0 flex-col border-r md:flex transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-[72px]' : 'w-[280px]'}`}>
+        <NavContent collapsed={sidebarCollapsed} showCollapseToggle />
       </aside>
 
       {mobileMenuOpen && (
@@ -190,14 +267,14 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
              <button onClick={() => setMobileMenuOpen(false)} className="absolute right-4 top-4 flex min-h-[44px] min-w-[44px] items-center justify-center text-[color:var(--text-muted)] hover:text-white">
                 <X size={22} />
              </button>
-             <NavContent />
+             <NavContent collapsed={false} showCollapseToggle={false} />
           </aside>
         </div>
       )}
 
       <div className="flex h-screen flex-1 flex-col overflow-hidden">
         <header className="glass-border z-20 flex h-16 items-center justify-between border-b px-4 md:h-20 md:px-8">
-          
+
           <div className="flex items-center gap-3 md:hidden">
             <button onClick={() => setMobileMenuOpen(true)} className="flex min-h-[44px] min-w-[44px] items-center justify-center text-[color:var(--text-secondary)] hover:text-white">
               <Menu size={24} />
@@ -235,7 +312,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
           </div>
         </header>
 
-        <main className="custom-scrollbar relative flex-1 overflow-y-auto bg-[#0f1d33]">
+        <main className="custom-scrollbar relative flex-1 overflow-y-auto bg-[color:var(--bg-base)]">
           <div className="app-noise pointer-events-none absolute inset-0 z-0"></div>
           <div className="relative z-10 mx-auto w-full max-w-[1680px] px-4 py-6 pb-20 md:px-8 md:py-8 md:pb-8">
             {children}
@@ -245,11 +322,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
 
       {/* Bottom Navigation — mobile only */}
       <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden glass-border border-t" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        <div className="flex bg-[var(--bg-card,#151922)]">
+        <div className="flex bg-[color:var(--bg-elevated)]">
           {(
             [
               { icon: LayoutDashboard, label: 'Dashboard', view: AppView.DASHBOARD },
-              { icon: ListChecks, label: 'Recebíveis', view: AppView.DASHBOARD },
+              { icon: BriefcaseBusiness, label: 'Contratos', view: AppView.CONTRACTS },
               { icon: Bot, label: 'Assistente', view: AppView.ASSISTANT },
               { icon: Settings, label: 'Ajustes', view: AppView.SETTINGS },
             ] as const
@@ -386,7 +463,7 @@ const App: React.FC = () => {
           </div>
       );
   }
-  
+
   if (currentView === AppView.RESET_PASSWORD) {
     return (
       <div className="min-h-screen text-[color:var(--text-primary)]">
@@ -424,10 +501,10 @@ const App: React.FC = () => {
 
   return (
     <Router>
-        <Layout 
-          activeView={currentView} 
+        <Layout
+          activeView={currentView}
           onChangeView={(view) => {
-              if (view !== AppView.DASHBOARD && view !== AppView.USER_DETAILS) setTargetUserId(undefined);
+              if (view !== AppView.DASHBOARD && view !== AppView.COLLECTION && view !== AppView.USER_DETAILS) setTargetUserId(undefined);
               setCurrentView(view);
           }}
           onLogout={handleLogout}
@@ -435,11 +512,12 @@ const App: React.FC = () => {
           tenant={tenant}
           profile={profile}
         >
-          {currentView === AppView.DASHBOARD && (
-            <Dashboard 
-                targetUserId={targetUserId} 
+          {(currentView === AppView.DASHBOARD || currentView === AppView.COLLECTION) && (
+            <Dashboard
+                targetUserId={targetUserId}
                 userRole={profile?.role}
                 tenant={tenant}
+                defaultTab={currentView === AppView.COLLECTION ? 'collection' : 'overview'}
                 onBack={targetUserId ? () => { setTargetUserId(undefined); setCurrentView(AppView.USERS); } : undefined}
             />
           )}

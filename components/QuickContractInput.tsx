@@ -239,7 +239,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
               >
                 {parsing ? <><Loader2 size={16} className="animate-spin"/> Interpretando...</> : <><Zap size={16}/> Interpretar</>}
               </button>
-              <p className="text-center text-[10px] text-slate-600">Ctrl+Enter para enviar</p>
+              <p className="hidden md:block text-center text-[10px] text-slate-600">Ctrl+Enter para enviar</p>
             </div>
           )}
 

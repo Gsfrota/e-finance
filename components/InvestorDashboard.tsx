@@ -29,7 +29,7 @@ const InvestorDashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex h-full flex-col items-center justify-center space-y-4 animate-pulse text-[color:var(--accent-brass)]">
+      <div aria-live="polite" aria-label="Carregando métricas do investidor" className="flex h-full flex-col items-center justify-center space-y-4 animate-pulse text-[color:var(--accent-brass)]">
         <Wallet className="h-12 w-12" />
         <p className="section-kicker text-[color:var(--text-secondary)]">Carregando carteira do investidor</p>
       </div>
@@ -38,12 +38,12 @@ const InvestorDashboard: React.FC = () => {
 
   if (investments.length === 0) {
     return (
-      <div className="panel-card flex h-full flex-col items-center justify-center rounded-[2rem] p-10 text-center">
+      <div className="panel-card flex h-full flex-col items-center justify-center rounded-[2rem] p-6 sm:p-10 text-center">
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.16)]">
           <Landmark size={34} />
         </div>
         <p className="section-kicker mt-8">Conta pronta</p>
-        <h1 className="font-display mt-2 text-5xl leading-none text-[color:var(--text-primary)]">Olá, {metrics.userName}</h1>
+        <h1 className="font-display mt-2 text-3xl sm:text-5xl leading-none text-[color:var(--text-primary)]">Olá, {metrics.userName}</h1>
         <p className="mt-5 max-w-xl text-sm leading-7 text-[color:var(--text-secondary)]">
           Sua estrutura já está ativa, mas ainda não há contratos alocados na carteira. Quando o primeiro investimento entrar, este painel passa a mostrar principal, lucro e cronograma de recebimento.
         </p>
@@ -89,13 +89,13 @@ const InvestorDashboard: React.FC = () => {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker mb-1">Principal</p>
-              <h3 className="font-display text-[2rem] leading-none text-[color:var(--text-primary)]">Capital alocado</h3>
+              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Capital alocado</h3>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]">
               <Wallet size={18} />
             </div>
           </div>
-          <div className="mt-8 text-3xl font-extrabold text-[color:var(--text-primary)]">{formatCurrency(metrics.totalAllocated)}</div>
+          <div className="mt-8 text-xl font-extrabold text-[color:var(--text-primary)] sm:text-3xl">{formatCurrency(metrics.totalAllocated)}</div>
           <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Volume principal comprometido na carteira atual.</p>
         </div>
 
@@ -103,13 +103,13 @@ const InvestorDashboard: React.FC = () => {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker mb-1">Resultado</p>
-              <h3 className="font-display text-[2rem] leading-none text-[color:var(--text-primary)]">Lucro realizado</h3>
+              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Lucro realizado</h3>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(143,179,157,0.14)] text-[color:var(--accent-positive)] ring-1 ring-[rgba(143,179,157,0.16)]">
               <TrendingUp size={18} />
             </div>
           </div>
-          <div className="mt-8 text-3xl font-extrabold text-[color:var(--accent-positive)]">{formatCurrency(metrics.totalProfit)}</div>
+          <div className="mt-8 text-xl font-extrabold text-[color:var(--accent-positive)] sm:text-3xl">{formatCurrency(metrics.totalProfit)}</div>
           <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Apurado em regime de caixa, conforme o pagamento efetivo das parcelas.</p>
         </div>
 
@@ -117,7 +117,7 @@ const InvestorDashboard: React.FC = () => {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker mb-1">Próximo recebimento</p>
-              <h3 className="font-display text-[2rem] leading-none text-[color:var(--text-primary)]">Agenda</h3>
+              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Agenda</h3>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(144,160,189,0.14)] text-[color:var(--accent-steel)] ring-1 ring-[rgba(144,160,189,0.16)]">
               <Calendar size={18} />
@@ -125,12 +125,12 @@ const InvestorDashboard: React.FC = () => {
           </div>
           {metrics.nextPaymentDate ? (
             <>
-              <div data-testid="next-payment-value" className="mt-8 text-3xl font-extrabold text-[color:var(--text-primary)]">{formatCurrency(metrics.nextPaymentValue)}</div>
+              <div data-testid="next-payment-value" className="mt-8 text-xl font-extrabold text-[color:var(--text-primary)] sm:text-3xl">{formatCurrency(metrics.nextPaymentValue)}</div>
               <p data-testid="next-payment-date" className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Recebimento previsto em {metrics.nextPaymentDate}.</p>
             </>
           ) : (
             <>
-              <div className="mt-8 text-3xl font-extrabold text-[color:var(--text-primary)]">—</div>
+              <div className="mt-8 text-xl font-extrabold text-[color:var(--text-primary)] sm:text-3xl">—</div>
               <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Não há pagamentos futuros cadastrados na carteira atual.</p>
             </>
           )}
@@ -142,7 +142,7 @@ const InvestorDashboard: React.FC = () => {
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker mb-1">Fluxo mensal</p>
-              <h3 className="font-display text-[2rem] leading-none text-[color:var(--text-primary)]">Recebimentos projetados</h3>
+              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Recebimentos projetados</h3>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(144,160,189,0.14)] text-[color:var(--accent-steel)] ring-1 ring-[rgba(144,160,189,0.16)]">
               <ArrowUpRight size={18} />
@@ -177,7 +177,7 @@ const InvestorDashboard: React.FC = () => {
         <div className="panel-card overflow-hidden rounded-[1.8rem]">
           <div className="border-b border-white/10 px-6 py-6">
             <p className="section-kicker mb-1">Carteira</p>
-            <h3 className="font-display text-[2rem] leading-none text-[color:var(--text-primary)]">Ativos do investidor</h3>
+            <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Ativos do investidor</h3>
           </div>
           <div className="custom-scrollbar max-h-[460px] overflow-y-auto p-3">
             {investments.map((investment) => (
@@ -187,7 +187,10 @@ const InvestorDashboard: React.FC = () => {
                     <div className="text-base font-semibold text-[color:var(--text-primary)]">{investment.asset_name}</div>
                     <div className="mt-1 text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">{investment.type}</div>
                   </div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text-secondary)]">
+                  <div
+                    title={investment.healthStatus === 'late' ? 'Contrato com parcela(s) em atraso' : investment.healthStatus === 'ok' ? 'Todos os pagamentos em dia' : 'Contrato em andamento'}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text-secondary)]"
+                  >
                     <ShieldCheck size={12} className={investment.healthStatus === 'late' ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--accent-positive)]'} />
                     {investment.healthStatus === 'late' ? 'Atenção' : investment.healthStatus === 'ok' ? 'Em dia' : 'Em andamento'}
                   </div>

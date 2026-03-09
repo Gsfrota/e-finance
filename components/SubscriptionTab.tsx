@@ -23,7 +23,7 @@ const planStatusLabel = (status?: string) => {
   if (status === 'active') return { text: 'Ativo', color: 'text-teal-400' };
   if (status === 'past_due') return { text: 'Inadimplente', color: 'text-yellow-400' };
   if (status === 'canceled') return { text: 'Cancelado', color: 'text-red-400' };
-  return { text: 'Inativo', color: 'text-slate-400' };
+  return { text: 'Inativo', color: 'text-[color:var(--text-secondary)]' };
 };
 
 const buildPaymentLink = (base: string, tenantId: string, email?: string) => {
@@ -57,17 +57,17 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
     <div className="space-y-8 animate-fade-in">
 
       {/* Plano atual */}
-      <div className="bg-slate-800 border border-slate-700 rounded-[2.5rem] p-8 shadow-2xl">
+      <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[2.5rem] p-8 shadow-2xl">
         <div className="flex items-center gap-4 mb-2">
-          <div className={`p-3 rounded-xl ${hasProMax ? 'bg-yellow-900/30 text-yellow-400' : hasPro ? 'bg-teal-900/30 text-teal-400' : 'bg-slate-700 text-slate-400'}`}>
+          <div className={`p-3 rounded-xl ${hasProMax ? 'bg-yellow-900/30 text-yellow-400' : hasPro ? 'bg-teal-900/30 text-teal-400' : 'bg-[color:var(--bg-soft)] text-[color:var(--text-secondary)]'}`}>
             <Crown size={24} />
           </div>
           <div>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Plano Atual</p>
-            <h3 className="text-2xl font-black text-white uppercase">{planLabel(currentPlan)}</h3>
+            <p className="text-[10px] text-[color:var(--text-muted)] font-bold uppercase tracking-widest">Plano Atual</p>
+            <h3 className="text-2xl font-black text-[color:var(--text-primary)] uppercase">{planLabel(currentPlan)}</h3>
           </div>
           {hasPro && (
-            <span className={`ml-auto text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full ${status.color} bg-slate-700`}>
+            <span className={`ml-auto text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full ${status.color} bg-[color:var(--bg-soft)]`}>
               {status.text}
             </span>
           )}
@@ -88,16 +88,16 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         {/* Plano Pro */}
-        <div className={`bg-slate-800 border rounded-[2.5rem] p-8 shadow-2xl flex flex-col ${currentPlan === 'pro' ? 'border-teal-500' : 'border-slate-700'}`}>
+        <div className={`bg-[color:var(--bg-elevated)] border rounded-[2.5rem] p-8 shadow-2xl flex flex-col ${currentPlan === 'pro' ? 'border-teal-500' : 'border-[color:var(--border-subtle)]'}`}>
           <div className="flex items-center gap-3 mb-1">
             <Star size={20} className="text-teal-400" />
-            <h4 className="text-lg font-black text-white uppercase">Pro</h4>
+            <h4 className="text-lg font-black text-[color:var(--text-primary)] uppercase">Pro</h4>
             {currentPlan === 'pro' && <span className="ml-auto text-[10px] font-black text-teal-400 bg-teal-900/30 px-2 py-0.5 rounded-full uppercase">Seu plano</span>}
           </div>
-          <p className="text-3xl font-black text-white mt-2">R$99<span className="text-base text-slate-400 font-bold">/mês</span></p>
+          <p className="text-3xl font-black text-[color:var(--text-primary)] mt-2">R$99<span className="text-base text-[color:var(--text-secondary)] font-bold">/mês</span></p>
           <ul className="mt-6 space-y-3 flex-1">
             {PRO_FEATURES.map(({ icon: Icon, label }) => (
-              <li key={label} className="flex items-center gap-3 text-sm text-slate-300">
+              <li key={label} className="flex items-center gap-3 text-sm text-[color:var(--text-secondary)]">
                 <CheckCircle2 size={16} className="text-teal-400 flex-shrink-0" />
                 {label}
               </li>
@@ -118,12 +118,12 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
                 href={STRIPE_CUSTOMER_PORTAL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-slate-700 hover:bg-slate-600 text-white transition-all"
+                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-[color:var(--bg-soft)] hover:bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)] transition-all"
               >
                 <ExternalLink size={16} /> Gerenciar no Stripe
               </a>
             ) : (
-              <button disabled className="w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-slate-700 text-slate-500 cursor-not-allowed">
+              <button disabled className="w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-[color:var(--bg-soft)] text-[color:var(--text-muted)] cursor-not-allowed">
                 Incluído no Pro Max
               </button>
             )}
@@ -131,19 +131,19 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
         </div>
 
         {/* Plano Pro Max */}
-        <div className={`bg-slate-800 border rounded-[2.5rem] p-8 shadow-2xl flex flex-col relative overflow-hidden ${currentPlan === 'pro_max' ? 'border-yellow-500' : 'border-slate-700'}`}>
+        <div className={`bg-[color:var(--bg-elevated)] border rounded-[2.5rem] p-8 shadow-2xl flex flex-col relative overflow-hidden ${currentPlan === 'pro_max' ? 'border-yellow-500' : 'border-[color:var(--border-subtle)]'}`}>
           <div className="absolute top-4 right-4 bg-yellow-600 text-white text-[10px] font-black uppercase px-3 py-1 rounded-full">
             Recomendado
           </div>
           <div className="flex items-center gap-3 mb-1">
             <Crown size={20} className="text-yellow-400" />
-            <h4 className="text-lg font-black text-white uppercase">Pro Max</h4>
+            <h4 className="text-lg font-black text-[color:var(--text-primary)] uppercase">Pro Max</h4>
             {currentPlan === 'pro_max' && <span className="ml-2 text-[10px] font-black text-yellow-400 bg-yellow-900/30 px-2 py-0.5 rounded-full uppercase">Seu plano</span>}
           </div>
-          <p className="text-3xl font-black text-white mt-2">R$170<span className="text-base text-slate-400 font-bold">/mês</span></p>
+          <p className="text-3xl font-black text-[color:var(--text-primary)] mt-2">R$170<span className="text-base text-[color:var(--text-secondary)] font-bold">/mês</span></p>
           <ul className="mt-6 space-y-3 flex-1">
             {PRO_FEATURES.map(({ icon: Icon, label }) => (
-              <li key={label} className="flex items-center gap-3 text-sm text-slate-300">
+              <li key={label} className="flex items-center gap-3 text-sm text-[color:var(--text-secondary)]">
                 <CheckCircle2 size={16} className="text-teal-400 flex-shrink-0" />
                 {label}
               </li>
@@ -180,7 +180,7 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
                 href={STRIPE_CUSTOMER_PORTAL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-slate-700 hover:bg-slate-600 text-white transition-all"
+                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-[color:var(--bg-soft)] hover:bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)] transition-all"
               >
                 <ExternalLink size={16} /> Gerenciar no Stripe
               </a>
@@ -202,8 +202,8 @@ export const AssistantPaywall: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
       <div className="p-5 bg-yellow-900/20 rounded-3xl mb-6">
         <Lock size={48} className="text-yellow-400" />
       </div>
-      <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-3">Recurso Pro Max</h2>
-      <p className="text-slate-400 text-sm max-w-md mb-8">
+      <h2 className="text-3xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter mb-3">Recurso Pro Max</h2>
+      <p className="text-[color:var(--text-secondary)] text-sm max-w-md mb-8">
         O Assistente IA com briefing matinal e automações por WhatsApp/Telegram está disponível apenas no plano <strong className="text-yellow-400">Pro Max</strong> (R$170/mês).
       </p>
       <div className="flex flex-col sm:flex-row gap-4">

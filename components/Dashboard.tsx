@@ -8,6 +8,7 @@ import {
 import {
   LayoutDashboard,
   FileText,
+  Phone,
   Loader2,
   AlertCircle,
   WalletCards,
@@ -15,18 +16,20 @@ import {
 import { UserRole, Tenant } from '../types';
 import InvestorDashboard from './InvestorDashboard';
 import DebtorDashboard from './DebtorDashboard';
+import { CollectionDashboard } from './dashboard/CollectionDashboard';
 
 interface DashboardProps {
-    targetUserId?: string; 
-    onBack?: () => void;   
+    targetUserId?: string;
+    onBack?: () => void;
     userRole?: UserRole;
     tenant?: Tenant | null;
+    defaultTab?: 'overview' | 'receivables' | 'collection';
 }
 
 // Sub-component for Admin View
-const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined }> = ({ tenant }) => {
+const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultTab?: 'overview' | 'receivables' | 'collection' }> = ({ tenant, defaultTab = 'overview' }) => {
   const { stats, detailedKPIs, investments, installments, loading, error, refetch } = useDashboardData(tenant?.id);
-  const [activeTab, setActiveTab] = useState<'overview' | 'receivables'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'receivables' | 'collection'>(defaultTab);
   // Pass all installments to the table so the internal filters (All/Paid/Pending) work correctly
   const filteredInstallments = installments;
 
@@ -74,18 +77,24 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined }> = ({ t
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-1.5 rounded-full border border-white/10 bg-black/10 p-1.5">
+        <div className="mt-6 grid grid-cols-3 gap-1.5 rounded-full border border-white/10 bg-black/10 p-1.5">
           <button
             onClick={() => setActiveTab('overview')}
             className={`w-full justify-center rounded-full px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.18em] transition-all flex items-center gap-2 ${activeTab === 'overview' ? 'bg-[color:var(--accent-brass)] text-[#17120b]' : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'}`}
           >
-            <LayoutDashboard size={14} /> Visão Geral
+            <LayoutDashboard size={14} /> <span className="hidden sm:inline">Visão Geral</span><span className="sm:hidden">Visão</span>
           </button>
           <button
             onClick={() => setActiveTab('receivables')}
             className={`w-full justify-center rounded-full px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.18em] transition-all flex items-center gap-2 ${activeTab === 'receivables' ? 'bg-[color:var(--accent-brass)] text-[#17120b]' : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'}`}
           >
-            <FileText size={14} /> Recebíveis
+            <FileText size={14} /> Parcelas
+          </button>
+          <button
+            onClick={() => setActiveTab('collection')}
+            className={`w-full justify-center rounded-full px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.18em] transition-all flex items-center gap-2 ${activeTab === 'collection' ? 'bg-[color:var(--accent-brass)] text-[#17120b]' : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'}`}
+          >
+            <Phone size={14} /> Cobranças
           </button>
         </div>
       </div>
@@ -93,7 +102,7 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined }> = ({ t
       <div>
         {activeTab === 'overview' && (
           <div className="space-y-6 animate-fade-in">
-            <KPICards stats={stats} kpis={detailedKPIs} installments={installments} onGoToReceivables={() => setActiveTab('receivables')} />
+            <KPICards stats={stats} kpis={detailedKPIs} installments={installments} onGoToCollection={() => setActiveTab('collection')} />
             
             <OverviewCharts kpis={detailedKPIs} installments={installments} />
             
@@ -113,19 +122,25 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined }> = ({ t
           </div>
         )}
 
+        {activeTab === 'collection' && (
+          <div className="animate-fade-in">
+            <CollectionDashboard installments={installments} onUpdate={refetch} tenant={tenant} />
+          </div>
+        )}
+
       </div>
     </div>
   );
 };
 
 // Main Component acting as Router/Controller based on Role
-const Dashboard: React.FC<DashboardProps> = ({ targetUserId, userRole, tenant, onBack }) => {
+const Dashboard: React.FC<DashboardProps> = ({ targetUserId, userRole, tenant, onBack, defaultTab }) => {
   // If explicitly targeting a user (e.g. Admin viewing specific investor), or if role is Investor/Debtor
   if (userRole === 'investor' && !targetUserId) return <InvestorDashboard />;
   if (userRole === 'debtor' && !targetUserId) return <DebtorDashboard />;
-  
+
   // Default to Admin Dashboard
-  return <AdminDashboardView tenant={tenant} />;
+  return <AdminDashboardView tenant={tenant} defaultTab={defaultTab} />;
 };
 
 export default Dashboard;

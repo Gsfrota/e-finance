@@ -134,7 +134,7 @@ const DebtorDashboard: React.FC = () => {
               
               return (
                   <div data-testid="contract-item" key={contract.id} className={`bg-slate-800 rounded-[2rem] border transition-all duration-300 overflow-hidden ${
-                      contract.status === 'late' ? 'border-red-900/50 shadow-red-900/10' : 'border-slate-700 shadow-lg'
+                      contract.status === 'late' ? 'border-red-900/50 shadow-red-900/10 hover:border-red-700/60' : 'border-slate-700 shadow-lg hover:border-slate-500'
                   }`}>
                       
                       {/* HEADER (Clickable) */}

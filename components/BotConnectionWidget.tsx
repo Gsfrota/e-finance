@@ -92,9 +92,9 @@ export function BotConnectionWidget() {
   const formatCountdown = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   return (
-    <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
-      <h3 className="text-white font-semibold text-base mb-1">Assistente de Bolso</h3>
-      <p className="text-slate-400 text-sm mb-4">
+    <div className="bg-[color:var(--bg-elevated)] rounded-xl p-5 border border-[color:var(--border-subtle)]">
+      <h3 className="text-[color:var(--text-primary)] font-semibold text-base mb-1">Assistente de Bolso</h3>
+      <p className="text-[color:var(--text-secondary)] text-sm mb-4">
         Conecte seu WhatsApp ou Telegram para gerenciar contratos por mensagem.
       </p>
 
@@ -124,8 +124,8 @@ export function BotConnectionWidget() {
 
       {/* Código de vinculação */}
       {linkCode && countdown > 0 && (
-        <div className="mt-4 bg-slate-900 rounded-lg p-4 border border-teal-700">
-          <p className="text-slate-300 text-sm mb-2">
+        <div className="mt-4 bg-[color:var(--bg-base)] rounded-lg p-4 border border-teal-700">
+          <p className="text-[color:var(--text-secondary)] text-sm mb-2">
             Envie o código abaixo para o bot no{' '}
             <a
               href={activeChannel === 'whatsapp'
@@ -140,10 +140,10 @@ export function BotConnectionWidget() {
             :
           </p>
           <div className="flex items-center gap-3">
-            <span className="text-2xl font-bold text-white tracking-widest font-mono">{linkCode}</span>
+            <span className="text-2xl font-bold text-[color:var(--text-primary)] tracking-widest font-mono">{linkCode}</span>
             <button
               onClick={() => navigator.clipboard.writeText(linkCode)}
-              className="text-xs text-slate-400 hover:text-white border border-slate-600 rounded px-2 py-1"
+              className="text-xs text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] border border-[color:var(--border-subtle)] rounded px-2 py-1"
             >
               Copiar
             </button>
@@ -158,7 +158,7 @@ export function BotConnectionWidget() {
           >
             Abrir {activeChannel === 'whatsapp' ? 'WhatsApp' : 'Telegram'} com o código →
           </a>
-          <p className="text-slate-500 text-xs mt-2">Expira em {formatCountdown(countdown)}</p>
+          <p className="text-[color:var(--text-muted)] text-xs mt-2">Expira em {formatCountdown(countdown)}</p>
           <button
             onClick={() => { setLinkCode(null); setCountdown(0); loadStatus(); }}
             className="mt-3 text-xs text-teal-400 hover:underline"
@@ -178,13 +178,13 @@ function ChannelRow({
   onConnect: () => void; onDisconnect: () => void; loading: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between bg-slate-700/50 rounded-lg px-4 py-3">
+    <div className="flex items-center justify-between bg-[color:var(--bg-soft)] rounded-lg px-4 py-3">
       <div className="flex items-center gap-3">
         <span className="text-lg">{icon}</span>
         <div>
-          <p className="text-white text-sm font-medium">{label}</p>
+          <p className="text-[color:var(--text-primary)] text-sm font-medium">{label}</p>
           {connected && identifier && (
-            <p className="text-slate-400 text-xs">{identifier}</p>
+            <p className="text-[color:var(--text-secondary)] text-xs">{identifier}</p>
           )}
         </div>
       </div>
@@ -194,7 +194,7 @@ function ChannelRow({
             <span className="w-2 h-2 rounded-full bg-green-500" />
             <button
               onClick={onDisconnect}
-              className="text-xs text-slate-400 hover:text-red-400 transition-colors"
+              className="text-xs text-[color:var(--text-secondary)] hover:text-red-400 transition-colors"
             >
               Desconectar
             </button>

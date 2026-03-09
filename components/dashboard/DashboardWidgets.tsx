@@ -13,6 +13,8 @@ import {
   Coins,
   DollarSign,
   RefreshCw,
+  Search,
+  Zap,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -60,11 +62,11 @@ const computeAgingBuckets = (installments: LoanInstallment[]) => {
   today.setHours(0, 0, 0, 0);
 
   const buckets = [
-    { name: '1-7', value: 0 },
-    { name: '8-15', value: 0 },
-    { name: '16-30', value: 0 },
-    { name: '31-60', value: 0 },
-    { name: '60+', value: 0 },
+    { name: '≤7d',   label: 'Até 7 dias',  value: 0, color: '#fbbf24' },
+    { name: '8–15d', label: '8 a 15 dias', value: 0, color: '#f97316' },
+    { name: '16–30d',label: '16 a 30d',    value: 0, color: '#ef4444' },
+    { name: '1–2m',  label: '1 a 2 meses', value: 0, color: '#dc2626' },
+    { name: '>60d',  label: 'Mais de 60d', value: 0, color: '#991b1b' },
   ];
 
   installments.forEach((installment) => {
@@ -96,12 +98,12 @@ interface KPICardsProps {
   stats: AdminDashboardStats;
   kpis: DashboardKPIs;
   installments: LoanInstallment[];
-  onGoToReceivables?: () => void;
+  onGoToCollection?: () => void;
 }
 
 type CobraDias = 0 | 3 | 6 | 15 | 30;
 
-export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToReceivables }) => {
+export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToCollection }) => {
   const [cobraDias, setCobraDias] = useState<CobraDias>(15);
 
   const aCobraValor = useMemo(() => {
@@ -137,19 +139,19 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToRe
       {/* Faturamento do Mês */}
       <div className={`${panelClass} flex flex-col gap-4 p-4 md:p-7`}>
         <div className="flex items-center gap-3">
-          <span className="text-2xl">📅</span>
+          <Calendar size={18} className="text-[color:var(--accent-brass)]" />
           <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">FATURAMENTO DO MÊS</p>
         </div>
         <div>
           <p className="mb-0.5 text-xs text-[color:var(--text-faint)]">Total esperado</p>
           <p className="text-sm font-semibold text-[color:var(--text-secondary)]">{formatCurrency(kpis.expectedMonth)}</p>
         </div>
-        <div className="text-3xl font-extrabold tracking-tight text-[color:var(--accent-positive)] md:text-[2.4rem]">
+        <div className="text-xl font-extrabold tracking-tight text-[color:var(--accent-positive)] md:text-[2.4rem]">
           {formatCurrency(kpis.receivedByPaymentMonth)}
         </div>
         <div>
           <div className="mb-1.5 flex justify-between text-xs text-[color:var(--text-faint)]">
-            <span>{pct}% recebido</span>
+            <span>{Math.min(100, pct)}% recebido{pct > 100 ? ` (real: ${pct}%)` : ''}</span>
             <span>{formatCurrency(Math.max(0, kpis.expectedMonth - kpis.receivedByPaymentMonth))} restante</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-white/10">
@@ -161,10 +163,10 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToRe
       {/* Em Atraso */}
       <div className={`${panelClass} flex flex-col gap-4 p-4 md:p-7`}>
         <div className="flex items-center gap-3">
-          <span className="text-2xl">🔴</span>
+          <AlertTriangle size={18} className="text-[color:var(--accent-danger)]" />
           <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">EM ATRASO</p>
         </div>
-        <div className="text-3xl font-extrabold tracking-tight text-[color:var(--accent-danger)] md:text-[2.4rem]">
+        <div className="text-xl font-extrabold tracking-tight text-[color:var(--accent-danger)] md:text-[2.4rem]">
           {formatCurrency(kpis.totalOverdue)}
         </div>
       </div>
@@ -173,7 +175,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToRe
       <div className={`${panelClass} flex flex-col gap-4 p-4 md:p-7`}>
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">⚡</span>
+            <Zap size={18} className="text-[color:var(--accent-brass)]" />
             <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">A COBRAR</p>
           </div>
           <div className="flex flex-wrap gap-1">
@@ -192,13 +194,16 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToRe
             ))}
           </div>
         </div>
-        <button
-          onClick={onGoToReceivables}
-          disabled={!onGoToReceivables}
-          className="text-left text-3xl font-extrabold tracking-tight text-[color:var(--accent-brass)] transition-opacity hover:opacity-80 disabled:cursor-default disabled:hover:opacity-100 md:text-[2.4rem]"
-        >
-          {formatCurrency(aCobraValor)}
-        </button>
+        <div>
+          <button
+            onClick={onGoToCollection}
+            disabled={!onGoToCollection}
+            className="text-left text-xl font-extrabold tracking-tight text-[color:var(--accent-brass)] transition-opacity hover:opacity-80 disabled:cursor-default disabled:hover:opacity-100 md:text-[2.4rem]"
+          >
+            {formatCurrency(aCobraValor)}
+          </button>
+          <p className="text-xs text-[color:var(--text-faint)] mt-1">Clique para ver a fila de cobrança</p>
+        </div>
       </div>
     </div>
   );
@@ -212,7 +217,7 @@ export const FiltersBar: React.FC<FiltersBarProps> = ({ onSearch }) => (
   <div className={`${panelClass} flex flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between`}>
     <div>
       <p className="section-kicker mb-1">Carteira</p>
-      <h3 className="font-display text-[2rem] leading-none text-[color:var(--text-primary)]">Base de contratos</h3>
+      <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Base de contratos</h3>
     </div>
 
     <div className="relative w-full md:max-w-sm">
@@ -249,7 +254,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({ kpis, installmen
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <p className="section-kicker mb-1">Exposição</p>
-            <h3 className="font-display text-[2rem] leading-none text-[color:var(--text-primary)]">Composição do capital</h3>
+            <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Composição do capital</h3>
           </div>
           <div className="rounded-2xl bg-[rgba(202,176,122,0.14)] p-3 text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]">
             <Coins size={18} />
@@ -308,7 +313,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({ kpis, installmen
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <p className="section-kicker mb-1">Cobrança</p>
-            <h3 className="font-display text-[2rem] leading-none text-[color:var(--text-primary)]">Aging do atraso</h3>
+            <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Inadimplência por prazo</h3>
           </div>
           <div className="rounded-2xl bg-[rgba(198,126,105,0.14)] p-3 text-[color:var(--accent-danger)] ring-1 ring-[rgba(198,126,105,0.18)]">
             <AlertTriangle size={18} />
@@ -332,7 +337,11 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({ kpis, installmen
                 labelStyle={{ color: '#f5efe2' }}
                 itemStyle={{ color: '#f5efe2' }}
               />
-              <Bar dataKey="value" radius={[12, 12, 0, 0]} fill="#c67e69" />
+              <Bar dataKey="value" radius={[12, 12, 0, 0]}>
+                {agingData.map((entry) => (
+                  <Cell key={entry.name} fill={(entry as any).color ?? '#c67e69'} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -502,7 +511,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <p className="section-kicker mb-1">Títulos</p>
-              <h3 className="font-display text-[2rem] leading-none text-[color:var(--text-primary)]">Gestão de parcelas</h3>
+              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Gestão de parcelas</h3>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-[color:var(--text-secondary)]">
                 Filtre por mês ou período livre, acompanhe o status da parcela e registre baixa, refinanciamento ou edição sem sair da grade.
               </p>

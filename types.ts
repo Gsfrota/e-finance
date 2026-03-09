@@ -35,9 +35,16 @@ export interface Profile {
   full_name: string;
   role: UserRole;
   tenant_id: string;
-  cpf?: string; 
+  cpf?: string;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  bairro?: string;
+  cidade?: string;
+  uf?: string;
+  photo_url?: string;
   updated_at: string;
-  tenants?: Tenant; 
+  tenants?: Tenant;
 }
 
 // Interface para a View SQL view_investor_balances
@@ -163,6 +170,14 @@ export interface Invite {
   full_name?: string;
   email?: string;
   phone_number?: string;
+  cpf?: string;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  bairro?: string;
+  cidade?: string;
+  uf?: string;
+  photo_url?: string;
   status: 'pending' | 'accepted';
   expires_at: string;
   created_by: string;
@@ -176,5 +191,6 @@ export enum AppView {
   CONTRACTS = 'CONTRACTS',
   SETTINGS = 'SETTINGS',
   ASSISTANT = 'ASSISTANT',
+  COLLECTION = 'COLLECTION',
   RESET_PASSWORD = 'RESET_PASSWORD'
 }

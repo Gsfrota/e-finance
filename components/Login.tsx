@@ -183,7 +183,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
         <section className="relative flex flex-col justify-center px-6 py-8 lg:px-16">
         {!isProduction() && (
-            <button onClick={clearExternalConfig} className="absolute right-6 top-6 flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)] transition-colors hover:text-[color:var(--accent-brass)]">
+            <button onClick={clearExternalConfig} aria-label="Resetar configuração externa" className="absolute right-6 top-6 flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)] transition-colors hover:text-[color:var(--accent-brass)]">
                 <Settings2 size={14}/> Reset Config
             </button>
         )}
@@ -255,7 +255,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   data-testid="login-btn"
                   type="submit"
                   disabled={loading}
-                  className="flex w-full items-center justify-center gap-2 rounded-full bg-[color:var(--accent-brass)] px-6 py-4 text-xs font-extrabold uppercase tracking-[0.22em] text-[#17120b] transition-all hover:bg-[color:var(--accent-brass-strong)] disabled:opacity-70"
+                  aria-busy={loading}
+                  className="flex w-full items-center justify-center gap-2 rounded-full bg-[color:var(--accent-brass)] px-6 py-4 text-xs font-extrabold uppercase tracking-[0.22em] text-[#17120b] transition-all hover:bg-[color:var(--accent-brass-strong)]"
                 >
                   {loading ? <Activity className="animate-spin" size={18} /> : <ArrowRight size={16} />}
                   <span>{authMode === 'login' ? 'Entrar na operação' : 'Prosseguir'}</span>
@@ -286,7 +287,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     </p>
                     <p className="pt-2 text-xs uppercase tracking-[0.16em]">
                       Problemas para acessar?
-                      <button type="button" onClick={handlePasswordReset} disabled={loading} className="ml-2 font-semibold text-[color:var(--text-secondary)]">
+                      <button type="button" onClick={handlePasswordReset} disabled={loading} aria-busy={loading} aria-label="Redefinir senha por e-mail" className="ml-2 font-semibold text-[color:var(--text-secondary)]">
                         Redefinir senha
                       </button>
                     </p>
