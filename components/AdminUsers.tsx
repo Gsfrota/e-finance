@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { getSupabase, logError, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { Profile, UserRole, Tenant, Invite } from '../types';
-import { User, PlusCircle, Search, X, DollarSign, Activity, Users, CreditCard, Pencil, AlertTriangle, FileSearch, RefreshCw, Crown, Shield, Clipboard, Check, Key, Mail, Phone, Briefcase, Send, Trash2, Hourglass, UserPlus, MapPin, Upload, CheckCircle2 } from 'lucide-react';
+import { User, PlusCircle, Search, X, DollarSign, Activity, Users, CreditCard, Pencil, AlertTriangle, FileSearch, RefreshCw, Crown, Shield, Clipboard, Check, Key, Mail, Phone, Briefcase, Send, Trash2, Hourglass, UserPlus, MapPin, Upload, CheckCircle2, ArrowLeft } from 'lucide-react';
 
 // View Model para unificar a exibição
 type DisplayUser = {
@@ -37,7 +37,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
 
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
 
-  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [usersSubView, setUsersSubView] = useState<'list' | 'invite'>('list');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<DisplayUser | null>(null);
 
@@ -276,6 +276,128 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
       pending: displayUsers.filter(u => u.status === 'PENDENTE').length,
   };
 
+  if (usersSubView === 'invite') {
+    return (
+      <div className="flex h-full flex-col bg-[color:var(--bg-elevated)]">
+        {/* Header */}
+        <div className="flex items-center gap-3 border-b border-[color:var(--border-subtle)] px-5 py-5 shrink-0">
+          <button
+            onClick={() => { setUsersSubView('list'); resetInviteModal(); }}
+            className="rounded-full p-2 text-[color:var(--text-muted)] hover:bg-[color:var(--bg-soft)] transition-colors"
+          >
+            <ArrowLeft size={20}/>
+          </button>
+          <h3 className="text-xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter">Cadastrar Cliente</h3>
+        </div>
+        {/* Error */}
+        {errorMessage && (
+          <div className="mx-5 mt-4 bg-red-900/20 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+            <AlertTriangle size={14}/> {errorMessage}
+          </div>
+        )}
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto px-5 py-5 pb-8">
+          {clientCreated ? (
+            <div className="flex flex-col items-center gap-5 py-8 text-center">
+              <CheckCircle2 size={48} className="text-teal-400" />
+              <p className="font-black text-lg text-[color:var(--text-primary)]">Cliente cadastrado!</p>
+              <p className="text-sm text-[color:var(--text-muted)]">
+                O perfil foi criado. Você pode gerar um link de acesso depois, se necessário.
+              </p>
+              <button
+                onClick={() => { setUsersSubView('list'); resetInviteModal(); }}
+                className="w-full py-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-black uppercase tracking-widest"
+              >
+                Fechar
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleCreateClient} className="space-y-3 sm:space-y-5">
+              {/* Seção 1 — Identificação */}
+              <div className="space-y-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Identificação</p>
+                <div className="relative"><User className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><input required type="text" value={inviteForm.full_name} onChange={e => setInviteForm({...inviteForm, full_name: e.target.value})} placeholder="Nome Completo" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" /></div>
+                <div className="relative"><Mail className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><input type="email" value={inviteForm.email} onChange={e => setInviteForm({...inviteForm, email: e.target.value})} placeholder="E-mail (Opcional)" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" /></div>
+                <div className="relative"><Phone className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><input type="tel" value={inviteForm.phone_number} onChange={e => setInviteForm({...inviteForm, phone_number: e.target.value})} placeholder="Telefone (Opcional)" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" /></div>
+                <div className="relative"><Briefcase className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><select required value={inviteForm.role} onChange={e => setInviteForm({...inviteForm, role: e.target.value as UserRole})} className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl appearance-none text-[color:var(--text-primary)]"><option value="debtor">Devedor</option><option value="investor">Investidor</option></select></div>
+              </div>
+              {/* Seção 2 — Documento */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Documento</p>
+                <div className="relative">
+                  <Key className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
+                  <input
+                    type="text"
+                    value={inviteForm.cpf}
+                    onChange={e => {
+                      const masked = maskCPF(e.target.value);
+                      setInviteForm({...inviteForm, cpf: masked});
+                      setCpfError(null);
+                    }}
+                    placeholder="CPF (Opcional)"
+                    className={`w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)] ${cpfError ? 'border border-red-500' : ''}`}
+                  />
+                </div>
+                {cpfError && <p className="text-red-400 text-xs pl-1">{cpfError}</p>}
+              </div>
+              {/* Seção 3 — Endereço */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Endereço <span className="text-[color:var(--text-faint)]">(Opcional)</span></p>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
+                  <input
+                    type="text"
+                    value={inviteForm.cep}
+                    onChange={e => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+                      const formatted = digits.length > 5 ? `${digits.slice(0,5)}-${digits.slice(5)}` : digits;
+                      setInviteForm({...inviteForm, cep: formatted});
+                      setCepError(null);
+                      if (digits.length === 8) handleCepLookup(digits);
+                    }}
+                    placeholder="CEP"
+                    className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]"
+                  />
+                  {cepLoading && <Activity className="absolute right-4 top-4 text-teal-500 animate-spin" size={18} />}
+                </div>
+                {cepError && <p className="text-red-400 text-xs pl-1">{cepError}</p>}
+                <input type="text" value={inviteForm.logradouro} onChange={e => setInviteForm({...inviteForm, logradouro: e.target.value})} placeholder="Logradouro" className="w-full bg-[color:var(--bg-base)] p-4 rounded-2xl text-[color:var(--text-primary)]" />
+                <input type="text" value={inviteForm.numero} onChange={e => setInviteForm({...inviteForm, numero: e.target.value})} placeholder="Número" className="w-full bg-[color:var(--bg-base)] p-4 rounded-2xl text-[color:var(--text-primary)]" />
+                <input type="text" value={inviteForm.bairro} onChange={e => setInviteForm({...inviteForm, bairro: e.target.value})} placeholder="Bairro" className="w-full bg-[color:var(--bg-base)] p-4 rounded-2xl text-[color:var(--text-primary)]" />
+                <div className="flex gap-2">
+                  <input type="text" value={inviteForm.cidade} onChange={e => setInviteForm({...inviteForm, cidade: e.target.value})} placeholder="Cidade" className="flex-1 bg-[color:var(--bg-base)] p-4 rounded-2xl text-[color:var(--text-primary)]" />
+                  <input type="text" value={inviteForm.uf} onChange={e => setInviteForm({...inviteForm, uf: e.target.value.toUpperCase().slice(0,2)})} placeholder="UF" className="w-20 bg-[color:var(--bg-base)] p-4 rounded-2xl text-[color:var(--text-primary)] text-center" />
+                </div>
+              </div>
+              {/* Seção 4 — Foto */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Foto <span className="text-[color:var(--text-faint)]">(Opcional)</span></p>
+                <div className="flex items-center gap-3">
+                  <label className="flex-1 cursor-pointer">
+                    <div className="flex items-center gap-3 bg-[color:var(--bg-base)] p-4 rounded-2xl border border-dashed border-[color:var(--border-subtle)] hover:border-[color:var(--accent-brass)] transition-colors">
+                      {uploading ? <Activity className="text-teal-500 animate-spin" size={18} /> : <Upload className="text-[color:var(--text-muted)]" size={18} />}
+                      <span className="text-sm text-[color:var(--text-muted)]">
+                        {uploading ? 'Enviando...' : inviteForm.photo_url ? 'Trocar foto' : 'Selecionar foto'}
+                      </span>
+                    </div>
+                    <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); }} />
+                  </label>
+                  {inviteForm.photo_url && (
+                    <img src={inviteForm.photo_url} alt="Preview" className="w-12 h-12 rounded-xl object-cover border border-slate-600 shrink-0" />
+                  )}
+                </div>
+                {uploadError && <p className="text-red-400 text-xs pl-1">{uploadError}</p>}
+              </div>
+              <button type="submit" disabled={submitting} className="w-full bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] py-5 rounded-2xl font-black text-xs uppercase tracking-widest text-[#17120b] flex items-center justify-center gap-2 transition-colors">
+                {submitting ? <Activity className="animate-spin"/> : <><UserPlus size={18}/> Cadastrar Cliente</>}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
@@ -293,14 +415,14 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                 <button onClick={fetchUsersAndInvites} aria-label="Atualizar lista de usuários" className="p-2.5 min-h-[44px] min-w-[44px] bg-[color:var(--bg-elevated)] hover:bg-[color:var(--bg-soft)] text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] rounded-2xl border border-[color:var(--border-subtle)] transition-colors flex items-center justify-center" title="Atualizar Lista">
                     <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
                 </button>
-                <button onClick={() => setIsInviteModalOpen(true)} className="bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] text-[#17120b] px-5 py-2.5 min-h-[44px] rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg font-bold text-sm whitespace-nowrap">
+                <button onClick={() => setUsersSubView('invite')} className="bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] text-[#17120b] px-5 py-2.5 min-h-[44px] rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg font-bold text-sm whitespace-nowrap">
                     <UserPlus size={18} /> <span className="hidden sm:inline">Cadastrar Cliente</span><span className="sm:hidden">Novo</span>
                 </button>
             </div>
         </div>
       </div>
 
-      {errorMessage && !isInviteModalOpen && (
+      {errorMessage && usersSubView === 'list' && (
           <div className="space-y-3 animate-shake"><div className="bg-red-900/20 border border-red-900/50 p-4 rounded-2xl flex items-center gap-3 text-red-400 text-xs font-bold"><AlertTriangle size={18} className="shrink-0" /><span>{errorMessage}</span></div></div>
       )}
 
@@ -406,128 +528,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
         </div>
       )}
 
-      {isInviteModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm sm:p-4">
-             <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-t-[2rem] sm:rounded-[2.5rem] w-full sm:max-w-md shadow-2xl px-5 pt-5 pb-28 sm:p-8 animate-fade-in-up overflow-y-auto max-h-[92vh] sm:max-h-[85vh]">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter">Cadastrar Cliente</h3>
-                    <button onClick={() => { setIsInviteModalOpen(false); resetInviteModal(); }} className="text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition-colors"><X size={24} /></button>
-                </div>
-                {errorMessage && (<div className="mb-4 bg-red-900/20 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2"><AlertTriangle size={14}/> {errorMessage}</div>)}
-                {clientCreated ? (
-                    <div className="flex flex-col items-center gap-5 py-4 text-center">
-                        <CheckCircle2 size={48} className="text-teal-400" />
-                        <p className="font-black text-lg text-[color:var(--text-primary)]">Cliente cadastrado!</p>
-                        <p className="text-sm text-[color:var(--text-muted)]">
-                            O perfil foi criado. Você pode gerar um link de acesso depois, se necessário.
-                        </p>
-                        <button
-                            onClick={() => {
-                                setClientCreated(false);
-                                setIsInviteModalOpen(false);
-                                setInviteForm({ full_name:'', email:'', phone_number:'', role:'debtor', cpf:'', cep:'', logradouro:'', numero:'', bairro:'', cidade:'', uf:'', photo_url:'' });
-                            }}
-                            className="w-full py-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-black uppercase tracking-widest"
-                        >
-                            Fechar
-                        </button>
-                    </div>
-                ) : (
-                    <form onSubmit={handleCreateClient} className="space-y-3 sm:space-y-5">
-                        {/* Seção 1 — Identificação */}
-                        <div className="space-y-3">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Identificação</p>
-                            <div className="relative"><User className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><input required type="text" value={inviteForm.full_name} onChange={e => setInviteForm({...inviteForm, full_name: e.target.value})} placeholder="Nome Completo" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" /></div>
-                            <div className="relative"><Mail className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><input type="email" value={inviteForm.email} onChange={e => setInviteForm({...inviteForm, email: e.target.value})} placeholder="E-mail (Opcional)" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" /></div>
-                            <div className="relative"><Phone className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><input type="tel" value={inviteForm.phone_number} onChange={e => setInviteForm({...inviteForm, phone_number: e.target.value})} placeholder="Telefone (Opcional)" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" /></div>
-                            <div className="relative"><Briefcase className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><select required value={inviteForm.role} onChange={e => setInviteForm({...inviteForm, role: e.target.value as UserRole})} className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl appearance-none text-[color:var(--text-primary)]"><option value="debtor">Devedor</option><option value="investor">Investidor</option></select></div>
-                        </div>
-
-                        {/* Seção 2 — Documento */}
-                        <div className="space-y-2">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Documento</p>
-                            <div className="relative">
-                                <Key className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
-                                <input
-                                  type="text"
-                                  value={inviteForm.cpf}
-                                  onChange={e => {
-                                    const masked = maskCPF(e.target.value);
-                                    setInviteForm({...inviteForm, cpf: masked});
-                                    setCpfError(null);
-                                  }}
-                                  placeholder="CPF (Opcional)"
-                                  className={`w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)] ${cpfError ? 'border border-red-500' : ''}`}
-                                />
-                            </div>
-                            {cpfError && <p className="text-red-400 text-xs pl-1">{cpfError}</p>}
-                        </div>
-
-                        {/* Seção 3 — Endereço */}
-                        <div className="space-y-2">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Endereço <span className="text-[color:var(--text-faint)]">(Opcional)</span></p>
-                            <div className="relative">
-                                <MapPin className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
-                                <input
-                                  type="text"
-                                  value={inviteForm.cep}
-                                  onChange={e => {
-                                    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
-                                    const formatted = digits.length > 5 ? `${digits.slice(0,5)}-${digits.slice(5)}` : digits;
-                                    setInviteForm({...inviteForm, cep: formatted});
-                                    setCepError(null);
-                                    if (digits.length === 8) handleCepLookup(digits);
-                                  }}
-                                  placeholder="CEP"
-                                  className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]"
-                                />
-                                {cepLoading && <Activity className="absolute right-4 top-4 text-teal-500 animate-spin" size={18} />}
-                            </div>
-                            {cepError && <p className="text-red-400 text-xs pl-1">{cepError}</p>}
-                            <input type="text" value={inviteForm.logradouro} onChange={e => setInviteForm({...inviteForm, logradouro: e.target.value})} placeholder="Logradouro" className="w-full bg-[color:var(--bg-base)] p-4 rounded-2xl text-[color:var(--text-primary)]" />
-                            <input type="text" value={inviteForm.numero} onChange={e => setInviteForm({...inviteForm, numero: e.target.value})} placeholder="Número" className="w-full bg-[color:var(--bg-base)] p-4 rounded-2xl text-[color:var(--text-primary)]" />
-                            <input type="text" value={inviteForm.bairro} onChange={e => setInviteForm({...inviteForm, bairro: e.target.value})} placeholder="Bairro" className="w-full bg-[color:var(--bg-base)] p-4 rounded-2xl text-[color:var(--text-primary)]" />
-                            <div className="flex gap-2">
-                                <input type="text" value={inviteForm.cidade} onChange={e => setInviteForm({...inviteForm, cidade: e.target.value})} placeholder="Cidade" className="flex-1 bg-[color:var(--bg-base)] p-4 rounded-2xl text-[color:var(--text-primary)]" />
-                                <input type="text" value={inviteForm.uf} onChange={e => setInviteForm({...inviteForm, uf: e.target.value.toUpperCase().slice(0,2)})} placeholder="UF" className="w-20 bg-[color:var(--bg-base)] p-4 rounded-2xl text-[color:var(--text-primary)] text-center" />
-                            </div>
-                        </div>
-
-                        {/* Seção 4 — Foto */}
-                        <div className="space-y-2">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Foto <span className="text-[color:var(--text-faint)]">(Opcional)</span></p>
-                            <div className="flex items-center gap-3">
-                                <label className="flex-1 cursor-pointer">
-                                    <div className="flex items-center gap-3 bg-[color:var(--bg-base)] p-4 rounded-2xl border border-dashed border-[color:var(--border-subtle)] hover:border-[color:var(--accent-brass)] transition-colors">
-                                        {uploading
-                                            ? <Activity className="text-teal-500 animate-spin" size={18} />
-                                            : <Upload className="text-[color:var(--text-muted)]" size={18} />
-                                        }
-                                        <span className="text-sm text-[color:var(--text-muted)]">
-                                            {uploading ? 'Enviando...' : inviteForm.photo_url ? 'Trocar foto' : 'Selecionar foto'}
-                                        </span>
-                                    </div>
-                                    <input
-                                        type="file" accept="image/*" className="hidden" disabled={uploading}
-                                        onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); }}
-                                    />
-                                </label>
-                                {inviteForm.photo_url && (
-                                    <img src={inviteForm.photo_url} alt="Preview"
-                                        className="w-12 h-12 rounded-xl object-cover border border-slate-600 shrink-0" />
-                                )}
-                            </div>
-                            {uploadError && <p className="text-red-400 text-xs pl-1">{uploadError}</p>}
-                        </div>
-
-                        <button type="submit" disabled={submitting} className="w-full bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] py-5 rounded-2xl font-black text-xs uppercase tracking-widest text-[#17120b] flex items-center justify-center gap-2 transition-colors">
-                            {submitting ? <Activity className="animate-spin"/> : <><UserPlus size={18}/> Cadastrar Cliente</>}
-                        </button>
-                    </form>
-                )}
-             </div>
-          </div>
-      )}
     </div>
   );
 };

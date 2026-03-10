@@ -64,12 +64,18 @@ export function BotConnectionWidget() {
         .eq('channel', channel)
         .is('used_at', null);
 
-      await supabase.from('bot_link_codes').insert({
+      const { error: insertError } = await supabase.from('bot_link_codes').insert({
         profile_id: user.id,
         code,
         channel,
         expires_at: expiresAt,
       });
+
+      if (insertError) {
+        console.error('[BotConnectionWidget] falha ao salvar código:', insertError.message);
+        alert('Erro ao gerar código. Tente novamente.');
+        return;
+      }
 
       setLinkCode(code);
       setActiveChannel(channel);

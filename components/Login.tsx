@@ -129,21 +129,28 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     return 'Entre com suas credenciais para continuar.';
   }
 
-  const baseInputClass = 'w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3.5 text-sm text-[color:var(--text-primary)] outline-none transition-all placeholder:text-[color:var(--text-faint)] focus:border-[color:var(--accent-brass)] focus:bg-white/[0.05]';
+  const baseInputClass = 'w-full rounded-2xl border border-[color:var(--border-strong)] bg-white/[0.03] px-4 py-3.5 text-sm text-[color:var(--text-primary)] outline-none transition-all placeholder:text-[color:var(--text-faint)] focus:border-[color:var(--accent-brass)] focus:bg-white/[0.05] focus:shadow-[0_0_0_3px_rgba(240,180,41,0.08)]';
 
   return (
     <div className="min-h-screen overflow-hidden text-[color:var(--text-primary)]">
       <div className="mx-auto grid min-h-screen max-w-[1680px] grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(420px,560px)]">
         <section className="relative hidden overflow-hidden border-r border-white/10 px-12 py-12 lg:flex lg:flex-col lg:justify-between">
           <div className="app-noise absolute inset-0"></div>
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(202,176,122,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(144,160,189,0.14),transparent_24%)]"></div>
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(202,176,122,0.18),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(144,160,189,0.16),transparent_26%)]"></div>
+          {/* Ambient glow orb */}
+          <div className="pointer-events-none absolute bottom-1/4 left-1/3 h-96 w-96 -translate-x-1/2 rounded-full bg-[rgba(202,176,122,0.06)] blur-3xl" />
           <div className="relative z-10 flex items-center gap-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]">
               <Landmark size={22} />
             </div>
             <div>
               <p className="section-kicker mb-1">Plataforma Operacional</p>
-              <div className="font-display text-3xl leading-none">E-Finance</div>
+              <div className="font-display text-5xl leading-none tracking-tight text-[color:var(--text-primary)]">
+                Juros Certo
+              </div>
+              <p className="mt-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--accent-brass)]">
+                Gestão de crédito
+              </p>
             </div>
           </div>
 
@@ -157,18 +164,24 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </p>
 
             <div className="mt-12 grid max-w-2xl grid-cols-3 gap-4">
-              <div className="panel-card rounded-[1.75rem] p-5">
-                <ShieldCheck size={18} className="text-[color:var(--accent-brass)]" />
+              <div className="panel-card card-hover rounded-[1.75rem] p-5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgba(202,176,122,0.12)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)]">
+                  <ShieldCheck size={16} />
+                </div>
                 <p className="mt-4 text-sm font-semibold">Estrutura multi-tenant</p>
                 <p className="mt-2 text-xs leading-6 text-[color:var(--text-muted)]">Isolamento por tenant, vínculo por perfil e auditoria de eventos críticos.</p>
               </div>
-              <div className="panel-card rounded-[1.75rem] p-5">
-                <WalletCards size={18} className="text-[color:var(--accent-steel)]" />
+              <div className="panel-card card-hover rounded-[1.75rem] p-5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgba(96,165,250,0.10)] text-[color:var(--accent-steel)] ring-1 ring-[rgba(96,165,250,0.18)]">
+                  <WalletCards size={16} />
+                </div>
                 <p className="mt-4 text-sm font-semibold">Carteira legível</p>
                 <p className="mt-2 text-xs leading-6 text-[color:var(--text-muted)]">Painel enxuto para saber o que está na rua, o que já retornou e o que vence no período.</p>
               </div>
-              <div className="panel-card rounded-[1.75rem] p-5">
-                <Building2 size={18} className="text-[color:var(--accent-positive)]" />
+              <div className="panel-card card-hover rounded-[1.75rem] p-5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgba(52,211,153,0.10)] text-[color:var(--accent-positive)] ring-1 ring-[rgba(52,211,153,0.18)]">
+                  <Building2 size={16} />
+                </div>
                 <p className="mt-4 text-sm font-semibold">Operação diária</p>
                 <p className="mt-2 text-xs leading-6 text-[color:var(--text-muted)]">Contratos, clientes, cobrança e baixa integrados em uma rotina única.</p>
               </div>
@@ -176,23 +189,25 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           </div>
 
           <div className="relative z-10 flex items-center justify-between border-t border-white/10 pt-6 text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-[color:var(--text-faint)]">
-            <span>© 2026 E-Finance</span>
+            <span>© 2026 Juros Certo</span>
             <span>Infraestrutura operacional</span>
           </div>
         </section>
 
         <section className="relative flex flex-col justify-center px-6 py-8 lg:px-16">
+          {/* Mobile ambient glow */}
+          <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 h-64 w-96 rounded-full bg-[rgba(202,176,122,0.07)] blur-3xl lg:hidden" />
         {!isProduction() && (
-            <button onClick={clearExternalConfig} aria-label="Resetar configuração externa" className="absolute right-6 top-6 flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)] transition-colors hover:text-[color:var(--accent-brass)]">
+            <button onClick={clearExternalConfig} aria-label="Resetar configuração externa" className="absolute right-6 top-6 flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)] transition-colors hover:text-[color:var(--accent-brass)] cursor-pointer">
                 <Settings2 size={14}/> Reset Config
             </button>
         )}
         <div className="mx-auto w-full max-w-lg">
-            <div className="panel-card rounded-[2rem] p-8 sm:p-10">
+            <div className="panel-card rounded-[2rem] p-8 sm:p-10" style={{ boxShadow: 'var(--shadow-float)' }}>
               <div className="mb-8 space-y-3">
                 <p className="section-kicker">Acesso seguro</p>
-                <h2 className="font-display text-5xl leading-none text-[color:var(--text-primary)]">{getTitle()}</h2>
-                <p className="max-w-md text-sm leading-7 text-[color:var(--text-secondary)]">{getSubtitle()}</p>
+                <h2 className="font-display gradient-underline text-5xl leading-none text-[color:var(--text-primary)]">{getTitle()}</h2>
+                <p className="mt-5 max-w-md text-sm leading-7 text-[color:var(--text-secondary)]">{getSubtitle()}</p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
@@ -256,7 +271,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   type="submit"
                   disabled={loading}
                   aria-busy={loading}
-                  className="flex w-full items-center justify-center gap-2 rounded-full bg-[color:var(--accent-brass)] px-6 py-4 text-xs font-extrabold uppercase tracking-[0.22em] text-[#17120b] transition-all hover:bg-[color:var(--accent-brass-strong)]"
+                  className="btn btn-primary w-full py-4 text-xs uppercase tracking-[0.22em] disabled:opacity-60"
                 >
                   {loading ? <Activity className="animate-spin" size={18} /> : <ArrowRight size={16} />}
                   <span>{authMode === 'login' ? 'Entrar na operação' : 'Prosseguir'}</span>

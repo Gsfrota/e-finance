@@ -47,7 +47,7 @@ const SetupWizard: React.FC = () => {
                 <Info className="text-teal-400 shrink-0 mt-1" size={18} />
                 <p>
                     As credenciais abaixo foram extraídas do seu ambiente de produção. 
-                    Confirme os dados para liberar o acesso ao <strong>E-Finance</strong>.
+                    Confirme os dados para liberar o acesso ao <strong>Juros Certo</strong>.
                 </p>
             </div>
           </div>

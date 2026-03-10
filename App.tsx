@@ -128,8 +128,13 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
                   {tenant?.name?.charAt(0)?.toUpperCase() || <ShieldCheck size={16} />}
                 </div>
               )}
-              <div className="min-w-0">
-                <p className="section-kicker mb-1">E-Finance</p>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="section-kicker">Juros Certo</p>
+                  {isProduction() && (
+                    <span className="chip chip-active" style={{ fontSize: '0.55rem', padding: '0.15rem 0.5rem' }}>● LIVE</span>
+                  )}
+                </div>
                 <h2 className="font-display truncate text-[1.9rem] leading-none text-[color:var(--text-primary)]">
                   {tenant?.name || 'Workspace'}
                 </h2>
@@ -358,7 +363,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
 
       {/* Bottom Navigation — mobile only */}
       <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden glass-border border-t" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        <div className="flex bg-[color:var(--bg-elevated)]">
+        <div className="flex">
           {(
             [
               { icon: LayoutDashboard, label: 'Dashboard', view: AppView.DASHBOARD },
@@ -366,20 +371,28 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
               { icon: Bot, label: 'Assistente', view: AppView.ASSISTANT },
               { icon: Settings, label: 'Ajustes', view: AppView.SETTINGS },
             ] as const
-          ).map(({ icon: Icon, label, view }) => (
-            <button
-              key={label}
-              onClick={() => handleViewChange(view)}
-              className={`flex flex-1 flex-col items-center gap-1 py-3 text-[10px] font-extrabold uppercase tracking-wide transition-all ${
-                activeView === view
-                  ? 'text-[color:var(--accent-brass)]'
-                  : 'text-[color:var(--text-faint)]'
-              }`}
-            >
-              <Icon size={20} />
-              {label}
-            </button>
-          ))}
+          ).map(({ icon: Icon, label, view }) => {
+            const isActive = activeView === view;
+            return (
+              <button
+                key={label}
+                onClick={() => handleViewChange(view)}
+                className={`relative flex flex-1 flex-col items-center gap-1 py-3 text-[10px] font-extrabold uppercase tracking-wide transition-all cursor-pointer ${
+                  isActive
+                    ? 'text-[color:var(--accent-brass)]'
+                    : 'text-[color:var(--text-faint)] hover:text-[color:var(--text-muted)]'
+                }`}
+              >
+                {isActive && (
+                  <span className="absolute top-0 inset-x-0 flex justify-center pointer-events-none">
+                    <span className="h-0.5 w-8 rounded-full bg-[color:var(--accent-brass)] shadow-[0_0_8px_rgba(240,180,41,0.65)]" />
+                  </span>
+                )}
+                <Icon size={20} className={isActive ? 'drop-shadow-[0_0_6px_rgba(240,180,41,0.5)]' : ''} />
+                {label}
+              </button>
+            );
+          })}
         </div>
       </nav>
     </div>

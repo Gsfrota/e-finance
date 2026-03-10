@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Loader2, CheckCircle2, RotateCcw, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle2, RotateCcw, AlertCircle } from 'lucide-react';
 import { getSupabase, parseSupabaseError } from '../services/supabase';
 import { Investment } from '../types';
 
@@ -59,18 +59,16 @@ interface RenewalForm {
 }
 
 interface ContractRenewalModalProps {
-  isOpen: boolean;
   sourceContract: Investment | null;
-  onClose: () => void;
+  onBack: () => void;
   onSuccess: () => void;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
 
 const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
-  isOpen,
   sourceContract,
-  onClose,
+  onBack,
   onSuccess,
 }) => {
   const [form, setForm] = useState<RenewalForm>({
@@ -90,9 +88,9 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [markRenewed, setMarkRenewed] = useState(true);
 
-  // Pré-preenche com dados do contrato original quando abrir
+  // Pré-preenche com dados do contrato original quando montar
   useEffect(() => {
-    if (!isOpen || !sourceContract) return;
+    if (!sourceContract) return;
     setError(null);
     setForm({
       asset_name: `${sourceContract.asset_name} (Renovação)`,
@@ -106,7 +104,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
       calculation_mode: 'auto',
       installment_value: 0,
     });
-  }, [isOpen, sourceContract]);
+  }, [sourceContract]);
 
   const { installmentValue, totalValue } = useMemo(() => {
     const principal = Number(form.amount_invested) || 0;
@@ -211,7 +209,6 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
       }
 
       onSuccess();
-      onClose();
     } catch (e: any) {
       setError(parseSupabaseError(e));
     } finally {
@@ -219,27 +216,26 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
     }
   };
 
-  if (!isOpen || !sourceContract) return null;
+  if (!sourceContract) return null;
 
   const set = (field: keyof RenewalForm, value: any) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center">
-      <div className="w-full max-w-xl animate-fade-in-up rounded-t-[2.5rem] border border-white/[0.08] bg-[color:var(--bg-elevated)] shadow-2xl sm:rounded-[2.5rem]">
+    <div className="flex h-full flex-col bg-[color:var(--bg-elevated)]">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-5">
-          <div>
-            <h3 className="font-display text-xl font-black text-[color:var(--text-primary)]">Renovar Contrato</h3>
-            <p className="text-xs text-[color:var(--text-faint)]">Pré-preenchido com dados de: <span className="font-semibold text-[color:var(--accent-brass)]">{sourceContract.asset_name}</span></p>
-          </div>
-          <button onClick={onClose} className="rounded-full p-2.5 text-[color:var(--text-muted)] hover:bg-white/10 hover:text-[color:var(--text-primary)] transition-colors">
-            <X size={18} />
+        <div className="flex items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-5 shrink-0">
+          <button onClick={onBack} className="rounded-full p-2 text-[color:var(--text-muted)] hover:bg-[color:var(--bg-soft)] transition-colors">
+            <ArrowLeft size={20} />
           </button>
+          <div className="min-w-0">
+            <h3 className="font-display text-xl font-black text-[color:var(--text-primary)]">Renovar Contrato</h3>
+            <p className="text-xs text-[color:var(--text-faint)] truncate">Pré-preenchido: <span className="font-semibold text-[color:var(--accent-brass)]">{sourceContract.asset_name}</span></p>
+          </div>
         </div>
 
         {/* Body */}
-        <div className="custom-scrollbar max-h-[70vh] overflow-y-auto px-6 py-5 space-y-4">
+        <div className="custom-scrollbar flex-1 overflow-y-auto px-6 py-5 space-y-4">
           {error && (
             <div className="flex items-center gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3">
               <AlertCircle size={16} className="shrink-0 text-red-400" />
@@ -254,7 +250,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
               type="text"
               value={form.asset_name}
               onChange={(e) => set('asset_name', e.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
+              className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
             />
           </div>
 
@@ -268,7 +264,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 step={0.01}
                 value={form.amount_invested}
                 onChange={(e) => set('amount_invested', parseFloat(e.target.value) || 0)}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
+                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
               />
             </div>
             <div>
@@ -280,7 +276,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 value={form.interest_rate}
                 onChange={(e) => set('interest_rate', parseFloat(e.target.value) || 0)}
                 disabled={form.calculation_mode === 'manual'}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all disabled:opacity-40"
+                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all disabled:opacity-40"
               />
             </div>
           </div>
@@ -294,7 +290,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 min={1}
                 value={form.total_installments}
                 onChange={(e) => set('total_installments', parseInt(e.target.value) || 1)}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
+                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
               />
             </div>
             <div>
@@ -302,7 +298,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
               <select
                 value={form.frequency}
                 onChange={(e) => set('frequency', e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 transition-all"
+                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 transition-all"
               >
                 <option value="monthly">Mensal</option>
                 <option value="weekly">Semanal</option>
@@ -322,7 +318,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 max={28}
                 value={form.due_day}
                 onChange={(e) => set('due_day', parseInt(e.target.value) || 1)}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
+                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
               />
             </div>
           )}
@@ -334,7 +330,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 type="date"
                 value={form.start_date}
                 onChange={(e) => set('start_date', e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
+                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
               />
             </div>
           )}
@@ -342,7 +338,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
           {/* Modo de cálculo */}
           <div>
             <label className="mb-2 block text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)]">Modo de Cálculo</label>
-            <div className="flex rounded-2xl border border-white/10 bg-white/[0.03] p-1">
+            <div className="flex rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-base)] p-1">
               {(['auto', 'manual'] as const).map((mode) => (
                 <button
                   key={mode}
@@ -368,7 +364,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 step={0.01}
                 value={form.installment_value}
                 onChange={(e) => set('installment_value', parseFloat(e.target.value) || 0)}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
+                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
               />
             </div>
           )}
@@ -393,12 +389,12 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
           )}
 
           {/* Toggle: marcar original como renovado */}
-          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-white/[0.06] px-4 py-3">
+          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[color:var(--border-subtle)] px-4 py-3">
             <input
               type="checkbox"
               checked={markRenewed}
               onChange={(e) => setMarkRenewed(e.target.checked)}
-              className="h-4 w-4 accent-[color:var(--accent-teal)]"
+              className="h-4 w-4 accent-[color:var(--accent-positive)]"
             />
             <span className="text-xs text-[color:var(--text-secondary)]">
               Marcar contrato original como <span className="font-bold text-[color:var(--text-primary)]">"Renovado"</span>
@@ -407,10 +403,10 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 border-t border-white/[0.06] px-6 py-5">
+        <div className="flex gap-3 border-t border-[color:var(--border-subtle)] px-6 py-5">
           <button
-            onClick={onClose}
-            className="flex-1 rounded-2xl bg-white/[0.05] py-3.5 text-xs font-extrabold uppercase tracking-widest text-[color:var(--text-primary)] transition-all hover:bg-white/10"
+            onClick={onBack}
+            className="flex-1 rounded-2xl bg-[color:var(--bg-soft)] py-3.5 text-xs font-extrabold uppercase tracking-widest text-[color:var(--text-primary)] transition-all hover:bg-[color:var(--bg-strong)]"
           >
             Cancelar
           </button>
@@ -427,7 +423,6 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
             {loading ? 'Criando...' : 'Renovar Contrato'}
           </button>
         </div>
-      </div>
     </div>
   );
 };

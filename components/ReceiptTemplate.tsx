@@ -28,7 +28,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ installment, tenant, 
   };
 
   const handleShare = () => {
-    const text = `🧾 *COMPROVANTE DE PAGAMENTO*\n\n*Beneficiário:* ${tenant.name}\n*Valor:* ${formatCurrency(Number(installment.amount_paid))}\n*Ref:* ${installment.contract_name} (Parc. ${installment.number})\n*Data:* ${formatDate(paidDate)}\n\n_Emitido digitalmente via E-Finance_`;
+    const text = `🧾 *COMPROVANTE DE PAGAMENTO*\n\n*Beneficiário:* ${tenant.name}\n*Valor:* ${formatCurrency(Number(installment.amount_paid))}\n*Ref:* ${installment.contract_name} (Parc. ${installment.number})\n*Data:* ${formatDate(paidDate)}\n\n_Emitido digitalmente via Juros Certo_`;
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
@@ -149,7 +149,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ installment, tenant, 
             <p className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">
                 Autenticação Digital: {installment.id.split('-').join('')}
             </p>
-            <p className="text-[8px] text-slate-300 mt-1">Gerado via E-Finance Suite</p>
+            <p className="text-[8px] text-slate-300 mt-1">Gerado via Juros Certo</p>
         </div>
       </div>
 

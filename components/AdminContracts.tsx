@@ -255,13 +255,11 @@ const AdminContracts: React.FC = () => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isNLContractOpen, setIsNLContractOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [wizardLoading, setWizardLoading] = useState(false);
   const [availableProfit, setAvailableProfit] = useState(0);
 
-  const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [newDebtorData, setNewDebtorData] = useState({ full_name: '', email: '', phone_number: '', cpf: '', cep: '', logradouro: '', numero: '', bairro: '', cidade: '', uf: '' });
   const [quickCreateCpfError, setQuickCreateCpfError] = useState('');
   const [quickCreateCepLoading, setQuickCreateCepLoading] = useState(false);
@@ -289,15 +287,13 @@ const AdminContracts: React.FC = () => {
   const [previewDateStrings, setPreviewDateStrings] = useState<string[]>([]);
   const [viewingContractId, setViewingContractId] = useState<number | null>(null);
   const [viewingContract, setViewingContract] = useState<Investment | null>(null);
-  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [isRenewalOpen, setIsRenewalOpen] = useState(false);
+  const [contractsSubView, setContractsSubView] = useState<'list' | 'detail' | 'renewal' | 'create' | 'create-client' | 'edit'>('list');
   const [renewalSource, setRenewalSource] = useState<Investment | null>(null);
 
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [contractToDelete, setContractToDelete] = useState<Investment | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const [isEditContractOpen, setIsEditContractOpen] = useState(false);
   const [contractToEdit, setContractToEdit] = useState<Investment | null>(null);
   const [editContractName, setEditContractName] = useState('');
   const [editContractPrincipal, setEditContractPrincipal] = useState('');
@@ -442,7 +438,7 @@ const AdminContracts: React.FC = () => {
       setSelectedPayer(null);
       setPreviewDateStrings([]);
       setStep(1);
-      setIsWizardOpen(true);
+      setContractsSubView('create');
   };
 
   const updateFormState = (partial: Partial<typeof formData>) => {
@@ -517,8 +513,8 @@ const AdminContracts: React.FC = () => {
           });
 
           if (rpcError) throw rpcError;
-          setIsWizardOpen(false);
-          fetchData(); 
+          setContractsSubView('list');
+          fetchData();
 
       } catch (err: any) {
           alert(`Falha na criação: ${err.message}`);
@@ -606,7 +602,7 @@ const AdminContracts: React.FC = () => {
 
           setProfiles(prev => [...prev, newProfile]);
           setSelectedPayer(newProfile);
-          setIsQuickCreateOpen(false);
+          setContractsSubView('create');
           setNewDebtorData({ full_name: '', email: '', phone_number: '', cpf: '', cep: '', logradouro: '', numero: '', bairro: '', cidade: '', uf: '' });
           setQuickCreateCepError('');
       } catch (err: any) {
@@ -640,7 +636,7 @@ const AdminContracts: React.FC = () => {
       setEditContractPrincipal(formatDecimalInput(contract.amount_invested));
       setEditContractInstallmentValue(formatDecimalInput(contract.installment_value));
       setEditContractError(null);
-      setIsEditContractOpen(true);
+      setContractsSubView('edit');
       setEditContractLoading(true);
 
       const supabase = getSupabase();
@@ -761,7 +757,7 @@ const AdminContracts: React.FC = () => {
           const installmentError = installmentResults.find((result) => result.error)?.error;
           if (installmentError) throw installmentError;
 
-          setIsEditContractOpen(false);
+          setContractsSubView('list');
           setContractToEdit(null);
           setEditInstallments([]);
           fetchData();
@@ -771,6 +767,672 @@ const AdminContracts: React.FC = () => {
           setEditContractLoading(false);
       }
   };
+
+  if (contractsSubView === 'detail') {
+    return (
+      <ContractDetail
+        investmentId={viewingContractId}
+        onBack={() => { setContractsSubView('list'); setViewingContractId(null); setViewingContract(null); }}
+        onRenew={(inv) => { setRenewalSource(inv); setContractsSubView('renewal'); }}
+        onRefreshList={fetchData}
+        tenant={currentTenant}
+      />
+    );
+  }
+
+  if (contractsSubView === 'renewal') {
+    return (
+      <ContractRenewalModal
+        sourceContract={renewalSource}
+        onBack={() => setContractsSubView('detail')}
+        onSuccess={() => { fetchData(); setContractsSubView('list'); setViewingContractId(null); setRenewalSource(null); }}
+      />
+    );
+  }
+
+  if (contractsSubView === 'create') {
+    return (
+      <div className="flex h-full flex-col bg-[color:var(--bg-elevated)] overflow-hidden">
+        <div className="px-8 py-6 border-b border-[color:var(--border-subtle)] flex justify-between items-center bg-[color:var(--bg-base)]/50">
+            <div>
+                <h3 className="text-sm font-black text-[color:var(--text-primary)] uppercase tracking-widest flex items-center gap-2">
+                    Novo Contrato
+                </h3>
+                <div className="flex gap-1.5 mt-2">
+                    {[1, 2, 3].map(i => (
+                        <div key={i} className={`h-1.5 w-8 rounded-full transition-all duration-300 ${step >= i ? 'bg-teal-500' : 'bg-[color:var(--border-subtle)]'}`}></div>
+                    ))}
+                </div>
+            </div>
+            <button onClick={() => setContractsSubView('list')} className="p-3 hover:bg-[color:var(--bg-soft)] rounded-full transition-colors group">
+                <X className="text-[color:var(--text-muted)] group-hover:text-[color:var(--text-primary)]" size={24}/>
+            </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar bg-[color:var(--bg-elevated)]">
+
+            {step === 1 && (
+                <div className="space-y-8 animate-fade-in-right">
+                    <div className="text-center mb-2">
+                        <h3 className="text-2xl font-black text-[color:var(--text-primary)] uppercase tracking-tight">Partes Envolvidas</h3>
+                        <p className="text-[color:var(--text-secondary)] text-xs font-medium">Defina quem está emprestando e quem irá pagar.</p>
+                    </div>
+                    <UserSelectionCard
+                        label="Quem Empresta (Credor)"
+                        role="investor"
+                        selectedProfile={selectedInvestor}
+                        profiles={profiles.filter(p => p.role === 'investor' || p.role === 'admin' || p.id === currentUserId)}
+                        onSelect={setSelectedInvestor}
+                        onClear={() => setSelectedInvestor(null)}
+                        isDefault={selectedInvestor?.id === currentUserId}
+                    />
+                    <div className="flex justify-center -my-2 relative z-10">
+                        <div className="bg-[color:var(--bg-elevated)] p-2 rounded-full border border-[color:var(--border-subtle)] shadow-xl">
+                            <ArrowRight className="text-[color:var(--text-muted)] rotate-90 md:rotate-0" size={24}/>
+                        </div>
+                    </div>
+                    <UserSelectionCard
+                        label="Quem Paga (Tomador)"
+                        role="payer"
+                        selectedProfile={selectedPayer}
+                        profiles={profiles}
+                        onSelect={setSelectedPayer}
+                        onClear={() => setSelectedPayer(null)}
+                        onCreateNew={() => setContractsSubView('create-client')}
+                    />
+                </div>
+            )}
+
+            {step === 2 && (
+                <div className="space-y-6 animate-fade-in-right pb-20">
+                    <div className="text-center mb-4">
+                        <h3 className="text-2xl font-black text-[color:var(--text-primary)] uppercase tracking-tight">Termos Financeiros</h3>
+                        <p className="text-[color:var(--text-secondary)] text-xs mt-1">Detalhes do fluxo de caixa e prazos.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-6">
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-[color:var(--text-muted)] ml-1 mb-1 block">Nome do Ativo</label>
+                            <input
+                                type="text"
+                                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold focus:border-teal-500 outline-none transition-all"
+                                placeholder={`Ex: Empréstimo ${selectedPayer?.full_name.split(' ')[0]}`}
+                                value={formData.asset_name}
+                                onChange={e => setFormData({...formData, asset_name: e.target.value})}
+                            />
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-[color:var(--text-muted)] ml-1 mb-1 block">Valor Principal (Aporte)</label>
+                                <div className="relative group">
+                                    <span className="absolute left-4 top-4 text-teal-500 font-bold group-focus-within:text-teal-400 transition-colors">R$</span>
+                                    <input
+                                        type="number" inputMode="decimal" step="0.01"
+                                        className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl pl-12 pr-4 py-4 text-2xl font-black text-[color:var(--text-primary)] outline-none focus:border-teal-500 transition-all"
+                                        value={formData.amount_invested || ''}
+                                        onChange={e => updateFormState({ amount_invested: parseFloat(e.target.value) })}
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 relative overflow-hidden">
+                                <div className="absolute -right-4 -top-4 bg-emerald-500/10 w-24 h-24 rounded-full blur-2xl pointer-events-none"></div>
+
+                                <div className="flex justify-between items-center mb-4 relative z-10">
+                                    <h4 className="text-[10px] font-black uppercase text-emerald-400 flex items-center gap-1.5">
+                                        <Coins size={12}/> Fonte de Recursos
+                                    </h4>
+                                    <div className="text-[9px] text-[color:var(--text-muted)] font-bold bg-[color:var(--bg-base)] px-2 py-1 rounded border border-[color:var(--border-subtle)]">
+                                        Caixa Livre: <span className="text-emerald-400">{formatCurrency(availableProfit)}</span>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4 relative z-10">
+                                    <div>
+                                        <div className="flex justify-between items-center text-xs mb-2">
+                                            <span className="text-emerald-400 font-bold">Usar Lucro Acumulado</span>
+                                            <span className="text-white font-black bg-emerald-900/30 px-2 py-0.5 rounded text-[10px]">{formatCurrency(formData.source_profit_amount)}</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={Math.min(availableProfit, formData.amount_invested)}
+                                            step={0.01}
+                                            value={formData.source_profit_amount}
+                                            onChange={(e) => updateFormState({ source_profit_amount: Number(e.target.value) })}
+                                            className="w-full h-2 bg-[color:var(--bg-elevated)] rounded-lg appearance-none cursor-pointer accent-emerald-500 hover:accent-emerald-400 transition-all"
+                                            disabled={availableProfit <= 0 || formData.amount_invested <= 0}
+                                        />
+                                    </div>
+
+                                    <div className="flex justify-between items-center pt-3 border-t border-[color:var(--border-subtle)]">
+                                        <div className="text-[10px] font-bold uppercase text-[color:var(--text-muted)]">
+                                            Dinheiro Novo (Aporte)
+                                        </div>
+                                        <div className="text-sm font-black text-[color:var(--text-primary)]">
+                                            {formatCurrency(formData.amount_invested - formData.source_profit_amount)}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-[color:var(--bg-base)]/50 p-5 rounded-3xl border border-[color:var(--border-subtle)]">
+                        <label className="text-[10px] font-black uppercase text-[color:var(--text-secondary)] mb-3 block text-center">Duração do Contrato</label>
+                        <div className="flex items-center justify-between bg-[color:var(--bg-base)] rounded-2xl p-1 border border-[color:var(--border-subtle)]">
+                            <button onClick={() => updateFormState({ total_installments: Math.max(1, formData.total_installments - 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Minus size={20}/></button>
+                            <div className="text-center">
+                                <span className="block font-black text-[color:var(--text-primary)] text-2xl">{formData.total_installments}</span>
+                                <span className="text-[9px] text-[color:var(--text-muted)] uppercase font-bold tracking-widest">Parcelas</span>
+                            </div>
+                            <button onClick={() => updateFormState({ total_installments: Math.min(120, formData.total_installments + 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Plus size={20}/></button>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {[
+                                { id: 'monthly', label: 'Mensal', icon: Calendar },
+                                { id: 'weekly', label: 'Semanal', icon: CalendarDays },
+                                { id: 'daily', label: 'Diário', icon: CalendarClock },
+                                { id: 'freelancer', label: 'Livre', icon: Zap },
+                            ].map(opt => (
+                                <button
+                                    key={opt.id}
+                                    onClick={() => updateFormState({ frequency: opt.id as any })}
+                                    className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all gap-1.5 ${
+                                        formData.frequency === opt.id
+                                        ? 'bg-teal-600 border-teal-500 text-white shadow-lg'
+                                        : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
+                                    }`}
+                                >
+                                    <opt.icon size={18} />
+                                    <span className="text-[9px] font-black uppercase tracking-wide">{opt.label}</span>
+                                </button>
+                            ))}
+                        </div>
+
+                        {formData.frequency === 'monthly' && (
+                            <div className="bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-2 flex items-center animate-fade-in">
+                                <div className="px-4 text-[10px] font-black text-[color:var(--text-muted)] uppercase">Todo dia</div>
+                                <select
+                                        value={formData.due_day}
+                                        onChange={e => updateFormState({ due_day: parseInt(e.target.value) })}
+                                        className="flex-1 bg-transparent text-[color:var(--text-primary)] font-bold text-center outline-none cursor-pointer text-lg"
+                                    >
+                                        {Array.from({length: 31}, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+                                    </select>
+                                    <div className="px-4 text-[color:var(--text-muted)]"><ChevronRight size={16}/></div>
+                            </div>
+                        )}
+
+                        {formData.frequency === 'weekly' && (
+                            <div className="bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-2 flex items-center animate-fade-in">
+                                <div className="px-4 text-[10px] font-black text-[color:var(--text-muted)] uppercase">Toda</div>
+                                <select
+                                    value={formData.weekday}
+                                    onChange={e => updateFormState({ weekday: parseInt(e.target.value) })}
+                                    className="flex-1 bg-transparent text-[color:var(--text-primary)] font-bold text-center outline-none cursor-pointer text-lg"
+                                >
+                                    {['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map((day, idx) => (
+                                        <option key={idx} value={idx}>{day}</option>
+                                    ))}
+                                </select>
+                                <div className="px-4 text-[color:var(--text-muted)]"><ChevronRight size={16}/></div>
+                            </div>
+                        )}
+                    </div>
+
+                    {formData.frequency === 'daily' && (
+                        <button
+                            onClick={() => updateFormState({ skip_weekends: !formData.skip_weekends })}
+                            className={`flex items-center gap-3 w-full p-3 rounded-2xl border transition-all animate-fade-in ${
+                                formData.skip_weekends
+                                    ? 'bg-teal-950/40 border-teal-500/40 text-teal-300'
+                                    : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)]'
+                            }`}
+                        >
+                            <div className={`w-9 h-5 rounded-full relative transition-all flex-shrink-0 ${formData.skip_weekends ? 'bg-teal-600' : 'bg-[color:var(--bg-elevated)]'}`}>
+                                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${formData.skip_weekends ? 'left-4' : 'left-0.5'}`} />
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-widest">Pular finais de semana</span>
+                        </button>
+                    )}
+
+                    {previewDateStrings.length > 0 && (
+                        <div className="rounded-2xl border border-[color:var(--border-subtle)] overflow-hidden animate-fade-in">
+                            <div className="flex items-center justify-between px-4 py-3 bg-[color:var(--bg-base)] border-b border-[color:var(--border-subtle)]">
+                                <span className="text-[10px] font-black uppercase text-[color:var(--text-muted)]">
+                                    Preview das {previewDateStrings.length} parcelas
+                                </span>
+                                <span className="text-[10px] font-bold text-[color:var(--accent-brass)]">
+                                    {formatCurrency(formData.installment_value)} cada
+                                </span>
+                            </div>
+                            <div className="max-h-48 overflow-y-auto divide-y divide-[color:var(--border-subtle)]">
+                                {previewDateStrings.map((dateStr, idx) => (
+                                    <div key={idx} className="flex items-center justify-between px-4 py-2.5">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-[10px] font-black text-[color:var(--text-faint)] w-6 text-right">
+                                                {idx + 1}
+                                            </span>
+                                            <span className="text-xs font-bold text-[color:var(--text-primary)] font-mono">
+                                                {dateStr}
+                                            </span>
+                                        </div>
+                                        <span className="text-xs font-bold text-[color:var(--accent-positive)]">
+                                            {formatCurrency(formData.installment_value)}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="bg-[color:var(--bg-base)] p-1.5 rounded-2xl border border-[color:var(--border-subtle)] flex relative">
+                        <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-[color:var(--bg-elevated)] rounded-xl transition-all duration-300 shadow-md ${formData.calculation_mode === 'manual' ? 'translate-x-full left-1.5' : 'left-1.5'}`}></div>
+                        <button onClick={() => updateFormState({ calculation_mode: 'auto' })} className={`flex-1 py-3 relative z-10 text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-colors ${formData.calculation_mode === 'auto' ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-muted)]'}`}>
+                            <Percent size={14}/> Taxa (%)
+                        </button>
+                        <button onClick={() => updateFormState({ calculation_mode: 'manual' })} className={`flex-1 py-3 relative z-10 text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-colors ${formData.calculation_mode === 'manual' ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-muted)]'}`}>
+                            <Banknote size={14}/> Valor Fixo
+                        </button>
+                    </div>
+
+                    {formData.calculation_mode === 'auto' ? (
+                        <div className="space-y-2">
+                            <div className="relative">
+                                <input
+                                    type="number" inputMode="decimal" step="0.1"
+                                    className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-teal-500 transition-all text-center"
+                                    value={formData.interest_rate}
+                                    onChange={e => updateFormState({ interest_rate: parseFloat(e.target.value) })}
+                                />
+                                <span className="absolute right-6 top-5 text-[color:var(--text-muted)] font-bold">%</span>
+                            </div>
+                            <div className="text-center text-xs text-[color:var(--text-secondary)]">
+                                Parcela Estimada: <strong className="text-[color:var(--text-primary)]">{formatCurrency(formData.installment_value)}</strong>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            <div className="relative">
+                                <input
+                                    type="number" inputMode="decimal" step="0.01"
+                                    className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-indigo-500 transition-all text-center"
+                                    value={formData.installment_value}
+                                    onChange={e => updateFormState({ installment_value: parseFloat(e.target.value) })}
+                                />
+                                <span className="absolute left-6 top-5 text-[color:var(--text-muted)] font-bold">R$</span>
+                            </div>
+                            <div className="text-center text-xs text-[color:var(--text-secondary)]">
+                                Taxa Implícita: <strong className="text-[color:var(--text-primary)]">{formData.interest_rate.toFixed(2)}%</strong>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {step === 3 && (
+                <div className="space-y-8 animate-fade-in-right">
+                    <div className="text-center">
+                        <h3 className="text-2xl font-black text-[color:var(--text-primary)] uppercase tracking-tight">Revisão Final</h3>
+                        <p className="text-[color:var(--text-secondary)] text-xs mt-1">Confirme os dados para gerar o contrato.</p>
+                    </div>
+
+                    <div className="bg-gradient-to-b from-[color:var(--bg-elevated)] to-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+
+                        <div className="flex justify-between items-end border-b border-[color:var(--border-subtle)] pb-6 mb-6">
+                            <div>
+                                <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Total a Receber</p>
+                                <p className="text-4xl font-black text-[color:var(--text-primary)] tracking-tight">{formatCurrency(formData.current_value)}</p>
+                            </div>
+                            <div className="text-right">
+                                <div className="bg-teal-900/30 border border-teal-500/20 text-teal-400 px-3 py-1 rounded-lg text-xs font-bold inline-block mb-1">
+                                    +{formatCurrency(formData.current_value - formData.amount_invested)} Lucro
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-y-6 gap-x-4 text-sm mb-4">
+                            <div>
+                                <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Investimento Total</p>
+                                <p className="text-[color:var(--text-primary)] font-bold">{formatCurrency(formData.amount_invested)}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Fluxo</p>
+                                <p className="text-[color:var(--text-primary)] font-bold">{formData.total_installments}x de {formatCurrency(formData.installment_value)}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Investidor</p>
+                                <p className="text-[color:var(--text-primary)] font-bold truncate">{selectedInvestor?.full_name}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Cliente</p>
+                                <p className="text-[color:var(--text-primary)] font-bold truncate">{selectedPayer?.full_name}</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-[color:var(--bg-base)]/50 p-4 rounded-xl border border-[color:var(--border-subtle)] mt-4">
+                            <div className="text-[9px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <Sparkles size={10} className="text-teal-500"/> Composição do Aporte
+                            </div>
+                            <div className="flex gap-4">
+                                <div className="flex-1 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] p-3 rounded-xl text-center">
+                                    <p className="text-[9px] text-[color:var(--text-secondary)] font-bold uppercase mb-1">Novo</p>
+                                    <p className="text-sm font-black text-[color:var(--text-primary)]">{formatCurrency(formData.amount_invested - formData.source_profit_amount)}</p>
+                                </div>
+                                <div className="flex-1 bg-emerald-900/20 border border-emerald-900/40 p-3 rounded-xl text-center">
+                                    <p className="text-[9px] text-emerald-500 font-bold uppercase mb-1">Reinvestido</p>
+                                    <p className="text-sm font-black text-emerald-400">{formatCurrency(formData.source_profit_amount)}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-2 text-xs text-[color:var(--text-muted)] font-medium">
+                        <ShieldCheck size={14} className="text-teal-500"/> Contrato Validado pelo Banco
+                    </div>
+                </div>
+            )}
+        </div>
+
+        <div className="flex gap-4 border-t border-[color:var(--border-subtle)] bg-[color:var(--bg-base)]/90 px-6 pt-6 pb-[max(calc(env(safe-area-inset-bottom,0px)+5.5rem),5.5rem)] md:pb-6 backdrop-blur">
+            {step > 1 && (
+                <button onClick={() => setStep(s => s - 1)} className="flex-1 bg-[color:var(--bg-elevated)] hover:bg-[color:var(--bg-soft)] text-[color:var(--text-primary)] py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all border border-[color:var(--border-subtle)]">
+                    Voltar
+                </button>
+            )}
+
+            {step < 3 ? (
+                <button onClick={() => setStep(s => s + 1)} disabled={(step === 1 && (!selectedInvestor || !selectedPayer)) || (step === 2 && formData.amount_invested <= 0)} className="flex-[2] bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-teal-900/30">
+                    Próximo <ChevronRight size={16}/>
+                </button>
+            ) : (
+                <button onClick={handleCreateContract} disabled={wizardLoading} className="flex-[2] bg-green-600 hover:bg-green-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-900/30">
+                    {wizardLoading ? <RefreshCw className="animate-spin" size={18}/> : <CheckCircle2 size={18}/>} Criar Contrato
+                </button>
+            )}
+        </div>
+      </div>
+    );
+  }
+
+  if (contractsSubView === 'create-client') {
+    return (
+      <div className="flex h-full flex-col bg-[color:var(--bg-elevated)]">
+        {/* Header fixo */}
+        <div className="shrink-0 flex items-center justify-between px-6 py-5 border-b border-[color:var(--border-subtle)]">
+            <div>
+                <h3 className="text-lg font-black text-[color:var(--text-primary)] uppercase tracking-tighter">Novo Cliente</h3>
+                <p className="text-[10px] text-[color:var(--text-muted)] font-bold uppercase tracking-widest">Cadastro para emissão imediata</p>
+            </div>
+            <button onClick={() => setContractsSubView('create')}><X className="text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]" size={22}/></button>
+        </div>
+        {/* Body scrollável */}
+        <div className="flex-1 overflow-y-auto p-6 pb-2 custom-scrollbar">
+        <form id="quick-create-debtor-form" onSubmit={handleQuickCreateDebtor} className="space-y-4">
+            {/* Identificação */}
+            <div className="bg-[color:var(--bg-base)] rounded-2xl p-4 border border-[color:var(--border-subtle)] space-y-3">
+                <p className="text-[10px] font-black uppercase text-[color:var(--text-muted)] tracking-widest">Identificação</p>
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Nome Completo *</label>
+                    <div className="relative">
+                        <UserPlus size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
+                        <input required type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.full_name} onChange={e => setNewDebtorData({...newDebtorData, full_name: e.target.value})} placeholder="Nome completo" />
+                    </div>
+                </div>
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">E-mail</label>
+                    <div className="relative">
+                        <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
+                        <input type="email" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.email} onChange={e => setNewDebtorData({...newDebtorData, email: e.target.value})} placeholder="email@exemplo.com (opcional)" />
+                    </div>
+                </div>
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Telefone</label>
+                    <div className="relative">
+                        <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
+                        <input type="tel" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.phone_number} onChange={e => setNewDebtorData({...newDebtorData, phone_number: e.target.value})} placeholder="(11) 99999-9999 (opcional)" />
+                    </div>
+                </div>
+            </div>
+            {/* Documento */}
+            <div className="bg-[color:var(--bg-base)] rounded-2xl p-4 border border-[color:var(--border-subtle)] space-y-3">
+                <p className="text-[10px] font-black uppercase text-[color:var(--text-muted)] tracking-widest">Documento</p>
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">CPF</label>
+                    <div className="relative">
+                        <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
+                        <input type="text" maxLength={14} className={`w-full bg-[color:var(--bg-elevated)] border rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)] ${quickCreateCpfError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'}`} value={newDebtorData.cpf} onChange={e => { setQuickCreateCpfError(''); setNewDebtorData({...newDebtorData, cpf: maskCPFAdmin(e.target.value)}); }} placeholder="000.000.000-00 (opcional)" />
+                    </div>
+                    {quickCreateCpfError && <p className="text-red-400 text-[10px] mt-1 font-bold">{quickCreateCpfError}</p>}
+                </div>
+            </div>
+            {/* Endereço */}
+            <div className="bg-[color:var(--bg-base)] rounded-2xl p-4 border border-[color:var(--border-subtle)] space-y-3">
+                <p className="text-[10px] font-black uppercase text-[color:var(--text-muted)] tracking-widest">Endereço</p>
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">CEP</label>
+                    <div className="relative">
+                        <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
+                        <input type="text" maxLength={9} className={`w-full bg-[color:var(--bg-elevated)] border rounded-xl pl-9 pr-9 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)] ${quickCreateCepError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'}`}
+                            value={newDebtorData.cep}
+                            onChange={e => {
+                                const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+                                const formatted = digits.length > 5 ? `${digits.slice(0,5)}-${digits.slice(5)}` : digits;
+                                setNewDebtorData(p => ({ ...p, cep: formatted }));
+                                setQuickCreateCepError('');
+                                if (digits.length === 8) handleQuickCepLookup(digits);
+                            }}
+                            placeholder="00000-000 (opcional)" />
+                        {quickCreateCepLoading && <Activity size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-teal-500 animate-spin" />}
+                    </div>
+                    {quickCreateCepError && <p className="text-red-400 text-[10px] mt-1 font-bold">{quickCreateCepError}</p>}
+                </div>
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Logradouro</label>
+                    <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.logradouro} onChange={e => setNewDebtorData(p => ({ ...p, logradouro: e.target.value }))} placeholder="Rua, Av..." />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Número</label>
+                        <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.numero} onChange={e => setNewDebtorData(p => ({ ...p, numero: e.target.value }))} placeholder="Nº" />
+                    </div>
+                    <div className="col-span-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Bairro</label>
+                        <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.bairro} onChange={e => setNewDebtorData(p => ({ ...p, bairro: e.target.value }))} placeholder="Bairro" />
+                    </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                    <div className="col-span-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Cidade</label>
+                        <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.cidade} onChange={e => setNewDebtorData(p => ({ ...p, cidade: e.target.value }))} placeholder="Cidade" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">UF</label>
+                        <input type="text" maxLength={2} className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)] uppercase" value={newDebtorData.uf} onChange={e => setNewDebtorData(p => ({ ...p, uf: e.target.value.toUpperCase() }))} placeholder="SP" />
+                    </div>
+                </div>
+            </div>
+        </form>
+        </div>
+        {/* Footer fixo */}
+        <div className="shrink-0 border-t border-[color:var(--border-subtle)] bg-[color:var(--bg-elevated)]/90 px-6 pt-4 pb-[max(calc(env(safe-area-inset-bottom,0px)+5.5rem),5.5rem)] md:pb-5 backdrop-blur">
+            <button type="submit" form="quick-create-debtor-form" disabled={quickCreateLoading} className="w-full bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-teal-900/30">
+                {quickCreateLoading ? <Loader2 className="animate-spin" size={18}/> : <UserPlus size={18}/>} Cadastrar Rápido
+            </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (contractsSubView === 'edit' && contractToEdit) {
+    return (
+      <div className="flex h-full flex-col overflow-y-auto p-6 md:p-8 bg-[color:var(--bg-elevated)]">
+        <div className="panel-card rounded-[2.5rem] p-8 shadow-2xl w-full max-w-4xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+              <div>
+                  <p className="section-kicker mb-2">Ajuste operacional</p>
+                  <h3 className="font-display text-4xl leading-none text-[color:var(--text-primary)]">Editar contrato</h3>
+              </div>
+              <button onClick={() => setContractsSubView('list')} className="p-2 hover:bg-[color:var(--bg-soft)] rounded-full transition-colors">
+                  <X className="text-[color:var(--text-secondary)]" size={20}/>
+              </button>
+          </div>
+          <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+              <div className="space-y-5">
+                  <div className="rounded-[1.6rem] border border-white/10 bg-black/10 p-5">
+                      <p className="section-kicker mb-4">Parâmetros financeiros</p>
+                      <div className="space-y-4">
+                          <div>
+                              <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Nome do contrato</label>
+                              <input
+                                  type="text"
+                                  value={editContractName}
+                                  onChange={e => setEditContractName(e.target.value)}
+                                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3.5 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)]"
+                                  placeholder="Ex: Empréstimo João"
+                              />
+                          </div>
+
+                          <div className="grid gap-4 sm:grid-cols-2">
+                              <div>
+                                  <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Valor emprestado</label>
+                                  <div className="relative">
+                                      <Wallet size={16} className="absolute left-4 top-4 text-[color:var(--text-faint)]" />
+                                      <input
+                                          type="number"
+                                          step="0.01"
+                                          min="0"
+                                          value={editContractPrincipal}
+                                          onChange={e => setEditContractPrincipal(e.target.value)}
+                                          className="w-full rounded-2xl border border-white/10 bg-white/[0.03] py-3.5 pl-11 pr-4 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)]"
+                                      />
+                                  </div>
+                              </div>
+                              <div>
+                                  <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Valor da parcela aberta</label>
+                                  <div className="relative">
+                                      <Banknote size={16} className="absolute left-4 top-4 text-[color:var(--text-faint)]" />
+                                      <input
+                                          type="number"
+                                          step="0.01"
+                                          min="0"
+                                          value={editContractInstallmentValue}
+                                          onChange={e => setEditContractInstallmentValue(e.target.value)}
+                                          className="w-full rounded-2xl border border-white/10 bg-white/[0.03] py-3.5 pl-11 pr-4 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)]"
+                                      />
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="rounded-[1.6rem] border border-white/10 bg-black/10 p-5">
+                      <p className="section-kicker mb-4">Leitura após o ajuste</p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+                              <p className="text-[11px] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Parcelas abertas</p>
+                              <p className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{editOpenInstallments.length}</p>
+                          </div>
+                          <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+                              <p className="text-[11px] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Parcelas pagas</p>
+                              <p className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{editPaidInstallments.length}</p>
+                          </div>
+                          <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+                              <p className="text-[11px] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Valor total recalculado</p>
+                              <p className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{formatCurrency(editCurrentValuePreview)}</p>
+                          </div>
+                          <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+                              <p className="text-[11px] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Taxa implícita</p>
+                              <p className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{editInterestRatePreview.toFixed(2)}%</p>
+                          </div>
+                      </div>
+                      <p className="mt-4 text-xs leading-6 text-[color:var(--text-secondary)]">
+                          Parcelas já pagas permanecem preservadas. O ajuste redistribui apenas as parcelas em aberto.
+                      </p>
+                  </div>
+              </div>
+
+              <div className="rounded-[1.6rem] border border-white/10 bg-black/10 p-5">
+                  <div className="flex items-center justify-between gap-4">
+                      <div>
+                          <p className="section-kicker mb-2">Cronograma</p>
+                          <h4 className="font-display text-3xl leading-none text-[color:var(--text-primary)]">Datas das parcelas</h4>
+                      </div>
+                      <div className="rounded-2xl bg-[rgba(202,176,122,0.14)] p-3 text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]">
+                          <CalendarDays size={18} />
+                      </div>
+                  </div>
+
+                  <div className="custom-scrollbar mt-5 max-h-[420px] space-y-3 overflow-y-auto pr-1">
+                      {editContractLoading ? (
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-6 text-sm text-[color:var(--text-secondary)]">
+                              Carregando cronograma do contrato...
+                          </div>
+                      ) : editInstallments.length === 0 ? (
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-6 text-sm text-[color:var(--text-secondary)]">
+                              Nenhuma parcela encontrada para este contrato.
+                          </div>
+                      ) : (
+                          editInstallments.map((installment) => {
+                              const locked = installment.status === 'paid';
+                              return (
+                                  <div key={installment.id} className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+                                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                          <div>
+                                              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Parcela {installment.number}</p>
+                                              <p className="mt-1 text-sm font-semibold text-[color:var(--text-primary)]">
+                                                  {locked ? 'Parcela liquidada' : 'Parcela em aberto'}
+                                              </p>
+                                              <p className="mt-1 text-xs text-[color:var(--text-secondary)]">
+                                                  {locked
+                                                      ? `Recebido ${formatCurrency(Number(installment.amount_paid || 0))}`
+                                                      : `Valor previsto ${formatCurrency(Number(installment.amount_total || 0))}`}
+                                              </p>
+                                          </div>
+                                          <div className="flex items-center gap-3">
+                                              <input
+                                                  type="date"
+                                                  disabled={locked}
+                                                  value={installment.due_date}
+                                                  onChange={(event) => handleEditInstallmentDateChange(installment.id, event.target.value)}
+                                                  className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)] disabled:cursor-not-allowed disabled:opacity-45"
+                                              />
+                                          </div>
+                                      </div>
+                                  </div>
+                              );
+                          })
+                      )}
+                  </div>
+              </div>
+          </div>
+
+          {editContractError && (
+              <div className="mt-6 rounded-2xl border border-[rgba(198,126,105,0.22)] bg-[rgba(198,126,105,0.08)] px-4 py-3 text-sm text-[color:var(--accent-danger)]">
+                  {editContractError}
+              </div>
+          )}
+
+          <div className="flex gap-3 mt-6">
+              <button onClick={() => setContractsSubView('list')} className="flex-1 bg-[color:var(--bg-soft)] hover:bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)] py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all">
+                  Cancelar
+              </button>
+              <button onClick={handleEditContractSave} disabled={editContractLoading || !editContractName.trim()} className="flex-1 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+                  {editContractLoading ? <Loader2 className="animate-spin" size={16}/> : <CheckCircle2 size={16}/>}
+                  {editContractLoading ? 'Salvando...' : 'Salvar'}
+              </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-fade-in pb-12 w-full max-w-[100vw]">
@@ -810,7 +1472,7 @@ const AdminContracts: React.FC = () => {
                         <div className="flex justify-between items-start mb-6">
                             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]"><Wallet size={20}/></div>
                             <div className="flex items-center gap-1">
-                                <button onClick={() => { setViewingContractId(contract.id); setViewingContract(contract); setIsDetailsModalOpen(true); }} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-white" title="Ver detalhes"><Eye size={16}/></button>
+                                <button onClick={() => { setViewingContractId(contract.id); setViewingContract(contract); setContractsSubView('detail'); }} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-white" title="Ver detalhes"><Eye size={16}/></button>
                                 <button onClick={() => handleOpenContractEdit(contract)} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-[color:var(--accent-brass)]" title="Editar contrato"><Pencil size={16}/></button>
                                 <button onClick={() => { setContractToDelete(contract); setIsDeleteConfirmOpen(true); }} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-[color:var(--accent-danger)]" title="Excluir contrato"><Trash2 size={16}/></button>
                             </div>
@@ -840,517 +1502,30 @@ const AdminContracts: React.FC = () => {
                     )}
 
                     <div className="grid gap-4 border-t border-white/10 pt-5">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="min-w-0">
                                 <p className="section-kicker mb-1">Principal</p>
-                                <p className="text-xl font-semibold text-[color:var(--text-primary)]">{formatCurrency(Number(contract.amount_invested))}</p>
+                                <p className="truncate text-lg font-semibold text-[color:var(--text-primary)]">{formatCurrency(Number(contract.amount_invested))}</p>
                             </div>
-                            <div className="text-right">
+                            <div className="min-w-0 text-right">
                                 <p className="section-kicker mb-1">Valor total</p>
-                                <p className="text-xl font-semibold text-[color:var(--text-primary)]">{formatCurrency(Number(contract.current_value))}</p>
+                                <p className="truncate text-lg font-semibold text-[color:var(--text-primary)]">{formatCurrency(Number(contract.current_value))}</p>
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="min-w-0">
                                 <p className="section-kicker mb-1">Parcela</p>
-                                <p className="text-sm font-semibold text-[color:var(--text-secondary)]">{formatCurrency(Number(contract.installment_value || 0))}</p>
+                                <p className="truncate text-sm font-semibold text-[color:var(--text-secondary)]">{formatCurrency(Number(contract.installment_value || 0))}</p>
                             </div>
-                            <div className="text-right">
+                            <div className="min-w-0 text-right">
                                 <p className="section-kicker mb-1">Prazo</p>
-                                <p className="text-sm font-semibold text-[color:var(--text-secondary)]">{contract.total_installments}x</p>
+                                <p className="truncate text-sm font-semibold text-[color:var(--text-secondary)]">{contract.total_installments}x</p>
                             </div>
                         </div>
                     </div>
                 </div>
             ))}
         </div>
-      )}
-
-      {/* --- WIZARD MODAL --- */}
-      {isWizardOpen && (
-          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/90 backdrop-blur-sm sm:p-4">
-             <div className="bg-[color:var(--bg-elevated)] border-t md:border border-[color:var(--border-subtle)] rounded-t-[3rem] md:rounded-[3rem] w-full max-w-lg shadow-2xl flex flex-col h-[95vh] md:h-auto md:max-h-[90vh] overflow-hidden animate-fade-in-up">
-
-                <div className="px-8 py-6 border-b border-[color:var(--border-subtle)] flex justify-between items-center bg-[color:var(--bg-base)]/50">
-                    <div>
-                        <h3 className="text-sm font-black text-[color:var(--text-primary)] uppercase tracking-widest flex items-center gap-2">
-                            Novo Contrato
-                        </h3>
-                        <div className="flex gap-1.5 mt-2">
-                            {[1, 2, 3].map(i => (
-                                <div key={i} className={`h-1.5 w-8 rounded-full transition-all duration-300 ${step >= i ? 'bg-teal-500' : 'bg-[color:var(--border-subtle)]'}`}></div>
-                            ))}
-                        </div>
-                    </div>
-                    <button onClick={() => setIsWizardOpen(false)} className="p-3 hover:bg-[color:var(--bg-soft)] rounded-full transition-colors group">
-                        <X className="text-[color:var(--text-muted)] group-hover:text-[color:var(--text-primary)]" size={24}/>
-                    </button>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar bg-[color:var(--bg-elevated)]">
-                    
-                    {step === 1 && (
-                        <div className="space-y-8 animate-fade-in-right">
-                            <div className="text-center mb-2">
-                                <h3 className="text-2xl font-black text-[color:var(--text-primary)] uppercase tracking-tight">Partes Envolvidas</h3>
-                                <p className="text-[color:var(--text-secondary)] text-xs font-medium">Defina quem está emprestando e quem irá pagar.</p>
-                            </div>
-                            <UserSelectionCard 
-                                label="Quem Empresta (Credor)"
-                                role="investor" 
-                                selectedProfile={selectedInvestor} 
-                                profiles={profiles.filter(p => p.role === 'investor' || p.role === 'admin' || p.id === currentUserId)}
-                                onSelect={setSelectedInvestor}
-                                onClear={() => setSelectedInvestor(null)}
-                                isDefault={selectedInvestor?.id === currentUserId}
-                            />
-                            <div className="flex justify-center -my-2 relative z-10">
-                                <div className="bg-[color:var(--bg-elevated)] p-2 rounded-full border border-[color:var(--border-subtle)] shadow-xl">
-                                    <ArrowRight className="text-[color:var(--text-muted)] rotate-90 md:rotate-0" size={24}/>
-                                </div>
-                            </div>
-                            <UserSelectionCard 
-                                label="Quem Paga (Tomador)" 
-                                role="payer" 
-                                selectedProfile={selectedPayer} 
-                                profiles={profiles} 
-                                onSelect={setSelectedPayer}
-                                onClear={() => setSelectedPayer(null)}
-                                onCreateNew={() => setIsQuickCreateOpen(true)}
-                            />
-                        </div>
-                    )}
-
-                    {step === 2 && (
-                        <div className="space-y-6 animate-fade-in-right pb-20">
-                            <div className="text-center mb-4">
-                                <h3 className="text-2xl font-black text-[color:var(--text-primary)] uppercase tracking-tight">Termos Financeiros</h3>
-                                <p className="text-[color:var(--text-secondary)] text-xs mt-1">Detalhes do fluxo de caixa e prazos.</p>
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-6">
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-[color:var(--text-muted)] ml-1 mb-1 block">Nome do Ativo</label>
-                                    <input
-                                        type="text"
-                                        className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold focus:border-teal-500 outline-none transition-all"
-                                        placeholder={`Ex: Empréstimo ${selectedPayer?.full_name.split(' ')[0]}`}
-                                        value={formData.asset_name}
-                                        onChange={e => setFormData({...formData, asset_name: e.target.value})}
-                                    />
-                                </div>
-                                
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase text-[color:var(--text-muted)] ml-1 mb-1 block">Valor Principal (Aporte)</label>
-                                        <div className="relative group">
-                                            <span className="absolute left-4 top-4 text-teal-500 font-bold group-focus-within:text-teal-400 transition-colors">R$</span>
-                                            <input
-                                                type="number" inputMode="decimal" step="0.01"
-                                                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl pl-12 pr-4 py-4 text-2xl font-black text-[color:var(--text-primary)] outline-none focus:border-teal-500 transition-all"
-                                                value={formData.amount_invested || ''}
-                                                onChange={e => updateFormState({ amount_invested: parseFloat(e.target.value) })}
-                                                placeholder="0.00"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* SLIDER DE FONTE DE RECURSOS */}
-                                    <div className="bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 relative overflow-hidden">
-                                        {/* Background Decor */}
-                                        <div className="absolute -right-4 -top-4 bg-emerald-500/10 w-24 h-24 rounded-full blur-2xl pointer-events-none"></div>
-
-                                        <div className="flex justify-between items-center mb-4 relative z-10">
-                                            <h4 className="text-[10px] font-black uppercase text-emerald-400 flex items-center gap-1.5">
-                                                <Coins size={12}/> Fonte de Recursos
-                                            </h4>
-                                            <div className="text-[9px] text-[color:var(--text-muted)] font-bold bg-[color:var(--bg-base)] px-2 py-1 rounded border border-[color:var(--border-subtle)]">
-                                                Caixa Livre: <span className="text-emerald-400">{formatCurrency(availableProfit)}</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-4 relative z-10">
-                                            <div>
-                                                <div className="flex justify-between items-center text-xs mb-2">
-                                                    <span className="text-emerald-400 font-bold">Usar Lucro Acumulado</span>
-                                                    <span className="text-white font-black bg-emerald-900/30 px-2 py-0.5 rounded text-[10px]">{formatCurrency(formData.source_profit_amount)}</span>
-                                                </div>
-                                                <input 
-                                                    type="range" 
-                                                    min={0} 
-                                                    max={Math.min(availableProfit, formData.amount_invested)} 
-                                                    step={0.01}
-                                                    value={formData.source_profit_amount}
-                                                    onChange={(e) => updateFormState({ source_profit_amount: Number(e.target.value) })}
-                                                    className="w-full h-2 bg-[color:var(--bg-elevated)] rounded-lg appearance-none cursor-pointer accent-emerald-500 hover:accent-emerald-400 transition-all"
-                                                    disabled={availableProfit <= 0 || formData.amount_invested <= 0}
-                                                />
-                                            </div>
-
-                                            <div className="flex justify-between items-center pt-3 border-t border-[color:var(--border-subtle)]">
-                                                <div className="text-[10px] font-bold uppercase text-[color:var(--text-muted)]">
-                                                    Dinheiro Novo (Aporte)
-                                                </div>
-                                                <div className="text-sm font-black text-[color:var(--text-primary)]">
-                                                    {formatCurrency(formData.amount_invested - formData.source_profit_amount)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-[color:var(--bg-base)]/50 p-5 rounded-3xl border border-[color:var(--border-subtle)]">
-                                <label className="text-[10px] font-black uppercase text-[color:var(--text-secondary)] mb-3 block text-center">Duração do Contrato</label>
-                                <div className="flex items-center justify-between bg-[color:var(--bg-base)] rounded-2xl p-1 border border-[color:var(--border-subtle)]">
-                                    <button onClick={() => updateFormState({ total_installments: Math.max(1, formData.total_installments - 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Minus size={20}/></button>
-                                    <div className="text-center">
-                                        <span className="block font-black text-[color:var(--text-primary)] text-2xl">{formData.total_installments}</span>
-                                        <span className="text-[9px] text-[color:var(--text-muted)] uppercase font-bold tracking-widest">Parcelas</span>
-                                    </div>
-                                    <button onClick={() => updateFormState({ total_installments: Math.min(120, formData.total_installments + 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Plus size={20}/></button>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                    {[
-                                        { id: 'monthly', label: 'Mensal', icon: Calendar },
-                                        { id: 'weekly', label: 'Semanal', icon: CalendarDays },
-                                        { id: 'daily', label: 'Diário', icon: CalendarClock },
-                                        { id: 'freelancer', label: 'Livre', icon: Zap },
-                                    ].map(opt => (
-                                        <button 
-                                            key={opt.id}
-                                            onClick={() => updateFormState({ frequency: opt.id as any })}
-                                            className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all gap-1.5 ${
-                                                formData.frequency === opt.id 
-                                                ? 'bg-teal-600 border-teal-500 text-white shadow-lg' 
-                                                : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
-                                            }`}
-                                        >
-                                            <opt.icon size={18} />
-                                            <span className="text-[9px] font-black uppercase tracking-wide">{opt.label}</span>
-                                        </button>
-                                    ))}
-                                </div>
-
-                                {formData.frequency === 'monthly' && (
-                                    <div className="bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-2 flex items-center animate-fade-in">
-                                        <div className="px-4 text-[10px] font-black text-[color:var(--text-muted)] uppercase">Todo dia</div>
-                                        <select
-                                                value={formData.due_day}
-                                                onChange={e => updateFormState({ due_day: parseInt(e.target.value) })}
-                                                className="flex-1 bg-transparent text-[color:var(--text-primary)] font-bold text-center outline-none cursor-pointer text-lg"
-                                            >
-                                                {Array.from({length: 31}, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
-                                            </select>
-                                            <div className="px-4 text-[color:var(--text-muted)]"><ChevronRight size={16}/></div>
-                                    </div>
-                                )}
-
-                                {formData.frequency === 'weekly' && (
-                                    <div className="bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-2 flex items-center animate-fade-in">
-                                        <div className="px-4 text-[10px] font-black text-[color:var(--text-muted)] uppercase">Toda</div>
-                                        <select
-                                            value={formData.weekday}
-                                            onChange={e => updateFormState({ weekday: parseInt(e.target.value) })}
-                                            className="flex-1 bg-transparent text-[color:var(--text-primary)] font-bold text-center outline-none cursor-pointer text-lg"
-                                        >
-                                            {['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map((day, idx) => (
-                                                <option key={idx} value={idx}>{day}</option>
-                                            ))}
-                                        </select>
-                                        <div className="px-4 text-[color:var(--text-muted)]"><ChevronRight size={16}/></div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {formData.frequency === 'daily' && (
-                                <button
-                                    onClick={() => updateFormState({ skip_weekends: !formData.skip_weekends })}
-                                    className={`flex items-center gap-3 w-full p-3 rounded-2xl border transition-all animate-fade-in ${
-                                        formData.skip_weekends
-                                            ? 'bg-teal-950/40 border-teal-500/40 text-teal-300'
-                                            : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)]'
-                                    }`}
-                                >
-                                    <div className={`w-9 h-5 rounded-full relative transition-all flex-shrink-0 ${formData.skip_weekends ? 'bg-teal-600' : 'bg-[color:var(--bg-elevated)]'}`}>
-                                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${formData.skip_weekends ? 'left-4' : 'left-0.5'}`} />
-                                    </div>
-                                    <span className="text-[10px] font-black uppercase tracking-widest">Pular finais de semana</span>
-                                </button>
-                            )}
-
-                            {previewDateStrings.length > 0 && (
-                                <div className="rounded-2xl border border-[color:var(--border-subtle)] overflow-hidden animate-fade-in">
-                                    <div className="flex items-center justify-between px-4 py-3 bg-[color:var(--bg-base)] border-b border-[color:var(--border-subtle)]">
-                                        <span className="text-[10px] font-black uppercase text-[color:var(--text-muted)]">
-                                            Preview das {previewDateStrings.length} parcelas
-                                        </span>
-                                        <span className="text-[10px] font-bold text-[color:var(--accent-brass)]">
-                                            {formatCurrency(formData.installment_value)} cada
-                                        </span>
-                                    </div>
-                                    <div className="max-h-48 overflow-y-auto divide-y divide-[color:var(--border-subtle)]">
-                                        {previewDateStrings.map((dateStr, idx) => (
-                                            <div key={idx} className="flex items-center justify-between px-4 py-2.5">
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-[10px] font-black text-[color:var(--text-faint)] w-6 text-right">
-                                                        {idx + 1}
-                                                    </span>
-                                                    <span className="text-xs font-bold text-[color:var(--text-primary)] font-mono">
-                                                        {dateStr}
-                                                    </span>
-                                                </div>
-                                                <span className="text-xs font-bold text-[color:var(--accent-positive)]">
-                                                    {formatCurrency(formData.installment_value)}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="bg-[color:var(--bg-base)] p-1.5 rounded-2xl border border-[color:var(--border-subtle)] flex relative">
-                                <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-[color:var(--bg-elevated)] rounded-xl transition-all duration-300 shadow-md ${formData.calculation_mode === 'manual' ? 'translate-x-full left-1.5' : 'left-1.5'}`}></div>
-                                <button onClick={() => updateFormState({ calculation_mode: 'auto' })} className={`flex-1 py-3 relative z-10 text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-colors ${formData.calculation_mode === 'auto' ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-muted)]'}`}>
-                                    <Percent size={14}/> Taxa (%)
-                                </button>
-                                <button onClick={() => updateFormState({ calculation_mode: 'manual' })} className={`flex-1 py-3 relative z-10 text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-colors ${formData.calculation_mode === 'manual' ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-muted)]'}`}>
-                                    <Banknote size={14}/> Valor Fixo
-                                </button>
-                            </div>
-
-                            {formData.calculation_mode === 'auto' ? (
-                                <div className="space-y-2">
-                                    <div className="relative">
-                                        <input
-                                            type="number" inputMode="decimal" step="0.1"
-                                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-teal-500 transition-all text-center"
-                                            value={formData.interest_rate}
-                                            onChange={e => updateFormState({ interest_rate: parseFloat(e.target.value) })}
-                                        />
-                                        <span className="absolute right-6 top-5 text-[color:var(--text-muted)] font-bold">%</span>
-                                    </div>
-                                    <div className="text-center text-xs text-[color:var(--text-secondary)]">
-                                        Parcela Estimada: <strong className="text-[color:var(--text-primary)]">{formatCurrency(formData.installment_value)}</strong>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    <div className="relative">
-                                        <input
-                                            type="number" inputMode="decimal" step="0.01"
-                                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-indigo-500 transition-all text-center"
-                                            value={formData.installment_value}
-                                            onChange={e => updateFormState({ installment_value: parseFloat(e.target.value) })}
-                                        />
-                                        <span className="absolute left-6 top-5 text-[color:var(--text-muted)] font-bold">R$</span>
-                                    </div>
-                                    <div className="text-center text-xs text-[color:var(--text-secondary)]">
-                                        Taxa Implícita: <strong className="text-[color:var(--text-primary)]">{formData.interest_rate.toFixed(2)}%</strong>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {step === 3 && (
-                        <div className="space-y-8 animate-fade-in-right">
-                            <div className="text-center">
-                                <h3 className="text-2xl font-black text-[color:var(--text-primary)] uppercase tracking-tight">Revisão Final</h3>
-                                <p className="text-[color:var(--text-secondary)] text-xs mt-1">Confirme os dados para gerar o contrato.</p>
-                            </div>
-
-                            <div className="bg-gradient-to-b from-[color:var(--bg-elevated)] to-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
-
-                                <div className="flex justify-between items-end border-b border-[color:var(--border-subtle)] pb-6 mb-6">
-                                    <div>
-                                        <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Total a Receber</p>
-                                        <p className="text-4xl font-black text-[color:var(--text-primary)] tracking-tight">{formatCurrency(formData.current_value)}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="bg-teal-900/30 border border-teal-500/20 text-teal-400 px-3 py-1 rounded-lg text-xs font-bold inline-block mb-1">
-                                            +{formatCurrency(formData.current_value - formData.amount_invested)} Lucro
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-y-6 gap-x-4 text-sm mb-4">
-                                    <div>
-                                        <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Investimento Total</p>
-                                        <p className="text-[color:var(--text-primary)] font-bold">{formatCurrency(formData.amount_invested)}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Fluxo</p>
-                                        <p className="text-[color:var(--text-primary)] font-bold">{formData.total_installments}x de {formatCurrency(formData.installment_value)}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Investidor</p>
-                                        <p className="text-[color:var(--text-primary)] font-bold truncate">{selectedInvestor?.full_name}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Cliente</p>
-                                        <p className="text-[color:var(--text-primary)] font-bold truncate">{selectedPayer?.full_name}</p>
-                                    </div>
-                                </div>
-                                
-                                {/* Funding Breakdown for Review */}
-                                <div className="bg-[color:var(--bg-base)]/50 p-4 rounded-xl border border-[color:var(--border-subtle)] mt-4">
-                                    <div className="text-[9px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
-                                        <Sparkles size={10} className="text-teal-500"/> Composição do Aporte
-                                    </div>
-                                    <div className="flex gap-4">
-                                        <div className="flex-1 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] p-3 rounded-xl text-center">
-                                            <p className="text-[9px] text-[color:var(--text-secondary)] font-bold uppercase mb-1">Novo</p>
-                                            <p className="text-sm font-black text-[color:var(--text-primary)]">{formatCurrency(formData.amount_invested - formData.source_profit_amount)}</p>
-                                        </div>
-                                        <div className="flex-1 bg-emerald-900/20 border border-emerald-900/40 p-3 rounded-xl text-center">
-                                            <p className="text-[9px] text-emerald-500 font-bold uppercase mb-1">Reinvestido</p>
-                                            <p className="text-sm font-black text-emerald-400">{formatCurrency(formData.source_profit_amount)}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center justify-center gap-2 text-xs text-[color:var(--text-muted)] font-medium">
-                                <ShieldCheck size={14} className="text-teal-500"/> Contrato Validado pelo Banco
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                <div className="flex gap-4 border-t border-[color:var(--border-subtle)] bg-[color:var(--bg-base)]/90 px-6 pt-6 pb-[max(calc(env(safe-area-inset-bottom,0px)+5.5rem),5.5rem)] md:pb-6 backdrop-blur">
-                    {step > 1 && (
-                        <button onClick={() => setStep(s => s - 1)} className="flex-1 bg-[color:var(--bg-elevated)] hover:bg-[color:var(--bg-soft)] text-[color:var(--text-primary)] py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all border border-[color:var(--border-subtle)]">
-                            Voltar
-                        </button>
-                    )}
-                    
-                    {step < 3 ? (
-                        <button onClick={() => setStep(s => s + 1)} disabled={(step === 1 && (!selectedInvestor || !selectedPayer)) || (step === 2 && formData.amount_invested <= 0)} className="flex-[2] bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-teal-900/30">
-                            Próximo <ChevronRight size={16}/>
-                        </button>
-                    ) : (
-                        <button onClick={handleCreateContract} disabled={wizardLoading} className="flex-[2] bg-green-600 hover:bg-green-500 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-900/30">
-                            {wizardLoading ? <RefreshCw className="animate-spin" size={18}/> : <CheckCircle2 size={18}/>} Criar Contrato
-                        </button>
-                    )}
-                </div>
-             </div>
-          </div>
-      )}
-
-      {isQuickCreateOpen && (
-          <div className="fixed inset-0 z-[60] flex justify-end">
-              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsQuickCreateOpen(false)} />
-              <div className="relative z-10 flex h-full w-full max-w-lg flex-col bg-[color:var(--bg-elevated)] shadow-2xl border-l border-[color:var(--border-subtle)] animate-slide-in-right">
-                  {/* Header fixo */}
-                  <div className="shrink-0 flex items-center justify-between px-6 py-5 border-b border-[color:var(--border-subtle)]">
-                      <div>
-                          <h3 className="text-lg font-black text-[color:var(--text-primary)] uppercase tracking-tighter">Novo Cliente</h3>
-                          <p className="text-[10px] text-[color:var(--text-muted)] font-bold uppercase tracking-widest">Cadastro para emissão imediata</p>
-                      </div>
-                      <button onClick={() => setIsQuickCreateOpen(false)}><X className="text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]" size={22}/></button>
-                  </div>
-                  {/* Body scrollável */}
-                  <div className="flex-1 overflow-y-auto p-6 pb-2 custom-scrollbar">
-                  <form id="quick-create-debtor-form" onSubmit={handleQuickCreateDebtor} className="space-y-4">
-                      {/* Identificação */}
-                      <div className="bg-[color:var(--bg-base)] rounded-2xl p-4 border border-[color:var(--border-subtle)] space-y-3">
-                          <p className="text-[10px] font-black uppercase text-[color:var(--text-muted)] tracking-widest">Identificação</p>
-                          <div>
-                              <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Nome Completo *</label>
-                              <div className="relative">
-                                  <UserPlus size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
-                                  <input required type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.full_name} onChange={e => setNewDebtorData({...newDebtorData, full_name: e.target.value})} placeholder="Nome completo" />
-                              </div>
-                          </div>
-                          <div>
-                              <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">E-mail</label>
-                              <div className="relative">
-                                  <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
-                                  <input type="email" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.email} onChange={e => setNewDebtorData({...newDebtorData, email: e.target.value})} placeholder="email@exemplo.com (opcional)" />
-                              </div>
-                          </div>
-                          <div>
-                              <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Telefone</label>
-                              <div className="relative">
-                                  <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
-                                  <input type="tel" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.phone_number} onChange={e => setNewDebtorData({...newDebtorData, phone_number: e.target.value})} placeholder="(11) 99999-9999 (opcional)" />
-                              </div>
-                          </div>
-                      </div>
-                      {/* Documento */}
-                      <div className="bg-[color:var(--bg-base)] rounded-2xl p-4 border border-[color:var(--border-subtle)] space-y-3">
-                          <p className="text-[10px] font-black uppercase text-[color:var(--text-muted)] tracking-widest">Documento</p>
-                          <div>
-                              <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">CPF</label>
-                              <div className="relative">
-                                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
-                                  <input type="text" maxLength={14} className={`w-full bg-[color:var(--bg-elevated)] border rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)] ${quickCreateCpfError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'}`} value={newDebtorData.cpf} onChange={e => { setQuickCreateCpfError(''); setNewDebtorData({...newDebtorData, cpf: maskCPFAdmin(e.target.value)}); }} placeholder="000.000.000-00 (opcional)" />
-                              </div>
-                              {quickCreateCpfError && <p className="text-red-400 text-[10px] mt-1 font-bold">{quickCreateCpfError}</p>}
-                          </div>
-                      </div>
-                      {/* Endereço */}
-                      <div className="bg-[color:var(--bg-base)] rounded-2xl p-4 border border-[color:var(--border-subtle)] space-y-3">
-                          <p className="text-[10px] font-black uppercase text-[color:var(--text-muted)] tracking-widest">Endereço</p>
-                          <div>
-                              <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">CEP</label>
-                              <div className="relative">
-                                  <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
-                                  <input type="text" maxLength={9} className={`w-full bg-[color:var(--bg-elevated)] border rounded-xl pl-9 pr-9 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)] ${quickCreateCepError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'}`}
-                                      value={newDebtorData.cep}
-                                      onChange={e => {
-                                          const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
-                                          const formatted = digits.length > 5 ? `${digits.slice(0,5)}-${digits.slice(5)}` : digits;
-                                          setNewDebtorData(p => ({ ...p, cep: formatted }));
-                                          setQuickCreateCepError('');
-                                          if (digits.length === 8) handleQuickCepLookup(digits);
-                                      }}
-                                      placeholder="00000-000 (opcional)" />
-                                  {quickCreateCepLoading && <Activity size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-teal-500 animate-spin" />}
-                              </div>
-                              {quickCreateCepError && <p className="text-red-400 text-[10px] mt-1 font-bold">{quickCreateCepError}</p>}
-                          </div>
-                          <div>
-                              <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Logradouro</label>
-                              <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.logradouro} onChange={e => setNewDebtorData(p => ({ ...p, logradouro: e.target.value }))} placeholder="Rua, Av..." />
-                          </div>
-                          <div className="grid grid-cols-3 gap-2">
-                              <div>
-                                  <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Número</label>
-                                  <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.numero} onChange={e => setNewDebtorData(p => ({ ...p, numero: e.target.value }))} placeholder="Nº" />
-                              </div>
-                              <div className="col-span-2">
-                                  <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Bairro</label>
-                                  <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.bairro} onChange={e => setNewDebtorData(p => ({ ...p, bairro: e.target.value }))} placeholder="Bairro" />
-                              </div>
-                          </div>
-                          <div className="grid grid-cols-3 gap-2">
-                              <div className="col-span-2">
-                                  <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">Cidade</label>
-                                  <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.cidade} onChange={e => setNewDebtorData(p => ({ ...p, cidade: e.target.value }))} placeholder="Cidade" />
-                              </div>
-                              <div>
-                                  <label className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)] block mb-1">UF</label>
-                                  <input type="text" maxLength={2} className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)] uppercase" value={newDebtorData.uf} onChange={e => setNewDebtorData(p => ({ ...p, uf: e.target.value.toUpperCase() }))} placeholder="SP" />
-                              </div>
-                          </div>
-                      </div>
-                  </form>
-                  </div>
-                  {/* Footer fixo — acima da nav bar em mobile */}
-                  <div className="shrink-0 border-t border-[color:var(--border-subtle)] bg-[color:var(--bg-elevated)]/90 px-6 pt-4 pb-[max(calc(env(safe-area-inset-bottom,0px)+5.5rem),5.5rem)] md:pb-5 backdrop-blur">
-                      <button type="submit" form="quick-create-debtor-form" disabled={quickCreateLoading} className="w-full bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-teal-900/30">
-                          {quickCreateLoading ? <Loader2 className="animate-spin" size={18}/> : <UserPlus size={18}/>} Cadastrar Rápido
-                      </button>
-                  </div>
-              </div>
-          </div>
       )}
 
       {/* --- MODAL: CONFIRMAÇÃO DE EXCLUSÃO --- */}
@@ -1377,186 +1552,6 @@ const AdminContracts: React.FC = () => {
               </div>
           </div>
       )}
-
-      {/* --- MODAL: EDITAR CONTRATO --- */}
-      {isEditContractOpen && contractToEdit && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
-              <div className="panel-card w-full max-w-4xl rounded-[2.5rem] p-8 shadow-2xl animate-fade-in-up">
-                  <div className="flex justify-between items-center mb-6">
-                      <div>
-                          <p className="section-kicker mb-2">Ajuste operacional</p>
-                          <h3 className="font-display text-4xl leading-none text-[color:var(--text-primary)]">Editar contrato</h3>
-                      </div>
-                      <button onClick={() => setIsEditContractOpen(false)} className="p-2 hover:bg-[color:var(--bg-soft)] rounded-full transition-colors">
-                          <X className="text-[color:var(--text-secondary)]" size={20}/>
-                      </button>
-                  </div>
-                  <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-                      <div className="space-y-5">
-                          <div className="rounded-[1.6rem] border border-white/10 bg-black/10 p-5">
-                              <p className="section-kicker mb-4">Parâmetros financeiros</p>
-                              <div className="space-y-4">
-                                  <div>
-                                      <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Nome do contrato</label>
-                                      <input
-                                          type="text"
-                                          value={editContractName}
-                                          onChange={e => setEditContractName(e.target.value)}
-                                          className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3.5 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)]"
-                                          placeholder="Ex: Empréstimo João"
-                                      />
-                                  </div>
-
-                                  <div className="grid gap-4 sm:grid-cols-2">
-                                      <div>
-                                          <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Valor emprestado</label>
-                                          <div className="relative">
-                                              <Wallet size={16} className="absolute left-4 top-4 text-[color:var(--text-faint)]" />
-                                              <input
-                                                  type="number"
-                                                  step="0.01"
-                                                  min="0"
-                                                  value={editContractPrincipal}
-                                                  onChange={e => setEditContractPrincipal(e.target.value)}
-                                                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] py-3.5 pl-11 pr-4 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)]"
-                                              />
-                                          </div>
-                                      </div>
-                                      <div>
-                                          <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Valor da parcela aberta</label>
-                                          <div className="relative">
-                                              <Banknote size={16} className="absolute left-4 top-4 text-[color:var(--text-faint)]" />
-                                              <input
-                                                  type="number"
-                                                  step="0.01"
-                                                  min="0"
-                                                  value={editContractInstallmentValue}
-                                                  onChange={e => setEditContractInstallmentValue(e.target.value)}
-                                                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] py-3.5 pl-11 pr-4 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)]"
-                                              />
-                                          </div>
-                                      </div>
-                                  </div>
-                              </div>
-                          </div>
-
-                          <div className="rounded-[1.6rem] border border-white/10 bg-black/10 p-5">
-                              <p className="section-kicker mb-4">Leitura após o ajuste</p>
-                              <div className="grid gap-3 sm:grid-cols-2">
-                                  <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-                                      <p className="text-[11px] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Parcelas abertas</p>
-                                      <p className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{editOpenInstallments.length}</p>
-                                  </div>
-                                  <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-                                      <p className="text-[11px] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Parcelas pagas</p>
-                                      <p className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{editPaidInstallments.length}</p>
-                                  </div>
-                                  <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-                                      <p className="text-[11px] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Valor total recalculado</p>
-                                      <p className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{formatCurrency(editCurrentValuePreview)}</p>
-                                  </div>
-                                  <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-                                      <p className="text-[11px] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Taxa implícita</p>
-                                      <p className="mt-2 text-2xl font-semibold text-[color:var(--text-primary)]">{editInterestRatePreview.toFixed(2)}%</p>
-                                  </div>
-                              </div>
-                              <p className="mt-4 text-xs leading-6 text-[color:var(--text-secondary)]">
-                                  Parcelas já pagas permanecem preservadas. O ajuste redistribui apenas as parcelas em aberto.
-                              </p>
-                          </div>
-                      </div>
-
-                      <div className="rounded-[1.6rem] border border-white/10 bg-black/10 p-5">
-                          <div className="flex items-center justify-between gap-4">
-                              <div>
-                                  <p className="section-kicker mb-2">Cronograma</p>
-                                  <h4 className="font-display text-3xl leading-none text-[color:var(--text-primary)]">Datas das parcelas</h4>
-                              </div>
-                              <div className="rounded-2xl bg-[rgba(202,176,122,0.14)] p-3 text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]">
-                                  <CalendarDays size={18} />
-                              </div>
-                          </div>
-
-                          <div className="custom-scrollbar mt-5 max-h-[420px] space-y-3 overflow-y-auto pr-1">
-                              {editContractLoading ? (
-                                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-6 text-sm text-[color:var(--text-secondary)]">
-                                      Carregando cronograma do contrato...
-                                  </div>
-                              ) : editInstallments.length === 0 ? (
-                                  <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-6 text-sm text-[color:var(--text-secondary)]">
-                                      Nenhuma parcela encontrada para este contrato.
-                                  </div>
-                              ) : (
-                                  editInstallments.map((installment) => {
-                                      const locked = installment.status === 'paid';
-                                      return (
-                                          <div key={installment.id} className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-                                              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                                                  <div>
-                                                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Parcela {installment.number}</p>
-                                                      <p className="mt-1 text-sm font-semibold text-[color:var(--text-primary)]">
-                                                          {locked ? 'Parcela liquidada' : 'Parcela em aberto'}
-                                                      </p>
-                                                      <p className="mt-1 text-xs text-[color:var(--text-secondary)]">
-                                                          {locked
-                                                              ? `Recebido ${formatCurrency(Number(installment.amount_paid || 0))}`
-                                                              : `Valor previsto ${formatCurrency(Number(installment.amount_total || 0))}`}
-                                                      </p>
-                                                  </div>
-                                                  <div className="flex items-center gap-3">
-                                                      <input
-                                                          type="date"
-                                                          disabled={locked}
-                                                          value={installment.due_date}
-                                                          onChange={(event) => handleEditInstallmentDateChange(installment.id, event.target.value)}
-                                                          className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)] disabled:cursor-not-allowed disabled:opacity-45"
-                                                      />
-                                                  </div>
-                                              </div>
-                                          </div>
-                                      );
-                                  })
-                              )}
-                          </div>
-                      </div>
-                  </div>
-
-                  {editContractError && (
-                      <div className="mt-6 rounded-2xl border border-[rgba(198,126,105,0.22)] bg-[rgba(198,126,105,0.08)] px-4 py-3 text-sm text-[color:var(--accent-danger)]">
-                          {editContractError}
-                      </div>
-                  )}
-
-                  <div className="flex gap-3 mt-6">
-                      <button onClick={() => setIsEditContractOpen(false)} className="flex-1 bg-[color:var(--bg-soft)] hover:bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)] py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all">
-                          Cancelar
-                      </button>
-                      <button onClick={handleEditContractSave} disabled={editContractLoading || !editContractName.trim()} className="flex-1 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
-                          {editContractLoading ? <Loader2 className="animate-spin" size={16}/> : <CheckCircle2 size={16}/>}
-                          {editContractLoading ? 'Salvando...' : 'Salvar'}
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* ContractDetail slide-over */}
-      {isDetailsModalOpen && (
-        <ContractDetail
-          investmentId={viewingContractId}
-          onClose={() => { setIsDetailsModalOpen(false); setViewingContractId(null); setViewingContract(null); }}
-          onRenew={(inv) => { setRenewalSource(inv); setIsRenewalOpen(true); }}
-          onRefreshList={fetchData}
-        />
-      )}
-
-      {/* ContractRenewalModal */}
-      <ContractRenewalModal
-        isOpen={isRenewalOpen}
-        sourceContract={renewalSource}
-        onClose={() => { setIsRenewalOpen(false); setRenewalSource(null); }}
-        onSuccess={() => { fetchData(); setIsDetailsModalOpen(false); setViewingContractId(null); }}
-      />
 
       <QuickContractInput
         isOpen={isNLContractOpen}

@@ -83,7 +83,7 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
               </span>
             </div>
             <p className="text-sm text-yellow-200/60 mb-4">
-              Você está aproveitando acesso completo ao E-Finance, incluindo o Assistente IA. Assine antes do período encerrar para não perder o acesso.
+              Você está aproveitando acesso completo ao Juros Certo, incluindo o Assistente IA. Assine antes do período encerrar para não perder o acesso.
             </p>
             <div className="w-full bg-yellow-900/40 rounded-full h-2">
               <div
@@ -108,7 +108,7 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
               </span>
             </div>
             <p className="text-sm text-red-200/60">
-              Seu trial gratuito expirou. Assine um plano para continuar usando o E-Finance e manter o acesso às suas operações.
+              Seu trial gratuito expirou. Assine um plano para continuar usando o Juros Certo e manter o acesso às suas operações.
             </p>
           </div>
         ) : null

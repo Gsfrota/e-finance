@@ -163,9 +163,9 @@ export const ResumoGeral: React.FC<ResumoGeralProps> = ({ kpis }) => {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:gap-5 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
       {items.map(({ label, desc, value, color, bg, ring, Icon }) => (
-        <div key={label} className={`${panelClass} flex flex-col gap-3 p-4 md:p-6`}>
+        <div key={label} className={`${panelClass} card-hover flex flex-col gap-3 p-4 md:p-6`}>
           <div className="flex items-center gap-2.5">
             <div className="shrink-0 rounded-xl p-2.5" style={{ background: bg, boxShadow: `0 0 0 1px ${ring}` }}>
               <Icon size={15} style={{ color }} />
@@ -176,7 +176,7 @@ export const ResumoGeral: React.FC<ResumoGeralProps> = ({ kpis }) => {
             <p className="text-xl font-extrabold tracking-tight md:text-2xl" style={{ color }}>
               {value}
             </p>
-            <p className="mt-0.5 text-xs text-[color:var(--text-faint)]">{desc}</p>
+            <p className="mt-0.5 text-[10px] text-[color:var(--text-faint)] leading-snug">{desc}</p>
           </div>
         </div>
       ))}
@@ -225,49 +225,71 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToCo
   const progressColor = pct >= 80 ? 'bg-[color:var(--accent-positive)]' : pct >= 50 ? 'bg-[color:var(--accent-warning)]' : 'bg-[color:var(--accent-danger)]';
 
   return (
-    <div className="grid grid-cols-1 gap-3 md:gap-5 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 md:gap-4 lg:grid-cols-3">
       {/* Recebimentos do Mês */}
-      <div className={`${panelClass} flex flex-col gap-4 p-4 md:p-7`}>
+      <div className={`${panelClass} card-hover flex flex-col gap-4 p-4 md:p-7`}>
         <div className="flex items-center gap-3">
-          <Calendar size={18} className="text-[color:var(--accent-brass)]" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)]">
+            <Calendar size={16} />
+          </div>
           <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">RECEBIMENTOS DO MÊS</p>
         </div>
         <div>
-          <p className="mb-0.5 text-xs text-[color:var(--text-faint)]">Total esperado</p>
+          <p className="mb-0.5 text-[10px] uppercase tracking-[0.12em] font-bold text-[color:var(--text-faint)]">Total esperado</p>
           <p className="text-sm font-semibold text-[color:var(--text-secondary)]">{formatCurrency(kpis.expectedMonth)}</p>
         </div>
-        <div className="text-xl font-extrabold tracking-tight text-[color:var(--accent-positive)] md:text-[2.4rem]">
+        <div className="text-xl font-extrabold tracking-tight text-[color:var(--accent-positive)] md:text-[2.2rem]">
           {formatCurrency(kpis.receivedByPaymentMonth)}
         </div>
         <div>
-          <div className="mb-1.5 flex justify-between text-xs text-[color:var(--text-faint)]">
+          <div className="mb-2 flex justify-between text-[10px] font-bold uppercase tracking-[0.10em] text-[color:var(--text-faint)]">
             <span>{Math.min(100, pct)}% recebido{pct > 100 ? ` (real: ${pct}%)` : ''}</span>
             <span>{formatCurrency(Math.max(0, kpis.expectedMonth - kpis.receivedByPaymentMonth))} restante</span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-white/10">
-            <div className={`h-full rounded-full transition-all duration-500 ${progressColor}`} style={{ width: `${Math.min(100, pct)}%` }} />
+          <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
+            <div
+              className={`h-full rounded-full transition-all duration-700 ease-out ${progressColor}`}
+              style={{ width: `${Math.min(100, pct)}%` }}
+            />
           </div>
         </div>
       </div>
 
       {/* Em Atraso */}
-      <div className={`${panelClass} flex flex-col gap-4 p-4 md:p-7`}>
+      <div className={`${panelClass} card-hover flex flex-col gap-4 p-4 md:p-7`}>
         <div className="flex items-center gap-3">
-          <AlertTriangle size={18} className="text-[color:var(--accent-danger)]" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgba(248,113,113,0.12)] text-[color:var(--accent-danger)] ring-1 ring-[rgba(248,113,113,0.18)]">
+            <AlertTriangle size={16} />
+          </div>
           <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">EM ATRASO</p>
         </div>
-        <div className="text-xl font-extrabold tracking-tight text-[color:var(--accent-danger)] md:text-[2.4rem]">
+        <div className="text-xl font-extrabold tracking-tight text-[color:var(--accent-danger)] md:text-[2.2rem]">
           {formatCurrency(kpis.totalOverdue)}
         </div>
+        {kpis.totalOverdue > 0 && (
+          <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-[color:var(--text-faint)]">
+            Atenção — cobranças pendentes
+          </p>
+        )}
+        {kpis.totalOverdue === 0 && (
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={14} className="text-[color:var(--accent-positive)]" />
+            <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-[color:var(--accent-positive)]">
+              Carteira em dia
+            </p>
+          </div>
+        )}
       </div>
 
       {/* A Cobrar com filtro de dias */}
-      <div className={`${panelClass} flex flex-col gap-4 p-4 md:p-7`}>
+      <div className={`${panelClass} card-hover flex flex-col gap-4 p-4 md:p-7`}>
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Zap size={18} className="text-[color:var(--accent-brass)]" />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)]">
+              <Zap size={16} />
+            </div>
             <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
-              A COBRAR{cobraDias === 0 ? ' — HOJE' : ` — PRÓX. ${cobraDias}D`}
+              A COBRAR
             </p>
           </div>
           <div className="flex flex-wrap gap-1">
@@ -275,10 +297,10 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToCo
               <button
                 key={d}
                 onClick={() => setCobraDias(d)}
-                className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide transition-all ${
+                className={`cursor-pointer rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide transition-all ${
                   cobraDias === d
-                    ? 'bg-[color:var(--accent-brass)] text-[#17120b]'
-                    : 'bg-white/[0.05] text-[color:var(--text-faint)] hover:bg-white/[0.1]'
+                    ? 'bg-[color:var(--accent-brass)] text-[#17120b] shadow-[0_1px_8px_rgba(240,180,41,0.22)]'
+                    : 'bg-white/[0.05] text-[color:var(--text-faint)] hover:bg-white/[0.1] hover:text-[color:var(--text-secondary)]'
                 }`}
               >
                 {d === 0 ? 'HOJE' : `${d}d`}
@@ -290,11 +312,13 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToCo
           <button
             onClick={onGoToCollection}
             disabled={!onGoToCollection}
-            className="text-left text-xl font-extrabold tracking-tight text-[color:var(--accent-brass)] transition-opacity hover:opacity-80 disabled:cursor-default disabled:hover:opacity-100 md:text-[2.4rem]"
+            className="cursor-pointer text-left text-xl font-extrabold tracking-tight text-[color:var(--accent-brass)] transition-opacity hover:opacity-80 disabled:cursor-default disabled:hover:opacity-100 md:text-[2.2rem]"
           >
             {formatCurrency(aCobraValor)}
           </button>
-          <p className="text-xs text-[color:var(--text-faint)] mt-1">Clique para ver a fila de cobrança</p>
+          <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.10em] text-[color:var(--text-faint)]">
+            {cobraDias === 0 ? 'Vence hoje' : `Próximos ${cobraDias} dias`} · clique para cobrança
+          </p>
         </div>
       </div>
     </div>
@@ -746,22 +770,22 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <div className="rounded-[1.35rem] border border-white/10 bg-black/10 p-4">
-              <p className="section-kicker mb-2">Total do período</p>
-              <p className="text-xl font-bold text-[color:var(--text-primary)]">{formatCurrency(stats.total)}</p>
+          <div className="mt-5 grid grid-cols-2 gap-2 md:grid-cols-4">
+            <div className="min-w-0 overflow-hidden rounded-[1.35rem] border border-white/10 bg-black/10 p-3">
+              <p className="section-kicker mb-1 truncate">Total do período</p>
+              <p className="truncate text-base font-bold text-[color:var(--text-primary)]">{formatCurrency(stats.total)}</p>
             </div>
-            <div className="rounded-[1.35rem] border border-white/10 bg-black/10 p-4">
-              <p className="section-kicker mb-2">Recebido</p>
-              <p className="text-xl font-bold text-[color:var(--accent-positive)]">{formatCurrency(stats.received)}</p>
+            <div className="min-w-0 overflow-hidden rounded-[1.35rem] border border-white/10 bg-black/10 p-3">
+              <p className="section-kicker mb-1 truncate">Recebido</p>
+              <p className="truncate text-base font-bold text-[color:var(--accent-positive)]">{formatCurrency(stats.received)}</p>
             </div>
-            <div className="rounded-[1.35rem] border border-white/10 bg-black/10 p-4">
-              <p className="section-kicker mb-2">Em aberto</p>
-              <p className="text-xl font-bold text-[color:var(--text-primary)]">{formatCurrency(stats.outstanding)}</p>
+            <div className="min-w-0 overflow-hidden rounded-[1.35rem] border border-white/10 bg-black/10 p-3">
+              <p className="section-kicker mb-1 truncate">Em aberto</p>
+              <p className="truncate text-base font-bold text-[color:var(--text-primary)]">{formatCurrency(stats.outstanding)}</p>
             </div>
-            <div className="rounded-[1.35rem] border border-white/10 bg-black/10 p-4">
-              <p className="section-kicker mb-2">Parcelas</p>
-              <p className="text-xl font-bold text-[color:var(--text-primary)]">{filteredData.length}</p>
+            <div className="min-w-0 overflow-hidden rounded-[1.35rem] border border-white/10 bg-black/10 p-3">
+              <p className="section-kicker mb-1 truncate">Parcelas</p>
+              <p className="truncate text-base font-bold text-[color:var(--text-primary)]">{filteredData.length}</p>
             </div>
           </div>
         </div>
