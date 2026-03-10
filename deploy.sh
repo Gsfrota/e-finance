@@ -10,8 +10,11 @@ PROJECT="tribal-pillar-476701-a3"
 REGION="us-west1"
 SERVICE="e-finance"
 IMAGE="us-west1-docker.pkg.dev/${PROJECT}/cloud-run-source-deploy/${SERVICE}"
-# Defina GEMINI_API_KEY no seu ambiente antes de rodar: export GEMINI_API_KEY="sua-chave"
-GEMINI_API_KEY="${GEMINI_API_KEY:?'Erro: variável GEMINI_API_KEY não definida. Execute: export GEMINI_API_KEY=sua-chave'}"
+# Lê GEMINI_API_KEY do Secret Manager (ou do ambiente se já definida)
+if [ -z "${GEMINI_API_KEY:-}" ]; then
+  GEMINI_API_KEY=$(gcloud secrets versions access latest --secret=GEMINI_API_KEY --project="${PROJECT}" 2>/dev/null) \
+    || { echo "Erro: não foi possível ler GEMINI_API_KEY do Secret Manager"; exit 1; }
+fi
 
 # ── Helpers ──────────────────────────────────────────────────
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
