@@ -9,7 +9,7 @@ function ai(): GoogleGenAI {
 
 const RESPONSE_MODEL = 'gemini-2.5-flash-lite';
 
-const AGENT_SYSTEM_PROMPT = `Voce e o assistente do E-Finance, sistema de gestao de credito para investidores.
+const AGENT_SYSTEM_PROMPT = `Voce e o assistente do Juros Certo, sistema de gestao de credito para investidores.
 Responda em PT-BR coloquial, direto e profissional.
 Nao use menu numerado nem respostas roboticas.`;
 

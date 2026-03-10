@@ -17,6 +17,40 @@ logStructuredMessage('runtime_network_config', {
   result: 'ipv4first',
 });
 
+// --- Validação de env vars no startup ---
+const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'GEMINI_API_KEY'] as const;
+
+function validateEnv(): void {
+  const missing = REQUIRED_ENV.filter(k => !process.env[k]);
+  if (missing.length > 0) {
+    console.error(`[startup] FATAL: missing required env vars: ${missing.join(', ')}`);
+    process.exit(1);
+  }
+}
+
+// --- Rate limiting por usuário (janela deslizante em memória) ---
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+
+function isRateLimited(userId: string): boolean {
+  const now = Date.now();
+  const windowMs = config.rateLimit.windowMs;
+  const entry = rateLimitMap.get(userId) ?? { count: 0, windowStart: now };
+  if (now - entry.windowStart > windowMs) {
+    rateLimitMap.set(userId, { count: 1, windowStart: now });
+    return false;
+  }
+  entry.count++;
+  rateLimitMap.set(userId, entry);
+  return entry.count > config.rateLimit.maxPerWindow;
+}
+
+setInterval(() => {
+  const cutoff = Date.now() - config.rateLimit.windowMs * 2;
+  for (const [k, v] of rateLimitMap) {
+    if (v.windowStart < cutoff) rateLimitMap.delete(k);
+  }
+}, 60_000);
+
 function toTelegramHtml(text: string): string {
   const escaped = text
     .replace(/&/g, '&amp;')
@@ -82,7 +116,37 @@ export function createApp(): Express {
     res.sendStatus(200);
 
     try {
-      const body = req.body as wa.WaMessage;
+      // Suporta dois formatos de payload da UazAPI:
+      // 1. Formato aninhado real: { EventType, message: { fromMe, text, sender_pn, ... }, chat: {...} }
+      // 2. Formato flat (testes sintéticos): { fromMe, text, sender, ... }
+      const raw = req.body as Record<string, unknown>;
+      const body: wa.WaMessage = (raw.message && typeof raw.message === 'object')
+        ? (() => {
+            const msg = raw.message as Record<string, unknown>;
+            const chat = (raw.chat ?? {}) as Record<string, unknown>;
+            return {
+              chatid: (msg.chatid ?? msg.sender_pn ?? '') as string,
+              text: (msg.text ?? (msg.content as Record<string,unknown>)?.text ?? '') as string,
+              messageType: (msg.messageType ?? '') as string,
+              sender: (msg.sender_pn ?? msg.chatid ?? '') as string,
+              senderName: (msg.senderName ?? chat.name ?? 'Usuário') as string,
+              fromMe: Boolean(msg.fromMe),
+              messageTimestamp: typeof msg.messageTimestamp === 'number'
+                ? msg.messageTimestamp
+                : parseInt(String(msg.messageTimestamp ?? '0'), 10),
+              messageid: (msg.messageid ?? '') as string,
+              owner: (msg.owner ?? '') as string,
+              isGroup: Boolean(msg.isGroup),
+              mimetype: msg.mimetype as string | undefined,
+              duration: typeof msg.duration === 'number' ? msg.duration : undefined,
+              seconds: typeof msg.seconds === 'number' ? msg.seconds : undefined,
+              audioDuration: typeof msg.audioDuration === 'number' ? msg.audioDuration : undefined,
+              fileSize: typeof msg.fileSize === 'number' ? msg.fileSize : undefined,
+              fileLength: typeof msg.fileLength === 'number' ? msg.fileLength : undefined,
+              size: typeof msg.size === 'number' ? msg.size : undefined,
+            } as wa.WaMessage;
+          })()
+        : raw as unknown as wa.WaMessage;
 
       const isAudioMessage = body.messageType === 'audioMessage' || body.messageType === 'pttMessage';
       const isImageMessage = body.messageType === 'imageMessage';
@@ -95,6 +159,11 @@ export function createApp(): Express {
 
       const channelUserId = wa.extractPhone(body.sender);
       const senderName = body.senderName || 'Usuário';
+
+      if (isRateLimited(`whatsapp:${channelUserId}`)) {
+        logStructuredMessage('rate_limit_hit', { channel: 'whatsapp', channelUserId });
+        return;
+      }
 
       if (!isAudioMessage && !isImageMessage && body.text?.trim()) {
         void inboundBuffer.enqueue(
@@ -138,6 +207,11 @@ export function createApp(): Express {
       if (isAudioMessage) {
         const buf = await downloadMedia(body.messageid, body.chatid);
         if (buf) {
+          if (buf.length > config.media.maxAudioBytes) {
+            logStructuredMessage('media_size_exceeded', { type: 'audio', size: buf.length, channelUserId, channel: 'whatsapp' });
+            await wa.sendText(channelUserId, 'Áudio muito grande. Por favor, envie arquivos de no máximo 10 MB.');
+            return;
+          }
           audioBuffer = buf;
           audioMimeType = body.mimetype || 'audio/ogg';
           audioDurationSec = toOptionalPositiveNumber(
@@ -151,6 +225,11 @@ export function createApp(): Express {
       } else if (isImageMessage) {
         const buf = await downloadMedia(body.messageid, body.chatid);
         if (buf) {
+          if (buf.length > config.media.maxImageBytes) {
+            logStructuredMessage('media_size_exceeded', { type: 'image', size: buf.length, channelUserId, channel: 'whatsapp' });
+            await wa.sendText(channelUserId, 'Imagem muito grande. Por favor, envie imagens de no máximo 5 MB.');
+            return;
+          }
           imageBuffer = buf;
           imageMimeType = body.mimetype || 'image/jpeg';
         }
@@ -191,6 +270,11 @@ export function createApp(): Express {
 
       const chatId = String(msg.chat.id);
       const senderName = msg.from?.first_name || 'Usuário';
+
+      if (isRateLimited(`telegram:${chatId}`)) {
+        logStructuredMessage('rate_limit_hit', { channel: 'telegram', channelUserId: chatId });
+        return;
+      }
 
       const isAudioMessage = !!(msg.voice || msg.audio);
       const isImageMessage = !!msg.photo;
@@ -242,6 +326,11 @@ export function createApp(): Express {
         if (fileId) {
           const buf = await downloadFileBuffer(fileId);
           if (buf) {
+            if (buf.length > config.media.maxAudioBytes) {
+              logStructuredMessage('media_size_exceeded', { type: 'audio', size: buf.length, channelUserId: chatId, channel: 'telegram' });
+              await tg.sendText(chatId, 'Áudio muito grande. Por favor, envie arquivos de no máximo 10 MB.', 'HTML');
+              return;
+            }
             audioBuffer = buf;
             audioMimeType = msg.voice?.mime_type || msg.audio?.mime_type || 'audio/ogg';
             audioDurationSec = msg.voice?.duration || msg.audio?.duration;
@@ -253,6 +342,11 @@ export function createApp(): Express {
         const photo = msg.photo[msg.photo.length - 1];
         const buf = await downloadFileBuffer(photo.file_id);
         if (buf) {
+          if (buf.length > config.media.maxImageBytes) {
+            logStructuredMessage('media_size_exceeded', { type: 'image', size: buf.length, channelUserId: chatId, channel: 'telegram' });
+            await tg.sendText(chatId, 'Imagem muito grande. Por favor, envie imagens de no máximo 5 MB.', 'HTML');
+            return;
+          }
           imageBuffer = buf;
           imageMimeType = 'image/jpeg';
         }
@@ -315,6 +409,7 @@ export function createApp(): Express {
 }
 
 if (require.main === module) {
+  validateEnv();
   const app = createApp();
   app.listen(config.port, () => {
     console.log(`e-finance-bot rodando na porta ${config.port}`);

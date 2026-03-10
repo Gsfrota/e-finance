@@ -172,7 +172,7 @@ export async function executeActionPlan(
       context.session,
       plan.capability,
       plan.args,
-      'Vou desconectar este chat da sua conta no e-finance.'
+      'Vou desconectar este chat da sua conta no Juros Certo.'
     );
 
     return {
@@ -192,7 +192,7 @@ export async function executeActionPlan(
   if (plan.capability === 'smalltalk_identity') {
     return {
       status: 'ok',
-      safeUserMessage: 'Sou o assistente operacional do e-finance. Posso consultar recebíveis, cobrança, clientes, contratos e pagamentos com segurança.',
+      safeUserMessage: 'Sou o assistente operacional do Juros Certo. Posso consultar recebíveis, cobrança, clientes, contratos e pagamentos com segurança.',
       audit: {
         requestId: context.requestId,
         capability: plan.capability,

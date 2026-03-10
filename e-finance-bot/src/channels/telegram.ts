@@ -61,7 +61,7 @@ export async function deleteWebhook(): Promise<void> {
 export async function setCommands(): Promise<void> {
   await api.post('/setMyCommands', {
     commands: [
-      { command: 'start', description: 'Iniciar o assistente e-finance' },
+      { command: 'start', description: 'Iniciar o assistente Juros Certo' },
       { command: 'ajuda', description: 'Ver comandos disponíveis' },
       { command: 'dashboard', description: 'Resumo do dashboard' },
       { command: 'recebiveis', description: 'Parcelas a receber' },

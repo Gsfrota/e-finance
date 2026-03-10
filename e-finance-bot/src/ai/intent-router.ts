@@ -68,7 +68,8 @@ const RULES: Rule[] = [
   { intent: 'marcar_pagamento', pattern: /^(4)$/i },
 
   { intent: 'recebiveis_hoje', pattern: /(receb[ií]veis?\s+de\s+hoje|vence\s+hoje|vencimentos?\s+de\s+hoje|parcelas?\s+de\s+hoje|o\s+que\s+vence\s+hoje)/i },
-  { intent: 'cobrar_hoje', pattern: /(quem\s+tenho\s+que\s+cobrar\s+hoje|cobrar\s+hoje|lista\s+de\s+cobran[cç]a\s+de\s+hoje|quem\s+(t[aá]|est[aá])\s+me\s+devendo\s+hoje|quem\s+me\s+deve\s+hoje|quem\s+(t[aá]|est[aá])\s+devendo\s+hoje)/i },
+  { intent: 'cobrar_hoje', pattern: /(quem\s+tenho\s+que\s+cobrar\s+hoje|cobrar\s+hoje|lista\s+de\s+cobran[cç]a\s+de\s+hoje|quem\s+(t[aá]|est[aá])\s+me\s+devendo\s+hoje|quem\s+me\s+deve\s+hoje|quem\s+(t[aá]|est[aá])\s+devendo\s+hoje|quem\s+(?:eu\s+)?cobro\s+hoje)/i },
+  { intent: 'listar_recebiveis', pattern: /\b(?:parcelas?|vencimentos?)\s+(?:vencidas?|atrasadas?|em\s+aberto)/i, entities: { filter: 'late' } },
 
   { intent: 'criar_contrato', pattern: /(criar?\s+contrato|novo\s+contrato|registrar\s+contrato|cadastrar\s+contrato|empr[eé]stimo\s+para)/i },
   { intent: 'marcar_pagamento', pattern: /(marcar\s+pagamento|dar\s+baixa|registrar\s+pagamento|parcela\s+paga|baixar\s+contrato|quitar\s+parcela|baixar\s+pagamento|pagamento\s+do\s+m[eê]s\s+de|parcela\s+do\s+m[eê]s\s+de)/i },
@@ -545,10 +546,12 @@ export async function routeIntent(
   }
 
   const likelyNaturalSentence = /\s/.test(trimmed) && trimmed.length >= 12;
+  const hasConversationHistory = countHistoryChars(history) > 200;
   const shouldCallLlm = config.llmRouter.enabled && (
     likelyNaturalSentence
     || contractSignal.score > 0
     || receivablesSignal.score > 0
+    || hasConversationHistory
   );
 
   if (!shouldCallLlm) {

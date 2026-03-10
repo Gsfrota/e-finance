@@ -99,7 +99,8 @@ describe('parseContractTextDeterministic', () => {
       due_day: 5,
       derived_rate_source: 'period_total',
     });
-    expect(parsed?.rate).toBeCloseTo(100, 4);
+    // rate is monthly: (2000/1000 - 1) * 100 / 10 installments = 10% a.m.
+    expect(parsed?.rate).toBeCloseTo(10, 4);
   });
 
   it('retorna null quando faltam dados mínimos', () => {

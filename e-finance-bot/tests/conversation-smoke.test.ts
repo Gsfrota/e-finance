@@ -295,7 +295,7 @@ describe('conversation smoke (falando com o bot)', () => {
     expect(r1).toContain('Dashboard');
 
     const r2 = await ask('3', 'smk-2');
-    expect(r2).toContain('Me informe os dados do contrato');
+    expect(r2).toContain('nome completo do devedor');
 
     const r3 = await ask('Ana Paula, R$ 4.000, 2% ao mês, 8 parcelas', 'smk-3');
     expect(r3).toContain('CPF do devedor');
@@ -311,7 +311,7 @@ describe('conversation smoke (falando com o bot)', () => {
     expect(r6).toContain('Confirma a baixa desta parcela?');
 
     const r7 = await ask('sim', 'smk-7');
-    expect(r7).toContain('Contrato #123');
-    expect(r7).toContain('marcada como *paga*');
+    expect(r7).toContain('Comprovante de Pagamento');
+    expect(r7).toContain('#123');
   });
 });

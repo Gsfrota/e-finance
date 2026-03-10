@@ -91,4 +91,16 @@ export const config = {
     secret: process.env.SCHEDULER_SECRET || '',
     followupEnabledDefault: process.env.FOLLOWUP_ENABLED_DEFAULT !== 'false',
   },
+
+  // Limites de tamanho de mídia inbound
+  media: {
+    maxAudioBytes: parseInt(process.env.MAX_AUDIO_BYTES || String(10 * 1024 * 1024), 10),
+    maxImageBytes: parseInt(process.env.MAX_IMAGE_BYTES || String(5 * 1024 * 1024), 10),
+  },
+
+  // Rate limiting por usuário
+  rateLimit: {
+    maxPerWindow: parseInt(process.env.RATE_LIMIT_MAX || '20', 10),
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
+  },
 };

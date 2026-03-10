@@ -832,9 +832,13 @@ function extractAmount(text: string): number | null {
 }
 
 function extractRate(text: string): number | null {
-  const match = text.match(/(\d+(?:[.,]\d+)?)\s*%/);
-  if (!match?.[1]) return null;
-  return parsePtBrNumber(match[1]);
+  // Matches "1.8%" or "1,8%" (symbol)
+  const symbolMatch = text.match(/(\d+(?:[.,]\d+)?)\s*%/);
+  if (symbolMatch?.[1]) return parsePtBrNumber(symbolMatch[1]);
+  // Matches "1.8 por cento", "1,8 porcento", "1.8% ao mês", "1,8 a.m."
+  const textMatch = text.match(/(\d+(?:[.,]\d+)?)\s*(?:por\s*cento|porcento)/i);
+  if (textMatch?.[1]) return parsePtBrNumber(textMatch[1]);
+  return null;
 }
 
 function extractInstallments(text: string): number | null {
@@ -916,6 +920,23 @@ function normalizeNameForCompare(name: string): string {
     .toLowerCase();
 }
 
+export function extractDebtorNameSimple(text: string): string | null {
+  const cleaned = text
+    .replace(/\d{3}\.?\d{3}\.?\d{3}-?\d{2}/g, '')    // CPF
+    .replace(/R?\$?\s*\d+[\d.,]*/g, '')                // valores
+    .replace(/\d+\s*(?:parcelas?|x|vezes?|%)/gi, '')   // parcelas/taxa
+    .replace(/(?:é\s+pra?|para|pro|pra)\s+/gi, '')     // preposições
+    .trim();
+
+  if (cleaned.length < 3 || /^\d/.test(cleaned)) return null;
+
+  return cleaned
+    .split(' ')
+    .filter(w => w.length > 0)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
 export function parseContractTextDeterministic(text: string): ContractDraft | null {
   const debtor_name = extractDebtorName(text);
   const principalTotal = extractPrincipalAndTotal(text);
@@ -936,7 +957,9 @@ export function parseContractTextDeterministic(text: string): ContractDraft | nu
   if (principalTotal) {
     total_repayment = principalTotal.total;
     if (explicitRate === null && amount > 0) {
-      rate = Number((((principalTotal.total / amount) - 1) * 100).toFixed(4));
+      // Convert total period rate to monthly rate (rate % a.m.)
+      const periodRate = ((principalTotal.total / amount) - 1) * 100;
+      rate = Number((periodRate / Math.max(1, installments)).toFixed(4));
       derived_rate_source = 'period_total';
     }
   }
@@ -967,7 +990,7 @@ export async function parseContractTextWithMeta(text: string): Promise<ContractP
       '- debtor_cpf: string (CPF com ou sem máscara, se houver)\n' +
       '- amount: number (valor principal em reais, número puro)\n' +
       '- total_repayment: number (valor total a pagar se houver, número puro)\n' +
-      '- rate: number (taxa de juros do período total em %, número puro ex: 100)\n' +
+      '- rate: number (taxa de juros mensal em % a.m., número puro ex: 1.8 para 1,8% ao mês)\n' +
       '- installments: number (quantidade de parcelas)\n' +
       '- frequency: "monthly" | "weekly" | "biweekly"\n' +
       '- due_day: number (dia do mês de vencimento, 1-31, se houver)\n\n' +
@@ -1008,7 +1031,8 @@ export async function parseContractTextWithMeta(text: string): Promise<ContractP
     };
 
     if (draft.total_repayment && !parsed.rate && draft.total_repayment > draft.amount) {
-      draft.rate = Number((((draft.total_repayment / draft.amount) - 1) * 100).toFixed(4));
+      const periodRate = ((draft.total_repayment / draft.amount) - 1) * 100;
+      draft.rate = Number((periodRate / Math.max(1, draft.installments)).toFixed(4));
       draft.derived_rate_source = 'period_total';
     }
 
@@ -1165,9 +1189,10 @@ export async function createContract(
   const resolvedDebtorCpf = debtorResolution.debtorCpf;
 
   const startDate = draft.start_date || new Date().toISOString().split('T')[0];
+  // rate is monthly interest rate (% a.m.), so total = principal * (1 + rate/100 * installments)
   const currentValue = draft.total_repayment && draft.total_repayment > 0
     ? draft.total_repayment
-    : Number((draft.amount * (1 + (draft.rate || 0) / 100)).toFixed(2));
+    : Number((draft.amount * (1 + ((draft.rate || 0) / 100) * Math.max(1, draft.installments))).toFixed(2));
   const installmentValue = Number((currentValue / Math.max(1, draft.installments)).toFixed(2));
 
   const { data, error } = await db().rpc('create_investment_validated', {
@@ -1761,6 +1786,7 @@ export async function validateLinkCode(
       .single();
 
     if (codeError || !codeData) {
+      if (codeError) console.error('[validateLinkCode] db error:', codeError.message, codeError.code);
       return { status: 'invalid_or_expired' };
     }
 

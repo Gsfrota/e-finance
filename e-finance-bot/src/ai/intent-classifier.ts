@@ -67,7 +67,7 @@ interface ClassifyCompactOptions {
 
 const CLASSIFIER_MODEL = 'gemini-2.5-flash-lite';
 
-const INTENT_SYSTEM_PROMPT = `Você é um classificador de intenções para um sistema financeiro de contratos de crédito (e-finance).
+const INTENT_SYSTEM_PROMPT = `Você é um classificador de intenções para um sistema financeiro de contratos de crédito (Juros Certo).
 Classifique a mensagem do usuário em uma das intenções disponíveis e extraia as entidades relevantes.
 
 Intenções disponíveis:
@@ -86,6 +86,9 @@ Intenções disponíveis:
 - confirmar
 - cancelar
 - ajuda
+- ver_minhas_parcelas
+- ver_meu_saldo_devedor
+- ver_meu_portfolio
 - desconhecido
 
 Responda APENAS com JSON válido no formato:
@@ -112,17 +115,20 @@ Responda APENAS com JSON válido no formato:
 
 const INTENT_COMPACT_PROMPT = `Classifique intenção financeira em PT-BR coloquial e extraia entidades.
 Use APENAS:
-intent: ver_dashboard|listar_recebiveis|recebiveis_hoje|cobrar_hoje|recebiveis_periodo|cobrar_periodo|criar_contrato|marcar_pagamento|buscar_usuario|gerar_convite|gerar_relatorio|desconectar|confirmar|cancelar|ajuda|desconhecido
+intent: ver_dashboard|listar_recebiveis|recebiveis_hoje|cobrar_hoje|recebiveis_periodo|cobrar_periodo|criar_contrato|marcar_pagamento|buscar_usuario|gerar_convite|gerar_relatorio|desconectar|confirmar|cancelar|ajuda|ver_minhas_parcelas|ver_meu_saldo_devedor|ver_meu_portfolio|desconhecido
 confidence: high|medium|low
 entities: debtor_name, debtor_cpf, amount, rate, installments, frequency, installment_id, filter, contract_id, installment_number, installment_month (1-12 se mes mencionado), installment_year (4 digitos se ano mencionado), days_ahead (1..60), window_start (today|tomorrow)
 
 Exemplos por intencao:
-- cobrar_hoje: "quem ta me devendo hoje", "quem devo cobrar hoje", "quem me deve hoje"
+- cobrar_hoje: "quem ta me devendo hoje", "quem devo cobrar hoje", "quem me deve hoje", "quem eu cobro hoje"
 - cobrar_periodo: "quem devo cobrar nos próximos 7 dias", "a partir de amanhã, quem devo cobrar nos próximos 3 dias"
 - recebiveis_periodo: "quanto vou receber nos próximos 15 dias", "recebíveis dos próximos 7 dias"
 - marcar_pagamento: "dar baixa na parcela de janeiro de X", "registrar pagamento do mes de fevereiro de Y", "quitar parcela de marco do Joao", "baixar pagamento de X"
 - buscar_usuario: "quanto X deve", "qual a divida de X", "me fala da divida do Joao"
 - listar_recebiveis: "quem ta atrasado", "quem ta devendo", "parcelas em aberto"
+- ver_minhas_parcelas: "minhas parcelas", "quando vence minha parcela", "meus vencimentos"
+- ver_meu_saldo_devedor: "quanto devo", "minha dívida", "saldo devedor meu"
+- ver_meu_portfolio: "meus contratos", "minha carteira", "meus recebíveis"
 
 Para marcar_pagamento com mes: extraia debtor_name e installment_month (jan=1, fev=2, mar=3, abr=4, mai=5, jun=6, jul=7, ago=8, set=9, out=10, nov=11, dez=12).
 Retorne SOMENTE JSON valido.`;
@@ -143,6 +149,9 @@ const INTENT_SET = new Set<Intent>([
   'confirmar',
   'cancelar',
   'ajuda',
+  'ver_minhas_parcelas',
+  'ver_meu_saldo_devedor',
+  'ver_meu_portfolio',
   'desconhecido',
 ]);
 

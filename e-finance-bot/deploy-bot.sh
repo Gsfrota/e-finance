@@ -15,7 +15,6 @@ PROJECT="tribal-pillar-476701-a3"
 REGION="us-west1"
 SERVICE="e-finance-bot"
 IMAGE="us-west1-docker.pkg.dev/${PROJECT}/cloud-run-source-deploy/${SERVICE}"
-SUPABASE_URL="https://SUPABASE_PROJECT_URL_REMOVED"
 UAZAPI_SERVER_URL="https://processai.uazapi.com"
 
 # ── Helpers ───────────────────────────────────────────────
@@ -89,8 +88,8 @@ gcloud run deploy "${SERVICE}" \
   --min-instances=0 \
   --max-instances=3 \
   --timeout=60 \
-  --set-env-vars="UAZAPI_SERVER_URL=${UAZAPI_SERVER_URL},SUPABASE_URL=${SUPABASE_URL}" \
-  --set-secrets="UAZAPI_INSTANCE_TOKEN=UAZAPI_INSTANCE_TOKEN:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY_EFINANCE:latest,GEMINI_API_KEY=GEMINI_API_KEY_EFINANCE:latest,SCHEDULER_SECRET=SCHEDULER_SECRET_BOT:latest" \
+  --set-env-vars="UAZAPI_SERVER_URL=${UAZAPI_SERVER_URL}" \
+  --set-secrets="UAZAPI_INSTANCE_TOKEN=UAZAPI_INSTANCE_TOKEN:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,SUPABASE_URL=SUPABASE_URL_EFINANCE:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY_EFINANCE:latest,GEMINI_API_KEY=GEMINI_API_KEY_EFINANCE:latest,SCHEDULER_SECRET=SCHEDULER_SECRET:latest" \
   --quiet
 
 # ── Configurar webhooks ───────────────────────────────────

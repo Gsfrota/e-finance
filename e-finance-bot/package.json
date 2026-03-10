@@ -1,7 +1,7 @@
 {
   "name": "e-finance-bot",
   "version": "1.0.0",
-  "description": "Assistente de bolso e-finance via WhatsApp e Telegram",
+  "description": "Assistente de bolso Juros Certo via WhatsApp e Telegram",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

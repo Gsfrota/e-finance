@@ -13,7 +13,7 @@ import {
   validateLinkCode, disconnectBot, formatCurrency, formatDate,
   ContractDraft, DebtorToCollect, getContractOpenInstallments,
   getContractOpenInstallmentByNumber, normalizeCpf, isValidCpf,
-  getInstallmentByDebtorAndMonth,
+  getInstallmentByDebtorAndMonth, extractDebtorNameSimple,
 } from '../actions/admin-actions';
 import { logStructuredMessage } from '../observability/logger';
 import { estimateCostUsd } from '../observability/cost-estimator';
@@ -31,6 +31,7 @@ import { clearPendingConfirmation, getPendingConfirmationState, parseConfirmatio
 import { executeActionPlan } from '../assistant/tool-executor';
 import { runPolicyCheck } from '../assistant/policy-engine';
 import type { ActionPlan, CommandUnderstanding } from '../assistant/contracts';
+import { formatCobrancaList, formatReceivablesList, formatComprovante, formatRelatorioCompleto, formatContractConfirmationMessage, formatContractCreatedMessage } from '../tools/formatters';
 
 export interface IncomingMessage {
   messageId: string;
@@ -59,16 +60,16 @@ function getWelcomeMessage(name: string, role: string): string {
   if (role === 'investor') {
     return `Oi ${name}! Sou seu assistente de carteira.\n\nPosso mostrar seus *contratos*, *recebiveis* e *rendimentos*.\n\nO que deseja saber?`;
   }
-  return `Oi ${name}! Sou o assistente e-finance.\n\nPode falar comigo naturalmente para ver dashboard, recebiveis, criar contrato, baixar pagamento, buscar cliente ou pedir relatorio.\n\nMe conta o que voce precisa agora.`;
+  return `Oi ${name}! Sou o assistente Juros Certo.\n\nPode falar comigo naturalmente para ver dashboard, recebiveis, criar contrato, baixar pagamento, buscar cliente ou pedir relatorio.\n\nMe conta o que voce precisa agora.`;
 }
 
-const NOT_LINKED_MSG = `Para te atender com seus dados, preciso vincular este chat a sua conta no e-finance.
+const NOT_LINKED_MSG = `Para te atender com seus dados, preciso vincular este chat a sua conta no Juros Certo.
 
 Gere o codigo em Dashboard web -> Configuracoes -> Conectar WhatsApp/Telegram e me envie aqui.`;
 
 const PROMPT_INJECTION_BLOCK_MSG =
   'Por segurança, não posso seguir comandos para ignorar regras, revelar prompts ou acessar segredos.\n\n'
-  + 'Posso ajudar com ações do e-finance: *dashboard*, *recebíveis*, *criar contrato*, *marcar pagamento*, *relatório* e *convite*.\n\n'
+  + 'Posso ajudar com ações do Juros Certo: *dashboard*, *recebíveis*, *criar contrato*, *marcar pagamento*, *relatório* e *convite*.\n\n'
   + 'Me diga o que você precisa fazer no sistema.';
 
 const CPF_REQUIRED_MSG =
@@ -123,7 +124,7 @@ function getGlobalUtilityReply(text: string): { text: string; action: string } |
 
   if (/^(quem (e|é) voce|quem (e|é) vc)( agora)?\??$/.test(normalized)) {
     return {
-      text: 'Sou o assistente operacional do e-finance. Posso consultar dashboard, recebíveis, cobranças, clientes, contratos, pagamentos, relatórios e convite.',
+      text: 'Sou o assistente operacional do Juros Certo. Posso consultar dashboard, recebíveis, cobranças, clientes, contratos, pagamentos, relatórios e convite.',
       action: 'utility:identity',
     };
   }
@@ -482,7 +483,7 @@ function getPlanClarificationMessage(plan: ActionPlan, understanding?: CommandUn
   if (plan.confidence === 'low') {
     const capabilityLabel = CAPABILITY_LABELS[plan.capability] || 'seguir com essa ação';
     return understanding?.intent === 'desconhecido'
-      ? 'Ainda não fechei sua ação com segurança. Me diga em uma frase o que você quer fazer no e-finance.'
+      ? 'Ainda não fechei sua ação com segurança. Me diga em uma frase o que você quer fazer no Juros Certo.'
       : `Ainda não fechei isso com segurança. Você quer ${capabilityLabel}?`;
   }
 
@@ -1480,11 +1481,11 @@ async function dispatchIntent(
           pendingStep: 2,
           pendingData: draft as unknown as Record<string, unknown>,
         });
-        return formatContractConfirmation(draft);
+        return formatContractConfirmationMessage(draft);
       }
 
       await updateSessionContext(session.id, { pendingAction: 'criar_contrato', pendingStep: 1 });
-      return 'Claro! Me informe os dados do contrato:\n\nExemplo: *"João Silva, CPF 52998224725, R$ 5.000, 3% ao mês, 12 parcelas mensais"*\n\nOu pode enviar um áudio descrevendo.';
+      return 'Claro! Qual é o *nome completo do devedor*?';
     }
 
     case 'marcar_pagamento': {
@@ -1598,16 +1599,7 @@ async function dispatchIntent(
         return `✅ Nenhum recebivel em aberto no periodo *${formatDateWindow(daysAhead, windowStart)}*.`;
       }
 
-      const total = installments.reduce((sum, installment) => sum + installment.amount, 0);
-      const visibleItems = installments.slice(0, 8);
-      const lines = visibleItems.map((item, index) => (
-        `${index + 1}. ${item.debtorName} — ${formatCurrency(item.amount)} — ${formatDate(item.dueDate)}`
-      ));
-      const extra = installments.length > visibleItems.length
-        ? `\n\n...e mais ${installments.length - visibleItems.length} itens no período.`
-        : '';
-      const dataBlock = `📅 *Recebíveis (${formatDateWindow(daysAhead, windowStart)})*\n\n${lines.join('\n')}\n\n💰 Total previsto: *${formatCurrency(total)}*${extra}`;
-      return dataBlock;
+      return formatReceivablesList(installments, formatDateWindow(daysAhead, windowStart));
     }
 
     case 'cobrar_periodo': {
@@ -1633,18 +1625,7 @@ async function dispatchIntent(
         return `✅ Nenhum devedor para cobranca no periodo *${formatDateWindow(daysAhead, windowStart)}*.`;
       }
 
-      const total = debtors.reduce((sum, debtor) => sum + debtor.totalDue, 0);
-      const visibleItems = debtors.slice(0, 8);
-      const lines = visibleItems.map((debtor, index) => {
-        const parcels = debtor.installmentCount > 1 ? ` — ${debtor.installmentCount} parcelas` : '';
-        const late = debtor.daysLate > 0 ? ` *(${debtor.daysLate}d atrasado)*` : '';
-        return `${index + 1}. ${debtor.name} — ${formatCurrency(debtor.totalDue)}${parcels}${late}`;
-      });
-      const extra = debtors.length > visibleItems.length
-        ? `\n\n...e mais ${debtors.length - visibleItems.length} devedores no período.`
-        : '';
-      const dataBlock = `🔴 *Cobrança (${formatDateWindow(daysAhead, windowStart)})*\n\n${lines.join('\n')}\n\n💰 Total em aberto: *${formatCurrency(total)}*${extra}`;
-      return dataBlock;
+      return formatCobrancaList(debtors, formatDateWindow(daysAhead, windowStart));
     }
 
     case 'recebiveis_hoje': {
@@ -1653,10 +1634,7 @@ async function dispatchIntent(
       if (hoje.length === 0) {
         return '✅ Nenhuma parcela vence hoje.';
       }
-      const total = hoje.reduce((s, i) => s + i.amount, 0);
-      const lines = hoje.map((i, idx) => `${idx + 1}. ${i.debtorName} — ${formatCurrency(i.amount)}`);
-      const dataBlock = `📅 *Vencimentos de hoje:*\n\n${lines.join('\n')}\n\n💰 Total: *${formatCurrency(total)}*`;
-      return dataBlock;
+      return formatReceivablesList(hoje, 'hoje');
     }
 
     case 'cobrar_hoje': {
@@ -1665,55 +1643,14 @@ async function dispatchIntent(
       if (devedores.length === 0) {
         return '✅ Nenhum devedor com vencimento hoje.';
       }
-      const total = devedores.reduce((s, d) => s + d.totalDue, 0);
-      const lines = devedores.map((d, idx) => {
-        const atraso = d.daysLate > 0 ? ` *(${d.daysLate}d atrasado)*` : '';
-        const parcelas = d.installmentCount > 1 ? ` — ${d.installmentCount} parcelas` : '';
-        return `${idx + 1}. ${d.name} — ${formatCurrency(d.totalDue)}${parcelas}${atraso}`;
-      });
-      const dataBlock = `🔴 *Lista de cobrança:*\n\n${lines.join('\n')}\n\n💰 Total em aberto: *${formatCurrency(total)}*`;
-      return dataBlock;
+      return formatCobrancaList(devedores, 'hoje');
     }
 
     case 'gerar_relatorio': {
       if (role !== 'admin') return 'Essa função é apenas para administradores.';
       const report = await generateMonthlyReport(tenantId);
-      const { dashboard: d } = report;
       const month = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-      const receivedByPaymentMonth = d.receivedByPaymentMonth ?? d.receivedMonth;
-      const receivedByDueMonth = d.receivedByDueMonth ?? d.receivedMonth;
-
-      let text = `📊 *Relatório — ${month}*\n\n`;
-      text += `💰 Recebido (pagamento no mês): *${formatCurrency(receivedByPaymentMonth)}*\n`;
-      text += `🗓️ Recebido (vencimento no mês): *${formatCurrency(receivedByDueMonth)}*\n`;
-      text += `📅 Esperado: *${formatCurrency(d.expectedMonth)}*\n`;
-      text += `⚠️ Em atraso: *${formatCurrency(d.totalOverdue)}*\n`;
-      text += `📋 Contratos ativos: *${d.activeContracts}*\n\n`;
-
-      if (report.todayInstallments.length > 0) {
-        text += `📅 *Vence hoje (${report.todayInstallments.length}):*\n`;
-        report.todayInstallments.slice(0, 3).forEach(i => {
-          text += `• ${i.debtorName} — ${formatCurrency(i.amount)}\n`;
-        });
-        text += '\n';
-      }
-
-      if (report.overdueDebtors.length > 0) {
-        text += `🔴 *Em atraso (${report.overdueDebtors.length} devedores):*\n`;
-        report.overdueDebtors.slice(0, 5).forEach((d: DebtorToCollect) => {
-          text += `• ${d.name} — ${formatCurrency(d.totalDue)} (${d.daysLate}d)\n`;
-        });
-        text += '\n';
-      }
-
-      if (report.topDebtors.length > 0) {
-        text += '👥 *Maiores devedores:*\n';
-        report.topDebtors.forEach(d => {
-          text += `• ${d.name} — ${formatCurrency(d.totalDebt)}\n`;
-        });
-      }
-
-      return text.trim();
+      return formatRelatorioCompleto(report, month);
     }
 
     case 'desconectar': {
@@ -1837,7 +1774,7 @@ async function handlePendingAction(
       renameApplied: result.renameApplied || false,
     });
 
-    return `✅ *Contrato criado com sucesso!*\n\nContrato #${result.id}\nDevedor: ${result.debtorName}\nCPF: ${maskCpf(result.debtorCpf)}\nPrimeira parcela: ${result.firstInstallment}\n\nPara baixar, diga: *baixar contrato ${result.id}*`;
+    return formatContractCreatedMessage(result, draft);
   }
 
   if (pendingAction === 'criar_contrato') {
@@ -1860,7 +1797,17 @@ async function handlePendingAction(
           result: 'failed',
           reason: parsed.reason || 'unknown',
         });
-        return 'Ainda não consegui fechar os dados do contrato.\n\nMe diga em uma frase com: *nome do devedor + CPF + valor principal + total a pagar ou taxa + parcelas*.\nEx: *"Ícaro Soares, CPF 52998224725, 1000 por 2000, 10 parcelas, todo dia 5"*.';
+        // Tenta extrair pelo menos o nome para iniciar fluxo guiado
+        const extractedName = extractDebtorNameSimple(text);
+        if (extractedName) {
+          await updateSessionContext(session.id, {
+            pendingAction: 'criar_contrato',
+            pendingStep: 11,
+            pendingData: { debtor_name: extractedName } as unknown as Record<string, unknown>,
+          });
+          return `Certo, *${extractedName}*. Qual é o *CPF* do devedor?`;
+        }
+        return 'Qual é o *nome completo do devedor*?';
       }
 
       const draft: ContractDraft = { ...parsed.draft };
@@ -1885,12 +1832,12 @@ async function handlePendingAction(
         pendingStep: 2,
         pendingData: draft as unknown as Record<string, unknown>,
       });
-      return formatContractConfirmation(draft);
+      return formatContractConfirmationMessage(draft);
     }
 
     if (pendingStep === 11) {
-      const draft = (pendingData as unknown as ContractDraft) || null;
-      if (!draft || !draft.debtor_name || !draft.amount) {
+      const partialDraft = (pendingData as any) || {};
+      if (!partialDraft.debtor_name) {
         await clearSessionContext(session.id);
         return 'Contexto expirado. Pode começar de novo.';
       }
@@ -1899,18 +1846,115 @@ async function handlePendingAction(
       if (!extractedCpf) return 'CPF não reconhecido. Envie o CPF com 11 dígitos (com ou sem máscara).';
       if (!isValidCpf(extractedCpf)) return 'CPF inválido. Verifique os dígitos e envie novamente.';
 
-      draft.debtor_cpf = extractedCpf;
-      if (draft.due_day && !draft.start_date) {
-        draft.start_date = suggestFirstInstallmentDate(draft.due_day);
+      // Fluxo original: já tem amount → vai direto para confirmação (step 2)
+      if (partialDraft.amount !== undefined && partialDraft.amount !== null) {
+        const draft = partialDraft as ContractDraft;
+        draft.debtor_cpf = extractedCpf;
+        if (draft.due_day && !draft.start_date) {
+          draft.start_date = suggestFirstInstallmentDate(draft.due_day);
+        }
+        await updateSessionContext(session.id, {
+          pendingAction: 'criar_contrato',
+          pendingStep: 2,
+          pendingData: draft as unknown as Record<string, unknown>,
+        });
+        return formatContractConfirmationMessage(draft);
       }
+
+      // Fluxo guiado: ainda não tem amount → vai para step 12
+      await updateSessionContext(session.id, {
+        pendingAction: 'criar_contrato',
+        pendingStep: 12,
+        pendingData: { ...partialDraft, debtor_cpf: extractedCpf } as unknown as Record<string, unknown>,
+      });
+      return 'Qual é o *valor principal* emprestado? (Ex: *R$ 5.000* ou *20 mil*)';
+    }
+
+    if (pendingStep === 12) {
+      const partialDraft = (pendingData as any) || {};
+      if (!partialDraft.debtor_name) {
+        await clearSessionContext(session.id);
+        return 'Contexto expirado. Pode começar de novo.';
+      }
+
+      const amountRaw = text.replace(/\s+/g, '').toLowerCase();
+      const amountMatch = amountRaw.match(/r?\$?([0-9]+(?:[.,][0-9]+)?)(mil|k)?/);
+      let amount: number | null = null;
+      if (amountMatch) {
+        const n = parseFloat(amountMatch[1].replace(',', '.'));
+        const multiplier = /mil|k/.test(amountMatch[2] || '') ? 1000 : 1;
+        if (Number.isFinite(n) && n > 0) amount = n * multiplier;
+      }
+
+      if (!amount) return 'Não reconheci o valor. Tente: *R$ 5.000*, *20 mil* ou *5000*.';
+
+      await updateSessionContext(session.id, {
+        pendingAction: 'criar_contrato',
+        pendingStep: 13,
+        pendingData: { ...partialDraft, amount } as unknown as Record<string, unknown>,
+      });
+      return 'Qual é a *taxa de juros mensal* (% a.m.)? Se não houver juros, responda *pular*.';
+    }
+
+    if (pendingStep === 13) {
+      const partialDraft = (pendingData as any) || {};
+      if (!partialDraft.debtor_name || partialDraft.amount === undefined) {
+        await clearSessionContext(session.id);
+        return 'Contexto expirado. Pode começar de novo.';
+      }
+
+      let rate = 0;
+      const skipRate = /^(pula|pular|sem\s*taxa|nao|não|padrao|padrão|0)$/i.test(text.trim());
+      if (!skipRate) {
+        const rateMatch = text.match(/(\d+(?:[.,]\d+)?)\s*%/)
+          || text.match(/(\d+(?:[.,]\d+)?)\s*(?:por\s*cento|porcento)/i)
+          || text.match(/^(\d+(?:[.,]\d+)?)$/);
+        if (rateMatch?.[1]) {
+          const parsed = parseFloat(rateMatch[1].replace(',', '.'));
+          if (Number.isFinite(parsed) && parsed >= 0) rate = parsed;
+        }
+      }
+
+      await updateSessionContext(session.id, {
+        pendingAction: 'criar_contrato',
+        pendingStep: 14,
+        pendingData: { ...partialDraft, rate } as unknown as Record<string, unknown>,
+      });
+      return 'Quantas *parcelas mensais*? Se for uma parcela única, responda *pular*.';
+    }
+
+    if (pendingStep === 14) {
+      const partialDraft = (pendingData as any) || {};
+      if (!partialDraft.debtor_name || partialDraft.amount === undefined) {
+        await clearSessionContext(session.id);
+        return 'Contexto expirado. Pode começar de novo.';
+      }
+
+      let installments = 1;
+      const skipInstallments = /^(pula|pular|uma|1|padrao|padrão)$/i.test(text.trim());
+      if (!skipInstallments) {
+        const installMatch = text.match(/(\d{1,3})\s*(?:x|parcelas?|vezes?)?/);
+        if (installMatch?.[1]) {
+          const n = parseInt(installMatch[1], 10);
+          if (Number.isFinite(n) && n >= 1) installments = n;
+        }
+      }
+
+      const draft: ContractDraft = {
+        debtor_name: String(partialDraft.debtor_name),
+        debtor_cpf: String(partialDraft.debtor_cpf || ''),
+        amount: Number(partialDraft.amount),
+        rate: Number(partialDraft.rate ?? 0),
+        installments,
+        frequency: 'monthly',
+      };
 
       await updateSessionContext(session.id, {
         pendingAction: 'criar_contrato',
         pendingStep: 2,
         pendingData: draft as unknown as Record<string, unknown>,
       });
-
-      return formatContractConfirmation(draft);
+      return formatContractConfirmationMessage(draft);
     }
 
     if (pendingStep === 2) {
@@ -2010,14 +2054,7 @@ Responda com *1* ou *2*.`;
           renameApplied: result.renameApplied || false,
         });
 
-        return `✅ *Contrato criado com sucesso!*
-
-Contrato #${result.id}
-Devedor: ${result.debtorName}
-CPF: ${maskCpf(result.debtorCpf)}
-Primeira parcela: ${result.firstInstallment}
-
-Para baixar, diga: *baixar contrato ${result.id}*`;
+        return formatContractCreatedMessage(result, pendingData as unknown as ContractDraft);
       }
       await clearSessionContext(session.id);
       return 'Criação cancelada. Pode me pedir outro contrato quando quiser.';
@@ -2118,7 +2155,14 @@ Para baixar, diga: *baixar contrato ${result.id}*`;
         result: 'success',
       });
 
-      return `✅ Parcela *${selected.number}* do *Contrato #${contractId}* marcada como *paga* (${formatCurrency(selected.amount)}).`;
+      return formatComprovante({
+        debtorName: selected.debtorName,
+        amount: selected.amount,
+        dueDate: selected.dueDate,
+        paidAt: new Date().toISOString(),
+        installmentNumber: selected.number,
+        contractId,
+      });
     }
   }
 
@@ -2154,7 +2198,12 @@ Para baixar, diga: *baixar contrato ${result.id}*`;
       const success = await markInstallmentPaid(selected.id, tenantId);
       await clearSessionContext(session.id);
       if (!success) return '❌ Não foi possível marcar como pago. Tente novamente.';
-      return `✅ Parcela de *${selected.debtorName}* (${formatCurrency(selected.amount)}) marcada como *paga*!`;
+      return formatComprovante({
+        debtorName: selected.debtorName ?? '',
+        amount: selected.amount ?? 0,
+        dueDate: (selected as any).dueDate,
+        paidAt: new Date().toISOString(),
+      });
     }
   }
 
@@ -2187,7 +2236,14 @@ Para baixar, diga: *baixar contrato ${result.id}*`;
       await clearSessionContext(session.id);
       if (!success) return '❌ Não foi possível marcar como pago. Tente novamente.';
 
-      return `✅ Parcela de *${selected.debtorName}* (${formatCurrency(selected.amount)}) marcada como *paga*!`;
+      return formatComprovante({
+        debtorName: selected.debtorName,
+        amount: selected.amount,
+        dueDate: selected.dueDate,
+        paidAt: new Date().toISOString(),
+        installmentNumber: selected.number,
+        contractId: selected.contractId,
+      });
     }
   }
 
@@ -2277,30 +2333,10 @@ function suggestFirstInstallmentDate(dueDay: number, baseDate: Date = new Date()
   return candidate.toISOString().split('T')[0];
 }
 
-function formatContractConfirmation(draft: ContractDraft): string {
-  const freqMap: Record<string, string> = { monthly: 'mensal', weekly: 'semanal', biweekly: 'quinzenal' };
-  const rateLabel = draft.derived_rate_source === 'period_total'
-    ? `${draft.rate}% (taxa total do período)`
-    : `${draft.rate}% a.m.`;
-  const totalRepaymentLine = draft.total_repayment
-    ? `\n🧾 Total a pagar: *${formatCurrency(draft.total_repayment)}*`
-    : '';
-  const dueDayLine = draft.due_day
-    ? `\n🗓️ Vence todo dia: *${draft.due_day}*`
-    : '';
-  const firstDateLine = draft.start_date
-    ? `\n📌 Primeira parcela sugerida: *${formatDate(draft.start_date)}*`
-    : '';
-  const cpfLine = draft.debtor_cpf
-    ? `\n🪪 CPF: *${maskCpf(draft.debtor_cpf)}*`
-    : '';
-
-  return `Vou criar o seguinte contrato:\n\n👤 Devedor: *${draft.debtor_name}*${cpfLine}\n💰 Valor principal: *${formatCurrency(draft.amount)}*${totalRepaymentLine}\n📈 Taxa: *${rateLabel}*\n📅 Parcelas: *${draft.installments}x ${freqMap[draft.frequency] || draft.frequency}*${dueDayLine}${firstDateLine}\n\nConfirma? (sim/não)`;
-}
 
 function getHelpText(role: string): string {
   if (role === 'admin') {
-    return `🤖 *Assistente e-finance — Comandos:*
+    return `🤖 *Assistente Juros Certo — Comandos:*
 
 📊 *Dashboard* — "como tá o mês?" / "resumo"
 📋 *Relatório completo* — "gerar relatório"
@@ -2317,5 +2353,5 @@ function getHelpText(role: string): string {
 
 Pode falar normalmente ou enviar áudio! 🎤`;
   }
-  return '🤖 *Assistente e-finance*\n\nPosso te ajudar a consultar seus dados. Tente perguntar naturalmente!';
+  return '🤖 *Assistente Juros Certo*\n\nPosso te ajudar a consultar seus dados. Tente perguntar naturalmente!';
 }

@@ -714,7 +714,7 @@ describe('handleMessage', () => {
     });
 
     expect(out.text).toContain('Entendi do áudio');
-    expect(out.text).toContain('Vou criar o seguinte contrato');
+    expect(out.text).toContain('Resumo do Contrato');
   });
 
   it('áudio com pagamento por mês entra no fluxo de baixa com confirmação', async () => {
