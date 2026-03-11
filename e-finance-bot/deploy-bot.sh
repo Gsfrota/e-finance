@@ -120,7 +120,7 @@ if [[ -n "${SCHEDULER_SECRET_VALUE}" ]]; then
     gcloud scheduler jobs update http morning-briefing \
       --project="${PROJECT}" --location="${REGION}" \
       --uri="${BOT_URL}/scheduler/morning-briefing" \
-      --headers="x-scheduler-secret=${SCHEDULER_SECRET_VALUE},Content-Type=application/json" \
+      --update-headers="x-scheduler-secret=${SCHEDULER_SECRET_VALUE},Content-Type=application/json" \
       --quiet
     ok "Cloud Scheduler job atualizado"
   else

@@ -726,3 +726,10 @@ $$;
 GRANT EXECUTE ON FUNCTION public.complete_oauth_onboarding(TEXT, TEXT, TEXT, TEXT) TO authenticated;
 ```
 
+
+## Migração V22b — Idempotência do Morning Briefing
+
+```sql
+ALTER TABLE public.bot_tenant_config
+  ADD COLUMN IF NOT EXISTS last_briefing_sent_at TIMESTAMPTZ;
+```

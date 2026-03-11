@@ -17,6 +17,7 @@ export interface BotTenantConfig {
   whitelist_phones: string[];   // V21
   created_at: string;
   updated_at: string;
+  last_briefing_sent_at: string | null;
 }
 
 export type BotTenantConfigPatch = Partial<Omit<BotTenantConfig, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>>;
@@ -62,6 +63,18 @@ export async function getAllTenantsWithBriefingEnabled(): Promise<BotTenantConfi
   }
 
   return (data ?? []) as BotTenantConfig[];
+}
+
+export async function updateBriefingSentAt(tenantId: string): Promise<void> {
+  const { error } = await db()
+    .from('bot_tenant_config')
+    .update({ last_briefing_sent_at: new Date().toISOString() })
+    .eq('tenant_id', tenantId);
+
+  if (error) {
+    console.error('[updateBriefingSentAt] erro:', error.message);
+    // Non-fatal: briefing already sent, timestamp write failure is acceptable
+  }
 }
 
 export interface WhitelistCheckResult {

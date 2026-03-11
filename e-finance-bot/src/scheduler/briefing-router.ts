@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { config } from '../config';
-import { getAllTenantsWithBriefingEnabled } from '../actions/bot-config-actions';
+import { getAllTenantsWithBriefingEnabled, updateBriefingSentAt } from '../actions/bot-config-actions';
 import { runMorningBriefingForTenant, isTimeWindowMatch } from './morning-briefing';
 
 export const router = Router();
@@ -21,8 +21,26 @@ router.post('/morning-briefing', async (req: Request, res: Response) => {
     }
 
     const results: Array<{ tenantId: string; sent: number; errors: number }> = [];
+    const BRIEFING_COOLDOWN_MS = 23 * 60 * 60 * 1000;
+    const now = Date.now();
+    let skippedDup = 0;
 
     for (const tenantConfig of matching) {
+      const lastSent = tenantConfig.last_briefing_sent_at
+        ? new Date(tenantConfig.last_briefing_sent_at).getTime()
+        : 0;
+
+      if (now - lastSent < BRIEFING_COOLDOWN_MS) {
+        console.log(
+          `[briefing-router] tenant ${tenantConfig.tenant_id} ignorado — briefing já enviado há ${Math.round((now - lastSent) / 60000)} min`
+        );
+        skippedDup++;
+        continue;
+      }
+
+      // Stamp BEFORE sending to prevent race on concurrent invocations
+      await updateBriefingSentAt(tenantConfig.tenant_id);
+
       const result = await runMorningBriefingForTenant(
         tenantConfig.tenant_id,
         tenantConfig.morning_briefing_targets
@@ -33,6 +51,7 @@ router.post('/morning-briefing', async (req: Request, res: Response) => {
     return res.json({
       dispatched: results.reduce((sum, r) => sum + r.sent, 0),
       skipped: tenantConfigs.length - matching.length,
+      skippedDuplicate: skippedDup,
       results,
     });
   } catch (err) {
