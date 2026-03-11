@@ -36,6 +36,7 @@ export interface Profile {
   full_name: string;
   role: UserRole;
   tenant_id: string;
+  phone_number?: string;
   cpf?: string;
   cep?: string;
   logradouro?: string;
@@ -139,6 +140,16 @@ export interface ContractRenegotiation {
   created_at: string;
 }
 
+export interface AvulsoPayment {
+  id: string;
+  investment_id: number;
+  tenant_id: string;
+  amount: number;
+  notes: string | null;
+  paid_at: string;
+  created_at: string;
+}
+
 // Métricas calculadas para o detalhe de um contrato
 export interface ContractMetrics {
   jurosPagos: number;
@@ -225,6 +236,7 @@ export interface Invite {
 
 export enum AppView {
   LOGIN = 'LOGIN',
+  HOME = 'HOME',
   DASHBOARD = 'DASHBOARD',
   USERS = 'USERS',
   USER_DETAILS = 'USER_DETAILS',

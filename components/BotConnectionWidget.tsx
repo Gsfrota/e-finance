@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Smartphone, Send, CheckCircle2, X } from 'lucide-react';
 import { getSupabase } from '../services/supabase';
 
 interface ConnectionStatus {
@@ -56,7 +57,6 @@ export function BotConnectionWidget() {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
-      // Remove códigos anteriores não usados deste profile/channel
       await supabase
         .from('bot_link_codes')
         .delete()
@@ -79,7 +79,7 @@ export function BotConnectionWidget() {
 
       setLinkCode(code);
       setActiveChannel(channel);
-      setCountdown(15 * 60); // 15 min em segundos
+      setCountdown(15 * 60);
     } finally {
       setLoading(false);
     }
@@ -98,17 +98,18 @@ export function BotConnectionWidget() {
   const formatCountdown = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   return (
-    <div className="bg-[color:var(--bg-elevated)] rounded-xl p-5 border border-[color:var(--border-subtle)]">
-      <h3 className="text-[color:var(--text-primary)] font-semibold text-base mb-1">Assistente de Bolso</h3>
-      <p className="text-[color:var(--text-secondary)] text-sm mb-4">
+    // --bg-soft: um nível abaixo do card pai (--bg-elevated), cria hierarquia visual em ambos os modos
+    <div className="bg-[color:var(--bg-soft)] rounded-2xl p-5 border border-[color:var(--border-subtle)]">
+      <h3 className="text-[color:var(--text-primary)] font-bold text-sm mb-0.5">Assistente de Bolso</h3>
+      <p className="text-[color:var(--text-muted)] text-xs mb-4">
         Conecte seu WhatsApp ou Telegram para gerenciar contratos por mensagem.
       </p>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {/* WhatsApp */}
         <ChannelRow
           label="WhatsApp"
-          icon="📱"
+          icon={<Smartphone size={16} className="text-[color:var(--accent-positive)]" />}
           connected={status.whatsapp}
           identifier={status.whatsapp_phone ? `+${status.whatsapp_phone}` : undefined}
           onConnect={() => generateCode('whatsapp')}
@@ -119,7 +120,7 @@ export function BotConnectionWidget() {
         {/* Telegram */}
         <ChannelRow
           label="Telegram"
-          icon="✈️"
+          icon={<Send size={16} className="text-[color:var(--accent-steel)]" />}
           connected={status.telegram}
           identifier={status.telegram_chat_id ? `@claulermbot` : undefined}
           onConnect={() => generateCode('telegram')}
@@ -130,8 +131,8 @@ export function BotConnectionWidget() {
 
       {/* Código de vinculação */}
       {linkCode && countdown > 0 && (
-        <div className="mt-4 bg-[color:var(--bg-base)] rounded-lg p-4 border border-teal-700">
-          <p className="text-[color:var(--text-secondary)] text-sm mb-2">
+        <div className="mt-4 bg-[color:var(--bg-base)] rounded-xl p-4 border border-[color:var(--border-strong)]">
+          <p className="text-[color:var(--text-secondary)] text-xs mb-2">
             Envie o código abaixo para o bot no{' '}
             <a
               href={activeChannel === 'whatsapp'
@@ -139,17 +140,19 @@ export function BotConnectionWidget() {
                 : `https://t.me/claulermbot?start=${linkCode}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-teal-400 font-medium underline hover:text-teal-300"
+              className="text-teal-500 font-semibold underline hover:text-teal-400 transition-colors"
             >
               {activeChannel === 'whatsapp' ? 'WhatsApp (+55 85 2028-4195)' : 'Telegram (@claulermbot)'}
             </a>
             :
           </p>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl font-bold text-[color:var(--text-primary)] tracking-widest font-mono">{linkCode}</span>
+          <div className="flex items-center gap-3 mb-3">
+            <span className="text-2xl font-black text-[color:var(--text-primary)] tracking-[0.25em] font-mono">
+              {linkCode}
+            </span>
             <button
               onClick={() => navigator.clipboard.writeText(linkCode)}
-              className="text-xs text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] border border-[color:var(--border-subtle)] rounded px-2 py-1"
+              className="cursor-pointer text-[9px] font-bold uppercase tracking-widest text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] border border-[color:var(--border-subtle)] rounded-lg px-2 py-1 transition-colors"
             >
               Copiar
             </button>
@@ -160,17 +163,19 @@ export function BotConnectionWidget() {
               : `https://t.me/claulermbot?start=${linkCode}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-3 inline-flex items-center gap-2 text-xs bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+            className="inline-flex items-center gap-2 text-xs bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-lg transition-colors font-semibold"
           >
             Abrir {activeChannel === 'whatsapp' ? 'WhatsApp' : 'Telegram'} com o código →
           </a>
-          <p className="text-[color:var(--text-muted)] text-xs mt-2">Expira em {formatCountdown(countdown)}</p>
-          <button
-            onClick={() => { setLinkCode(null); setCountdown(0); loadStatus(); }}
-            className="mt-3 text-xs text-teal-400 hover:underline"
-          >
-            Já enviei, verificar status
-          </button>
+          <div className="flex items-center justify-between mt-3">
+            <p className="text-[color:var(--text-faint)] text-xs">Expira em {formatCountdown(countdown)}</p>
+            <button
+              onClick={() => { setLinkCode(null); setCountdown(0); loadStatus(); }}
+              className="cursor-pointer text-xs text-teal-500 hover:text-teal-400 underline transition-colors"
+            >
+              Já enviei, verificar →
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -180,36 +185,48 @@ export function BotConnectionWidget() {
 function ChannelRow({
   label, icon, connected, identifier, onConnect, onDisconnect, loading,
 }: {
-  label: string; icon: string; connected: boolean; identifier?: string;
-  onConnect: () => void; onDisconnect: () => void; loading: boolean;
+  label: string;
+  icon: React.ReactNode;
+  connected: boolean;
+  identifier?: string;
+  onConnect: () => void;
+  onDisconnect: () => void;
+  loading: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between bg-[color:var(--bg-soft)] rounded-lg px-4 py-3">
+    // --bg-base: nível base abaixo do --bg-soft, criando profundidade visual
+    <div className="flex items-center justify-between bg-[color:var(--bg-base)] rounded-xl px-4 py-3 border border-[color:var(--border-subtle)]">
       <div className="flex items-center gap-3">
-        <span className="text-lg">{icon}</span>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)]">
+          {icon}
+        </div>
         <div>
-          <p className="text-[color:var(--text-primary)] text-sm font-medium">{label}</p>
+          <p className="text-[color:var(--text-primary)] text-sm font-semibold leading-tight">{label}</p>
           {connected && identifier && (
-            <p className="text-[color:var(--text-secondary)] text-xs">{identifier}</p>
+            <p className="text-[color:var(--text-muted)] text-xs font-mono leading-tight">{identifier}</p>
           )}
         </div>
       </div>
       <div className="flex items-center gap-2">
         {connected ? (
           <>
-            <span className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="flex items-center gap-1.5 text-xs font-bold text-[color:var(--accent-positive)]">
+              <CheckCircle2 size={13} />
+              Conectado
+            </span>
             <button
               onClick={onDisconnect}
-              className="text-xs text-[color:var(--text-secondary)] hover:text-red-400 transition-colors"
+              className="cursor-pointer ml-2 p-1.5 rounded-lg text-[color:var(--text-muted)] hover:text-[color:var(--accent-danger)] hover:bg-[color:var(--bg-soft)] transition-all"
+              aria-label={`Desconectar ${label}`}
             >
-              Desconectar
+              <X size={14} />
             </button>
           </>
         ) : (
           <button
             onClick={onConnect}
             disabled={loading}
-            className="text-xs bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white px-3 py-1.5 rounded-md transition-colors"
+            className="cursor-pointer text-xs bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition-colors font-semibold"
           >
             {loading ? 'Gerando...' : 'Conectar'}
           </button>

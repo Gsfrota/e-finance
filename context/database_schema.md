@@ -540,6 +540,15 @@ GRANT SELECT, INSERT, UPDATE ON public.bot_tenant_config TO authenticated;
 
 ## Migração V19 — Email opcional + Upload de foto + Cliente direto
 
+> **ATENÇÃO (fix pós-V19):** O UPDATE abaixo só popula perfis onde `profiles.id = auth.users.id` (perfis legados).
+> Perfis criados via onboarding novo (UUID gerado pelo wizard) podem ficar com `auth_user_id IS NULL`.
+> Após rodar esta migration em qualquer ambiente, execute o backfill adicional:
+> ```sql
+> UPDATE public.profiles SET auth_user_id = id
+> WHERE auth_user_id IS NULL AND EXISTS (SELECT 1 FROM auth.users WHERE id = profiles.id);
+> ```
+> Sem esse backfill: erros 406 em `FetchUsersAndInvites` e 400 em `create_client_direct`.
+
 ```sql
 -- 1. Desacoplar profiles.id de auth.users; adicionar auth_user_id
 ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_id_fkey;
@@ -602,5 +611,118 @@ ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS plan_status TEXT DEFAULT 'in
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS plan_updated_at TIMESTAMPTZ;
+```
+
+## Migração V21 — Whitelist de Telefones no Bot
+
+```sql
+-- V21 - WHITELIST DE TELEFONES NO BOT
+ALTER TABLE public.bot_tenant_config
+  ADD COLUMN IF NOT EXISTS whitelist_enabled BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS whitelist_phones TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+
+-- Permite admin gerar link code para qualquer perfil do seu tenant
+-- (policy anterior só permitia profile_id = auth.uid())
+DROP POLICY IF EXISTS "user_create_own_link_code" ON public.bot_link_codes;
+
+CREATE POLICY "user_or_admin_create_link_code" ON public.bot_link_codes
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    profile_id = auth.uid()
+    OR (
+      (SELECT role FROM public.profiles WHERE auth_user_id = auth.uid()) = 'admin'
+      AND (SELECT tenant_id FROM public.profiles WHERE id = profile_id) = get_tenant_id_safe()
+    )
+  );
+
+-- Verificar colunas adicionadas:
+-- SELECT column_name FROM information_schema.columns
+-- WHERE table_name = 'bot_tenant_config'
+--   AND column_name IN ('whitelist_enabled', 'whitelist_phones');
+```
+
+## Migração V22 — Login via Google OAuth
+
+```sql
+-- V22: Suporte a login via Google OAuth
+-- 1. Corrigir handle_new_user para permitir usuários OAuth
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+DECLARE
+    new_tenant_id UUID;
+    invite_record RECORD;
+    generated_slug TEXT;
+BEGIN
+    IF (new.raw_user_meta_data->>'invite_code') IS NOT NULL THEN
+        SELECT * INTO invite_record FROM public.invites
+            WHERE code = (new.raw_user_meta_data->>'invite_code')
+            AND status = 'pending' AND expires_at > now();
+        IF NOT FOUND THEN RAISE EXCEPTION 'Código de convite inválido, expirado ou já utilizado.'; END IF;
+        INSERT INTO public.profiles (id, email, full_name, role, tenant_id)
+        VALUES (new.id, new.email, COALESCE(new.raw_user_meta_data->>'full_name', invite_record.full_name), invite_record.role, invite_record.tenant_id);
+        UPDATE public.invites SET status = 'accepted', accepted_by = new.id, updated_at = now() WHERE id = invite_record.id;
+        UPDATE auth.users SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('tenant_id', invite_record.tenant_id) WHERE id = new.id;
+    ELSIF (new.raw_user_meta_data->>'company_name') IS NOT NULL THEN
+        generated_slug := lower(regexp_replace(new.raw_user_meta_data->>'company_name', E'[^\\w]+', '-', 'g')) || '-' || floor(random()*10000)::text;
+        INSERT INTO public.tenants (name, slug, owner_name, owner_email)
+        VALUES (new.raw_user_meta_data->>'company_name', generated_slug, new.raw_user_meta_data->>'full_name', new.email)
+        RETURNING id INTO new_tenant_id;
+        INSERT INTO public.profiles (id, email, full_name, role, tenant_id)
+        VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name', 'admin', new_tenant_id);
+        UPDATE auth.users SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('tenant_id', new_tenant_id) WHERE id = new.id;
+    ELSIF new.raw_app_meta_data->>'provider' IS NOT NULL
+        AND new.raw_app_meta_data->>'provider' != 'email' THEN
+        -- OAuth (Google etc.): não cria perfil aqui.
+        -- O frontend detecta ausência de perfil e apresenta onboarding.
+        RETURN new;
+    ELSE
+        RAISE EXCEPTION 'Cadastro não permitido. Use um código de convite ou registre uma nova empresa.';
+    END IF;
+    RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 2. RPC para completar onboarding de usuários OAuth (idempotente via SECURITY DEFINER)
+CREATE OR REPLACE FUNCTION public.complete_oauth_onboarding(
+    p_full_name TEXT,
+    p_mode TEXT,           -- 'company' | 'invite'
+    p_company_name TEXT DEFAULT NULL,
+    p_invite_code TEXT DEFAULT NULL
+)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+    new_tenant_id UUID;
+    invite_record RECORD;
+    generated_slug TEXT;
+BEGIN
+    -- Idempotência: se o perfil já existe, sai sem erro.
+    -- SECURITY DEFINER ignora RLS, detectando corretamente mesmo sem tenant_id no JWT.
+    IF EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid()) THEN
+        RETURN;
+    END IF;
+
+    IF p_mode = 'invite' THEN
+        SELECT * INTO invite_record FROM public.invites
+            WHERE code = p_invite_code AND status = 'pending' AND expires_at > now();
+        IF NOT FOUND THEN RAISE EXCEPTION 'Código inválido ou expirado'; END IF;
+        INSERT INTO public.profiles (id, email, full_name, role, tenant_id)
+            VALUES (auth.uid(), auth.email(), p_full_name, invite_record.role, invite_record.tenant_id);
+        UPDATE public.invites SET status = 'accepted', accepted_by = auth.uid(), updated_at = now() WHERE id = invite_record.id;
+        UPDATE auth.users SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('tenant_id', invite_record.tenant_id) WHERE id = auth.uid();
+    ELSIF p_mode = 'company' THEN
+        IF p_company_name IS NULL OR trim(p_company_name) = '' THEN RAISE EXCEPTION 'Nome da organização é obrigatório'; END IF;
+        generated_slug := lower(regexp_replace(p_company_name, E'[^\\w]+', '-', 'g')) || '-' || floor(random()*10000)::text;
+        INSERT INTO public.tenants (name, slug, owner_name, owner_email, trial_ends_at)
+            VALUES (p_company_name, generated_slug, p_full_name, auth.email(), NOW() + INTERVAL '15 days') RETURNING id INTO new_tenant_id;
+        INSERT INTO public.profiles (id, email, full_name, role, tenant_id)
+            VALUES (auth.uid(), auth.email(), p_full_name, 'admin', new_tenant_id);
+        UPDATE auth.users SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('tenant_id', new_tenant_id) WHERE id = auth.uid();
+    ELSE
+        RAISE EXCEPTION 'Modo inválido. Use "company" ou "invite"';
+    END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.complete_oauth_onboarding(TEXT, TEXT, TEXT, TEXT) TO authenticated;
 ```
 

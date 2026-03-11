@@ -4,9 +4,9 @@ import {
   TrendingUp, Wallet, RefreshCw, ChevronRight, ArrowRight, ArrowLeft,
   Calendar, Percent, DollarSign, FileText, History, GitBranch,
   BadgeCheck, Flame, CircleDollarSign, RotateCcw,
-  Pencil, Save, XCircle,
+  Pencil, Save, XCircle, Banknote,
 } from 'lucide-react';
-import { Investment, LoanInstallment, Tenant } from '../types';
+import { Investment, LoanInstallment, Tenant, AvulsoPayment } from '../types';
 import { useContractDetail } from '../hooks/useContractDetail';
 import { getSupabase, parseSupabaseError } from '../services/supabase';
 import ReceiptTemplate from './ReceiptTemplate';
@@ -421,7 +421,7 @@ const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({ action, t
           </button>
           <h2 className="font-display text-lg font-black text-[color:var(--text-primary)]">Comprovante</h2>
         </div>
-        <div className="flex-1 overflow-y-auto bg-white">
+        <div className="flex-1 overflow-y-auto" style={{ background: "#0a0a0f" }}>
           <ReceiptTemplate
             installment={installment} tenant={tenant}
             payerName={payerName || (installment as any).investment?.payer?.full_name}
@@ -484,7 +484,7 @@ const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({ action, t
               </label>
               <div className="relative">
                 <DollarSign size={16} className="absolute left-4 top-4 text-[color:var(--accent-positive)]" />
-                <input type="number" step="0.01" required value={amount} onChange={e => setAmount(e.target.value)}
+                <input type="number" step="0.01" inputMode="decimal" required value={amount} onChange={e => setAmount(e.target.value)}
                   className={`${inputCls} pl-10 focus:ring-[color:var(--accent-positive)]`} />
               </div>
             </div>
@@ -532,7 +532,7 @@ const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({ action, t
               <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">Valor de Entrada (Pago Hoje)</label>
               <div className="relative">
                 <DollarSign size={16} className="absolute left-4 top-4 text-[color:var(--accent-steel)]" />
-                <input type="number" step="0.01" required value={amount} onChange={e => setAmount(e.target.value)}
+                <input type="number" step="0.01" inputMode="decimal" required value={amount} onChange={e => setAmount(e.target.value)}
                   className={`${inputCls} pl-10 focus:ring-[color:var(--accent-steel)]`} />
               </div>
             </div>
@@ -574,7 +574,7 @@ const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({ action, t
               <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">Novo Valor Total (Principal + Juros)</label>
               <div className="relative">
                 <DollarSign size={16} className="absolute left-4 top-4 text-[color:var(--text-muted)]" />
-                <input type="number" step="0.01" required value={totalAmount} onChange={e => setTotalAmount(e.target.value)}
+                <input type="number" step="0.01" inputMode="decimal" required value={totalAmount} onChange={e => setTotalAmount(e.target.value)}
                   className={`${inputCls} pl-10 focus:ring-[color:var(--accent-steel)]`} />
               </div>
             </div>
@@ -605,7 +605,7 @@ const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({ action, t
               <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">Valor dos Juros (R$)</label>
               <div className="relative">
                 <Percent size={16} className="absolute left-4 top-4 text-[color:var(--accent-brass)]" />
-                <input type="number" step="0.01" required autoFocus placeholder="0,00"
+                <input type="number" step="0.01" inputMode="decimal" required autoFocus placeholder="0,00"
                   value={amount} onChange={e => setAmount(e.target.value)}
                   className={`${inputCls} pl-10 focus:ring-[color:var(--accent-brass)]`} />
               </div>
@@ -629,6 +629,206 @@ const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({ action, t
   );
 };
 
+// ── AvulsoPaymentScreen ───────────────────────────────────────────────────────
+
+interface AvulsoPaymentScreenProps {
+  investmentId: number;
+  installments: LoanInstallment[];
+  onBack: () => void;
+  onSuccess: () => void;
+}
+
+const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
+  investmentId, installments, onBack, onSuccess,
+}) => {
+  const today = new Date().toISOString().split('T')[0];
+  const [amount, setAmount]     = useState('');
+  const [dateInput, setDate]    = useState(today);
+  const [notes, setNotes]       = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState<string | null>(null);
+
+  const amountNum = parseFloat(amount.replace(',', '.')) || 0;
+
+  // Preview: aplica do ÚLTIMO para o PRIMEIRO (quita do fim do contrato)
+  const preview = useMemo(() => {
+    if (amountNum <= 0) return { items: [] as { inst: LoanInstallment; applied: number; newStatus: 'paid' | 'partial' }[], surplus: 0 };
+    const result: { inst: LoanInstallment; applied: number; newStatus: 'paid' | 'partial' }[] = [];
+    let remaining = amountNum;
+    const unpaid = [...installments]
+      .filter(i => i.status !== 'paid')
+      .sort((a, b) => b.due_date.localeCompare(a.due_date) || b.number - a.number);
+    for (const inst of unpaid) {
+      if (remaining <= 0) break;
+      const outstanding = calculateOutstanding(inst);
+      if (outstanding <= 0) continue;
+      if (remaining >= outstanding) {
+        result.push({ inst, applied: outstanding, newStatus: 'paid' });
+        remaining -= outstanding;
+      } else {
+        result.push({ inst, applied: remaining, newStatus: 'partial' });
+        remaining = 0;
+      }
+    }
+    return { items: result, surplus: remaining };
+  }, [amountNum, installments]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (amountNum <= 0) { setError('Informe um valor válido.'); return; }
+    setLoading(true); setError(null);
+    try {
+      const { error: rpcErr } = await getSupabase().rpc('pay_avulso', {
+        p_investment_id: investmentId,
+        p_amount: amountNum,
+        p_paid_at: new Date(dateInput + 'T12:00:00').toISOString(),
+        p_notes: notes.trim() || null,
+      });
+      if (rpcErr) throw rpcErr;
+      onSuccess();
+    } catch (err: any) {
+      setError(parseSupabaseError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputCls = "w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-strong)] rounded-xl px-4 py-3.5 text-[color:var(--text-primary)] font-mono text-lg outline-none focus:ring-2 focus:ring-[color:var(--accent-brass)] transition-all";
+
+  return (
+    <div className="flex h-full flex-col bg-[color:var(--bg-elevated)]">
+      {/* Header */}
+      <div className="flex items-center gap-3 border-b border-[color:var(--border-subtle)] px-5 py-5 shrink-0">
+        <button onClick={onBack} className="rounded-full p-2 text-[color:var(--text-muted)] hover:bg-[color:var(--bg-soft)] transition-colors">
+          <ArrowLeft size={20} />
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)]">Contrato</p>
+          <h3 className="text-xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter leading-none mt-0.5">
+            Pagamento Avulso
+          </h3>
+        </div>
+        <Banknote size={20} className="text-[color:var(--accent-brass)] shrink-0" />
+      </div>
+
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-5 space-y-5">
+        {/* Info */}
+        <div className="flex gap-3 rounded-2xl bg-[rgba(202,176,122,0.08)] border border-[rgba(202,176,122,0.16)] p-4">
+          <AlertCircle size={16} className="text-[color:var(--accent-brass)] shrink-0 mt-0.5" />
+          <p className="text-xs text-[color:var(--text-secondary)] leading-relaxed">
+            O valor informado será abatido das <strong>últimas parcelas</strong> do contrato, do fim para o início. As parcelas mais próximas do vencimento permanecem inalteradas.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Valor */}
+          <div>
+            <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">
+              Valor do Pagamento (R$)
+            </label>
+            <div className="relative">
+              <DollarSign size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--accent-brass)]" />
+              <input
+                type="number" step="0.01" inputMode="decimal" min="0.01" required
+                value={amount}
+                onChange={e => { setAmount(e.target.value); setError(null); }}
+                placeholder="0,00"
+                className={`${inputCls} pl-10`}
+              />
+            </div>
+          </div>
+
+          {/* Data */}
+          <div>
+            <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">
+              Data do Pagamento
+            </label>
+            <input
+              type="date" required
+              value={dateInput}
+              onChange={e => setDate(e.target.value)}
+              className={inputCls}
+            />
+          </div>
+
+          {/* Observação */}
+          <div>
+            <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">
+              Observação (opcional)
+            </label>
+            <input
+              type="text"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Ex: PIX recebido, TED, etc."
+              className="w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-strong)] rounded-xl px-4 py-3.5 text-sm text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-[color:var(--accent-brass)] transition-all placeholder:text-[color:var(--text-faint)]"
+            />
+          </div>
+
+          {/* Preview */}
+          {amountNum > 0 && (
+            <div className="rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-soft)] p-4">
+              <p className="text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)] mb-3">
+                Parcelas quitadas (do fim do contrato)
+              </p>
+              {preview.items.length === 0 ? (
+                <p className="text-xs text-[color:var(--text-faint)] italic">Nenhuma parcela pendente para abater.</p>
+              ) : (
+                <div className="space-y-2">
+                  {preview.items.map(({ inst, applied, newStatus }) => (
+                    <div key={inst.id} className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`shrink-0 inline-block h-2 w-2 rounded-full ${newStatus === 'paid' ? 'bg-[color:var(--accent-positive)]' : 'bg-[color:var(--accent-brass)]'}`} />
+                        <span className="text-xs font-semibold text-[color:var(--text-primary)]">
+                          Parcela {inst.number}
+                        </span>
+                        <span className="text-[10px] text-[color:var(--text-faint)] truncate">
+                          {fmtDate(inst.due_date)}
+                        </span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className={`text-xs font-extrabold tabular-nums ${newStatus === 'paid' ? 'text-[color:var(--accent-positive)]' : 'text-[color:var(--accent-brass)]'}`}>
+                          {fmt(applied)}
+                        </span>
+                        <span className={`ml-1 text-[9px] font-bold uppercase ${newStatus === 'paid' ? 'text-[color:var(--accent-positive)]' : 'text-[color:var(--accent-brass)]'}`}>
+                          {newStatus === 'paid' ? '● quitada' : '◑ parcial'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {preview.surplus > 0 && (
+                    <div className="mt-2 pt-2 border-t border-[color:var(--border-subtle)] flex items-center gap-2 text-[color:var(--accent-steel)]">
+                      <AlertCircle size={12} className="shrink-0" />
+                      <p className="text-[10px] font-bold">
+                        Saldo excedente {fmt(preview.surplus)} — sem parcelas para abater
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center gap-2 rounded-xl bg-red-900/20 border border-red-900/50 p-3 text-xs text-red-400">
+              <AlertTriangle size={14} /> {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || amountNum <= 0}
+            className="w-full rounded-xl bg-[rgba(202,176,122,0.12)] py-4 text-xs font-extrabold uppercase tracking-widest text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)] active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {loading ? <Loader2 className="animate-spin" size={18} /> : <Banknote size={18} />}
+            {loading ? 'Processando...' : 'Confirmar Pagamento Avulso'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 interface ContractDetailProps {
@@ -643,6 +843,20 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
   const { data, loading, error, refetch } = useContractDetail(investmentId);
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
   const [installmentAction, setInstallmentAction]     = useState<InstallmentAction>(null);
+  const [avulsoOpen, setAvulsoOpen]                   = useState(false);
+  const [avulsoPayments, setAvulsoPayments]           = useState<AvulsoPayment[]>([]);
+
+  const refreshAvulso = async () => {
+    if (!investmentId) return;
+    const { data: ap } = await getSupabase()
+      .from('avulso_payments')
+      .select('*')
+      .eq('investment_id', investmentId)
+      .order('paid_at', { ascending: false });
+    setAvulsoPayments(ap ?? []);
+  };
+
+  useEffect(() => { refreshAvulso(); }, [investmentId]);
 
   const progressPct = useMemo(() => {
     if (!data) return 0;
@@ -667,6 +881,22 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
     }
     return { totalPago, totalRestante };
   }, [data]);
+
+  // ── Sub-view: pagamento avulso ──
+  if (avulsoOpen && data) {
+    return (
+      <AvulsoPaymentScreen
+        investmentId={data.investment.id}
+        installments={data.installments}
+        onBack={() => setAvulsoOpen(false)}
+        onSuccess={() => {
+          setAvulsoOpen(false);
+          refetch();
+          refreshAvulso();
+        }}
+      />
+    );
+  }
 
   // ── Sub-view: form de ação ──
   if (installmentAction !== null) {
@@ -763,6 +993,12 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                onClick={() => setAvulsoOpen(true)}
+                className="flex items-center gap-2 rounded-full bg-[rgba(202,176,122,0.14)] px-4 py-2 text-[11px] font-extrabold uppercase tracking-widest text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.22)] transition-all hover:bg-[rgba(202,176,122,0.24)]"
+              >
+                <Banknote size={13} /> Pagamento Avulso
+              </button>
               {onRenew && (
                 <button onClick={() => onRenew(data.investment)}
                   className="flex items-center gap-2 rounded-full bg-[rgba(202,176,122,0.12)] px-4 py-2 text-[11px] font-extrabold uppercase tracking-widest text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)] transition-all hover:bg-[rgba(202,176,122,0.20)]">
@@ -974,6 +1210,34 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                 </div>
               )}
             </section>
+
+            {/* Pagamentos Avulsos */}
+            {avulsoPayments.length > 0 && (
+              <section>
+                <p className="section-kicker mb-3 flex items-center gap-2">
+                  <Banknote size={13} /> Pagamentos Avulsos ({avulsoPayments.length})
+                </p>
+                <div className="space-y-2">
+                  {avulsoPayments.map((ap) => (
+                    <div key={ap.id} className={`${panelCard} px-4 py-3`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-extrabold tabular-nums text-[color:var(--accent-brass)]">{fmt(ap.amount)}</p>
+                          {ap.notes && (
+                            <p className="mt-0.5 truncate text-[11px] italic text-[color:var(--text-faint)]">"{ap.notes}"</p>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-[10px] font-bold text-[color:var(--text-faint)]">
+                            {fmtDate(ap.paid_at.split('T')[0])}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* Renegociações */}
             <section>

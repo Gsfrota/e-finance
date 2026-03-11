@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Clock3,
   Phone,
+  TrendingUp,
 } from 'lucide-react';
 
 interface CollectionDashboardProps {
@@ -210,54 +211,102 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
             Nenhum título neste recorte.
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
+          <div className="divide-y divide-white/[0.04]">
             {selectedItems.map((installment) => {
               const late         = installment.due_date < today;
+              const isToday      = installment.due_date === today;
               const debtorName   = installment.investment?.payer?.full_name || installment.investment?.payer_name || 'Cliente';
+              const investorName = installment.investment?.investor?.full_name || installment.investment?.investor_name || null;
               const contractName = installment.investment?.asset_name || (installment as any).contract_name || 'Contrato';
               const owed         = calcOutstanding(installment);
+              const totalInstallments = installment.investment?.total_installments ?? null;
+              const initials     = debtorName.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase();
+
+              // Month abbreviations in PT-BR
+              const monthNames = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+              const [year, month, day] = installment.due_date.split('-');
+              const monthAbbr = monthNames[parseInt(month) - 1];
 
               return (
                 <button
                   key={installment.id}
                   onClick={() => setSelectedInstallment(installment)}
-                  className="w-full flex items-center gap-4 px-6 py-4 text-left transition-colors hover:bg-white/[0.025] active:bg-white/[0.04]"
+                  className="group w-full flex items-center gap-0 text-left transition-all duration-200 hover:bg-white/[0.03] active:bg-white/[0.05] cursor-pointer"
                 >
-                  {/* Date badge */}
-                  <div className={`flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-2xl border ${
+                  {/* Left accent bar */}
+                  <div className={`self-stretch w-0.5 shrink-0 transition-all duration-200 ${
                     late
-                      ? 'border-[rgba(198,126,105,0.25)] bg-[rgba(198,126,105,0.10)] text-[color:var(--accent-danger)]'
-                      : 'border-white/10 bg-white/[0.04] text-[color:var(--text-secondary)]'
-                  }`}>
-                    <span className="text-lg font-black leading-none">{installment.due_date.split('-')[2]}</span>
-                    <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-[color:var(--text-faint)] mt-0.5">
-                      {installment.due_date.split('-')[1]}/{installment.due_date.split('-')[0].slice(2)}
-                    </span>
-                  </div>
+                      ? 'bg-[color:var(--accent-danger)] opacity-60 group-hover:opacity-100'
+                      : isToday
+                        ? 'bg-[color:var(--accent-warning)] opacity-50 group-hover:opacity-90'
+                        : 'bg-white/10 group-hover:bg-white/20'
+                  }`} />
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      {installmentStatusBadge(installment.status)}
-                      <span className="text-[10px] uppercase tracking-widest text-[color:var(--text-faint)]">
-                        Parcela {installment.number}
-                      </span>
+                  <div className="flex flex-1 items-center gap-4 px-5 py-4 min-w-0">
+                    {/* Avatar iniciais */}
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-black tracking-wide transition-transform duration-200 group-hover:scale-105 ${
+                      late
+                        ? 'bg-[rgba(198,126,105,0.15)] text-[color:var(--accent-danger)] border border-[rgba(198,126,105,0.25)]'
+                        : 'bg-white/[0.06] text-[color:var(--text-secondary)] border border-white/10'
+                    }`}>
+                      {initials}
                     </div>
-                    <p className="text-sm font-bold text-[color:var(--text-primary)] truncate leading-snug">{debtorName}</p>
-                    <p className="text-[11px] uppercase tracking-[0.13em] text-[color:var(--text-faint)] truncate mt-0.5">{contractName}</p>
-                  </div>
 
-                  {/* Amount + chevron */}
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      <p className={`text-sm font-extrabold tabular-nums ${late ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--text-primary)]'}`}>
-                        {fmtMoney(owed)}
+                    {/* Info central */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        {installmentStatusBadge(installment.status)}
+                        <span className="text-[9px] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
+                          Parcela {installment.number}{totalInstallments ? `/${totalInstallments}` : ''}
+                        </span>
+                      </div>
+                      <p className="text-[13px] font-bold text-[color:var(--text-primary)] truncate leading-tight group-hover:text-white transition-colors duration-150">
+                        {debtorName}
                       </p>
-                      <p className={`text-[10px] font-semibold uppercase tracking-[0.14em] mt-0.5 ${late ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--text-faint)]'}`}>
-                        {late ? 'Atrasado' : 'Em aberto'}
-                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--text-faint)] truncate">{contractName}</p>
+                        {investorName && (
+                          <>
+                            <span className="text-[color:var(--text-faint)] opacity-40">·</span>
+                            <span className="flex items-center gap-1 text-[10px] text-[color:var(--text-faint)] opacity-70 shrink-0">
+                              <TrendingUp size={9} />
+                              {investorName}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <ChevronRight size={16} className="text-[color:var(--text-faint)]" />
+
+                    {/* Data + valor + chevron */}
+                    <div className="flex items-center gap-4 shrink-0">
+                      {/* Date badge */}
+                      <div className={`flex flex-col items-center justify-center rounded-xl border px-2.5 py-1.5 text-center min-w-[44px] transition-all duration-200 ${
+                        late
+                          ? 'border-[rgba(198,126,105,0.30)] bg-[rgba(198,126,105,0.08)] text-[color:var(--accent-danger)]'
+                          : isToday
+                            ? 'border-[rgba(200,154,85,0.30)] bg-[rgba(200,154,85,0.08)] text-[color:var(--accent-warning)]'
+                            : 'border-white/10 bg-white/[0.03] text-[color:var(--text-secondary)]'
+                      }`}>
+                        <span className="text-[15px] font-black leading-none tabular-nums">{day}</span>
+                        <span className="text-[8px] font-bold uppercase tracking-[0.16em] mt-0.5 opacity-80">{monthAbbr}</span>
+                      </div>
+
+                      {/* Amount */}
+                      <div className="text-right">
+                        <p className={`text-sm font-extrabold tabular-nums tracking-tight ${
+                          late ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--text-primary)]'
+                        }`}>
+                          {fmtMoney(owed)}
+                        </p>
+                        <p className={`text-[9px] font-semibold uppercase tracking-[0.16em] mt-0.5 ${
+                          late ? 'text-[color:var(--accent-danger)] opacity-70' : 'text-[color:var(--text-faint)]'
+                        }`}>
+                          {late ? 'Atrasado' : isToday ? 'Hoje' : 'Em aberto'}
+                        </p>
+                      </div>
+
+                      <ChevronRight size={14} className="text-[color:var(--text-faint)] transition-transform duration-200 group-hover:translate-x-0.5" />
+                    </div>
                   </div>
                 </button>
               );

@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '../infra/runtime-clients';
+import { isPhoneInWhitelist } from '../utils/phone-normalizer';
 
 function db() {
   return getSupabaseClient();
@@ -12,6 +13,8 @@ export interface BotTenantConfig {
   morning_briefing_targets: string[];
   followup_enabled: boolean;
   followup_style: 'natural' | 'direto' | 'disabled';
+  whitelist_enabled: boolean;   // V21
+  whitelist_phones: string[];   // V21
   created_at: string;
   updated_at: string;
 }
@@ -59,4 +62,25 @@ export async function getAllTenantsWithBriefingEnabled(): Promise<BotTenantConfi
   }
 
   return (data ?? []) as BotTenantConfig[];
+}
+
+export interface WhitelistCheckResult {
+  blocked: boolean;
+  reason: 'whitelist_disabled' | 'phone_allowed' | 'phone_not_in_whitelist';
+}
+
+export async function checkWhitelistBlock(phone: string): Promise<WhitelistCheckResult> {
+  const { data } = await db()
+    .from('bot_tenant_config')
+    .select('whitelist_enabled, whitelist_phones');
+
+  const activeRows = (data ?? []).filter((r: { whitelist_enabled: boolean }) => r.whitelist_enabled);
+  if (activeRows.length === 0) return { blocked: false, reason: 'whitelist_disabled' };
+
+  for (const row of activeRows as { whitelist_enabled: boolean; whitelist_phones: string[] }[]) {
+    if (isPhoneInWhitelist(phone, row.whitelist_phones)) {
+      return { blocked: false, reason: 'phone_allowed' };
+    }
+  }
+  return { blocked: true, reason: 'phone_not_in_whitelist' };
 }

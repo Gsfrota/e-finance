@@ -19,7 +19,9 @@ export type ActionCapability =
   | 'generate_invite'
   | 'view_my_installments'
   | 'view_my_debt_summary'
-  | 'view_my_portfolio';
+  | 'view_my_portfolio'
+  | 'configure_briefing'
+  | 'preview_lembrete';
 
 export type OperationalIntent = Intent | 'smalltalk_identity' | 'smalltalk_datetime';
 

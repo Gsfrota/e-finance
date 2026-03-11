@@ -7,6 +7,8 @@ export interface BotConfig {
   morning_briefing_targets: string[];
   followup_enabled: boolean;
   followup_style: 'natural' | 'direto' | 'disabled';
+  whitelist_enabled: boolean;
+  whitelist_phones: string[];
 }
 
 const DEFAULT_CONFIG: BotConfig = {
@@ -15,6 +17,8 @@ const DEFAULT_CONFIG: BotConfig = {
   morning_briefing_targets: ['admin'],
   followup_enabled: true,
   followup_style: 'natural',
+  whitelist_enabled: false,
+  whitelist_phones: [],
 };
 
 export function useBotConfig(tenantId: string) {
@@ -44,6 +48,8 @@ export function useBotConfig(tenantId: string) {
           morning_briefing_targets: data.morning_briefing_targets,
           followup_enabled: data.followup_enabled,
           followup_style: data.followup_style,
+          whitelist_enabled: data.whitelist_enabled ?? false,
+          whitelist_phones: data.whitelist_phones ?? [],
         });
       }
     } catch (err: unknown) {

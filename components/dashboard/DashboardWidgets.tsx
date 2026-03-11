@@ -299,7 +299,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToCo
                 onClick={() => setCobraDias(d)}
                 className={`cursor-pointer rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide transition-all ${
                   cobraDias === d
-                    ? 'bg-[color:var(--accent-brass)] text-[#17120b] shadow-[0_1px_8px_rgba(240,180,41,0.22)]'
+                    ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)] shadow-[0_1px_8px_rgba(240,180,41,0.22)]'
                     : 'bg-white/[0.05] text-[color:var(--text-faint)] hover:bg-white/[0.1] hover:text-[color:var(--text-secondary)]'
                 }`}
               >
@@ -406,13 +406,13 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({ kpis, installmen
                     <Tooltip
                       formatter={(value: number, name: string) => [formatCurrency(value), name]}
                       contentStyle={{
-                        background: '#151922',
+                        background: 'var(--bg-base)',
                         borderRadius: 16,
-                        border: '1px solid rgba(245,239,226,0.08)',
-                        color: '#f5efe2',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-primary)',
                       }}
-                      labelStyle={{ color: '#f5efe2' }}
-                      itemStyle={{ color: '#f5efe2' }}
+                      labelStyle={{ color: 'var(--text-primary)' }}
+                      itemStyle={{ color: 'var(--text-primary)' }}
                     />
                     <Pie
                       data={compositionData}
@@ -506,18 +506,18 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({ kpis, installmen
                   <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <BarChart data={agingData} barSize={34}>
                       <CartesianGrid stroke="rgba(245,239,226,0.05)" vertical={false} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#8d919a', fontSize: 12, fontWeight: 700 }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#8d919a', fontSize: 11 }} tickFormatter={currencyTick} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 12, fontWeight: 700 }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} tickFormatter={currencyTick} />
                       <Tooltip
                         formatter={(value: number) => [formatCurrency(value), 'Em atraso']}
                         contentStyle={{
-                          background: '#151922',
+                          background: 'var(--bg-base)',
                           borderRadius: 16,
-                          border: '1px solid rgba(245,239,226,0.08)',
-                          color: '#f5efe2',
+                          border: '1px solid var(--border-subtle)',
+                          color: 'var(--text-primary)',
                         }}
-                        labelStyle={{ color: '#f5efe2' }}
-                        itemStyle={{ color: '#f5efe2' }}
+                        labelStyle={{ color: 'var(--text-primary)' }}
+                        itemStyle={{ color: 'var(--text-primary)' }}
                       />
                       <Bar dataKey="value" radius={[12, 12, 0, 0]}>
                         {agingData.map((entry) => (
@@ -717,7 +717,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                   onClick={() => setDateMode('month')}
                   className={`rounded-full px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.18em] transition-all ${
                     dateMode === 'month'
-                      ? 'bg-[color:var(--accent-brass)] text-[#17120b]'
+                      ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)]'
                       : 'text-[color:var(--text-muted)]'
                   }`}
                 >
@@ -727,7 +727,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                   onClick={() => setDateMode('range')}
                   className={`rounded-full px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.18em] transition-all ${
                     dateMode === 'range'
-                      ? 'bg-[color:var(--accent-brass)] text-[#17120b]'
+                      ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)]'
                       : 'text-[color:var(--text-muted)]'
                   }`}
                 >

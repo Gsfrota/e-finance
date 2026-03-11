@@ -166,6 +166,24 @@ const REGISTRY: Record<ActionCapability, CapabilityDefinition> = {
     requiresConfirmation: false,
     idempotencyScope: 'session',
   },
+  configure_briefing: {
+    name: 'configure_briefing',
+    kind: 'mutation',
+    rolesAllowed: ['admin'],
+    requiredArgs: [],
+    optionalArgs: ['briefing_time', 'briefing_enabled'],
+    requiresConfirmation: false,
+    idempotencyScope: 'mutation',
+  },
+  preview_lembrete: {
+    name: 'preview_lembrete',
+    kind: 'query',
+    rolesAllowed: ['admin'],
+    requiredArgs: [],
+    optionalArgs: [],
+    requiresConfirmation: false,
+    idempotencyScope: 'session',
+  },
 };
 
 export function getCapabilityDefinition(capability: ActionCapability): CapabilityDefinition {

@@ -369,7 +369,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
           <button onClick={onBack} className="rounded-full p-2 text-[color:var(--text-muted)] hover:bg-[color:var(--bg-soft)] transition-colors"><ArrowLeft size={20} /></button>
           <h2 className="font-display text-lg font-black text-[color:var(--text-primary)]">Comprovante</h2>
         </div>
-        <div className="flex-1 overflow-y-auto bg-white">
+        <div className="flex-1 overflow-y-auto" style={{ background: "#0a0a0f" }}>
           <ReceiptTemplate installment={installment} tenant={tenant}
             payerName={payerName || (installment as any).investment?.payer?.full_name} onClose={onBack} />
         </div>
@@ -415,7 +415,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
               <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">Valor Recebido (R$)</label>
               <div className="relative">
                 <DollarSign size={16} className="absolute left-4 top-4 text-[color:var(--accent-positive)]" />
-                <input type="number" step="0.01" required value={amount} onChange={e => setAmount(e.target.value)}
+                <input type="number" step="0.01" inputMode="decimal" required value={amount} onChange={e => setAmount(e.target.value)}
                   className={`${inputCls} pl-10 focus:ring-[color:var(--accent-positive)]`} />
               </div>
             </div>
@@ -461,7 +461,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
               <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">Valor de Entrada (Pago Hoje)</label>
               <div className="relative">
                 <DollarSign size={16} className="absolute left-4 top-4 text-[color:var(--accent-steel)]" />
-                <input type="number" step="0.01" required value={amount} onChange={e => setAmount(e.target.value)}
+                <input type="number" step="0.01" inputMode="decimal" required value={amount} onChange={e => setAmount(e.target.value)}
                   className={`${inputCls} pl-10 focus:ring-[color:var(--accent-steel)]`} />
               </div>
             </div>
@@ -502,7 +502,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
               <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">Novo Valor Total</label>
               <div className="relative">
                 <DollarSign size={16} className="absolute left-4 top-4 text-[color:var(--text-muted)]" />
-                <input type="number" step="0.01" required value={totalAmount} onChange={e => setTotalAmount(e.target.value)}
+                <input type="number" step="0.01" inputMode="decimal" required value={totalAmount} onChange={e => setTotalAmount(e.target.value)}
                   className={`${inputCls} pl-10 focus:ring-[color:var(--accent-steel)]`} />
               </div>
             </div>
@@ -526,7 +526,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
               <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">Valor dos Juros (R$)</label>
               <div className="relative">
                 <Percent size={16} className="absolute left-4 top-4 text-[color:var(--accent-brass)]" />
-                <input type="number" step="0.01" required autoFocus placeholder="0,00"
+                <input type="number" step="0.01" inputMode="decimal" required autoFocus placeholder="0,00"
                   value={amount} onChange={e => setAmount(e.target.value)}
                   className={`${inputCls} pl-10 focus:ring-[color:var(--accent-brass)]`} />
               </div>

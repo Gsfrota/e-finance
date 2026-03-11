@@ -6,9 +6,12 @@ import {
   getInstallments,
   getInstallmentsByDateRange,
   getInvestorPortfolio,
+  getProfileById,
   getUserDebtDetails,
   searchUser,
 } from '../actions/admin-actions';
+import { getBotTenantConfig, upsertBotTenantConfig } from '../actions/bot-config-actions';
+import { buildBriefingMessage } from '../scheduler/morning-briefing';
 import { getCapabilityDefinition } from './capability-registry';
 import { createPendingConfirmation } from './confirmation-store';
 import { runPolicyCheck } from './policy-engine';
@@ -512,6 +515,92 @@ export async function executeActionPlan(
     return {
       status: 'ok',
       safeUserMessage: portfolioMsg,
+      audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+      workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [] }),
+    };
+  }
+
+  if (plan.capability === 'preview_lembrete') {
+    const profile = await getProfileById(context.profileId);
+    if (!profile) {
+      return {
+        status: 'error',
+        safeUserMessage: 'Não consegui carregar seu perfil para montar o exemplo.',
+        audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+      };
+    }
+    const preview = await buildBriefingMessage(profile, context.tenantId);
+    const config = await getBotTenantConfig(context.tenantId);
+    const horario = config?.morning_briefing_enabled ? ` (ativo às *${config.morning_briefing_time}*)` : ' *(lembrete desativado)*';
+    return {
+      status: 'ok',
+      safeUserMessage: `📬 *Exemplo de como o lembrete vai chegar${horario}:*\n\n${preview}`,
+      audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+      workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [] }),
+    };
+  }
+
+  if (plan.capability === 'configure_briefing') {
+    const briefingEnabled = plan.args.briefing_enabled as boolean ?? true;
+    const briefingTime = plan.args.briefing_time as string | undefined;
+
+    // Desativar briefing
+    if (briefingEnabled === false) {
+      await upsertBotTenantConfig(context.tenantId, { morning_briefing_enabled: false });
+      return {
+        status: 'ok',
+        safeUserMessage: '🔕 Lembrete matinal desativado. Você não receberá mais o resumo diário.',
+        audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+        workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [] }),
+      };
+    }
+
+    // Precisa do horário
+    if (!briefingTime || plan.missingFields.includes('briefing_time')) {
+      const current = await getBotTenantConfig(context.tenantId);
+      const statusLine = current?.morning_briefing_enabled
+        ? `Atualmente ativo para *${current.morning_briefing_time}*.`
+        : 'Atualmente desativado.';
+      return {
+        status: 'needs_clarification',
+        safeUserMessage: `⏰ Que horas você quer receber o lembrete diário? (ex: *08:00*)\n\n${statusLine}`,
+        audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+        workingStatePatch: buildStatePatch(plan, { pendingMissingFields: ['briefing_time'] }),
+      };
+    }
+
+    // Validar formato HH:MM
+    const timeMatch = briefingTime.match(/^(\d{1,2}):(\d{2})$/);
+    if (!timeMatch) {
+      return {
+        status: 'needs_clarification',
+        safeUserMessage: `❌ Horário inválido. Use o formato *HH:MM*, por exemplo: *08:00* ou *07:30*.`,
+        audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+        workingStatePatch: buildStatePatch(plan, { pendingMissingFields: ['briefing_time'] }),
+      };
+    }
+
+    const h = parseInt(timeMatch[1], 10);
+    const m = parseInt(timeMatch[2], 10);
+    if (h < 0 || h > 23 || m < 0 || m > 59) {
+      return {
+        status: 'needs_clarification',
+        safeUserMessage: `❌ Horário inválido. Use o formato *HH:MM*, por exemplo: *08:00* ou *07:30*.`,
+        audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+        workingStatePatch: buildStatePatch(plan, { pendingMissingFields: ['briefing_time'] }),
+      };
+    }
+
+    const normalizedTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    await upsertBotTenantConfig(context.tenantId, {
+      morning_briefing_enabled: true,
+      morning_briefing_time: normalizedTime,
+      morning_briefing_targets: ['admin'],
+    });
+
+    return {
+      status: 'ok',
+      safeUserMessage: `✅ Lembrete matinal ativado! Todo dia às *${normalizedTime}* você receberá um resumo com recebíveis e cobranças do dia.`,
       audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
       workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [] }),
     };

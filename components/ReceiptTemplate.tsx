@@ -1,181 +1,379 @@
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
+import html2canvas from 'html2canvas';
 import { LoanInstallment, Tenant } from '../types';
-import { CheckCircle2, Building2, MapPin, Printer, Share2 } from 'lucide-react';
+import { CheckCircle2, Printer, Share2, X, Loader2, Sun, Moon } from 'lucide-react';
 
 interface ReceiptTemplateProps {
   installment: LoanInstallment;
   tenant: Tenant;
   payerName?: string;
+  paymentMethod?: string;
   onClose?: () => void;
 }
 
-const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ installment, tenant, payerName, onClose }) => {
+type ReceiptTheme = 'dark' | 'light';
+
+// ── Token maps por tema ──────────────────────────────────────────────────────
+const THEMES = {
+  dark: {
+    outerBg:       '#0a0a0f',
+    receiptBg:     'linear-gradient(180deg, #0d0d14 0%, #111827 100%)',
+    wrapperBg:     'linear-gradient(180deg, #0d0d14 0%, #111827 100%)',
+    glowColor:     'rgba(201,168,76,0.15)',
+    logoBg:        'linear-gradient(135deg, #1e293b, #0f172a)',
+    logoBorder:    'rgba(201,168,76,0.35)',
+    logoText:      '#C9A84C',
+    companyName:   '#F1F5F9',
+    subtitle:      '#C9A84C',
+    hashBg:        'rgba(255,255,255,0.06)',
+    hashColor:     '#64748B',
+    dividerGold:   'rgba(201,168,76,0.25)',
+    dividerMid:    'rgba(255,255,255,0.1)',
+    dividerFooter: 'rgba(201,168,76,0.2)',
+    badgeBg:       'rgba(16,185,129,0.1)',
+    badgeBorder:   'rgba(16,185,129,0.25)',
+    badgeColor:    '#34D399',
+    amountLabel:   '#475569',
+    amountValue:   '#F8FAFC',
+    penaltyColor:  '#F59E0B',
+    rowLabel:      '#64748B',
+    rowValue:      '#CBD5E1',
+    highlightColor:'#F59E0B',
+    footerAuth:    '#334155',
+    footerBrand:   '#C9A84C',
+    actionBg:      '#0d0d14',
+    actionBorder:  'rgba(201,168,76,0.15)',
+    shareBg:       'rgba(255,255,255,0.05)',
+    shareBorder:   '1px solid rgba(255,255,255,0.1)',
+    shareColor:    '#94A3B8',
+    shareHover:    'rgba(255,255,255,0.09)',
+    htmlCanvas:    '#0d0d14',
+  },
+  light: {
+    outerBg:       '#f4f6fa',
+    receiptBg:     '#ffffff',
+    wrapperBg:     '#f4f6fa',
+    glowColor:     'rgba(201,131,14,0.08)',
+    logoBg:        'linear-gradient(135deg, #1e293b, #0f172a)',
+    logoBorder:    'rgba(201,131,14,0.4)',
+    logoText:      '#C9A84C',
+    companyName:   '#0d1b2e',
+    subtitle:      '#c9830e',
+    hashBg:        'rgba(15,29,60,0.06)',
+    hashColor:     '#6b7fa0',
+    dividerGold:   'rgba(201,131,14,0.3)',
+    dividerMid:    'rgba(15,29,60,0.1)',
+    dividerFooter: 'rgba(201,131,14,0.25)',
+    badgeBg:       'rgba(5,150,105,0.08)',
+    badgeBorder:   'rgba(5,150,105,0.3)',
+    badgeColor:    '#059669',
+    amountLabel:   '#6b7fa0',
+    amountValue:   '#0d1b2e',
+    penaltyColor:  '#d97706',
+    rowLabel:      '#6b7fa0',
+    rowValue:      '#2a3a56',
+    highlightColor:'#d97706',
+    footerAuth:    '#a8b8d8',
+    footerBrand:   '#c9830e',
+    actionBg:      '#ffffff',
+    actionBorder:  'rgba(15,29,60,0.12)',
+    shareBg:       'rgba(15,29,60,0.04)',
+    shareBorder:   '1px solid rgba(15,29,60,0.15)',
+    shareColor:    '#6b7fa0',
+    shareHover:    'rgba(15,29,60,0.08)',
+    htmlCanvas:    '#ffffff',
+  },
+} as const;
+
+const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
+  installment,
+  tenant,
+  payerName,
+  paymentMethod = 'PIX',
+  onClose,
+}) => {
+  const receiptRef = useRef<HTMLDivElement>(null);
+  const [sharing, setSharing] = useState(false);
+  const [receiptTheme, setReceiptTheme] = useState<ReceiptTheme>('dark');
+
+  const t = THEMES[receiptTheme];
+  const isDark = receiptTheme === 'dark';
+
   const currentDate = new Date();
   const paidDate = installment.paid_at ? new Date(installment.paid_at) : currentDate;
-  
-  // Gerar um Hash visual para autenticidade
-  const receiptHash = `REC-${installment.id.split('-')[0].toUpperCase()}-${paidDate.getFullYear()}`;
 
-  const formatCurrency = (val: number) => 
+  const receiptHash = `REC-${installment.id.split('-')[0].toUpperCase()}-${paidDate.getFullYear()}`;
+  const creditorName = tenant.owner_name || tenant.pix_name || tenant.name;
+  const clientName = payerName || 'Cliente';
+  const totalPaid = Number(installment.amount_paid);
+  const hasPenalties = Number(installment.fine_amount) > 0 || Number(installment.interest_delay_amount) > 0;
+  const contractId = installment.investment_id || (installment.investment?.id);
+
+  const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-  const formatDate = (date: Date) => 
+  const formatDate = (date: Date) =>
     date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-  const handlePrint = () => {
-    window.print();
+  const formatDateShort = (dateStr: string) =>
+    new Date(dateStr + 'T00:00:00').toLocaleDateString('pt-BR');
+
+  const handlePrint = () => window.print();
+
+  const handleShare = async () => {
+    if (!receiptRef.current) return;
+    setSharing(true);
+    try {
+      const canvas = await html2canvas(receiptRef.current, {
+        backgroundColor: t.htmlCanvas,
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+      });
+
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, 'image/png')
+      );
+      if (!blob) return;
+
+      const file = new File([blob], `comprovante-${receiptHash}.png`, { type: 'image/png' });
+
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: `Comprovante ${receiptHash}` });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `comprovante-${receiptHash}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error('Erro ao gerar imagem:', err);
+    } finally {
+      setSharing(false);
+    }
   };
 
-  const handleShare = () => {
-    const text = `🧾 *COMPROVANTE DE PAGAMENTO*\n\n*Beneficiário:* ${tenant.name}\n*Valor:* ${formatCurrency(Number(installment.amount_paid))}\n*Ref:* ${installment.contract_name} (Parc. ${installment.number})\n*Data:* ${formatDate(paidDate)}\n\n_Emitido digitalmente via Juros Certo_`;
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
-  };
+  const detailRows: { label: string; value: string; highlight?: boolean }[] = [
+    { label: 'Contrato',   value: installment.contract_name || '—' },
+    { label: 'ID',         value: contractId ? `#${contractId}` : '—' },
+    { label: 'Parcela',    value: `#${installment.number}` },
+    { label: 'Vencimento', value: formatDateShort(installment.due_date) },
+    { label: 'Pagamento',  value: formatDate(paidDate) },
+    { label: 'Forma',      value: paymentMethod },
+    ...(hasPenalties ? [{
+      label: 'Encargos',
+      value: formatCurrency(Number(installment.fine_amount) + Number(installment.interest_delay_amount)),
+      highlight: true,
+    }] : []),
+  ];
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 text-slate-900 overflow-hidden rounded-[1.5rem] md:rounded-none">
-      
-      {/* CSS para Impressão - Injetado apenas quando este componente está montado */}
+    <div className="flex flex-col h-full overflow-hidden rounded-[1.5rem] md:rounded-none"
+      style={{ background: t.outerBg }}>
+
+      {/* ── Print CSS ──────────────────────────────── */}
       <style>{`
         @media print {
-          body * {
-            visibility: hidden;
-          }
-          #receipt-print-area, #receipt-print-area * {
-            visibility: visible;
-          }
+          body * { visibility: hidden; }
+          #receipt-print-area, #receipt-print-area * { visibility: visible; }
           #receipt-print-area {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            padding: 20px;
-            background: white;
+            position: fixed; left: 0; top: 0;
+            width: 100%; height: 100%;
+            margin: 0; padding: 28px;
+            background: ${isDark ? '#0d0d14' : '#fff'} !important;
+            color: ${isDark ? '#F8FAFC' : '#0d1b2e'} !important;
             z-index: 9999;
           }
-          @page {
-            size: auto;
-            margin: 0;
-          }
-          /* Esconder botões na impressão */
-          .no-print {
-            display: none !important;
-          }
+          #receipt-print-area .receipt-bg-gradient { display: none !important; }
+          .no-print { display: none !important; }
+          @page { size: A4; margin: 0; }
         }
       `}</style>
 
-      {/* ÁREA IMPRESSA */}
-      <div id="receipt-print-area" className="flex-1 p-8 md:p-10 flex flex-col bg-white overflow-y-auto">
-        
-        {/* Header */}
-        <div className="border-b-2 border-slate-100 pb-6 mb-6 flex justify-between items-start">
-            <div className="flex gap-4">
-                {/* Logo ou Placeholder */}
-                <div className="w-16 h-16 bg-slate-900 rounded-lg flex items-center justify-center text-white font-bold text-2xl">
-                    {tenant.logo_url ? (
-                        <img src={tenant.logo_url} alt="Logo" className="w-full h-full object-cover rounded-lg" />
-                    ) : (
-                        tenant.name.charAt(0)
-                    )}
-                </div>
-                <div>
-                    <h1 className="text-xl font-bold uppercase tracking-tight text-slate-900">{tenant.name}</h1>
-                    <div className="text-xs text-slate-500 font-medium space-y-0.5 mt-1">
-                        <p className="flex items-center gap-1"><Building2 size={10}/> {tenant.pix_key_type === 'CNPJ' ? tenant.pix_key : 'Documento Registrado'}</p>
-                        {tenant.pix_city && <p className="flex items-center gap-1"><MapPin size={10}/> {tenant.pix_city}</p>}
-                    </div>
-                </div>
-            </div>
-            <div className="text-right">
-                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Recibo Nº</div>
-                <div className="text-sm font-mono font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded">{receiptHash}</div>
-            </div>
+      {/* ── Theme toggle bar (above receipt) ──────── */}
+      <div className="no-print flex items-center justify-between px-4 py-2 border-b shrink-0"
+        style={{ background: t.actionBg, borderColor: t.actionBorder }}>
+        <span className="text-[9px] font-bold uppercase tracking-[0.2em]"
+          style={{ color: t.shareColor }}>
+          Modo do comprovante
+        </span>
+        <div className="flex items-center gap-1 p-0.5 rounded-lg"
+          style={{ background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,29,60,0.06)', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(15,29,60,0.12)'}` }}>
+          <button
+            onClick={() => setReceiptTheme('dark')}
+            className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all"
+            style={isDark
+              ? { background: '#C9A84C', color: '#0a0a0f' }
+              : { color: t.shareColor, background: 'transparent' }}
+          >
+            <Moon size={11} /> Escuro
+          </button>
+          <button
+            onClick={() => setReceiptTheme('light')}
+            className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all"
+            style={!isDark
+              ? { background: '#c9830e', color: '#fff' }
+              : { color: t.shareColor, background: 'transparent' }}
+          >
+            <Sun size={11} /> Claro
+          </button>
         </div>
+      </div>
 
-        {/* Status Badge */}
-        <div className="flex justify-center mb-8">
-            <div className="flex items-center gap-2 bg-emerald-100 text-emerald-700 px-6 py-2 rounded-full border border-emerald-200">
-                <CheckCircle2 size={18} />
-                <span className="text-sm font-bold uppercase tracking-wide">Pagamento Confirmado</span>
-            </div>
-        </div>
+      {/* ── Scrollable wrapper ─────────────────────── */}
+      <div id="receipt-print-area" className="flex-1 overflow-y-auto flex justify-center"
+        style={{ background: t.wrapperBg }}>
 
-        {/* Valores */}
-        <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 mb-8">
-            <div className="flex justify-between items-end mb-2">
-                <span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Valor Total Pago</span>
-                <span className="text-3xl font-black text-slate-900">{formatCurrency(Number(installment.amount_paid))}</span>
-            </div>
-            <div className="w-full h-px bg-slate-200 my-4"></div>
-            <div className="grid grid-cols-2 gap-4 text-xs">
-                <div>
-                    <span className="block text-slate-400 font-bold uppercase text-[10px]">Referência</span>
-                    <span className="font-bold text-slate-700">{installment.contract_name}</span>
-                </div>
-                <div className="text-right">
-                    <span className="block text-slate-400 font-bold uppercase text-[10px]">Parcela</span>
-                    <span className="font-bold text-slate-700">#{installment.number}</span>
-                </div>
-            </div>
-        </div>
+        {/* ── Narrow receipt column (captured by html2canvas) ── */}
+        <div ref={receiptRef}
+          className="relative w-full px-5 pt-6 pb-5 overflow-hidden"
+          style={{ maxWidth: '380px', background: t.receiptBg }}>
 
-        {/* Detalhes Técnicos */}
-        <div className="space-y-3 text-xs mb-8">
-            <div className="flex justify-between border-b border-slate-100 pb-2">
-                <span className="text-slate-500">Pagador</span>
-                <span className="font-bold text-slate-900 uppercase">{payerName || 'Cliente'}</span>
-            </div>
-            <div className="flex justify-between border-b border-slate-100 pb-2">
-                <span className="text-slate-500">Data do Pagamento</span>
-                <span className="font-bold text-slate-900">{formatDate(paidDate)}</span>
-            </div>
-            <div className="flex justify-between border-b border-slate-100 pb-2">
-                <span className="text-slate-500">Vencimento Original</span>
-                <span className="font-bold text-slate-900">{new Date(installment.due_date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-            </div>
-            {(Number(installment.fine_amount) > 0 || Number(installment.interest_delay_amount) > 0) && (
-                <div className="flex justify-between border-b border-slate-100 pb-2">
-                    <span className="text-slate-500">Encargos (Multa/Juros)</span>
-                    <span className="font-bold text-red-600">Included</span>
-                </div>
-            )}
-        </div>
+          {/* Glow top */}
+          <div className="receipt-bg-gradient pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-72 h-24 rounded-full"
+            aria-hidden="true"
+            style={{ background: `radial-gradient(ellipse, ${t.glowColor} 0%, transparent 70%)` }} />
 
-        {/* Footer */}
-        <div className="mt-auto pt-8 text-center">
-            <p className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">
-                Autenticação Digital: {installment.id.split('-').join('')}
+          {/* ── Header ── */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="receipt-logo-box w-9 h-9 rounded-lg flex items-center justify-center font-black text-base overflow-hidden shrink-0"
+                style={{ background: t.logoBg, border: `1px solid ${t.logoBorder}` }}>
+                {tenant.logo_url
+                  ? <img src={tenant.logo_url} alt="Logo" className="w-full h-full object-cover rounded-lg" />
+                  : <span style={{ color: t.logoText }}>{tenant.name.charAt(0)}</span>}
+              </div>
+              <div>
+                <p className="receipt-company-name text-xs font-black uppercase tracking-[0.18em]"
+                  style={{ color: t.companyName }}>{tenant.name}</p>
+                <p className="text-[9px] font-bold uppercase tracking-widest"
+                  style={{ color: t.subtitle }}>Comprovante de Pagamento</p>
+              </div>
+            </div>
+            <span className="receipt-hash text-[9px] font-mono font-bold px-2 py-0.5 rounded"
+              style={{ background: t.hashBg, color: t.hashColor }}>{receiptHash}</span>
+          </div>
+
+          {/* Divider gold */}
+          <div className="receipt-dash-divider border-t border-dashed mb-4"
+            style={{ borderColor: t.dividerGold }} />
+
+          {/* Badge */}
+          <div className="flex justify-center mb-3">
+            <div className="receipt-confirmed-badge inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide"
+              style={{ background: t.badgeBg, border: `1px solid ${t.badgeBorder}`, color: t.badgeColor }}>
+              <CheckCircle2 size={12} /> Pago
+            </div>
+          </div>
+
+          {/* Amount */}
+          <div className="text-center mb-4">
+            <p className="receipt-amount-label text-[9px] font-black uppercase tracking-[0.2em] mb-1"
+              style={{ color: t.amountLabel }}>Valor Total Pago</p>
+            <p className="receipt-amount-value font-black"
+              style={{ fontSize: 'clamp(1.75rem, 7vw, 2.25rem)', color: t.amountValue, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+              {formatCurrency(totalPaid)}
             </p>
-            <p className="text-[8px] text-slate-300 mt-1">Gerado via Juros Certo</p>
+            {hasPenalties && (
+              <p className="text-[9px] font-bold uppercase mt-1"
+                style={{ color: t.penaltyColor }}>Inclui Multa / Juros de Atraso</p>
+            )}
+          </div>
+
+          {/* Divider mid */}
+          <div className="receipt-dash-divider border-t border-dashed mb-3"
+            style={{ borderColor: t.dividerMid }} />
+
+          {/* Parties */}
+          <div className="space-y-1.5 mb-3">
+            {[{ label: 'Credor', value: creditorName }, { label: 'Cliente', value: clientName }].map(row => (
+              <div key={row.label} className="flex items-baseline justify-between">
+                <span className="receipt-row-label text-[10px] font-bold uppercase tracking-wider"
+                  style={{ color: t.rowLabel }}>{row.label}</span>
+                <span className="receipt-row-value text-[11px] font-bold uppercase text-right ml-4"
+                  style={{ color: t.rowValue, maxWidth: '60%' }}>{row.value}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Divider mid */}
+          <div className="receipt-dash-divider border-t border-dashed mb-3"
+            style={{ borderColor: t.dividerMid }} />
+
+          {/* Detail rows */}
+          <div className="space-y-2">
+            {detailRows.map((row, i) => (
+              <div key={i} className="flex items-baseline justify-between">
+                <span className="receipt-row-label text-[10px] font-bold uppercase tracking-wider shrink-0"
+                  style={{ color: t.rowLabel }}>{row.label}</span>
+                <span className={`text-[11px] font-bold text-right ml-4 ${row.highlight ? 'receipt-gold-accent' : 'receipt-row-value'}`}
+                  style={{ color: row.highlight ? t.highlightColor : t.rowValue }}>
+                  {row.value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Divider footer */}
+          <div className="receipt-dash-divider border-t border-dashed mt-4 mb-3"
+            style={{ borderColor: t.dividerFooter }} />
+
+          {/* Footer */}
+          <div className="text-center space-y-0.5">
+            <p className="receipt-footer-text text-[8px] font-mono font-medium uppercase tracking-wider"
+              style={{ color: t.footerAuth }}>
+              Auth: {installment.id.split('-').join('').toUpperCase()}
+            </p>
+            <p className="receipt-footer-text text-[9px] font-black uppercase tracking-[0.2em]"
+              style={{ color: t.footerBrand }}>
+              Certificado Juros Certo
+            </p>
+          </div>
+
         </div>
       </div>
 
-      {/* BOTÕES DE AÇÃO (Não aparecem na impressão) */}
-      <div className="p-4 bg-white border-t border-slate-200 flex gap-3 no-print">
-         <button 
-            onClick={handleShare}
-            className="flex-1 flex items-center justify-center gap-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 py-3 rounded-xl font-bold text-xs uppercase transition-colors"
-         >
-            <Share2 size={16}/> WhatsApp
-         </button>
-         <button 
-            onClick={handlePrint}
-            className="flex-1 flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-xl font-bold text-xs uppercase transition-colors shadow-lg"
-         >
-            <Printer size={16}/> Imprimir
-         </button>
-         {onClose && (
-             <button 
-                onClick={onClose}
-                className="px-6 py-3 rounded-xl font-bold text-xs uppercase text-slate-400 hover:text-slate-600 transition-colors"
-             >
-                Fechar
-             </button>
-         )}
+      {/* ── Action buttons ─────────────────────────── */}
+      <div className="no-print px-4 py-3 flex gap-2 border-t shrink-0"
+        style={{ background: t.actionBg, borderColor: t.actionBorder }}>
+        <button
+          onClick={handleShare}
+          disabled={sharing}
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+          style={{ background: t.shareBg, border: t.shareBorder, color: t.shareColor }}
+          onMouseEnter={e => { if (!sharing) (e.currentTarget as HTMLButtonElement).style.background = t.shareHover; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = t.shareBg; }}
+        >
+          {sharing ? <Loader2 size={15} className="animate-spin" /> : <Share2 size={15} />}
+          {sharing ? 'Gerando...' : 'WhatsApp'}
+        </button>
+        <button
+          onClick={handlePrint}
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all active:scale-[0.98] cursor-pointer"
+          style={{ background: isDark ? 'linear-gradient(135deg, #b7902a, #C9A84C)' : 'linear-gradient(135deg, #c9830e, #f0b429)', color: isDark ? '#0a0a0f' : '#fff' }}
+          onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
+          onMouseLeave={e => (e.currentTarget.style.filter = '')}
+        >
+          <Printer size={15} /> Imprimir
+        </button>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="px-4 py-3 rounded-xl transition-colors flex items-center justify-center cursor-pointer"
+            style={{ color: t.shareColor }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+            aria-label="Fechar comprovante"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
+
     </div>
   );
 };

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter as Router } from 'react-router-dom';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
@@ -7,6 +7,8 @@ import AdminUsers from './components/AdminUsers';
 import AdminContracts from './components/AdminContracts';
 import AdminSettings from './components/AdminSettings';
 import AdminAssistant from './components/AdminAssistant';
+import AdminHome from './components/AdminHome';
+import OnboardingWizard from './components/OnboardingWizard';
 import { AssistantPaywall } from './components/SubscriptionTab';
 import AdminUserDetails from './components/AdminUserDetails';
 import ResetPassword from './components/ResetPassword';
@@ -14,6 +16,7 @@ import { AppView, UserRole, Tenant, Profile } from './types';
 import { getSupabase, isProduction, logError } from './services/supabase';
 import {
   LayoutDashboard,
+  Home,
   LogOut,
   UserRound,
   Users,
@@ -26,7 +29,6 @@ import {
   X,
   ChevronRight,
   Bot,
-  ListChecks,
   Settings,
   ChevronsLeft,
   ChevronsRight,
@@ -45,6 +47,7 @@ const getTrialDaysLeft = (trial_ends_at: string): number => {
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
 };
 
+// ─── Layout ────────────────────────────────────────────────────────────────────
 interface LayoutProps {
   children: React.ReactNode;
   activeView: AppView;
@@ -87,6 +90,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
 
   const currentSectionLabel: Record<AppView, string> = {
     [AppView.LOGIN]: 'Acesso',
+    [AppView.HOME]: 'Início',
     [AppView.DASHBOARD]: 'Visão Executiva',
     [AppView.USERS]: 'Relacionamentos',
     [AppView.USER_DETAILS]: 'Dossiê do Cliente',
@@ -148,6 +152,20 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
 
         {/* Navegação */}
         <nav className={`flex-1 space-y-1 overflow-y-auto py-5 ${collapsed ? 'px-3' : 'px-5'}`}>
+          <button
+            onClick={() => handleViewChange(AppView.HOME)}
+            title={collapsed ? 'Início' : undefined}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.HOME ? activeClass : inactiveClass}`}
+          >
+            <Home size={20} className="shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold">Início</div>
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Painel de entrada</div>
+              </div>
+            )}
+          </button>
+
           <button
             onClick={() => handleViewChange(AppView.DASHBOARD)}
             title={collapsed ? 'Dashboard' : undefined}
@@ -404,8 +422,13 @@ const App: React.FC = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [targetUserId, setTargetUserId] = useState<string | undefined>(undefined);
+  const [contractAutoNew, setContractAutoNew] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [appError, setAppError] = useState<string | null>(null);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [onboardingUser, setOnboardingUser] = useState<any>(null);
+  const [wizardMode, setWizardMode] = useState<'full' | 'setup'>('full');
+  const profileLoadedRef = useRef(false);
 
   const refreshTenant = async (tenantId: string) => {
     const supabase = getSupabase();
@@ -414,7 +437,7 @@ const App: React.FC = () => {
     if (data) setTenant(data as Tenant);
   };
 
-  const loadAppData = async (sessionUser: any) => {
+  const loadAppData = async (sessionUser: any, fromOnboarding = false) => {
     const supabase = getSupabase();
     if (!supabase) {
         setAppError("Conexão com banco de dados indisponível.");
@@ -444,7 +467,37 @@ const App: React.FC = () => {
                 setTimeout(() => refreshTenant(tenantData.id), 4000);
                 setTimeout(() => refreshTenant(tenantData.id), 10000);
             }
+        } else if (dbData && !dbData.tenants) {
+            // Perfil existe mas tenant não veio no join (estado parcial) — busca tenant direto
+            setProfile(dbData);
+            const { data: tenantData } = await supabase
+                .from('tenants')
+                .select('*')
+                .eq('id', dbData.tenant_id)
+                .maybeSingle();
+            if (tenantData) {
+                const t = tenantData as Tenant;
+                setTenant(t);
+            } else {
+                // Tenant realmente não existe — onboarding parcial sem tenant
+                setWizardMode('full');
+                setOnboardingUser(sessionUser);
+                setNeedsOnboarding(true);
+                setIsLoading(false);
+                return;
+            }
         } else {
+            const isOAuth = sessionUser.app_metadata?.provider !== 'email'
+                && sessionUser.app_metadata?.provider != null;
+            if (isOAuth) {
+                // Usuário OAuth sem perfil — precisa de onboarding completo
+                setWizardMode('full');
+                setOnboardingUser(sessionUser);
+                setNeedsOnboarding(true);
+                setIsLoading(false);
+                return;
+            }
+            // Usuário email/senha sem perfil (fluxo legado)
             const meta = sessionUser.user_metadata || {};
             setProfile({
                 id: sessionUser.id,
@@ -461,14 +514,19 @@ const App: React.FC = () => {
                 created_at: new Date().toISOString()
             });
         }
+        profileLoadedRef.current = true;
         setIsLoading(false);
-        setCurrentView(AppView.DASHBOARD);
+        setCurrentView(AppView.HOME);
     } catch (e: any) {
         logError("LoadAppData", e);
         setAppError(`Erro ao carregar seu perfil: ${e.message}`);
         setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (currentView !== AppView.CONTRACTS) setContractAutoNew(false);
+  }, [currentView]);
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -492,8 +550,9 @@ const App: React.FC = () => {
             setCurrentView(AppView.RESET_PASSWORD);
             setIsLoading(false);
         } else if (event === 'SIGNED_IN' && session) {
-            loadAppData(session.user);
+            if (!profileLoadedRef.current) loadAppData(session.user);
         } else if (event === 'SIGNED_OUT') {
+            profileLoadedRef.current = false;
             setProfile(null);
             setTenant(null);
             setCurrentView(AppView.LOGIN);
@@ -543,6 +602,31 @@ const App: React.FC = () => {
     );
   }
 
+  if (needsOnboarding) {
+    return (
+      <OnboardingWizard
+        sessionUser={onboardingUser}
+        tenant={tenant}
+        mode={wizardMode}
+        onComplete={() => {
+          setNeedsOnboarding(false);
+          setOnboardingUser(null);
+          setIsLoading(true);
+          getSupabase()!.auth.getSession().then(({ data: { session } }) => {
+            if (session) loadAppData(session.user, true);
+            else { setIsLoading(false); setCurrentView(AppView.LOGIN); }
+          });
+        }}
+        onLogout={() => {
+          const supabase = getSupabase();
+          if (supabase) supabase.auth.signOut();
+          setNeedsOnboarding(false);
+          setOnboardingUser(null);
+        }}
+      />
+    );
+  }
+
   if (currentView === AppView.LOGIN) {
     return (
       <div className="min-h-screen text-[color:var(--text-primary)]">
@@ -565,7 +649,7 @@ const App: React.FC = () => {
         <Layout
           activeView={currentView}
           onChangeView={(view) => {
-              if (view !== AppView.DASHBOARD && view !== AppView.COLLECTION && view !== AppView.USER_DETAILS) setTargetUserId(undefined);
+              if (view !== AppView.HOME && view !== AppView.DASHBOARD && view !== AppView.COLLECTION && view !== AppView.USER_DETAILS) setTargetUserId(undefined);
               setCurrentView(view);
           }}
           onLogout={handleLogout}
@@ -573,6 +657,17 @@ const App: React.FC = () => {
           tenant={tenant}
           profile={profile}
         >
+          {currentView === AppView.HOME && profile?.role === 'admin' && (
+            <AdminHome
+              tenant={tenant}
+              profile={profile}
+              onNavigate={(view) => {
+                if (view !== AppView.DASHBOARD && view !== AppView.USER_DETAILS) setTargetUserId(undefined);
+                setCurrentView(view);
+              }}
+              onNewContract={() => { setContractAutoNew(true); setCurrentView(AppView.CONTRACTS); }}
+            />
+          )}
           {(currentView === AppView.DASHBOARD || currentView === AppView.COLLECTION) && (
             <Dashboard
                 targetUserId={targetUserId}
@@ -593,7 +688,7 @@ const App: React.FC = () => {
               <AdminUserDetails userId={targetUserId} onBack={() => { setTargetUserId(undefined); setCurrentView(AppView.USERS); }} />
           )}
           {currentView === AppView.CONTRACTS && profile?.role === 'admin' && (
-              <AdminContracts />
+              <AdminContracts autoOpenCreate={contractAutoNew} />
           )}
           {currentView === AppView.SETTINGS && profile?.role === 'admin' && tenant && (
               <AdminSettings tenant={tenant} onUpdate={(updated) => setTenant(updated)} profile={profile} />

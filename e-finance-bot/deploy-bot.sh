@@ -105,6 +105,39 @@ curl -s -X POST "${URL}/setup" \
   && ok "Webhooks configurados" \
   || echo -e "${YELLOW}⚠ Webhook setup retornou resposta inesperada (verifique manualmente)${NC}"
 
+# ── Cloud Scheduler (morning-briefing) ───────────────────
+step "Configurando Cloud Scheduler (morning-briefing)..."
+SCHEDULER_SECRET_VALUE=$(gcloud secrets versions access latest \
+  --secret=SCHEDULER_SECRET --project="${PROJECT}" 2>/dev/null) || {
+  echo -e "${YELLOW}⚠ Não foi possível ler SCHEDULER_SECRET — Cloud Scheduler não configurado${NC}"
+  SCHEDULER_SECRET_VALUE=""
+}
+
+if [[ -n "${SCHEDULER_SECRET_VALUE}" ]]; then
+  BOT_URL="https://e-finance-bot-485911123531.us-west1.run.app"
+  if gcloud scheduler jobs describe morning-briefing \
+       --project="${PROJECT}" --location="${REGION}" &>/dev/null; then
+    gcloud scheduler jobs update http morning-briefing \
+      --project="${PROJECT}" --location="${REGION}" \
+      --uri="${BOT_URL}/scheduler/morning-briefing" \
+      --headers="x-scheduler-secret=${SCHEDULER_SECRET_VALUE},Content-Type=application/json" \
+      --quiet
+    ok "Cloud Scheduler job atualizado"
+  else
+    gcloud scheduler jobs create http morning-briefing \
+      --project="${PROJECT}" --location="${REGION}" \
+      --schedule="*/5 * * * *" \
+      --uri="${BOT_URL}/scheduler/morning-briefing" \
+      --http-method=POST \
+      --headers="x-scheduler-secret=${SCHEDULER_SECRET_VALUE},Content-Type=application/json" \
+      --message-body="{}" \
+      --time-zone="America/Sao_Paulo" \
+      --attempt-deadline=60s \
+      --quiet
+    ok "Cloud Scheduler job criado (*/5 * * * *)"
+  fi
+fi
+
 # ── Resultado ─────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}════════════════════════════════════════════${NC}"

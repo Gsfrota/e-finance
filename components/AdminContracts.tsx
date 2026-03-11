@@ -198,39 +198,47 @@ const UserSelectionCard: React.FC<{
             </div>
             <div className="relative group">
                 <Search className="absolute left-4 top-4 text-[color:var(--text-muted)] group-focus-within:text-teal-500 transition-colors" size={20} />
-                <input 
-                    type="text" 
+                <input
+                    type="text"
                     placeholder={role === 'investor' ? "Selecione o credor..." : "Busque ou selecione o cliente..."}
                     className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl pl-12 pr-10 p-4 text-sm text-[color:var(--text-primary)] focus:border-[color:var(--border-subtle)] outline-none transition-all shadow-inner focus:ring-1 focus:ring-[color:var(--border-subtle)] cursor-pointer"
                     value={searchTerm}
                     onChange={e => { setSearchTerm(e.target.value); setShowDropdown(true); }}
                     onFocus={() => setShowDropdown(true)}
-                    onBlur={() => setTimeout(() => setShowDropdown(false), 200)} 
+                    onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
                 />
                 <ChevronDown size={20} className={`absolute right-4 top-4 text-[color:var(--text-muted)] transition-transform duration-300 pointer-events-none ${showDropdown ? 'rotate-180 text-teal-500' : ''}`} />
-                {showDropdown && filtered.length > 0 && (
-                    <div className="absolute top-full left-0 w-full mt-2 bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in-down max-h-60 overflow-y-auto custom-scrollbar">
-                        {filtered.map(p => (
-                            <button
-                                key={p.id}
-                                onClick={() => { onSelect(p); setSearchTerm(''); }}
-                                className="w-full text-left p-4 hover:bg-[color:var(--bg-soft)] border-b border-[color:var(--border-subtle)] last:border-0 transition-colors flex items-center justify-between group/item"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-[color:var(--bg-base)] flex items-center justify-center text-xs font-bold text-[color:var(--text-secondary)] border border-[color:var(--border-subtle)]">
-                                        {p.full_name.charAt(0).toUpperCase()}
-                                    </div>
-                                    <div>
-                                        <p className="text-[color:var(--text-primary)] font-bold text-sm group-hover/item:text-teal-400 transition-colors">{p.full_name}</p>
-                                        <p className="text-[color:var(--text-muted)] text-[10px]">{p.email}</p>
-                                    </div>
-                                </div>
-                                {p.role === 'admin' && <span className="text-[9px] bg-teal-950 text-teal-400 px-2 py-1 rounded font-black uppercase border border-teal-900">Admin</span>}
-                            </button>
-                        ))}
-                    </div>
-                )}
             </div>
+            {showDropdown && (
+                <div className="mt-2 bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-2xl shadow-2xl overflow-hidden">
+                    {filtered.length > 0 ? (
+                        <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                            {filtered.map(p => (
+                                <button
+                                    key={p.id}
+                                    onClick={() => { onSelect(p); setSearchTerm(''); }}
+                                    className="w-full text-left p-4 hover:bg-[color:var(--bg-soft)] border-b border-[color:var(--border-subtle)] last:border-0 transition-colors flex items-center justify-between group/item"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-[color:var(--bg-base)] flex items-center justify-center text-xs font-bold text-[color:var(--text-secondary)] border border-[color:var(--border-subtle)]">
+                                            {p.full_name.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <p className="text-[color:var(--text-primary)] font-bold text-sm group-hover/item:text-teal-400 transition-colors">{p.full_name}</p>
+                                            <p className="text-[color:var(--text-muted)] text-[10px]">{p.email}</p>
+                                        </div>
+                                    </div>
+                                    {p.role === 'admin' && <span className="text-[9px] bg-teal-950 text-teal-400 px-2 py-1 rounded font-black uppercase border border-teal-900">Admin</span>}
+                                </button>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="p-4 text-center text-xs text-[color:var(--text-muted)]">
+                            Nenhum cliente encontrado
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
@@ -248,7 +256,8 @@ type EditableContractInstallment = {
 
 // --- MAIN COMPONENT ---
 
-const AdminContracts: React.FC = () => {
+interface AdminContractsProps { autoOpenCreate?: boolean; }
+const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false }) => {
   const [contracts, setContracts] = useState<Investment[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
@@ -287,7 +296,7 @@ const AdminContracts: React.FC = () => {
   const [previewDateStrings, setPreviewDateStrings] = useState<string[]>([]);
   const [viewingContractId, setViewingContractId] = useState<number | null>(null);
   const [viewingContract, setViewingContract] = useState<Investment | null>(null);
-  const [contractsSubView, setContractsSubView] = useState<'list' | 'detail' | 'renewal' | 'create' | 'create-client' | 'edit'>('list');
+  const [contractsSubView, setContractsSubView] = useState<'list' | 'detail' | 'renewal' | 'create' | 'create-client' | 'edit'>(autoOpenCreate ? 'create' : 'list');
   const [renewalSource, setRenewalSource] = useState<Investment | null>(null);
 
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -1049,7 +1058,7 @@ const AdminContracts: React.FC = () => {
                                     type="number" inputMode="decimal" step="0.1"
                                     className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-teal-500 transition-all text-center"
                                     value={formData.interest_rate}
-                                    onChange={e => updateFormState({ interest_rate: parseFloat(e.target.value) })}
+                                    onChange={e => updateFormState({ interest_rate: e.target.value === '' ? '' : parseFloat(e.target.value) })}
                                 />
                                 <span className="absolute right-6 top-5 text-[color:var(--text-muted)] font-bold">%</span>
                             </div>
@@ -1064,12 +1073,12 @@ const AdminContracts: React.FC = () => {
                                     type="number" inputMode="decimal" step="0.01"
                                     className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-indigo-500 transition-all text-center"
                                     value={formData.installment_value}
-                                    onChange={e => updateFormState({ installment_value: parseFloat(e.target.value) })}
+                                    onChange={e => updateFormState({ installment_value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
                                 />
                                 <span className="absolute left-6 top-5 text-[color:var(--text-muted)] font-bold">R$</span>
                             </div>
                             <div className="text-center text-xs text-[color:var(--text-secondary)]">
-                                Taxa Implícita: <strong className="text-[color:var(--text-primary)]">{formData.interest_rate.toFixed(2)}%</strong>
+                                Taxa Implícita: <strong className="text-[color:var(--text-primary)]">{(Number(formData.interest_rate) || 0).toFixed(2)}%</strong>
                             </div>
                         </div>
                     )}
@@ -1447,7 +1456,7 @@ const AdminContracts: React.FC = () => {
             <button onClick={() => setIsNLContractOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-6 py-3 text-sm font-semibold text-[color:var(--text-primary)] transition-all hover:bg-white/[0.08]">
                 <Zap size={16} className="text-[color:var(--accent-steel)]"/> Cadastro Rápido
             </button>
-            <button onClick={handleOpenWizard} className="inline-flex items-center justify-center gap-2 rounded-full bg-[color:var(--accent-brass)] px-6 py-3 text-sm font-extrabold text-[#17120b] transition-all hover:bg-[color:var(--accent-brass-strong)]">
+            <button onClick={handleOpenWizard} className="inline-flex items-center justify-center gap-2 rounded-full bg-[color:var(--accent-brass)] px-6 py-3 text-sm font-extrabold text-[color:var(--text-on-accent)] transition-all hover:bg-[color:var(--accent-brass-strong)]">
                 <PlusCircle size={16} /> Novo Contrato
             </button>
         </div>

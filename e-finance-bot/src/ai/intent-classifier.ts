@@ -26,6 +26,8 @@ export type Intent =
   | 'ver_minhas_parcelas'
   | 'ver_meu_saldo_devedor'
   | 'ver_meu_portfolio'
+  | 'configurar_briefing'
+  | 'ver_exemplo_lembrete'
   | 'desconhecido';
 
 export interface NormalizedEntities {
@@ -43,6 +45,8 @@ export interface NormalizedEntities {
   installment_year?: number;
   days_ahead?: number;
   window_start?: 'today' | 'tomorrow';
+  briefing_time?: string;
+  briefing_enabled?: boolean;
 }
 
 export interface ClassifiedIntent {
@@ -89,6 +93,8 @@ Intenções disponíveis:
 - ver_minhas_parcelas
 - ver_meu_saldo_devedor
 - ver_meu_portfolio
+- configurar_briefing (lembrete matinal, aviso diário, resumo todo dia)
+- ver_exemplo_lembrete (como vai ser a mensagem, me mostra um exemplo, como é o lembrete, mostra como vai chegar)
 - desconhecido
 
 Responda APENAS com JSON válido no formato:
@@ -108,16 +114,18 @@ Responda APENAS com JSON válido no formato:
     "installment_month": <mês da parcela 1..12>,
     "installment_year": <ano da parcela 4 dígitos>,
     "days_ahead": <janela em dias 1..60>,
-    "window_start": "<today|tomorrow>"
+    "window_start": "<today|tomorrow>",
+    "briefing_time": "<HH:MM ou null>",
+    "briefing_enabled": <true|false|null>
   },
   "confidence": "<high|medium|low>"
 }`;
 
 const INTENT_COMPACT_PROMPT = `Classifique intenção financeira em PT-BR coloquial e extraia entidades.
 Use APENAS:
-intent: ver_dashboard|listar_recebiveis|recebiveis_hoje|cobrar_hoje|recebiveis_periodo|cobrar_periodo|criar_contrato|marcar_pagamento|buscar_usuario|gerar_convite|gerar_relatorio|desconectar|confirmar|cancelar|ajuda|ver_minhas_parcelas|ver_meu_saldo_devedor|ver_meu_portfolio|desconhecido
+intent: ver_dashboard|listar_recebiveis|recebiveis_hoje|cobrar_hoje|recebiveis_periodo|cobrar_periodo|criar_contrato|marcar_pagamento|buscar_usuario|gerar_convite|gerar_relatorio|desconectar|confirmar|cancelar|ajuda|ver_minhas_parcelas|ver_meu_saldo_devedor|ver_meu_portfolio|configurar_briefing|ver_exemplo_lembrete|desconhecido
 confidence: high|medium|low
-entities: debtor_name, debtor_cpf, amount, rate, installments, frequency, installment_id, filter, contract_id, installment_number, installment_month (1-12 se mes mencionado), installment_year (4 digitos se ano mencionado), days_ahead (1..60), window_start (today|tomorrow)
+entities: debtor_name, debtor_cpf, amount, rate, installments, frequency, installment_id, filter, contract_id, installment_number, installment_month (1-12 se mes mencionado), installment_year (4 digitos se ano mencionado), days_ahead (1..60), window_start (today|tomorrow), briefing_time (HH:MM ou null), briefing_enabled (true|false|null)
 
 Exemplos por intencao:
 - cobrar_hoje: "quem ta me devendo hoje", "quem devo cobrar hoje", "quem me deve hoje", "quem eu cobro hoje"
@@ -129,7 +137,10 @@ Exemplos por intencao:
 - ver_minhas_parcelas: "minhas parcelas", "quando vence minha parcela", "meus vencimentos"
 - ver_meu_saldo_devedor: "quanto devo", "minha dívida", "saldo devedor meu"
 - ver_meu_portfolio: "meus contratos", "minha carteira", "meus recebíveis"
+- configurar_briefing: "quero receber lembrete todo dia", "ativar aviso matinal", "me manda um lembrete de manhã", "quero receber resumo todo dia", "ativar lembrete diário", "me avisa todo dia de manhã", "quero receber aviso todo dia", "desativar lembrete", "cancelar aviso matinal", "parar de receber lembrete"
+- ver_exemplo_lembrete: "me manda um exemplo de como vou receber a mensagem", "como vai ser o lembrete", "me mostra um exemplo do aviso", "como é a mensagem que vou receber", "mostra como vai chegar o lembrete", "quero ver como é o resumo"
 
+Para configurar_briefing: extraia briefing_time (HH:MM se horário mencionado, null caso contrário) e briefing_enabled (false se user quer desativar/cancelar/parar, true ou null nos demais casos).
 Para marcar_pagamento com mes: extraia debtor_name e installment_month (jan=1, fev=2, mar=3, abr=4, mai=5, jun=6, jul=7, ago=8, set=9, out=10, nov=11, dez=12).
 Retorne SOMENTE JSON valido.`;
 
@@ -152,6 +163,8 @@ const INTENT_SET = new Set<Intent>([
   'ver_minhas_parcelas',
   'ver_meu_saldo_devedor',
   'ver_meu_portfolio',
+  'configurar_briefing',
+  'ver_exemplo_lembrete',
   'desconhecido',
 ]);
 
