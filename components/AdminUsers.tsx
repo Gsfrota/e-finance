@@ -17,6 +17,13 @@ type DisplayUser = {
   createdAt: string;
   cpf?: string;
   photo_url?: string;
+  phone_number?: string;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  bairro?: string;
+  cidade?: string;
+  uf?: string;
 };
 
 const maskCPF = (v: string) =>
@@ -37,8 +44,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
 
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
 
-  const [usersSubView, setUsersSubView] = useState<'list' | 'invite'>('list');
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [usersSubView, setUsersSubView] = useState<'list' | 'invite' | 'edit'>('list');
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<DisplayUser | null>(null);
 
   const [inviteForm, setInviteForm] = useState({
@@ -56,7 +62,15 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [clientCreated, setClientCreated] = useState(false);
 
-  const [editForm, setEditForm] = useState({ full_name: '', role: 'investor' as UserRole, cpf: '' });
+  const [editForm, setEditForm] = useState({
+    full_name: '', role: 'investor' as UserRole, cpf: '',
+    phone_number: '', cep: '', logradouro: '', numero: '', bairro: '', cidade: '', uf: '', photo_url: '',
+  });
+  const [editCepLoading, setEditCepLoading] = useState(false);
+  const [editCepError, setEditCepError] = useState<string | null>(null);
+  const [editCpfError, setEditCpfError] = useState<string | null>(null);
+  const [editUploading, setEditUploading] = useState(false);
+  const [editUploadError, setEditUploadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -97,6 +111,13 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
             createdAt: p.created_at,
             cpf: p.cpf || undefined,
             photo_url: p.photo_url || undefined,
+            phone_number: p.phone_number || undefined,
+            cep: p.cep || undefined,
+            logradouro: p.logradouro || undefined,
+            numero: p.numero || undefined,
+            bairro: p.bairro || undefined,
+            cidade: p.cidade || undefined,
+            uf: p.uf || undefined,
         }));
 
         const pending: DisplayUser[] = (invitesRes.data || []).map(i => ({
@@ -237,24 +258,80 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
     setTimeout(() => setCopiedInviteCode(null), 2000);
   };
 
+  const handleEditCepLookup = async (digits: string) => {
+    if (digits.length !== 8) return;
+    setEditCepLoading(true);
+    setEditCepError(null);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const d = await res.json();
+      if (d.erro) { setEditCepError('CEP não encontrado.'); return; }
+      setEditForm(p => ({
+        ...p,
+        logradouro: d.logradouro || p.logradouro,
+        bairro: d.bairro || p.bairro,
+        cidade: d.localidade || p.cidade,
+        uf: d.uf || p.uf,
+      }));
+    } catch {
+      setEditCepError('Erro ao consultar CEP.');
+    } finally {
+      setEditCepLoading(false);
+    }
+  };
+
+  const handleEditPhotoUpload = async (file: File) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    setEditUploading(true);
+    setEditUploadError(null);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from('profile-photos').upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data } = supabase.storage.from('profile-photos').getPublicUrl(path);
+      setEditForm(f => ({ ...f, photo_url: data.publicUrl }));
+    } catch {
+      setEditUploadError('Erro ao enviar foto. Tente novamente.');
+    } finally {
+      setEditUploading(false);
+    }
+  };
+
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUserForEdit) return;
+    setEditCpfError(null);
+    const cleanCpf = (editForm.cpf || '').replace(/\D/g, '');
+    if (cleanCpf && !isValidCPF(cleanCpf)) {
+      setEditCpfError('CPF inválido. Verifique os dígitos informados.');
+      return;
+    }
     setSubmitting(true);
     setErrorMessage(null);
     try {
         const supabase = getSupabase();
-        const cleanCpf = (editForm.cpf || '').replace(/\D/g, '');
+        const toNull = (v: string) => v.trim() || null;
         const updates = {
             full_name: editForm.full_name,
             role: editForm.role,
-            cpf: cleanCpf || null,
-            updated_at: new Date().toISOString()
+            cpf: toNull(cleanCpf),
+            phone_number: toNull(editForm.phone_number),
+            cep: toNull(editForm.cep.replace(/\D/g, '')),
+            logradouro: toNull(editForm.logradouro),
+            numero: toNull(editForm.numero),
+            bairro: toNull(editForm.bairro),
+            cidade: toNull(editForm.cidade),
+            uf: toNull(editForm.uf),
+            photo_url: toNull(editForm.photo_url),
+            updated_at: new Date().toISOString(),
         };
         const { error } = await supabase!.from('profiles').update(updates).eq('id', selectedUserForEdit.id);
         if (error) throw error;
         fetchUsersAndInvites();
-        setIsEditModalOpen(false);
+        setUsersSubView('list');
+        setSelectedUserForEdit(null);
     } catch (err: any) {
         logError("UpdateUser", err);
         setErrorMessage(parseSupabaseError(err));
@@ -388,11 +465,144 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                 </div>
                 {uploadError && <p className="text-red-400 text-xs pl-1">{uploadError}</p>}
               </div>
-              <button type="submit" disabled={submitting} className="w-full bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] py-5 rounded-2xl font-black text-xs uppercase tracking-widest text-[#17120b] flex items-center justify-center gap-2 transition-colors">
+              <button type="submit" disabled={submitting} className="w-full bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] py-5 rounded-2xl font-black text-xs uppercase tracking-widest text-[color:var(--text-on-accent)] flex items-center justify-center gap-2 transition-colors">
                 {submitting ? <Activity className="animate-spin"/> : <><UserPlus size={18}/> Cadastrar Cliente</>}
               </button>
             </form>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  if (usersSubView === 'edit' && selectedUserForEdit) {
+    return (
+      <div className="flex h-full flex-col bg-[color:var(--bg-elevated)]">
+        {/* Header */}
+        <div className="flex items-center gap-3 border-b border-[color:var(--border-subtle)] px-5 py-5 shrink-0">
+          <button
+            onClick={() => { setUsersSubView('list'); setSelectedUserForEdit(null); setErrorMessage(null); }}
+            className="rounded-full p-2 text-[color:var(--text-muted)] hover:bg-[color:var(--bg-soft)] transition-colors"
+          >
+            <ArrowLeft size={20}/>
+          </button>
+          <div className="flex items-center gap-3 min-w-0">
+            {selectedUserForEdit.photo_url ? (
+              <img src={selectedUserForEdit.photo_url} alt={selectedUserForEdit.fullName} className="w-9 h-9 rounded-xl object-cover border border-slate-600 shrink-0" />
+            ) : (
+              <div className="w-9 h-9 rounded-xl bg-teal-900/40 text-teal-400 flex items-center justify-center font-black text-sm shrink-0">
+                {selectedUserForEdit.fullName?.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0">
+              <h3 className="text-xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter truncate">Editar Cliente</h3>
+              <p className="text-[10px] text-[color:var(--text-muted)] font-mono truncate">{selectedUserForEdit.email}</p>
+            </div>
+          </div>
+        </div>
+        {/* Error */}
+        {errorMessage && (
+          <div className="mx-5 mt-4 bg-red-900/20 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+            <AlertTriangle size={14}/> {errorMessage}
+          </div>
+        )}
+        {/* Scrollable form */}
+        <div className="flex-1 overflow-y-auto px-5 py-5 pb-8">
+          <form onSubmit={handleUpdateUser} className="space-y-3 sm:space-y-5">
+            {/* Seção 1 — Identificação */}
+            <div className="space-y-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Identificação</p>
+              <div className="relative">
+                <User className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
+                <input required type="text" value={editForm.full_name} onChange={e => setEditForm({...editForm, full_name: e.target.value})} placeholder="Nome Completo" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" />
+              </div>
+              <div className="relative">
+                <Mail className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
+                <input type="email" value={selectedUserForEdit.email} disabled placeholder="E-mail" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-muted)] opacity-60 cursor-not-allowed" />
+              </div>
+              <div className="relative">
+                <Phone className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
+                <input type="tel" value={editForm.phone_number} onChange={e => setEditForm({...editForm, phone_number: e.target.value})} placeholder="Telefone (Opcional)" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" />
+              </div>
+              <div className="relative">
+                <Briefcase className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
+                <select value={editForm.role} onChange={e => setEditForm({...editForm, role: e.target.value as UserRole})} className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl appearance-none text-[color:var(--text-primary)]">
+                  <option value="debtor">Devedor</option>
+                  <option value="investor">Investidor</option>
+                </select>
+              </div>
+            </div>
+            {/* Seção 2 — Documento */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Documento</p>
+              <div className="relative">
+                <Key className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
+                <input
+                  type="text"
+                  value={editForm.cpf}
+                  onChange={e => {
+                    const masked = maskCPF(e.target.value);
+                    setEditForm({...editForm, cpf: masked});
+                    setEditCpfError(null);
+                  }}
+                  placeholder="CPF (Opcional)"
+                  className={`w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)] ${editCpfError ? 'border border-red-500' : ''}`}
+                />
+              </div>
+              {editCpfError && <p className="text-red-400 text-xs pl-1">{editCpfError}</p>}
+            </div>
+            {/* Seção 3 — Endereço */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Endereço <span className="text-[color:var(--text-faint)]">(Opcional)</span></p>
+              <div className="relative">
+                <MapPin className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
+                <input
+                  type="text"
+                  value={editForm.cep}
+                  onChange={e => {
+                    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+                    const formatted = digits.length > 5 ? `${digits.slice(0,5)}-${digits.slice(5)}` : digits;
+                    setEditForm({...editForm, cep: formatted});
+                    setEditCepError(null);
+                    if (digits.length === 8) handleEditCepLookup(digits);
+                  }}
+                  placeholder="CEP"
+                  className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]"
+                />
+                {editCepLoading && <Activity className="absolute right-4 top-4 text-teal-500 animate-spin" size={18} />}
+              </div>
+              {editCepError && <p className="text-red-400 text-xs pl-1">{editCepError}</p>}
+              <input type="text" value={editForm.logradouro} onChange={e => setEditForm({...editForm, logradouro: e.target.value})} placeholder="Logradouro" className="w-full bg-[color:var(--bg-base)] p-4 rounded-2xl text-[color:var(--text-primary)]" />
+              <input type="text" value={editForm.numero} onChange={e => setEditForm({...editForm, numero: e.target.value})} placeholder="Número" className="w-full bg-[color:var(--bg-base)] p-4 rounded-2xl text-[color:var(--text-primary)]" />
+              <input type="text" value={editForm.bairro} onChange={e => setEditForm({...editForm, bairro: e.target.value})} placeholder="Bairro" className="w-full bg-[color:var(--bg-base)] p-4 rounded-2xl text-[color:var(--text-primary)]" />
+              <div className="flex gap-2">
+                <input type="text" value={editForm.cidade} onChange={e => setEditForm({...editForm, cidade: e.target.value})} placeholder="Cidade" className="flex-1 bg-[color:var(--bg-base)] p-4 rounded-2xl text-[color:var(--text-primary)]" />
+                <input type="text" value={editForm.uf} onChange={e => setEditForm({...editForm, uf: e.target.value.toUpperCase().slice(0,2)})} placeholder="UF" className="w-20 bg-[color:var(--bg-base)] p-4 rounded-2xl text-[color:var(--text-primary)] text-center" />
+              </div>
+            </div>
+            {/* Seção 4 — Foto */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Foto <span className="text-[color:var(--text-faint)]">(Opcional)</span></p>
+              <div className="flex items-center gap-3">
+                <label className="flex-1 cursor-pointer">
+                  <div className="flex items-center gap-3 bg-[color:var(--bg-base)] p-4 rounded-2xl border border-dashed border-[color:var(--border-subtle)] hover:border-[color:var(--accent-brass)] transition-colors">
+                    {editUploading ? <Activity className="text-teal-500 animate-spin" size={18} /> : <Upload className="text-[color:var(--text-muted)]" size={18} />}
+                    <span className="text-sm text-[color:var(--text-muted)]">
+                      {editUploading ? 'Enviando...' : editForm.photo_url ? 'Trocar foto' : 'Selecionar foto'}
+                    </span>
+                  </div>
+                  <input type="file" accept="image/*" className="hidden" disabled={editUploading} onChange={e => { const f = e.target.files?.[0]; if (f) handleEditPhotoUpload(f); }} />
+                </label>
+                {editForm.photo_url && (
+                  <img src={editForm.photo_url} alt="Preview" className="w-12 h-12 rounded-xl object-cover border border-slate-600 shrink-0" />
+                )}
+              </div>
+              {editUploadError && <p className="text-red-400 text-xs pl-1">{editUploadError}</p>}
+            </div>
+            <button type="submit" disabled={submitting || editUploading} className="w-full bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] py-5 rounded-2xl font-black text-xs uppercase tracking-widest text-[color:var(--text-on-accent)] flex items-center justify-center gap-2 transition-colors">
+              {submitting ? <Activity className="animate-spin"/> : <><Check size={18}/> Salvar Alterações</>}
+            </button>
+          </form>
         </div>
       </div>
     );
@@ -415,7 +625,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                 <button onClick={fetchUsersAndInvites} aria-label="Atualizar lista de usuários" className="p-2.5 min-h-[44px] min-w-[44px] bg-[color:var(--bg-elevated)] hover:bg-[color:var(--bg-soft)] text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] rounded-2xl border border-[color:var(--border-subtle)] transition-colors flex items-center justify-center" title="Atualizar Lista">
                     <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
                 </button>
-                <button onClick={() => setUsersSubView('invite')} className="bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] text-[#17120b] px-5 py-2.5 min-h-[44px] rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg font-bold text-sm whitespace-nowrap">
+                <button onClick={() => setUsersSubView('invite')} className="bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] text-[color:var(--text-on-accent)] px-5 py-2.5 min-h-[44px] rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg font-bold text-sm whitespace-nowrap">
                     <UserPlus size={18} /> <span className="hidden sm:inline">Cadastrar Cliente</span><span className="sm:hidden">Novo</span>
                 </button>
             </div>
@@ -458,7 +668,27 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                             <button onClick={() => handleDeleteInvite(user.inviteId!)} aria-label={`Cancelar convite de ${user.fullName}`} className="absolute top-4 right-4 text-[color:var(--text-muted)] hover:text-red-400 transition-colors p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center bg-[color:var(--bg-base)]/50 rounded-xl z-10 border border-[color:var(--border-subtle)]"><Trash2 size={16} /></button>
                         )}
                         {!isPending && (
-                            <button data-testid="edit-user-btn" onClick={() => { setSelectedUserForEdit(user); setEditForm({ full_name: user.fullName, role: user.role, cpf: user.cpf || '' }); setIsEditModalOpen(true); }} aria-label={`Editar ${user.fullName}`} className="absolute top-4 right-4 text-[color:var(--text-muted)] hover:text-teal-400 transition-colors p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center bg-[color:var(--bg-base)]/50 rounded-xl z-10 border border-[color:var(--border-subtle)]"><Pencil size={16} /></button>
+                            <button data-testid="edit-user-btn" onClick={() => {
+                              setSelectedUserForEdit(user);
+                              setEditForm({
+                                full_name: user.fullName,
+                                role: user.role,
+                                cpf: maskCPF(user.cpf || ''),
+                                phone_number: user.phone_number || '',
+                                cep: user.cep ? (user.cep.length === 8 ? `${user.cep.slice(0,5)}-${user.cep.slice(5)}` : user.cep) : '',
+                                logradouro: user.logradouro || '',
+                                numero: user.numero || '',
+                                bairro: user.bairro || '',
+                                cidade: user.cidade || '',
+                                uf: user.uf || '',
+                                photo_url: user.photo_url || '',
+                              });
+                              setEditCepError(null);
+                              setEditCpfError(null);
+                              setEditUploadError(null);
+                              setErrorMessage(null);
+                              setUsersSubView('edit');
+                            }} aria-label={`Editar ${user.fullName}`} className="absolute top-4 right-4 text-[color:var(--text-muted)] hover:text-teal-400 transition-colors p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center bg-[color:var(--bg-base)]/50 rounded-xl z-10 border border-[color:var(--border-subtle)]"><Pencil size={16} /></button>
                         )}
 
                         <div>
@@ -506,27 +736,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
         </div>
       )}
 
-      {isEditModalOpen && selectedUserForEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[2.5rem] w-full max-w-md shadow-2xl p-8 animate-fade-in-up">
-                <form onSubmit={handleUpdateUser} className="space-y-4">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter">Editar Perfil</h3>
-                        <button type="button" onClick={() => setIsEditModalOpen(false)} className="text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]"><X/></button>
-                    </div>
-                    <input required value={editForm.full_name} onChange={e => setEditForm({...editForm, full_name: e.target.value})} className="w-full bg-[color:var(--bg-base)] p-3 rounded" placeholder="Nome Completo"/>
-                    <input value={editForm.cpf} onChange={e => setEditForm({...editForm, cpf: e.target.value})} className="w-full bg-[color:var(--bg-base)] p-3 rounded" placeholder="CPF (opcional)"/>
-                    <select value={editForm.role} onChange={e => setEditForm({...editForm, role: e.target.value as UserRole})} className="w-full bg-[color:var(--bg-base)] p-3 rounded">
-                        <option value="investor">Investidor</option>
-                        <option value="debtor">Devedor</option>
-                    </select>
-                    <button type="submit" disabled={submitting} className="w-full bg-teal-600 hover:bg-teal-500 py-3 rounded text-white font-bold">
-                        {submitting ? <Activity className="animate-spin mx-auto"/> : 'Salvar'}
-                    </button>
-                </form>
-            </div>
-        </div>
-      )}
 
     </div>
   );

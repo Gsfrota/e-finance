@@ -47,15 +47,15 @@ const calculateInstallmentDates = (
 
 interface RenewalForm {
   asset_name: string;
-  amount_invested: number;
-  interest_rate: number;
-  total_installments: number;
+  amount_invested: number | string;
+  interest_rate: number | string;
+  total_installments: number | string;
   frequency: 'monthly' | 'weekly' | 'daily' | 'freelancer';
-  due_day: number;
+  due_day: number | string;
   weekday: number;
   start_date: string;
   calculation_mode: 'auto' | 'manual';
-  installment_value: number;
+  installment_value: number | string;
 }
 
 interface ContractRenewalModalProps {
@@ -134,13 +134,13 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
 
       const dates = calculateInstallmentDates(
         form.frequency,
-        form.due_day,
+        Number(form.due_day) || 1,
         form.weekday,
         form.start_date,
-        form.total_installments
+        Number(form.total_installments) || 1
       );
 
-      const count = form.total_installments;
+      const count = Number(form.total_installments) || 1;
       const base = roundCurrency(installmentValue);
       const principals = Array.from({ length: count }, () => roundCurrency(Number(form.amount_invested) / count));
       // Ajuste de centavos na última parcela
@@ -165,7 +165,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
           current_installment: 1,
           type: sourceContract.type || 'Financing',
           frequency: form.frequency,
-          due_day: form.frequency === 'monthly' ? form.due_day : null,
+          due_day: form.frequency === 'monthly' ? (Number(form.due_day) || 1) : null,
           weekday: form.frequency === 'weekly' ? form.weekday : null,
           start_date: form.frequency === 'daily' || form.frequency === 'freelancer' ? form.start_date : null,
           calculation_mode: form.calculation_mode,
@@ -263,7 +263,8 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 min={0}
                 step={0.01}
                 value={form.amount_invested}
-                onChange={(e) => set('amount_invested', parseFloat(e.target.value) || 0)}
+                inputMode="decimal"
+                onChange={(e) => set('amount_invested', e.target.value)}
                 className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
               />
             </div>
@@ -274,7 +275,8 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 min={0}
                 step={0.1}
                 value={form.interest_rate}
-                onChange={(e) => set('interest_rate', parseFloat(e.target.value) || 0)}
+                inputMode="decimal"
+                onChange={(e) => set('interest_rate', e.target.value)}
                 disabled={form.calculation_mode === 'manual'}
                 className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all disabled:opacity-40"
               />
@@ -289,7 +291,8 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 type="number"
                 min={1}
                 value={form.total_installments}
-                onChange={(e) => set('total_installments', parseInt(e.target.value) || 1)}
+                inputMode="numeric"
+                onChange={(e) => set('total_installments', e.target.value)}
                 className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
               />
             </div>
@@ -317,7 +320,8 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 min={1}
                 max={28}
                 value={form.due_day}
-                onChange={(e) => set('due_day', parseInt(e.target.value) || 1)}
+                inputMode="numeric"
+                onChange={(e) => set('due_day', e.target.value)}
                 className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
               />
             </div>
@@ -345,7 +349,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                   onClick={() => set('calculation_mode', mode)}
                   className={`flex-1 rounded-xl py-2 text-xs font-extrabold uppercase tracking-wider transition-all ${
                     form.calculation_mode === mode
-                      ? 'bg-[color:var(--accent-brass)] text-[#17120b]'
+                      ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)]'
                       : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'
                   }`}
                 >
@@ -363,7 +367,8 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 min={0}
                 step={0.01}
                 value={form.installment_value}
-                onChange={(e) => set('installment_value', parseFloat(e.target.value) || 0)}
+                inputMode="decimal"
+                onChange={(e) => set('installment_value', e.target.value)}
                 className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
               />
             </div>
@@ -412,8 +417,8 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading || !form.asset_name.trim() || form.amount_invested <= 0}
-            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[color:var(--accent-brass)] py-3.5 text-xs font-extrabold uppercase tracking-widest text-[#17120b] transition-all hover:opacity-90 disabled:opacity-40"
+            disabled={loading || !form.asset_name.trim() || Number(form.amount_invested) <= 0}
+            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[color:var(--accent-brass)] py-3.5 text-xs font-extrabold uppercase tracking-widest text-[color:var(--text-on-accent)] transition-all hover:opacity-90 disabled:opacity-40"
           >
             {loading ? (
               <Loader2 size={15} className="animate-spin" />

@@ -208,6 +208,58 @@ function resolveDetailFollowup(
   return null;
 }
 
+export function parseBriefingTime(text: string): string | null {
+  const normalized = text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+  if (/meio\s*dia/.test(normalized)) return '12:00';
+
+  const match = normalized.match(/^(\d{1,2})(?::(\d{2}))?(?:\s*h(?:oras?)?)?/i);
+  if (!match) return null;
+
+  let hour = parseInt(match[1], 10);
+  const minute = match[2] ? parseInt(match[2], 10) : 0;
+
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  if (hour < 12 && /(da\s+tarde|da\s+noite)/.test(normalized)) {
+    hour += 12;
+  }
+
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+function resolveBriefingFollowup(
+  state: ConversationWorkingState,
+  text: string,
+): ActionPlan | null {
+  if (
+    state.lastAction !== 'configure_briefing'
+    || !state.pendingMissingFields?.includes('briefing_time')
+  ) {
+    return null;
+  }
+
+  const briefingTime = parseBriefingTime(text);
+  if (!briefingTime) return null;
+
+  return {
+    capability: 'configure_briefing',
+    confidence: 'high',
+    source: 'followup',
+    args: {
+      briefing_time: briefingTime,
+      briefing_enabled: true,
+    },
+    missingFields: [],
+    dependsOnContext: true,
+    requiresConfirmation: false,
+  };
+}
+
 export function resolveFollowup(
   text: string,
   state: ConversationWorkingState,
@@ -215,5 +267,6 @@ export function resolveFollowup(
   return resolveDebtorCandidateSelection(state, text)
     || resolveTemporalFollowup(state, text)
     || resolveInstallmentFollowup(state, text)
-    || resolveDetailFollowup(state, text);
+    || resolveDetailFollowup(state, text)
+    || resolveBriefingFollowup(state, text);
 }

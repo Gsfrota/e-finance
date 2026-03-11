@@ -351,7 +351,7 @@ const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
           </button>
           <h2 className="font-display text-lg font-black text-[color:var(--text-primary)]">Comprovante</h2>
         </div>
-        <div className="flex-1 overflow-y-auto bg-white">
+        <div className="flex-1 overflow-y-auto" style={{ background: "#0a0a0f" }}>
           <ReceiptTemplate
             installment={installment}
             tenant={tenant}

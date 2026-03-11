@@ -51,7 +51,7 @@ const InvestorDashboard: React.FC = () => {
           href={getWhatsappLink()}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-8 inline-flex items-center gap-2 rounded-full bg-[color:var(--accent-brass)] px-6 py-3 text-xs font-extrabold uppercase tracking-[0.18em] text-[#17120b] transition-all hover:bg-[color:var(--accent-brass-strong)]"
+          className="mt-8 inline-flex items-center gap-2 rounded-full bg-[color:var(--accent-brass)] px-6 py-3 text-xs font-extrabold uppercase tracking-[0.18em] text-[color:var(--text-on-accent)] transition-all hover:bg-[color:var(--accent-brass-strong)]"
         >
           <MessageCircle size={14} />
           Falar com consultor

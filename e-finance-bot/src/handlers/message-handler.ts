@@ -22,7 +22,7 @@ import type { LinkValidationResult, ContractOpenInstallment } from '../actions/a
 import { detectPromptInjectionAttempt, sanitizeUserText } from '../security/prompt-guard';
 import { renderConversationalReply } from '../ai/response-generator';
 import { getFollowupFromTenantConfig } from '../assistant/followup-question-generator';
-import { getBotTenantConfig } from '../actions/bot-config-actions';
+import { getBotTenantConfig, checkWhitelistBlock } from '../actions/bot-config-actions';
 import { understandCommand } from '../assistant/command-understanding';
 import { createActionPlan } from '../assistant/action-planner';
 import { resolveFollowup } from '../assistant/followup-resolver';
@@ -604,6 +604,20 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
         action: globalUtilityReply.action,
         result: 'success',
       });
+    }
+  }
+
+  // Gate de whitelist (V21) — apenas WhatsApp (Telegram usa chat IDs numéricos)
+  if (msg.channel === 'whatsapp') {
+    const whitelistCheck = await checkWhitelistBlock(msg.channelUserId);
+    if (whitelistCheck.blocked) {
+      logStructuredMessage('whitelist_blocked', {
+        channel: msg.channel,
+        messageId: msg.messageId,
+        result: 'dropped',
+        reason: whitelistCheck.reason,
+      });
+      return finalize('', { action: 'whitelist_blocked', result: 'blocked' });
     }
   }
 

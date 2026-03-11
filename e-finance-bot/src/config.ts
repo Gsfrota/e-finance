@@ -88,7 +88,7 @@ export const config = {
 
   // Scheduler de automações (Cloud Scheduler → HTTP)
   scheduler: {
-    secret: process.env.SCHEDULER_SECRET || '',
+    secret: (process.env.SCHEDULER_SECRET || '').trim(),
     followupEnabledDefault: process.env.FOLLOWUP_ENABLED_DEFAULT !== 'false',
   },
 

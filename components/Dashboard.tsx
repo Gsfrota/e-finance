@@ -4,7 +4,6 @@ import { useDashboardData } from '../hooks/useDashboardData';
 import {
   KPICards, OverviewCharts, ResumoGeral,
   InvestmentsTable, InstallmentsTable,
-  QuickActionsGrid, DailyAlerts,
 } from './dashboard/DashboardWidgets';
 import {
   LayoutDashboard,
@@ -97,7 +96,7 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
   const tabClass = (tab: typeof activeTab) =>
     `w-full justify-center rounded-full px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.18em] transition-all flex items-center gap-2 cursor-pointer ${
       activeTab === tab
-        ? 'bg-[color:var(--accent-brass)] text-[#17120b] shadow-[0_2px_14px_rgba(240,180,41,0.28)]'
+        ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)] shadow-[0_2px_14px_rgba(240,180,41,0.28)]'
         : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'
     }`;
 
@@ -147,8 +146,6 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
       <div>
         {activeTab === 'overview' && (
           <div className="space-y-6 animate-fade-in">
-            <QuickActionsGrid onNavigate={onNavigate ?? (() => {})} onSwitchTab={setActiveTab} />
-            <DailyAlerts kpis={detailedKPIs} installments={installments} />
             <ResumoGeral kpis={detailedKPIs} />
             <KPICards stats={stats} kpis={detailedKPIs} installments={installments} onGoToCollection={() => setActiveTab('collection')} />
 

@@ -19,6 +19,7 @@
   --accent-green-subtle: rgba(143, 179, 157, 0.14);
   --accent-warning: #fbbf24;
   --accent-danger: #f87171;
+  --text-on-accent: #17120b; /* texto sobre botões brass/gold — constante em ambos os modos */
 
   /* ── Sombras hierárquicas (Apple-style multi-layer) ── */
   --shadow-soft:  0 24px 60px rgba(4, 6, 10, 0.28);
@@ -352,4 +353,16 @@ html {
 }
 .animate-slide-in-right {
   animation: slide-in-right 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Prevent iOS auto-zoom on focus — iOS zooms when font-size < 16px */
+@media (max-width: 1024px) {
+  input[type="number"],
+  input[type="text"],
+  input[type="email"],
+  input[type="date"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }

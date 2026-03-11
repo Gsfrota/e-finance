@@ -74,6 +74,20 @@ export function createActionPlan(
       return makePlan('view_my_debt_summary', understanding);
     case 'ver_meu_portfolio':
       return makePlan('view_my_portfolio', understanding);
+    case 'ver_exemplo_lembrete':
+      return makePlan('preview_lembrete', understanding);
+    case 'configurar_briefing': {
+      const briefingTime = (entities as any).briefing_time as string | undefined;
+      const briefingEnabled = (entities as any).briefing_enabled as boolean | undefined;
+      // Se explicitamente desabilitando, não precisa de tempo
+      if (briefingEnabled === false) {
+        return makePlan('configure_briefing', understanding, { briefing_enabled: false });
+      }
+      return makePlan('configure_briefing', understanding, {
+        briefing_time: briefingTime,
+        briefing_enabled: briefingEnabled ?? true,
+      }, briefingTime ? [] : ['briefing_time']);
+    }
     case 'desconectar':
       return makePlan('disconnect_bot', understanding);
     case 'ajuda':

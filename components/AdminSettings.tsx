@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Tenant, Profile } from '../types';
 import { getSupabase, cleanNumbers, isValidCPF } from '../services/supabase';
-import { Save, Building2, CheckCircle2, RefreshCw, QrCode, MessageCircle, Crown, User, CreditCard } from 'lucide-react';
+import { Save, Building2, CheckCircle2, RefreshCw, QrCode, MessageCircle, Crown, User, CreditCard, Upload, Activity } from 'lucide-react';
 import SubscriptionTab from './SubscriptionTab';
 
 interface AdminSettingsProps {
@@ -19,6 +19,8 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
     // Company Info
     const [name, setName] = useState(tenant.name);
     const [logoUrl, setLogoUrl] = useState(tenant.logo_url || '');
+    const [logoUploading, setLogoUploading] = useState(false);
+    const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
 
     // Owner Info
     const [ownerName, setOwnerName] = useState(tenant.owner_name || '');
@@ -34,6 +36,27 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [fieldError, setFieldError] = useState<string | null>(null);
+
+    const handleLogoUpload = async (file: File) => {
+        const supabase = getSupabase();
+        if (!supabase) return;
+        setLogoUploading(true);
+        setLogoUploadError(null);
+        try {
+            const ext = file.name.split('.').pop();
+            const path = `logos/${crypto.randomUUID()}.${ext}`;
+            const { error } = await supabase.storage
+                .from('profile-photos')
+                .upload(path, file, { upsert: true });
+            if (error) throw error;
+            const { data } = supabase.storage.from('profile-photos').getPublicUrl(path);
+            setLogoUrl(data.publicUrl);
+        } catch {
+            setLogoUploadError('Erro ao enviar logo. Tente novamente.');
+        } finally {
+            setLogoUploading(false);
+        }
+    };
 
     const validatePixKey = () => {
         const cleanKey = pixKey.trim();
@@ -151,7 +174,27 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <input required type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Nome da Empresa" className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)]" />
-                            <input type="url" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="URL do Logotipo" className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)]" />
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-3">
+                                    <label className="flex-1 cursor-pointer">
+                                        <div className="flex items-center gap-3 bg-[color:var(--bg-base)] border border-dashed border-[color:var(--border-subtle)] hover:border-indigo-500 rounded-2xl p-4 transition-colors">
+                                            {logoUploading
+                                                ? <Activity className="text-indigo-400 animate-spin" size={18} />
+                                                : <Upload className="text-[color:var(--text-muted)]" size={18} />}
+                                            <span className="text-sm text-[color:var(--text-muted)]">
+                                                {logoUploading ? 'Enviando...' : logoUrl ? 'Trocar logotipo' : 'Selecionar logotipo'}
+                                            </span>
+                                        </div>
+                                        <input type="file" accept="image/*" className="hidden" disabled={logoUploading}
+                                            onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); }} />
+                                    </label>
+                                    {logoUrl && (
+                                        <img src={logoUrl} alt="Logo preview"
+                                            className="w-12 h-12 rounded-xl object-cover border border-[color:var(--border-subtle)] shrink-0 bg-slate-800" />
+                                    )}
+                                </div>
+                                {logoUploadError && <p className="text-red-400 text-xs pl-1">{logoUploadError}</p>}
+                            </div>
                         </div>
                     </div>
 
@@ -221,7 +264,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
                     <div className="pt-4 sticky bottom-4 z-10">
                         <button type="submit" disabled={loading}
                             className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 shadow-2xl ${
-                                success ? 'bg-green-600 text-white' : 'bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] text-[#17120b]'
+                                success ? 'bg-green-600 text-white' : 'bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] text-[color:var(--text-on-accent)]'
                             }`}>
                             {loading ? <RefreshCw className="animate-spin" size={18}/> : success ? <><CheckCircle2 size={18}/> Salvo!</> : <><Save size={18}/> Salvar Todas as Alterações</>}
                         </button>

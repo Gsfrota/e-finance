@@ -299,22 +299,22 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={labelCls}>Principal (R$)</label>
-                    <input type="number" className={inputCls} value={editable.amount_invested}
+                    <input type="number" inputMode="decimal" className={inputCls} value={editable.amount_invested}
                       onChange={e => setEditable(prev => prev ? { ...prev, amount_invested: e.target.value } : prev)} />
                   </div>
                   <div>
                     <label className={labelCls}>Total a Receber (R$)</label>
-                    <input type="number" className={inputCls} value={editable.current_value}
+                    <input type="number" inputMode="decimal" className={inputCls} value={editable.current_value}
                       onChange={e => setEditable(prev => prev ? { ...prev, current_value: e.target.value } : prev)} />
                   </div>
                   <div>
                     <label className={labelCls}>Valor da Parcela (R$)</label>
-                    <input type="number" className={inputCls} value={editable.installment_value}
+                    <input type="number" inputMode="decimal" className={inputCls} value={editable.installment_value}
                       onChange={e => setEditable(prev => prev ? { ...prev, installment_value: e.target.value } : prev)} />
                   </div>
                   <div>
                     <label className={labelCls}>Nº de Parcelas</label>
-                    <input type="number" className={inputCls} value={editable.total_installments}
+                    <input type="number" inputMode="numeric" className={inputCls} value={editable.total_installments}
                       onChange={e => setEditable(prev => prev ? { ...prev, total_installments: e.target.value } : prev)} />
                   </div>
                 </div>
@@ -360,7 +360,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                   {editable.frequency === 'monthly' && (
                     <div>
                       <label className={labelCls}>Dia do mês</label>
-                      <input type="number" min="1" max="31" className={inputCls} value={editable.due_day}
+                      <input type="number" inputMode="numeric" min="1" max="31" className={inputCls} value={editable.due_day}
                         placeholder="Ex: 10"
                         onChange={e => setEditable(prev => prev ? { ...prev, due_day: e.target.value } : prev)} />
                     </div>

@@ -38,6 +38,7 @@ FULL_IMAGE="${IMAGE}:${TAG}"
 
 step "Build da imagem Docker (tag: ${TAG})..."
 docker build \
+  --no-cache \
   --build-arg GEMINI_API_KEY="${GEMINI_API_KEY}" \
   --tag "${FULL_IMAGE}" \
   --tag "${IMAGE}:latest" \

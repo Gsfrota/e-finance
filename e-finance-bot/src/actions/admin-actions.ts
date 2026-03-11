@@ -556,6 +556,16 @@ export function summarizeDashboardRows(
   };
 }
 
+export async function getProfileById(profileId: string): Promise<{ id: string; full_name: string; whatsapp_phone: string | null; telegram_chat_id: string | null } | null> {
+  const { data, error } = await db()
+    .from('profiles')
+    .select('id, full_name, whatsapp_phone, telegram_chat_id')
+    .eq('id', profileId)
+    .maybeSingle();
+  if (error) return null;
+  return data as { id: string; full_name: string; whatsapp_phone: string | null; telegram_chat_id: string | null } | null;
+}
+
 export async function getDashboardSummary(tenantId: string): Promise<DashboardSummary> {
   const { data: investments, error: investmentsError } = await db()
     .from('investments')

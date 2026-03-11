@@ -75,12 +75,14 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isReceiptMode, setIsReceiptMode] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('PIX');
 
   const outstanding = calculateOutstanding(installment);
 
   useEffect(() => {
     if (isOpen && installment) {
       setError(null);
+      setPaymentMethod('PIX');
       // Check if already paid (History Mode)
       if (installment.status === 'paid') {
           setIsReceiptMode(true);
@@ -139,10 +141,11 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       return (
           <ModalBackdrop onClose={onClose}>
               <div className="bg-white h-full max-h-[90vh] flex flex-col">
-                 <ReceiptTemplate 
-                    installment={installment} 
-                    tenant={tenant} 
+                 <ReceiptTemplate
+                    installment={installment}
+                    tenant={tenant}
                     payerName={payerName || installment.investment?.payer?.full_name}
+                    paymentMethod={paymentMethod}
                     onClose={onClose}
                  />
               </div>
@@ -191,8 +194,8 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
             </label>
             <div className="relative">
                 <DollarSign size={16} className="absolute left-4 top-4 text-emerald-500"/>
-                <input 
-                  type="number" step="0.01" required
+                <input
+                  type="number" step="0.01" inputMode="decimal" required
                   value={amount} onChange={e => setAmount(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                 />
@@ -204,6 +207,24 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
               <span>Data da baixa: <strong>Hoje ({new Date().toLocaleDateString('pt-BR')})</strong></span>
           </div>
 
+          <div>
+            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+              Forma de Pagamento
+            </label>
+            <select
+              value={paymentMethod}
+              onChange={e => setPaymentMethod(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 text-white outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all text-sm"
+            >
+              <option value="PIX">PIX</option>
+              <option value="Dinheiro">Dinheiro</option>
+              <option value="Transferência Bancária">Transferência Bancária</option>
+              <option value="Boleto Bancário">Boleto Bancário</option>
+              <option value="Cartão">Cartão</option>
+              <option value="Cheque">Cheque</option>
+            </select>
+          </div>
+
           {error && (
             <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
                 <AlertTriangle size={14} /> {error}
@@ -211,7 +232,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
           )}
         </div>
 
-        <button 
+        <button
           type="submit" disabled={loading}
           className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]"
         >
@@ -233,7 +254,7 @@ export const RefinanceModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSu
 
   useEffect(() => {
     if (isOpen) {
-      setPayAmount('0.00');
+      setPayAmount('');
       // Default to 30 days from now
       const d = new Date();
       d.setDate(d.getDate() + 30);
@@ -306,8 +327,8 @@ export const RefinanceModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSu
             </label>
             <div className="relative">
                 <DollarSign size={16} className="absolute left-4 top-4 text-purple-400"/>
-                <input 
-                  type="number" step="0.01" required
+                <input
+                  type="number" step="0.01" inputMode="decimal" required
                   value={payAmount} onChange={e => setPayAmount(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-purple-500 transition-all"
                 />
@@ -443,8 +464,8 @@ export const EditModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess
             </label>
             <div className="relative">
                 <DollarSign size={16} className="absolute left-4 top-4 text-slate-500"/>
-                <input 
-                  type="number" step="0.01" required
+                <input
+                  type="number" step="0.01" inputMode="decimal" required
                   value={totalAmount} onChange={e => setTotalAmount(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-sky-500 transition-all"
                 />
