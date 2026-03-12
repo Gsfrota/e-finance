@@ -733,3 +733,25 @@ GRANT EXECUTE ON FUNCTION public.complete_oauth_onboarding(TEXT, TEXT, TEXT, TEX
 ALTER TABLE public.bot_tenant_config
   ADD COLUMN IF NOT EXISTS last_briefing_sent_at TIMESTAMPTZ;
 ```
+
+## Migração V23 — Campos Expandidos de Contratos (Importação)
+
+Novos campos em `investments` para suportar dados de sistemas externos e maior fidelidade
+de configuração de contratos (agendamento por dia da semana, juros diário, desconto, acréscimo).
+
+```sql
+-- V23: Campos expandidos em investments
+ALTER TABLE public.investments
+  ADD COLUMN IF NOT EXISTS original_contract_code TEXT,
+  ADD COLUMN IF NOT EXISTS end_date DATE,
+  ADD COLUMN IF NOT EXISTS include_saturday BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS include_sunday BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS daily_interest_rate NUMERIC,
+  ADD COLUMN IF NOT EXISTS discount NUMERIC NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS surcharge NUMERIC NOT NULL DEFAULT 0;
+
+-- Índice para busca por código de contrato original (útil em migração)
+CREATE INDEX IF NOT EXISTS idx_investments_original_code
+  ON public.investments (tenant_id, original_contract_code)
+  WHERE original_contract_code IS NOT NULL;
+```

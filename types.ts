@@ -114,6 +114,15 @@ export interface Investment {
   status?: 'active' | 'completed' | 'defaulted' | 'renewed';
   notes?: string | null;
 
+  // Campos expandidos de contratos (V23)
+  original_contract_code?: string | null; // Código original de sistemas legados (ex: "CT14383727")
+  end_date?: string | null;               // Data de término do contrato (YYYY-MM-DD)
+  include_saturday?: boolean;             // Inclui sábado no agendamento (padrão: true)
+  include_sunday?: boolean;               // Inclui domingo no agendamento (padrão: true)
+  daily_interest_rate?: number | null;    // Taxa de juros diária (% ao dia)
+  discount?: number;                      // Desconto aplicado ao principal
+  surcharge?: number;                     // Acréscimo aplicado ao principal
+
   // Campos virtuais (Joins)
   investor?: { full_name: string; cpf?: string; email?: string; role?: UserRole };
   payer?: { full_name: string; cpf?: string; email?: string };
