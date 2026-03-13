@@ -1007,9 +1007,6 @@ Se Claude Code for implementar a integração hoje, o mais confiável é conside
 - Tag de administração: `https://docs.uazapi.com/tag/Admininstra%C3%A7%C3%A3o`
 - Coleção pública oficial no Postman: `uazapiGO - WhatsApp API (v2.0)`
 
-
-
-
 Dados da instância
 
 Server URL: 

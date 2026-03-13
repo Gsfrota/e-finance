@@ -25,8 +25,11 @@ const DebtorDashboard: React.FC = () => {
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-  const formatDate = (dateStr: string) => 
+  const formatDate = (dateStr: string) =>
     new Date(dateStr + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  const fmtWeekday = (dateStr: string) =>
+    new Date(dateStr + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long' });
 
   const handlePay = (installment: any) => {
       setSelectedInstallment(installment);
@@ -98,6 +101,9 @@ const DebtorDashboard: React.FC = () => {
                           <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Próximo Vencimento</p>
                           <div className="flex items-center gap-2 text-white font-bold text-sm">
                               <Calendar size={14} className="text-teal-400"/> {formatDate(metrics.nextPayment.due_date)}
+                          </div>
+                          <div className="text-[10px] text-slate-500 capitalize mt-0.5">
+                              {fmtWeekday(metrics.nextPayment.due_date)}
                           </div>
                       </div>
                       {metrics.nextPayment.is_late && (
@@ -203,6 +209,7 @@ const DebtorDashboard: React.FC = () => {
                                               <tr data-testid="installment-row" key={inst.id} className="hover:bg-slate-800/50 transition-colors">
                                                   <td className="py-4 pl-4">
                                                       <div className="flex flex-col">
+                                                          <span className="text-[10px] text-slate-500 capitalize">{fmtWeekday(inst.due_date)}</span>
                                                           <span className={`font-bold font-mono ${inst.is_late ? 'text-red-400' : 'text-slate-300'}`}>
                                                               {formatDate(inst.due_date)}
                                                           </span>

@@ -37,7 +37,8 @@ const calculateInstallmentDates = (
     weekday: number,
     startDateStr: string,
     count: number,
-    skipWeekends: boolean = false
+    skipSaturday: boolean = false,
+    skipSunday: boolean = false
 ): Date[] => {
     const dates: Date[] = [];
     const now = new Date();
@@ -58,9 +59,9 @@ const calculateInstallmentDates = (
         cursorDate = new Date(y, m - 1, d);
     }
 
-    if (frequency === 'daily' && skipWeekends) {
+    if (frequency === 'daily' && (skipSaturday || skipSunday)) {
         let start = new Date(cursorDate);
-        while (start.getDay() === 0 || start.getDay() === 6) {
+        while ((skipSunday && start.getDay() === 0) || (skipSaturday && start.getDay() === 6)) {
             start.setDate(start.getDate() + 1);
         }
         for (let i = 0; i < count; i++) {
@@ -68,7 +69,9 @@ const calculateInstallmentDates = (
             let bDaysLeft = i;
             while (bDaysLeft > 0) {
                 candidate.setDate(candidate.getDate() + 1);
-                if (candidate.getDay() !== 0 && candidate.getDay() !== 6) bDaysLeft--;
+                const day = candidate.getDay();
+                const shouldSkip = (skipSunday && day === 0) || (skipSaturday && day === 6);
+                if (!shouldSkip) bDaysLeft--;
             }
             dates.push(new Date(candidate));
         }
@@ -288,12 +291,15 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false 
       current_value: 0,
       calculation_mode: 'auto' as 'auto' | 'manual',
       source_profit_amount: 0,
-      skip_weekends: false
+      skip_saturday: false,
+      skip_sunday: false
   });
 
   const [selectedInvestor, setSelectedInvestor] = useState<Profile | null>(null);
   const [selectedPayer, setSelectedPayer] = useState<Profile | null>(null);
   const [previewDateStrings, setPreviewDateStrings] = useState<string[]>([]);
+  const [freelancerDates, setFreelancerDates] = useState<string[]>([]);
+  const [freelancerInterval, setFreelancerInterval] = useState<number>(7);
   const [viewingContractId, setViewingContractId] = useState<number | null>(null);
   const [viewingContract, setViewingContract] = useState<Investment | null>(null);
   const [contractsSubView, setContractsSubView] = useState<'list' | 'detail' | 'renewal' | 'create' | 'create-client' | 'edit'>(autoOpenCreate ? 'create' : 'list');
@@ -416,8 +422,6 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false 
 
   const handleOpenWizard = async () => {
       const today = new Date();
-      const nextMonth = new Date(today);
-      nextMonth.setDate(today.getDate() + 1);
 
       setFormData({
           asset_name: '',
@@ -426,13 +430,14 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false 
           frequency: 'monthly',
           due_day: 10,
           weekday: 1,
-          start_date: nextMonth.toISOString().split('T')[0],
+          start_date: today.toISOString().split('T')[0],
           interest_rate: 10,
           installment_value: 0,
           current_value: 0,
           calculation_mode: 'auto',
           source_profit_amount: 0,
-          skip_weekends: false
+          skip_saturday: false,
+          skip_sunday: false
       });
       
       let defaultInvestor = null;
@@ -446,8 +451,22 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false 
       setSelectedInvestor(defaultInvestor);
       setSelectedPayer(null);
       setPreviewDateStrings([]);
+      setFreelancerDates([]);
+      setFreelancerInterval(7);
       setStep(1);
       setContractsSubView('create');
+  };
+
+  const buildFreelancerDates = (count: number, startDate: string, intervalDays: number): string[] => {
+      const dates: string[] = [];
+      const [y, m, d] = startDate.split('-').map(Number);
+      const base = new Date(y, m - 1, d);
+      for (let i = 0; i < count; i++) {
+          const dt = new Date(base);
+          dt.setDate(base.getDate() + i * intervalDays);
+          dates.push(dt.toISOString().split('T')[0]);
+      }
+      return dates;
   };
 
   const updateFormState = (partial: Partial<typeof formData>) => {
@@ -462,7 +481,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false 
 
       // Validate Profit Amount against Balance and new Invested Amount
       let newProfitAmount = merged.source_profit_amount;
-      
+
       // 1. Cannot exceed investment amount
       if (newProfitAmount > merged.amount_invested) {
           newProfitAmount = merged.amount_invested;
@@ -481,17 +500,33 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false 
           interest_rate: financial.interestRate
       }));
 
-      const dateObjects = calculateInstallmentDates(
-          merged.frequency,
-          merged.due_day,
-          merged.weekday,
-          merged.start_date,
-          merged.total_installments,
-          merged.skip_weekends
-      );
-      setPreviewDateStrings(dateObjects.map(d =>
-          d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })
-      ));
+      if (merged.frequency === 'freelancer') {
+          // Para freelancer, recalcular datas se count ou start_date mudou
+          const currentInterval = freelancerInterval;
+          setFreelancerDates(prev => {
+              const newCount = merged.total_installments;
+              const startChanged = partial.start_date !== undefined;
+              if (prev.length !== newCount || startChanged || prev.length === 0) {
+                  const baseDate = prev.length > 0 && !startChanged ? prev[0] : merged.start_date;
+                  return buildFreelancerDates(newCount, baseDate, currentInterval);
+              }
+              return prev;
+          });
+          setPreviewDateStrings([]);
+      } else {
+          const dateObjects = calculateInstallmentDates(
+              merged.frequency,
+              merged.due_day,
+              merged.weekday,
+              merged.start_date,
+              merged.total_installments,
+              merged.skip_saturday,
+              merged.skip_sunday
+          );
+          setPreviewDateStrings(dateObjects.map(d =>
+              d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })
+          ));
+      }
   };
 
   const handleCreateContract = async () => {
@@ -516,9 +551,11 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false 
               p_frequency: formData.frequency,
               p_due_day: formData.frequency === 'monthly' ? formData.due_day : null,
               p_weekday: formData.frequency === 'weekly' ? formData.weekday : null,
-              p_start_date: ['daily', 'freelancer'].includes(formData.frequency) ? formData.start_date : null,
+              p_start_date: formData.frequency === 'daily' ? formData.start_date : null,
               p_calculation_mode: formData.calculation_mode,
-              p_skip_weekends: formData.frequency === 'daily' ? formData.skip_weekends : false
+              p_skip_saturday: formData.frequency === 'daily' ? formData.skip_saturday : false,
+              p_skip_sunday:   formData.frequency === 'daily' ? formData.skip_sunday   : false,
+              p_custom_dates:  formData.frequency === 'freelancer' ? freelancerDates : null
           });
 
           if (rpcError) throw rpcError;
@@ -996,19 +1033,153 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false 
                     </div>
 
                     {formData.frequency === 'daily' && (
-                        <button
-                            onClick={() => updateFormState({ skip_weekends: !formData.skip_weekends })}
-                            className={`flex items-center gap-3 w-full p-3 rounded-2xl border transition-all animate-fade-in ${
-                                formData.skip_weekends
-                                    ? 'bg-teal-950/40 border-teal-500/40 text-teal-300'
-                                    : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)]'
-                            }`}
-                        >
-                            <div className={`w-9 h-5 rounded-full relative transition-all flex-shrink-0 ${formData.skip_weekends ? 'bg-teal-600' : 'bg-[color:var(--bg-elevated)]'}`}>
-                                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${formData.skip_weekends ? 'left-4' : 'left-0.5'}`} />
+                        <div className="flex gap-2 animate-fade-in">
+                            <button
+                                onClick={() => updateFormState({ skip_saturday: !formData.skip_saturday })}
+                                className={`flex items-center gap-3 flex-1 p-3 rounded-2xl border transition-all ${
+                                    formData.skip_saturday
+                                        ? 'bg-teal-950/40 border-teal-500/40 text-teal-300'
+                                        : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)]'
+                                }`}
+                            >
+                                <div className={`w-9 h-5 rounded-full relative transition-all flex-shrink-0 ${formData.skip_saturday ? 'bg-teal-600' : 'bg-[color:var(--bg-elevated)]'}`}>
+                                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${formData.skip_saturday ? 'left-4' : 'left-0.5'}`} />
+                                </div>
+                                <span className="text-[10px] font-black uppercase tracking-widest">Pular Sábado</span>
+                            </button>
+                            <button
+                                onClick={() => updateFormState({ skip_sunday: !formData.skip_sunday })}
+                                className={`flex items-center gap-3 flex-1 p-3 rounded-2xl border transition-all ${
+                                    formData.skip_sunday
+                                        ? 'bg-teal-950/40 border-teal-500/40 text-teal-300'
+                                        : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)]'
+                                }`}
+                            >
+                                <div className={`w-9 h-5 rounded-full relative transition-all flex-shrink-0 ${formData.skip_sunday ? 'bg-teal-600' : 'bg-[color:var(--bg-elevated)]'}`}>
+                                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${formData.skip_sunday ? 'left-4' : 'left-0.5'}`} />
+                                </div>
+                                <span className="text-[10px] font-black uppercase tracking-widest">Pular Domingo</span>
+                            </button>
+                        </div>
+                    )}
+
+                    {formData.frequency === 'daily' && (
+                        <div className="animate-fade-in">
+                            <div className="text-[10px] font-black text-[color:var(--text-muted)] uppercase tracking-widest mb-2">Primeira cobrança</div>
+                            <div className="flex gap-2">
+                                {[
+                                    { label: 'Hoje', offset: 0 },
+                                    { label: 'Amanhã', offset: 1 },
+                                ].map(opt => {
+                                    const d = new Date();
+                                    d.setDate(d.getDate() + opt.offset);
+                                    const val = d.toISOString().split('T')[0];
+                                    return (
+                                        <button
+                                            key={opt.label}
+                                            onClick={() => updateFormState({ start_date: val })}
+                                            className={`flex-1 py-3 rounded-2xl border text-[11px] font-black uppercase tracking-widest transition-all ${
+                                                formData.start_date === val
+                                                    ? 'bg-teal-600 border-teal-500 text-white shadow-lg'
+                                                    : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
+                                            }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    );
+                                })}
                             </div>
-                            <span className="text-[10px] font-black uppercase tracking-widest">Pular finais de semana</span>
-                        </button>
+                        </div>
+                    )}
+
+                    {formData.frequency === 'freelancer' && (
+                        <div className="space-y-3 animate-fade-in">
+                            <div className="rounded-2xl border border-[color:var(--border-subtle)] overflow-hidden">
+                                <div className="px-4 py-3 bg-[color:var(--bg-base)] border-b border-[color:var(--border-subtle)]">
+                                    <span className="text-[10px] font-black uppercase text-[color:var(--text-muted)] tracking-widest">Distribuição rápida</span>
+                                </div>
+                                <div className="p-3 flex flex-wrap gap-2 items-center bg-[color:var(--bg-elevated)]">
+                                    {[
+                                        { label: 'Semanal', days: 7 },
+                                        { label: 'Quinzenal', days: 15 },
+                                        { label: 'Mensal', days: 30 },
+                                    ].map(opt => (
+                                        <button
+                                            key={opt.label}
+                                            onClick={() => {
+                                                setFreelancerInterval(opt.days);
+                                                if (freelancerDates.length > 0) {
+                                                    const newDates = buildFreelancerDates(formData.total_installments, freelancerDates[0], opt.days);
+                                                    setFreelancerDates(newDates);
+                                                }
+                                            }}
+                                            className={`px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                freelancerInterval === opt.days
+                                                    ? 'bg-teal-600 border-teal-500 text-white'
+                                                    : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-soft)]'
+                                            }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                    <div className="flex items-center gap-1.5 ml-auto">
+                                        <span className="text-[10px] text-[color:var(--text-muted)] font-bold">A cada</span>
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            className="w-14 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-2 py-1.5 text-sm text-center font-bold text-[color:var(--text-primary)] outline-none focus:border-teal-500"
+                                            value={freelancerInterval}
+                                            onChange={e => setFreelancerInterval(Math.max(1, parseInt(e.target.value) || 1))}
+                                        />
+                                        <span className="text-[10px] text-[color:var(--text-muted)] font-bold">dias</span>
+                                        <button
+                                            onClick={() => {
+                                                if (freelancerDates.length > 0) {
+                                                    const newDates = buildFreelancerDates(formData.total_installments, freelancerDates[0], freelancerInterval);
+                                                    setFreelancerDates(newDates);
+                                                }
+                                            }}
+                                            className="px-3 py-1.5 bg-teal-700 hover:bg-teal-600 text-white text-[10px] font-black uppercase rounded-xl transition-all"
+                                        >
+                                            Aplicar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-[color:var(--border-subtle)] overflow-hidden">
+                                <div className="flex items-center justify-between px-4 py-3 bg-[color:var(--bg-base)] border-b border-[color:var(--border-subtle)]">
+                                    <span className="text-[10px] font-black uppercase text-[color:var(--text-muted)] tracking-widest">
+                                        {freelancerDates.length} parcelas — datas editáveis
+                                    </span>
+                                    <span className="text-[10px] font-bold text-[color:var(--accent-brass)]">
+                                        {formatCurrency(formData.installment_value)} cada
+                                    </span>
+                                </div>
+                                <div className="max-h-64 overflow-y-auto divide-y divide-[color:var(--border-subtle)]">
+                                    {freelancerDates.map((dateStr, idx) => (
+                                        <div key={idx} className="flex items-center gap-3 px-4 py-2.5">
+                                            <span className="text-[10px] font-black text-[color:var(--text-faint)] w-6 text-right flex-shrink-0">
+                                                #{idx + 1}
+                                            </span>
+                                            <input
+                                                type="date"
+                                                className="flex-1 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-1.5 text-sm font-bold text-[color:var(--text-primary)] outline-none focus:border-teal-500 transition-all"
+                                                value={dateStr}
+                                                onChange={e => {
+                                                    const updated = [...freelancerDates];
+                                                    updated[idx] = e.target.value;
+                                                    setFreelancerDates(updated);
+                                                }}
+                                            />
+                                            <span className="text-xs font-bold text-[color:var(--accent-positive)] flex-shrink-0">
+                                                {formatCurrency(formData.installment_value)}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
                     )}
 
                     {previewDateStrings.length > 0 && (
@@ -1405,14 +1576,21 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false 
                                                       : `Valor previsto ${formatCurrency(Number(installment.amount_total || 0))}`}
                                               </p>
                                           </div>
-                                          <div className="flex items-center gap-3">
-                                              <input
-                                                  type="date"
-                                                  disabled={locked}
-                                                  value={installment.due_date}
-                                                  onChange={(event) => handleEditInstallmentDateChange(installment.id, event.target.value)}
-                                                  className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)] disabled:cursor-not-allowed disabled:opacity-45"
-                                              />
+                                          <div className="flex flex-col items-start gap-1">
+                                              <div className="flex items-center gap-3">
+                                                  <input
+                                                      type="date"
+                                                      disabled={locked}
+                                                      value={installment.due_date}
+                                                      onChange={(event) => handleEditInstallmentDateChange(installment.id, event.target.value)}
+                                                      className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)] disabled:cursor-not-allowed disabled:opacity-45"
+                                                  />
+                                              </div>
+                                              {installment.due_date && (
+                                                  <p className="text-[10px] text-[color:var(--text-faint)] capitalize pl-1">
+                                                      {new Date(installment.due_date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })}
+                                                  </p>
+                                              )}
                                           </div>
                                       </div>
                                   </div>

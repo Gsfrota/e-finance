@@ -22,6 +22,11 @@ const fmtDate = (ymd?: string | null) => {
   return `${d}/${m}/${y}`;
 };
 
+const fmtWeekday = (ymd?: string | null) => {
+  if (!ymd) return '';
+  return new Date(ymd + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long' });
+};
+
 const fmtDatetime = (iso?: string | null) => {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -150,6 +155,7 @@ const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = ({ insta
               <p className={`text-sm font-bold tabular-nums ${isLate ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--text-primary)]'}`}>
                 {fmtDate(installment.due_date)}
               </p>
+              <p className="text-[10px] text-[color:var(--text-faint)] capitalize mt-0.5">{fmtWeekday(installment.due_date)}</p>
             </div>
             <div className="rounded-xl bg-[color:var(--bg-soft)] px-3 py-2.5">
               <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--text-faint)] mb-1">Valor Original</p>
@@ -467,7 +473,7 @@ const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({ action, t
       <div className="px-4 pt-4 pb-2 shrink-0">
         <div className="panel-card rounded-2xl p-4">
           <p className="text-[10px] uppercase tracking-widest text-[color:var(--text-faint)]">
-            Parcela {installment.number} · Venc. {fmtDate(installment.due_date)}
+            Parcela {installment.number} · Venc. {fmtDate(installment.due_date)} ({fmtWeekday(installment.due_date)})
           </p>
           <p className="text-2xl font-extrabold text-[color:var(--text-primary)] mt-1">{fmt(outstanding)}</p>
         </div>
@@ -783,7 +789,7 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
                           Parcela {inst.number}
                         </span>
                         <span className="text-[10px] text-[color:var(--text-faint)] truncate">
-                          {fmtDate(inst.due_date)}
+                          {new Date(inst.due_date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}, {fmtDate(inst.due_date)}
                         </span>
                       </div>
                       <div className="text-right shrink-0">
@@ -1101,7 +1107,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
               <div className="mt-3 grid grid-cols-3 gap-2">
                 {[
                   { label: 'Principal',  value: fmt(data.investment.amount_invested) },
-                  { label: 'Taxa',       value: `${data.investment.interest_rate}% a.m.` },
+                  { label: 'Taxa',       value: `${Number(data.investment.interest_rate).toFixed(2)}% a.m.` },
                   { label: 'Parcela',    value: fmt(data.investment.installment_value) },
                 ].map(({ label, value }) => (
                   <div key={label} className="rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-elevated)] px-3 py-3 text-center">
@@ -1159,6 +1165,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                         <div className="flex items-end justify-between mb-3">
                           <div>
                             <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--text-faint)] mb-1">Vencimento</p>
+                            <p className="text-[10px] text-[color:var(--text-faint)] capitalize mb-0.5">{fmtWeekday(i.due_date)}</p>
                             <p className={`text-lg font-black leading-none tabular-nums ${isLate ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--text-primary)]'}`}>
                               {fmtDate(i.due_date)}
                             </p>
@@ -1271,8 +1278,8 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                         )}
                         {r.old_due_date != null && r.new_due_date != null && (
                           <span className="text-[color:var(--text-secondary)]">
-                            Vencimento: <span className="line-through text-[color:var(--text-faint)]">{fmtDate(r.old_due_date)}</span>
-                            {' → '}<span className="font-bold text-[color:var(--accent-brass)]">{fmtDate(r.new_due_date)}</span>
+                            Vencimento: <span className="line-through text-[color:var(--text-faint)]">{new Date(r.old_due_date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}., {fmtDate(r.old_due_date)}</span>
+                            {' → '}<span className="font-bold text-[color:var(--accent-brass)]">{new Date(r.new_due_date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}., {fmtDate(r.new_due_date)}</span>
                           </span>
                         )}
                       </div>

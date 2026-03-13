@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { LoanInstallment, Tenant } from '../types';
 import { getSupabase } from '../services/supabase';
 import { X, CheckCircle2, Calendar, DollarSign, Loader2, AlertTriangle, RefreshCw, Pencil, Save, Printer, Percent } from 'lucide-react';
@@ -93,6 +94,14 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
     }
   }, [isOpen, installment, outstanding]);
 
+  // Torna o background não-selecionável quando o comprovante está aberto
+  useEffect(() => {
+    if (!isReceiptMode) return;
+    const root = document.getElementById('root');
+    root?.setAttribute('inert', 'true');
+    return () => root?.removeAttribute('inert');
+  }, [isReceiptMode]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!installment) return;
@@ -136,21 +145,24 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
 
   if (!isOpen || !installment) return null;
 
-  // RENDER RECEIPT MODE
+  // RENDER RECEIPT MODE — portal fora do #root para evitar duplicação no Ctrl+C
   if (isReceiptMode && tenant) {
-      return (
-          <ModalBackdrop onClose={onClose}>
-              <div className="bg-white h-full max-h-[90vh] flex flex-col">
-                 <ReceiptTemplate
-                    installment={installment}
-                    tenant={tenant}
-                    payerName={payerName || installment.investment?.payer?.full_name}
-                    paymentMethod={paymentMethod}
-                    onClose={onClose}
-                 />
-              </div>
-          </ModalBackdrop>
-      );
+    return ReactDOM.createPortal(
+      <div
+        data-html2canvas-ignore="true"
+        style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#0d0d14' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ReceiptTemplate
+          installment={installment}
+          tenant={tenant}
+          payerName={payerName || installment.investment?.payer?.full_name}
+          paymentMethod={paymentMethod}
+          onClose={onClose}
+        />
+      </div>,
+      document.body
+    );
   } else if (isReceiptMode && !tenant) {
       // Fallback if tenant data is missing (Should not happen in correct implementation)
       return (

@@ -1,6 +1,6 @@
 
-import React, { useRef, useState } from 'react';
-import html2canvas from 'html2canvas';
+import React, { useEffect, useRef, useState } from 'react';
+import { toPng } from 'html-to-image';
 import { LoanInstallment, Tenant } from '../types';
 import { CheckCircle2, Printer, Share2, X, Loader2, Sun, Moon } from 'lucide-react';
 
@@ -96,6 +96,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
   const receiptRef = useRef<HTMLDivElement>(null);
   const [sharing, setSharing] = useState(false);
   const [receiptTheme, setReceiptTheme] = useState<ReceiptTheme>('dark');
+  const [shareBlob, setShareBlob] = useState<Blob | null>(null);
 
   const t = THEMES[receiptTheme];
   const isDark = receiptTheme === 'dark';
@@ -116,34 +117,53 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
   const formatDate = (date: Date) =>
     date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-  const formatDateShort = (dateStr: string) =>
-    new Date(dateStr + 'T00:00:00').toLocaleDateString('pt-BR');
+  const formatDateShort = (dateStr: string) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    const weekday = d.toLocaleDateString('pt-BR', { weekday: 'long' });
+    const date = d.toLocaleDateString('pt-BR');
+    return `${weekday}, ${date}`;
+  };
 
   const handlePrint = () => window.print();
 
+  // Pré-gera o PNG no mount (e ao trocar tema) usando html-to-image (SVG foreignObject)
+  useEffect(() => {
+    let cancelled = false;
+
+    const generate = async () => {
+      await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      if (cancelled || !receiptRef.current) return;
+
+      try {
+        const dataUrl = await toPng(receiptRef.current, {
+          pixelRatio: 2,
+          backgroundColor: t.htmlCanvas,
+          // Filtra elementos com data-html2canvas-ignore (convenção compartilhada)
+          filter: (node) => !(node as HTMLElement).hasAttribute?.('data-html2canvas-ignore'),
+        });
+        if (cancelled) return;
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        if (!cancelled) setShareBlob(blob);
+      } catch (err) {
+        console.error('Erro ao pré-gerar imagem:', err);
+      }
+    };
+
+    setShareBlob(null);
+    generate();
+    return () => { cancelled = true; };
+  }, [receiptTheme]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleShare = async () => {
-    if (!receiptRef.current) return;
+    if (sharing || !shareBlob) return;
     setSharing(true);
     try {
-      const canvas = await html2canvas(receiptRef.current, {
-        backgroundColor: t.htmlCanvas,
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-      });
-
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, 'image/png')
-      );
-      if (!blob) return;
-
-      const file = new File([blob], `comprovante-${receiptHash}.png`, { type: 'image/png' });
-
+      const file = new File([shareBlob], `comprovante-${receiptHash}.png`, { type: 'image/png' });
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: `Comprovante ${receiptHash}` });
       } else {
-        const url = URL.createObjectURL(blob);
+        const url = URL.createObjectURL(shareBlob);
         const a = document.createElement('a');
         a.href = url;
         a.download = `comprovante-${receiptHash}.png`;
@@ -151,7 +171,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
         URL.revokeObjectURL(url);
       }
     } catch (err) {
-      console.error('Erro ao gerar imagem:', err);
+      console.error('Erro ao compartilhar:', err);
     } finally {
       setSharing(false);
     }
@@ -342,14 +362,14 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
         style={{ background: t.actionBg, borderColor: t.actionBorder }}>
         <button
           onClick={handleShare}
-          disabled={sharing}
+          disabled={sharing || !shareBlob}
           className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer"
           style={{ background: t.shareBg, border: t.shareBorder, color: t.shareColor }}
-          onMouseEnter={e => { if (!sharing) (e.currentTarget as HTMLButtonElement).style.background = t.shareHover; }}
+          onMouseEnter={e => { if (!sharing && shareBlob) (e.currentTarget as HTMLButtonElement).style.background = t.shareHover; }}
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = t.shareBg; }}
         >
-          {sharing ? <Loader2 size={15} className="animate-spin" /> : <Share2 size={15} />}
-          {sharing ? 'Gerando...' : 'WhatsApp'}
+          {(sharing || !shareBlob) ? <Loader2 size={15} className="animate-spin" /> : <Share2 size={15} />}
+          {sharing ? 'Enviando...' : !shareBlob ? 'Gerando...' : 'WhatsApp'}
         </button>
         <button
           onClick={handlePrint}

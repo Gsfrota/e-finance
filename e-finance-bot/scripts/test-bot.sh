@@ -5,9 +5,9 @@
 
 set -euo pipefail
 
-BOT_URL="https://e-finance-bot-oh6s7bvufq-uw.a.run.app"
-SENDER="558591318582@s.whatsapp.net"
-OWNER="558520284195"
+BOT_URL="${BOT_URL:-https://e-finance-bot-oh6s7bvufq-uw.a.run.app}"
+SENDER="${TEST_SENDER:-5500000000000@s.whatsapp.net}"
+OWNER="${OWNER_NUMBER:-5500000000001}"
 MENSAGEM="${1:?Uso: $0 <mensagem>}"
 MSG_ID="TEST-$(date +%s%N | cut -c1-16)"
 

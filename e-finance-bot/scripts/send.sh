@@ -5,8 +5,8 @@
 
 set -euo pipefail
 
-UAZAPI_URL="https://processai.uazapi.com"
-TOKEN="360088d2-12bf-420b-a4fa-121210dd03c1"
+UAZAPI_URL="${UAZAPI_SERVER_URL:-https://processai.uazapi.com}"
+TOKEN="${UAZAPI_INSTANCE_TOKEN:?Defina UAZAPI_INSTANCE_TOKEN}"
 
 NUMERO="${1:?Uso: $0 <numero> <mensagem>}"
 MENSAGEM="${2:?Uso: $0 <numero> <mensagem>}"

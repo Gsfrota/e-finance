@@ -55,12 +55,12 @@ export interface OutgoingMessage {
 
 function getWelcomeMessage(name: string, role: string): string {
   if (role === 'debtor') {
-    return `Oi ${name}! Sou seu assistente financeiro.\n\nPosso mostrar suas *parcelas*, *saldo devedor* e *proximos vencimentos*.\n\nO que deseja saber?`;
+    return `Oi ${name}! Sou o Salomão, seu assistente financeiro.\n\nPosso mostrar suas *parcelas*, *saldo devedor* e *proximos vencimentos*.\n\nO que deseja saber?`;
   }
   if (role === 'investor') {
-    return `Oi ${name}! Sou seu assistente de carteira.\n\nPosso mostrar seus *contratos*, *recebiveis* e *rendimentos*.\n\nO que deseja saber?`;
+    return `Oi ${name}! Sou o Salomão, seu assistente de carteira.\n\nPosso mostrar seus *contratos*, *recebiveis* e *rendimentos*.\n\nO que deseja saber?`;
   }
-  return `Oi ${name}! Sou o assistente Juros Certo.\n\nPode falar comigo naturalmente para ver dashboard, recebiveis, criar contrato, baixar pagamento, buscar cliente ou pedir relatorio.\n\nMe conta o que voce precisa agora.`;
+  return `Oi ${name}! Sou o Salomão, assistente do Juros Certo.\n\nPode falar comigo naturalmente para ver dashboard, recebiveis, criar contrato, baixar pagamento, buscar cliente ou pedir relatorio.\n\nMe conta o que voce precisa agora.`;
 }
 
 const NOT_LINKED_MSG = `Para te atender com seus dados, preciso vincular este chat a sua conta no Juros Certo.
@@ -124,7 +124,7 @@ function getGlobalUtilityReply(text: string): { text: string; action: string } |
 
   if (/^(quem (e|é) voce|quem (e|é) vc)( agora)?\??$/.test(normalized)) {
     return {
-      text: 'Sou o assistente operacional do Juros Certo. Posso consultar dashboard, recebíveis, cobranças, clientes, contratos, pagamentos, relatórios e convite.',
+      text: 'Sou o Salomão, assistente operacional do Juros Certo. Posso consultar dashboard, recebíveis, cobranças, clientes, contratos, pagamentos, relatórios e convite.',
       action: 'utility:identity',
     };
   }

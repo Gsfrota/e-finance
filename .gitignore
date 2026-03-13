@@ -17,3 +17,4 @@ coverage/
 .DS_Store
 backup_banco_completo_*.json
 scripts/migrate-*.ts
+e-finance-bot/instancia.md

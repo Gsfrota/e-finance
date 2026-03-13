@@ -31,6 +31,16 @@
 
   /* ── Gradiente accent ── */
   --gradient-accent: linear-gradient(135deg, #f0b429 0%, #f5c842 60%, #d49a18 100%);
+
+  /* ── Sutis semânticos — extraídos de valores hardcoded ── */
+  --accent-danger-subtle:   rgba(248, 113, 113, 0.10);
+  --accent-danger-border:   rgba(248, 113, 113, 0.18);
+  --accent-danger-hover:    rgba(248, 113, 113, 0.20);
+  --accent-warning-subtle:  rgba(251, 191, 36,  0.12);
+  --accent-warning-border:  rgba(251, 191, 36,  0.22);
+  --accent-positive-subtle: rgba(52,  211, 153, 0.12);
+  --accent-positive-border: rgba(52,  211, 153, 0.22);
+  --accent-steel-border:    rgba(148, 180, 255, 0.20);
 }
 
 [data-theme="light"] {
@@ -55,6 +65,26 @@
   --accent-warning:      #d97706;
   --accent-danger:       #dc2626;
   --shadow-soft:         0 24px 60px rgba(15, 29, 60, 0.10);
+
+  /* Sombras light — navy tint, opacidade baixa (apple/material style) */
+  --shadow-xs:    0 1px 3px rgba(15, 29, 60, 0.08);
+  --shadow-card:  0 4px 16px rgba(15, 29, 60, 0.09), 0 1px 4px rgba(15, 29, 60, 0.05);
+  --shadow-panel: 0 8px 32px rgba(15, 29, 60, 0.11), 0 2px 8px rgba(15, 29, 60, 0.06);
+  --shadow-float: 0 20px 60px rgba(15, 29, 60, 0.14), 0 4px 16px rgba(15, 29, 60, 0.08);
+  --shadow-brass: 0 4px 24px rgba(201, 131, 14, 0.22), 0 1px 6px rgba(201, 131, 14, 0.12);
+
+  /* Gradiente brass escurecido para light mode */
+  --gradient-accent: linear-gradient(135deg, #c9830e 0%, #d99820 60%, #b07010 100%);
+
+  /* Sutis semânticos ajustados para fundo claro */
+  --accent-danger-subtle:   rgba(220, 38,  38,  0.08);
+  --accent-danger-border:   rgba(220, 38,  38,  0.20);
+  --accent-danger-hover:    rgba(220, 38,  38,  0.15);
+  --accent-warning-subtle:  rgba(217, 119,  6,  0.08);
+  --accent-warning-border:  rgba(217, 119,  6,  0.22);
+  --accent-positive-subtle: rgba(5,   150, 105, 0.08);
+  --accent-positive-border: rgba(5,   150, 105, 0.20);
+  --accent-steel-border:    rgba(37,   99, 235, 0.20);
 }
 
 *,
@@ -160,6 +190,13 @@ a {
   mask-image: radial-gradient(circle at center, black 30%, transparent 100%);
 }
 
+[data-theme="light"] .app-noise::before {
+  background-image:
+    linear-gradient(rgba(15, 29, 60, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 29, 60, 0.04) 1px, transparent 1px);
+  opacity: 0.5;
+}
+
 .panel-card {
   background: linear-gradient(180deg, rgba(28, 42, 72, 0.97) 0%, rgba(15, 29, 51, 0.97) 100%);
   border: 1px solid var(--border-subtle);
@@ -247,8 +284,23 @@ nav.glass-border {
 .btn-ghost { background: transparent; color: var(--text-secondary); }
 .btn-ghost:hover:not(:disabled) { color: var(--text-primary); background: rgba(255,255,255,0.05); }
 
-.btn-danger { background: rgba(248, 113, 113, 0.10); color: var(--accent-danger); border: 1px solid rgba(248,113,113,0.18); }
-.btn-danger:hover:not(:disabled) { background: rgba(248,113,113,0.20); }
+/* ── Correções de botões para light mode ── */
+[data-theme="light"] .btn-secondary {
+  background: rgba(15, 29, 60, 0.06);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+[data-theme="light"] .btn-secondary:hover:not(:disabled) {
+  background: rgba(15, 29, 60, 0.10);
+  border-color: var(--accent-brass-border);
+}
+[data-theme="light"] .btn-ghost:hover:not(:disabled) {
+  background: rgba(15, 29, 60, 0.06);
+  color: var(--text-primary);
+}
+
+.btn-danger { background: var(--accent-danger-subtle); color: var(--accent-danger); border: 1px solid var(--accent-danger-border); }
+.btn-danger:hover:not(:disabled) { background: var(--accent-danger-hover); }
 
 /* ── Status Chips ── */
 .chip {
@@ -257,10 +309,10 @@ nav.glass-border {
   font-size: 0.625rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
   white-space: nowrap;
 }
-.chip-active   { background: rgba(52,211,153,0.12);  color: var(--accent-positive); border: 1px solid rgba(52,211,153,0.22); }
-.chip-pending  { background: rgba(251,191,36,0.12);  color: var(--accent-warning);  border: 1px solid rgba(251,191,36,0.22); }
-.chip-late     { background: rgba(248,113,113,0.12); color: var(--accent-danger);   border: 1px solid rgba(248,113,113,0.22); }
-.chip-paid     { background: rgba(148,180,255,0.10); color: var(--accent-steel);    border: 1px solid rgba(148,180,255,0.20); }
+.chip-active  { background: var(--accent-positive-subtle); color: var(--accent-positive); border: 1px solid var(--accent-positive-border); }
+.chip-pending { background: var(--accent-warning-subtle);  color: var(--accent-warning);  border: 1px solid var(--accent-warning-border); }
+.chip-late    { background: var(--accent-danger-subtle);   color: var(--accent-danger);   border: 1px solid var(--accent-danger-border); }
+.chip-paid    { background: var(--accent-steel-subtle);    color: var(--accent-steel);    border: 1px solid var(--accent-steel-border); }
 
 /* ── Skeleton Loader ── */
 @keyframes shimmer {

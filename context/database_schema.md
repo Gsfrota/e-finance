@@ -187,7 +187,8 @@ $$;
 
 -- 8a. Função RPC: create_investment_validated
 -- Cria o investimento e gera as parcelas com amount_principal e amount_interest populados.
--- p_skip_weekends: quando true e frequency='daily', pula sábados e domingos nas datas das parcelas.
+-- p_skip_saturday/p_skip_sunday: quando true e frequency='daily', pula sábados e/ou domingos nas datas.
+-- p_custom_dates: quando informado e frequency='freelancer', usa essas datas para cada parcela.
 CREATE OR REPLACE FUNCTION public.create_investment_validated(
     p_tenant_id UUID,
     p_user_id UUID,
@@ -205,7 +206,9 @@ CREATE OR REPLACE FUNCTION public.create_investment_validated(
     p_weekday INTEGER DEFAULT NULL,
     p_start_date DATE DEFAULT NULL,
     p_calculation_mode TEXT DEFAULT 'manual',
-    p_skip_weekends BOOLEAN DEFAULT false
+    p_skip_saturday BOOLEAN DEFAULT false,
+    p_skip_sunday   BOOLEAN DEFAULT false,
+    p_custom_dates  DATE[] DEFAULT NULL
 ) RETURNS BIGINT LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
     v_investment_id BIGINT;
@@ -258,18 +261,22 @@ BEGIN
                 (DATE_TRUNC('month', v_due_date) + INTERVAL '1 month' - INTERVAL '1 day')::DATE);
         ELSIF p_frequency = 'weekly' THEN
             v_due_date := (CURRENT_DATE + (i * 7 || ' days')::INTERVAL)::DATE;
-        ELSE -- daily / freelancer
-            IF p_skip_weekends THEN
+        ELSIF p_frequency = 'freelancer' AND p_custom_dates IS NOT NULL AND array_length(p_custom_dates, 1) >= i THEN
+            v_due_date := p_custom_dates[i];
+        ELSE -- daily / freelancer sem datas customizadas
+            IF p_skip_saturday OR p_skip_sunday THEN
                 v_candidate := COALESCE(p_start_date, CURRENT_DATE);
-                -- Avança para o primeiro dia útil
-                WHILE EXTRACT(DOW FROM v_candidate) IN (0, 6) LOOP
+                -- Avança para o primeiro dia válido
+                WHILE (p_skip_sunday AND EXTRACT(DOW FROM v_candidate) = 0)
+                   OR (p_skip_saturday AND EXTRACT(DOW FROM v_candidate) = 6) LOOP
                     v_candidate := v_candidate + INTERVAL '1 day';
                 END LOOP;
-                -- Conta i-1 dias úteis a partir do primeiro dia útil
+                -- Conta i-1 dias válidos a partir do primeiro dia válido
                 v_bd_count := i - 1;
                 WHILE v_bd_count > 0 LOOP
                     v_candidate := v_candidate + INTERVAL '1 day';
-                    IF EXTRACT(DOW FROM v_candidate) NOT IN (0, 6) THEN
+                    IF NOT ((p_skip_sunday AND EXTRACT(DOW FROM v_candidate) = 0)
+                         OR (p_skip_saturday AND EXTRACT(DOW FROM v_candidate) = 6)) THEN
                         v_bd_count := v_bd_count - 1;
                     END IF;
                 END LOOP;
@@ -295,7 +302,7 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.create_investment_validated(
     UUID, UUID, UUID, TEXT, NUMERIC, NUMERIC, NUMERIC, NUMERIC,
-    NUMERIC, NUMERIC, INTEGER, TEXT, INTEGER, INTEGER, DATE, TEXT, BOOLEAN
+    NUMERIC, NUMERIC, INTEGER, TEXT, INTEGER, INTEGER, DATE, TEXT, BOOLEAN, BOOLEAN, DATE[]
 ) TO authenticated;
 
 -- 8b. Função RPC: get_admin_dashboard_stats
