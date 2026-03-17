@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { LoanInstallment, Tenant } from '../types';
 import { getSupabase } from '../services/supabase';
-import { X, CheckCircle2, Calendar, DollarSign, Loader2, AlertTriangle, RefreshCw, Pencil, Save, Printer, Percent, ArrowDownToLine } from 'lucide-react';
+import { X, CheckCircle2, Calendar, DollarSign, Loader2, AlertTriangle, RefreshCw, Pencil, Save, Printer, Percent, ArrowDownToLine, ArrowRight, Plus, ChevronLeft, TrendingUp } from 'lucide-react';
 import { parseSupabaseError } from '../services/supabase';
 import ReceiptTemplate from './ReceiptTemplate';
 
@@ -71,60 +71,56 @@ const Header: React.FC<{ title: string, subtitle: string, icon: React.ReactNode,
 
 // --- 1. PAYMENT MODAL (Dar Baixa & Comprovante) ---
 
+type DeferAction = 'last' | 'next' | 'new';
+
+interface InstallmentContext {
+  nextInst: { id: string; number: number; amount_total: number } | null;
+  lastInst: { id: string; number: number; amount_total: number } | null;
+}
+
 export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess, installment, tenant, payerName }) => {
-  const [amount, setAmount] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [deferring, setDeferring] = useState(false);
-  const [deferResult, setDeferResult] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isReceiptMode, setIsReceiptMode] = useState(false);
+  // ── Step control ────────────────────────────────────────────────────────────
+  const [step, setStep] = useState<1 | 2>(1);
+
+  // ── Step 1 state ────────────────────────────────────────────────────────────
+  const [amount, setAmount]           = useState('');
   const [paymentMethod, setPaymentMethod] = useState('PIX');
 
-  const outstanding = calculateOutstanding(installment);
+  // ── Step 2 state ────────────────────────────────────────────────────────────
+  const [deferAction, setDeferAction]     = useState<DeferAction>('last');
+  const [useInterest, setUseInterest]     = useState(false);
+  const [interestPercent, setInterestPercent] = useState('');
+  const [context, setContext]             = useState<InstallmentContext>({ nextInst: null, lastInst: null });
+  const [loadingContext, setLoadingContext] = useState(false);
 
+  // ── Shared state ─────────────────────────────────────────────────────────────
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState<string | null>(null);
+  const [isReceiptMode, setIsReceiptMode] = useState(false);
+
+  const outstanding = calculateOutstanding(installment);
+  const amountVal   = parseFloat(amount) || 0;
+  const remainder   = Math.max(0, outstanding - amountVal);
+  const isPartial   = amountVal > 0 && remainder > 0.01;
+  const interestAmt = useInterest && interestPercent ? remainder * (parseFloat(interestPercent) || 0) / 100 : 0;
+  const remainderWithInterest = remainder + interestAmt;
+
+  // ── Reset on open ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (isOpen && installment) {
+      setStep(1);
       setError(null);
-      setDeferResult(null);
       setPaymentMethod('PIX');
-      // Check if already paid (History Mode)
-      if (installment.status === 'paid') {
-          setIsReceiptMode(true);
-      } else {
-          setAmount(outstanding.toFixed(2));
-          setIsReceiptMode(false);
-      }
+      setDeferAction('last');
+      setUseInterest(false);
+      setInterestPercent('');
+      setContext({ nextInst: null, lastInst: null });
+      setIsReceiptMode(installment.status === 'paid');
+      if (installment.status !== 'paid') setAmount(outstanding.toFixed(2));
     }
   }, [isOpen, installment, outstanding]);
 
-  const handleDefer = async () => {
-    if (!installment) return;
-    setDeferring(true);
-    setError(null);
-    const supabase = getSupabase();
-    if (!supabase) return;
-    try {
-      const { data, error: rpcError } = await supabase.rpc('defer_remaining_to_last', {
-        p_installment_id: installment.id,
-      });
-      if (rpcError) throw rpcError;
-      const result = data as any;
-      if (result?.action === 'accumulated') {
-        setDeferResult(`${formatCurrency(result.amount_deferred)} prorrogado para parcela #${result.target_number}`);
-      } else if (result?.action === 'created') {
-        setDeferResult(`Nova parcela criada com ${formatCurrency(result.amount_deferred)}`);
-      } else {
-        setDeferResult('Sem saldo residual para prorrogar.');
-      }
-      onSuccess();
-    } catch (err: any) {
-      setError(err.message || 'Erro ao prorrogar saldo.');
-    } finally {
-      setDeferring(false);
-    }
-  };
-
-  // Torna o background não-selecionável quando o comprovante está aberto
+  // ── Inert background when receipt ───────────────────────────────────────────
   useEffect(() => {
     if (!isReceiptMode) return;
     const root = document.getElementById('root');
@@ -132,40 +128,83 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
     return () => root?.removeAttribute('inert');
   }, [isReceiptMode]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // ── Load adjacent installments for step 2 ───────────────────────────────────
+  const loadContext = async () => {
     if (!installment) return;
-    
-    const val = parseFloat(amount);
-    if (isNaN(val) || val <= 0) {
-        setError("O valor deve ser maior que zero.");
-        return;
+    setLoadingContext(true);
+    const supabase = getSupabase();
+    if (!supabase) { setLoadingContext(false); return; }
+    try {
+      const { data } = await supabase
+        .from('loan_installments')
+        .select('id, number, amount_total, due_date, status')
+        .eq('investment_id', installment.investment_id)
+        .neq('id', installment.id)
+        .order('number', { ascending: true });
+      if (data) {
+        const rows = data as any[];
+        const pending = rows.filter(r => ['pending', 'late', 'partial'].includes(r.status));
+        const nextInst = rows.find(r => r.number > installment.number) ?? null;
+        const lastInst = pending.length ? pending[pending.length - 1] : null;
+        setContext({ nextInst, lastInst });
+        // Default: se tem última, seleciona 'last'; se só tem próxima, seleciona 'next'
+        if (lastInst) setDeferAction('last');
+        else if (nextInst) setDeferAction('next');
+        else setDeferAction('new');
+      }
+    } finally {
+      setLoadingContext(false);
     }
+  };
 
+  // ── Handlers ─────────────────────────────────────────────────────────────────
+  const handleStep1Next = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = parseFloat(amount);
+    if (isNaN(val) || val <= 0) { setError('O valor deve ser maior que zero.'); return; }
+    if (val > outstanding + 0.01) { setError('Valor excede o saldo devedor.'); return; }
+    setError(null);
+    if (isPartial) {
+      await loadContext();
+      setStep(2);
+    } else {
+      await submitPayment(val, null, 0);
+    }
+  };
+
+  const handleStep2Confirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = parseFloat(amount);
+    const rate = useInterest ? parseFloat(interestPercent) || 0 : 0;
+    await submitPayment(val, deferAction, rate);
+  };
+
+  const submitPayment = async (val: number, action: DeferAction | null, rate: number) => {
+    if (!installment) return;
     setLoading(true);
     setError(null);
-
     const supabase = getSupabase();
     if (!supabase) return;
-
     try {
-      const { error: rpcError } = await supabase.rpc('pay_installment', {
+      const { error: payErr } = await supabase.rpc('pay_installment', {
         p_installment_id: installment.id,
-        p_amount_paid: val
+        p_amount_paid: val,
       });
+      if (payErr) throw payErr;
 
-      if (rpcError) throw rpcError;
-      
-      // UPDATE: Instead of closing, switch to receipt mode
-      onSuccess(); // Refresh parent data in background
-      
-      // Manually update local installment state to reflect payment for the receipt
-      if (installment) {
-          installment.amount_paid = val; // Visual update only
-          installment.paid_at = new Date().toISOString();
+      if (action) {
+        const { error: deferErr } = await supabase.rpc('apply_remainder_action', {
+          p_installment_id: installment.id,
+          p_action: action,
+          p_interest_rate: rate,
+        });
+        if (deferErr) throw deferErr;
       }
-      setIsReceiptMode(true);
 
+      onSuccess();
+      installment.amount_paid = val;
+      installment.paid_at = new Date().toISOString();
+      setIsReceiptMode(true);
     } catch (err: any) {
       setError(err.message || 'Erro ao processar pagamento.');
     } finally {
@@ -175,102 +214,127 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
 
   if (!isOpen || !installment) return null;
 
-  // RENDER RECEIPT MODE — portal fora do #root para evitar duplicação no Ctrl+C
+  // ── Receipt mode ─────────────────────────────────────────────────────────────
   if (isReceiptMode && tenant) {
     return ReactDOM.createPortal(
-      <div
-        data-html2canvas-ignore="true"
-        style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#0d0d14' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <ReceiptTemplate
-          installment={installment}
-          tenant={tenant}
-          payerName={payerName || installment.investment?.payer?.full_name}
-          paymentMethod={paymentMethod}
-          onClose={onClose}
-        />
+      <div data-html2canvas-ignore="true" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#0d0d14' }} onClick={(e) => e.stopPropagation()}>
+        <ReceiptTemplate installment={installment} tenant={tenant} payerName={payerName || installment.investment?.payer?.full_name} paymentMethod={paymentMethod} onClose={onClose} />
       </div>,
       document.body
     );
-  } else if (isReceiptMode && !tenant) {
-      // Fallback if tenant data is missing (Should not happen in correct implementation)
-      return (
-        <ModalBackdrop onClose={onClose}>
-             <div className="p-8 text-center">
-                 <CheckCircle2 size={48} className="mx-auto text-emerald-500 mb-4"/>
-                 <h3 className="text-white font-bold text-xl mb-2">Pagamento Confirmado!</h3>
-                 <p className="text-slate-400 text-sm mb-6">O recibo não pôde ser gerado pois os dados da empresa não foram carregados.</p>
-                 <button onClick={onClose} className="bg-slate-700 text-white px-6 py-2 rounded-xl text-xs font-bold uppercase">Fechar</button>
-             </div>
-        </ModalBackdrop>
-      );
+  }
+  if (isReceiptMode) {
+    return (
+      <ModalBackdrop onClose={onClose}>
+        <div className="p-8 text-center">
+          <CheckCircle2 size={48} className="mx-auto text-emerald-500 mb-4"/>
+          <h3 className="text-white font-bold text-xl mb-2">Pagamento Confirmado!</h3>
+          <button onClick={onClose} className="bg-slate-700 text-white px-6 py-2 rounded-xl text-xs font-bold uppercase">Fechar</button>
+        </div>
+      </ModalBackdrop>
+    );
   }
 
-  // RENDER FORM MODE
-  return (
+  // ── Deferred action card component ──────────────────────────────────────────
+  const ActionCard = ({
+    id, icon, label, sublabel, active, onClick
+  }: { id: DeferAction; icon: React.ReactNode; label: string; sublabel: string; active: boolean; onClick: () => void }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full p-4 rounded-2xl border text-left transition-all duration-150 ${
+        active
+          ? 'border-emerald-500/50 bg-emerald-900/20 ring-1 ring-emerald-500/20'
+          : 'border-slate-700 bg-slate-900/40 hover:border-slate-600 hover:bg-slate-900/60'
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        {/* Radio dot */}
+        <div className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${active ? 'border-emerald-400' : 'border-slate-600'}`}>
+          {active && <div className="h-2 w-2 rounded-full bg-emerald-400"/>}
+        </div>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <span className={`shrink-0 ${active ? 'text-emerald-400' : 'text-slate-500'}`}>{icon}</span>
+          <div className="min-w-0">
+            <p className={`text-sm font-bold leading-tight ${active ? 'text-white' : 'text-slate-300'}`}>{label}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5 leading-tight truncate">{sublabel}</p>
+          </div>
+        </div>
+        {/* Preview amount */}
+        <div className="shrink-0 text-right">
+          <p className={`text-sm font-black tabular-nums ${active ? 'text-emerald-300' : 'text-slate-500'}`}>
+            +{formatCurrency(remainderWithInterest)}
+          </p>
+        </div>
+      </div>
+    </button>
+  );
+
+  // ── Step 1 ───────────────────────────────────────────────────────────────────
+  if (step === 1) return (
     <ModalBackdrop onClose={onClose}>
-      <Header 
-        title="Baixa de Pagamento" 
-        subtitle={`Parcela #${installment.number}`} 
-        icon={<CheckCircle2 size={24}/>} 
-        onClose={onClose}
-        colorClass="text-emerald-500"
-      />
-      
-      <form onSubmit={handleSubmit} className="p-8 space-y-6">
+      <Header title="Baixa de Pagamento" subtitle={`Parcela #${installment.number}`} icon={<CheckCircle2 size={24}/>} onClose={onClose} colorClass="text-emerald-500"/>
+
+      <form onSubmit={handleStep1Next} className="p-6 space-y-5">
+        {/* Saldo devedor breakdown */}
         <div className="bg-emerald-900/10 border border-emerald-900/30 p-4 rounded-2xl">
-            <p className="text-xs text-emerald-400 font-bold uppercase tracking-widest mb-2 text-center">Saldo Devedor</p>
-            <p className="text-3xl font-black text-white text-center mb-3">{formatCurrency(outstanding)}</p>
-            <div className="space-y-1.5 text-xs border-t border-emerald-900/30 pt-3">
-              <div className="flex justify-between text-slate-400">
-                <span>Valor original</span>
-                <span className="font-mono">{formatCurrency(normalizeNumber(installment.amount_total))}</span>
-              </div>
-              {(normalizeNumber(installment.fine_amount) > 0 || normalizeNumber(installment.interest_delay_amount) > 0) && (
-                <div className="flex justify-between text-amber-400">
-                  <span>Multa + juros mora</span>
-                  <span className="font-mono">+ {formatCurrency(normalizeNumber(installment.fine_amount) + normalizeNumber(installment.interest_delay_amount))}</span>
-                </div>
-              )}
-              {normalizeNumber(installment.amount_paid) > 0 && (
-                <div className="flex justify-between text-emerald-400">
-                  <span>Já pago</span>
-                  <span className="font-mono">- {formatCurrency(normalizeNumber(installment.amount_paid))}</span>
-                </div>
-              )}
+          <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest mb-2 text-center">Saldo Devedor</p>
+          <p className="text-3xl font-black text-white text-center mb-3">{formatCurrency(outstanding)}</p>
+          <div className="space-y-1.5 text-xs border-t border-emerald-900/30 pt-3">
+            <div className="flex justify-between text-slate-400">
+              <span>Valor original</span>
+              <span className="font-mono">{formatCurrency(normalizeNumber(installment.amount_total))}</span>
             </div>
+            {(normalizeNumber(installment.fine_amount) + normalizeNumber(installment.interest_delay_amount)) > 0 && (
+              <div className="flex justify-between text-amber-400">
+                <span>Multa + juros mora</span>
+                <span className="font-mono">+ {formatCurrency(normalizeNumber(installment.fine_amount) + normalizeNumber(installment.interest_delay_amount))}</span>
+              </div>
+            )}
+            {normalizeNumber(installment.amount_paid) > 0 && (
+              <div className="flex justify-between text-emerald-400">
+                <span>Já pago</span>
+                <span className="font-mono">− {formatCurrency(normalizeNumber(installment.amount_paid))}</span>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
+          {/* Valor recebido */}
           <div>
-            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
-              Valor Recebido (R$)
-            </label>
+            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Valor Recebido (R$)</label>
             <div className="relative">
-                <DollarSign size={16} className="absolute left-4 top-4 text-emerald-500"/>
-                <input
-                  type="number" step="0.01" inputMode="decimal" required
-                  value={amount} onChange={e => setAmount(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                />
+              <DollarSign size={16} className="absolute left-4 top-4 text-emerald-500"/>
+              <input
+                type="number" step="0.01" inputMode="decimal" required autoFocus
+                value={amount} onChange={e => { setAmount(e.target.value); setError(null); }}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+              />
             </div>
-          </div>
-          
-          <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-900/50 border border-slate-700/50 text-slate-400 text-xs">
-              <Calendar size={14} className="shrink-0" />
-              <span>Data da baixa: <strong>Hoje ({new Date().toLocaleDateString('pt-BR')})</strong></span>
+            {/* Aviso parcial em tempo real */}
+            {isPartial && (
+              <div className="mt-2 flex items-center justify-between bg-amber-900/20 border border-amber-800/40 rounded-xl px-4 py-2.5">
+                <div className="flex items-center gap-2 text-amber-300">
+                  <AlertTriangle size={13} className="shrink-0"/>
+                  <span className="text-[11px] font-bold">Faltam</span>
+                </div>
+                <span className="text-amber-200 font-black text-sm tabular-nums">{formatCurrency(remainder)}</span>
+              </div>
+            )}
           </div>
 
+          {/* Data */}
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-900/50 border border-slate-700/50 text-slate-400 text-xs">
+            <Calendar size={14} className="shrink-0"/>
+            <span>Data da baixa: <strong>Hoje ({new Date().toLocaleDateString('pt-BR')})</strong></span>
+          </div>
+
+          {/* Forma de pagamento */}
           <div>
-            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
-              Forma de Pagamento
-            </label>
-            <select
-              value={paymentMethod}
-              onChange={e => setPaymentMethod(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 text-white outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all text-sm"
-            >
+            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Forma de Pagamento</label>
+            <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 text-white outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all text-sm">
               <option value="PIX">PIX</option>
               <option value="Dinheiro">Dinheiro</option>
               <option value="Transferência Bancária">Transferência Bancária</option>
@@ -282,36 +346,163 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
 
           {error && (
             <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
-                <AlertTriangle size={14} /> {error}
-            </div>
-          )}
-
-          {deferResult && (
-            <div className="bg-emerald-900/20 border border-emerald-900/50 p-3 rounded-xl text-emerald-400 text-xs flex items-center gap-2">
-                <CheckCircle2 size={14} /> {deferResult}
+              <AlertTriangle size={14}/> {error}
             </div>
           )}
         </div>
 
-        <button
-          type="submit" disabled={loading || !!deferResult}
-          className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]"
-        >
-          {loading ? <Loader2 className="animate-spin" size={18}/> : <CheckCircle2 size={18}/>}
-          {loading ? 'Processando...' : 'Confirmar Recebimento'}
+        <button type="submit" disabled={loading || loadingContext}
+          className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]">
+          {loading || loadingContext
+            ? <Loader2 className="animate-spin" size={18}/>
+            : isPartial ? <ArrowRight size={18}/> : <CheckCircle2 size={18}/>}
+          {loading || loadingContext
+            ? 'Aguarde...'
+            : isPartial ? `Próximo — destinar ${formatCurrency(remainder)}` : 'Confirmar Recebimento'}
         </button>
+      </form>
+    </ModalBackdrop>
+  );
 
-        {installment.status === 'partial' && outstanding > 0 && !deferResult && (
-          <button
-            type="button"
-            onClick={handleDefer}
-            disabled={deferring}
-            className="w-full mt-2 bg-amber-700/30 hover:bg-amber-700/50 border border-amber-600/30 text-amber-300 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-          >
-            {deferring ? <Loader2 className="animate-spin" size={16}/> : <ArrowDownToLine size={16}/>}
-            {deferring ? 'Prorrogando...' : `Prorrogar saldo de ${formatCurrency(outstanding)} para a última parcela`}
-          </button>
+  // ── Step 2 ───────────────────────────────────────────────────────────────────
+  const { nextInst, lastInst } = context;
+
+  return (
+    <ModalBackdrop onClose={onClose}>
+      {/* Step 2 header custom */}
+      <div className="p-5 border-b border-slate-700 bg-slate-900/30 flex items-center gap-3">
+        <button onClick={() => setStep(1)} className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-slate-700 transition-colors">
+          <ChevronLeft size={18}/>
+        </button>
+        <div className="flex-1">
+          <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-0.5">Faltam</p>
+          <p className="text-xl font-black text-white tabular-nums leading-none">{formatCurrency(remainder)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] text-slate-500 uppercase tracking-widest">Recebido</p>
+          <p className="text-sm font-black text-emerald-400 tabular-nums">{formatCurrency(amountVal)}</p>
+        </div>
+        <button onClick={onClose} className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-slate-700 transition-colors ml-1">
+          <X size={18}/>
+        </button>
+      </div>
+
+      <form onSubmit={handleStep2Confirm} className="p-5 space-y-4 overflow-y-auto max-h-[70vh]">
+        <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest text-center">Como tratar o saldo restante?</p>
+
+        {/* Opções de destino */}
+        <div className="space-y-2">
+          <ActionCard
+            id="last"
+            icon={<ArrowDownToLine size={16}/>}
+            label="Última parcela"
+            sublabel={lastInst
+              ? `Parcela #${lastInst.number} · ${formatCurrency(lastInst.amount_total)} → ${formatCurrency(lastInst.amount_total + remainderWithInterest)}`
+              : 'Acumular na última parcela pendente'}
+            active={deferAction === 'last'}
+            onClick={() => setDeferAction('last')}
+          />
+          <ActionCard
+            id="next"
+            icon={<ArrowRight size={16}/>}
+            label="Próxima parcela"
+            sublabel={nextInst
+              ? `Parcela #${nextInst.number} · ${formatCurrency(nextInst.amount_total)} → ${formatCurrency(nextInst.amount_total + remainderWithInterest)}`
+              : 'Adicionar à parcela seguinte'}
+            active={deferAction === 'next'}
+            onClick={() => setDeferAction('next')}
+          />
+          <ActionCard
+            id="new"
+            icon={<Plus size={16}/>}
+            label="Nova parcela extra"
+            sublabel="Será criada 30 dias após a última"
+            active={deferAction === 'new'}
+            onClick={() => setDeferAction('new')}
+          />
+        </div>
+
+        {/* Juros */}
+        <div className="bg-slate-900/50 border border-slate-700/50 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+              <TrendingUp size={12}/> Juros sobre o restante
+            </span>
+            <div className="flex rounded-lg overflow-hidden border border-slate-700 text-[10px] font-black uppercase">
+              <button type="button" onClick={() => { setUseInterest(false); setInterestPercent(''); }}
+                className={`px-3 py-1.5 transition-colors ${!useInterest ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                Sem juros
+              </button>
+              <button type="button" onClick={() => setUseInterest(true)}
+                className={`px-3 py-1.5 transition-colors ${useInterest ? 'bg-amber-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                Com juros
+              </button>
+            </div>
+          </div>
+
+          {useInterest && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Percent size={14} className="absolute left-3 top-3 text-amber-400"/>
+                  <input
+                    type="number" step="0.01" min="0" max="100"
+                    value={interestPercent}
+                    onChange={e => setInterestPercent(e.target.value)}
+                    placeholder="ex: 2,5"
+                    className="w-full bg-slate-800 border border-amber-700/40 rounded-xl pl-9 pr-4 py-2.5 text-white font-mono text-sm outline-none focus:ring-2 focus:ring-amber-500 transition-all"
+                  />
+                </div>
+                <span className="text-xs text-slate-400 shrink-0">% ao mês</span>
+              </div>
+              {interestAmt > 0 && (
+                <div className="flex items-center justify-between bg-amber-900/20 border border-amber-800/30 rounded-xl px-3 py-2 text-xs">
+                  <span className="text-slate-400">{formatCurrency(remainder)} + {interestPercent}%</span>
+                  <span className="text-amber-300 font-black">{formatCurrency(remainderWithInterest)}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+            <AlertTriangle size={14}/> {error}
+          </div>
         )}
+
+        {/* Resumo final */}
+        <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-3 text-xs space-y-1.5">
+          <div className="flex justify-between text-slate-400">
+            <span>Recebido agora</span>
+            <span className="font-mono text-emerald-400">{formatCurrency(amountVal)}</span>
+          </div>
+          <div className="flex justify-between text-slate-400">
+            <span>Saldo a destinar</span>
+            <span className="font-mono text-amber-300">{formatCurrency(remainderWithInterest)}</span>
+          </div>
+          <div className="flex justify-between text-slate-400 border-t border-slate-700/50 pt-1.5">
+            <span>Destino</span>
+            <span className="font-bold text-white capitalize">
+              {deferAction === 'last' && (lastInst ? `Parcela #${lastInst.number}` : 'Última')}
+              {deferAction === 'next' && (nextInst ? `Parcela #${nextInst.number}` : 'Próxima')}
+              {deferAction === 'new' && 'Nova parcela extra'}
+            </span>
+          </div>
+        </div>
+
+        {/* Botões */}
+        <div className="flex gap-2 pt-1">
+          <button type="button" onClick={() => setStep(1)}
+            className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-1.5 transition-colors">
+            <ChevronLeft size={14}/> Voltar
+          </button>
+          <button type="submit" disabled={loading || (useInterest && !interestPercent)}
+            className="flex-[2] bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]">
+            {loading ? <Loader2 className="animate-spin" size={16}/> : <CheckCircle2 size={16}/>}
+            {loading ? 'Processando...' : 'Confirmar tudo'}
+          </button>
+        </div>
       </form>
     </ModalBackdrop>
   );
