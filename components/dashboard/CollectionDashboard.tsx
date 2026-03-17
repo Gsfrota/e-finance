@@ -74,6 +74,7 @@ const bucketMeta: Record<BucketId, { title: string; subtitle: string; tone: stri
 
 export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ installments, onUpdate, tenant }) => {
   const [selectedBucket, setSelectedBucket]       = useState<BucketId>('today');
+  const [showPaidToday, setShowPaidToday]         = useState(false);
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
   const [installmentAction, setInstallmentAction] = useState<InstallmentAction>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -154,6 +155,65 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
   // ── Main list ───────────────────────────────────────────────────────────────
   return (
     <div className="space-y-5">
+      {/* Card fixo: Recebidos Hoje */}
+      <div
+        className="panel-card rounded-[2rem] overflow-hidden cursor-pointer select-none"
+        onClick={() => setShowPaidToday(v => !v)}
+      >
+        <div className="px-6 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(143,179,157,0.15)] text-[color:var(--accent-positive)]">
+              <CheckCircle2 size={22} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--accent-positive)] mb-0.5">Recebidos Hoje</p>
+              <p className="text-3xl font-black text-[color:var(--text-primary)] tabular-nums leading-none">{fmtMoney(totalReceivedToday)}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-lg font-black text-[color:var(--text-secondary)] tabular-nums">{paidToday.length}</p>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text-faint)]">parcela{paidToday.length !== 1 ? 's' : ''}</p>
+            </div>
+            <ChevronRight size={16} className={`text-[color:var(--text-faint)] transition-transform duration-200 ${showPaidToday ? 'rotate-90' : ''}`} />
+          </div>
+        </div>
+
+        {showPaidToday && (
+          <div className="border-t border-white/[0.06]">
+            {paidToday.length === 0 ? (
+              <p className="px-6 py-8 text-center text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--text-faint)]">
+                Nenhum recebimento hoje.
+              </p>
+            ) : (
+              <div className="divide-y divide-white/[0.04]">
+                {paidToday.map((inst) => {
+                  const debtorName = inst.investment?.payer?.full_name || (inst as any).payer_name || 'Cliente';
+                  const contractName = inst.investment?.asset_name || (inst as any).contract_name || 'Contrato';
+                  const initials = debtorName.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase();
+                  return (
+                    <button
+                      key={inst.id}
+                      onClick={(e) => { e.stopPropagation(); setSelectedInstallment(inst); }}
+                      className="group w-full flex items-center gap-4 px-6 py-3.5 text-left hover:bg-white/[0.03] transition-colors"
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgba(143,179,157,0.12)] text-[color:var(--accent-positive)] border border-[rgba(143,179,157,0.2)] text-xs font-black">
+                        {initials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-bold text-[color:var(--text-primary)] truncate">{debtorName}</p>
+                        <p className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--text-faint)] truncate">{contractName} · Parcela #{inst.number}</p>
+                      </div>
+                      <p className="text-sm font-extrabold text-[color:var(--accent-positive)] tabular-nums shrink-0">{fmtMoney(Number(inst.amount_paid) || 0)}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Header card */}
       <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-7">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
@@ -176,25 +236,8 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
           </div>
         </div>
 
-        {/* Recebidos Hoje */}
-        <div className="mt-6 rounded-[1.4rem] border border-[rgba(143,179,157,0.20)] bg-[rgba(143,179,157,0.06)] px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[rgba(143,179,157,0.15)] text-[color:var(--accent-positive)]">
-              <CheckCircle2 size={18} />
-            </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--accent-positive)]">Recebidos Hoje</p>
-              <p className="text-2xl font-black text-[color:var(--text-primary)] tabular-nums">{fmtMoney(totalReceivedToday)}</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-sm font-bold text-[color:var(--text-secondary)] tabular-nums">{paidToday.length}</p>
-            <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text-faint)]">parcela{paidToday.length !== 1 ? 's' : ''}</p>
-          </div>
-        </div>
-
         {/* Bucket selector */}
-        <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-6">
+        <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-6">
           {(Object.keys(bucketMeta) as BucketId[]).map((bucketId) => {
             const meta     = bucketMeta[bucketId];
             const isActive = selectedBucket === bucketId;
