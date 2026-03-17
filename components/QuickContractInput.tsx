@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Zap, X, Loader2, CheckCircle2, AlertTriangle, User, UserPlus, ArrowLeft, Pencil, Mail, Phone, Key } from 'lucide-react';
+import { Zap, X, Loader2, CheckCircle2, AlertTriangle, User, UserPlus, ArrowLeft, Pencil, Mail, Phone, Key, History, ChevronDown, ChevronUp } from 'lucide-react';
 import { parseContractFromText, ParsedContract } from '../services/gemini';
 import { getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { Profile, Tenant } from '../types';
@@ -68,6 +68,13 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
   const [createError, setCreateError] = useState('');
   const [sourceType, setSourceType] = useState<'own' | 'profit'>('own');
 
+  // Legacy contract state
+  const [isLegacy, setIsLegacy] = useState(false);
+  const [legacyFirstDueDate, setLegacyFirstDueDate] = useState('');
+  const [legacyPaidCount, setLegacyPaidCount] = useState(0);
+  const [legacyCode, setLegacyCode] = useState('');
+  const [legacyOpen, setLegacyOpen] = useState(false);
+
   if (!isOpen) return null;
 
   const resetAndClose = () => {
@@ -80,6 +87,11 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
     setCpfError('');
     setCreateError('');
     setSourceType('own');
+    setIsLegacy(false);
+    setLegacyFirstDueDate('');
+    setLegacyPaidCount(0);
+    setLegacyCode('');
+    setLegacyOpen(false);
     onClose();
   };
 
@@ -136,26 +148,52 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
     const sourceProfit = sourceType === 'profit' ? parsed.amount_invested : 0;
 
     try {
-      const { data: investmentId, error } = await supabase.rpc('create_investment_validated', {
-        p_tenant_id: currentTenant.id,
-        p_user_id: investorId,
-        p_payer_id: debtorId,
-        p_asset_name: `Contrato ${parsed.debtor_name.split(' ')[0]}`,
-        p_amount_invested: parsed.amount_invested,
-        p_source_capital: sourceCapital,
-        p_source_profit: sourceProfit,
-        p_current_value: parsed.current_value,
-        p_interest_rate: parsed.amount_invested > 0
-          ? Number((((parsed.current_value - parsed.amount_invested) / parsed.amount_invested) * 100).toFixed(2))
-          : 0,
-        p_installment_value: parsed.installment_value,
+      const interestRate = parsed.amount_invested > 0
+      ? Number((((parsed.current_value - parsed.amount_invested) / parsed.amount_invested) * 100).toFixed(2))
+      : 0;
+
+    let investmentId: any;
+    let error: any;
+
+    if (isLegacy && legacyFirstDueDate) {
+      ({ data: investmentId, error } = await supabase.rpc('create_legacy_investment', {
+        p_tenant_id:          currentTenant.id,
+        p_user_id:            investorId,
+        p_payer_id:           debtorId,
+        p_asset_name:         `Contrato ${parsed.debtor_name.split(' ')[0]}`,
+        p_amount_invested:    parsed.amount_invested,
+        p_source_capital:     sourceCapital,
+        p_source_profit:      sourceProfit,
+        p_current_value:      parsed.current_value,
+        p_interest_rate:      interestRate,
+        p_installment_value:  parsed.installment_value,
         p_total_installments: parsed.total_installments,
-        p_frequency: parsed.frequency,
-        p_due_day: parsed.frequency === 'monthly' ? parsed.due_day : null,
-        p_weekday: parsed.frequency === 'weekly' ? 1 : null,
-        p_start_date: parsed.frequency === 'daily' ? new Date().toISOString().split('T')[0] : null,
-        p_calculation_mode: 'manual',
-      });
+        p_frequency:          parsed.frequency,
+        p_first_due_date:     legacyFirstDueDate,
+        p_paid_count:         legacyPaidCount,
+        p_calculation_mode:   'manual',
+        p_original_code:      legacyCode.trim() || null,
+      }));
+    } else {
+      ({ data: investmentId, error } = await supabase.rpc('create_investment_validated', {
+        p_tenant_id:          currentTenant.id,
+        p_user_id:            investorId,
+        p_payer_id:           debtorId,
+        p_asset_name:         `Contrato ${parsed.debtor_name.split(' ')[0]}`,
+        p_amount_invested:    parsed.amount_invested,
+        p_source_capital:     sourceCapital,
+        p_source_profit:      sourceProfit,
+        p_current_value:      parsed.current_value,
+        p_interest_rate:      interestRate,
+        p_installment_value:  parsed.installment_value,
+        p_total_installments: parsed.total_installments,
+        p_frequency:          parsed.frequency,
+        p_due_day:            parsed.frequency === 'monthly' ? parsed.due_day : null,
+        p_weekday:            parsed.frequency === 'weekly' ? 1 : null,
+        p_start_date:         parsed.frequency === 'daily' ? new Date().toISOString().split('T')[0] : null,
+        p_calculation_mode:   'manual',
+      }));
+    }
       if (error) throw error;
       setStep('done');
     } catch (err: any) {
@@ -286,7 +324,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                     <span>Vinculado a <strong>{matchedDebtor.full_name}</strong></span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 text-xs text-amber-400">
+                  <div className="flex items-center gap-2 text-xs text-[color:var(--accent-caution)]">
                     <AlertTriangle size={13}/>
                     <span>Não encontrado — será criado como novo devedor</span>
                   </div>
@@ -368,6 +406,92 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                 </div>
               </div>
 
+              {/* Contrato Legado / Antigo */}
+              <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setLegacyOpen(v => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-700/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <History size={14} className={isLegacy ? 'text-amber-400' : 'text-slate-500'} />
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${isLegacy ? 'text-amber-300' : 'text-slate-500'}`}>
+                      Contrato Antigo {isLegacy && '(ativo)'}
+                    </span>
+                  </div>
+                  {legacyOpen ? <ChevronUp size={14} className="text-slate-500"/> : <ChevronDown size={14} className="text-slate-500"/>}
+                </button>
+
+                {legacyOpen && (
+                  <div className="px-4 pb-4 space-y-3 border-t border-slate-700">
+                    <p className="text-[10px] text-slate-500 pt-3 leading-relaxed">
+                      Ative se o contrato foi feito antes de usar a plataforma. As parcelas já recebidas serão marcadas como pagas automaticamente.
+                    </p>
+
+                    {/* Toggle ativo */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-400 font-bold">É um contrato antigo?</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsLegacy(v => !v)}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${isLegacy ? 'bg-amber-500' : 'bg-slate-700'}`}
+                      >
+                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${isLegacy ? 'translate-x-6' : 'translate-x-1'}`}/>
+                      </button>
+                    </div>
+
+                    {isLegacy && (
+                      <div className="space-y-3">
+                        <div>
+                          <label className={labelCls}>Data da 1ª Parcela *</label>
+                          <input
+                            type="date"
+                            value={legacyFirstDueDate}
+                            onChange={e => {
+                              setLegacyFirstDueDate(e.target.value);
+                              setLegacyPaidCount(0);
+                            }}
+                            className={inputCls}
+                          />
+                        </div>
+
+                        {legacyFirstDueDate && editable && (
+                          <div>
+                            <label className={labelCls}>
+                              Parcelas já recebidas: <span className="text-amber-400">{legacyPaidCount} de {editable.total_installments}</span>
+                            </label>
+                            <input
+                              type="range"
+                              min={0}
+                              max={parseInt(editable.total_installments) || 1}
+                              value={legacyPaidCount}
+                              onChange={e => setLegacyPaidCount(Number(e.target.value))}
+                              className="w-full accent-amber-500"
+                            />
+                            {legacyPaidCount > 0 && (
+                              <p className="text-[10px] text-amber-400 mt-1">
+                                Parcelas 1 a {legacyPaidCount} → <strong>PAGAS</strong> · Parcelas {legacyPaidCount + 1} a {editable.total_installments} → <strong>PENDENTES</strong>
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        <div>
+                          <label className={labelCls}>Código do Contrato Original (opcional)</label>
+                          <input
+                            type="text"
+                            value={legacyCode}
+                            onChange={e => setLegacyCode(e.target.value)}
+                            placeholder="Ex: CT14383727"
+                            className={inputCls}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {createError && (
                 <div className="flex items-start gap-2 p-3 bg-red-900/20 border border-red-900/30 rounded-xl text-xs text-red-400">
                   <AlertTriangle size={14} className="mt-0.5 shrink-0" />{createError}
@@ -392,7 +516,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                 ) : (
                   <button
                     onClick={() => { setNewDebtor({ full_name: editable.debtor_name, email: '', phone_number: '', cpf: '' }); setCpfError(''); setStep('new-debtor'); }}
-                    className="flex-[2] bg-amber-600 hover:bg-amber-500 text-white py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
+                    className="flex-[2] bg-[color:var(--accent-caution-btn)] hover:bg-[color:var(--accent-caution-btn-hover)] text-white py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
                   >
                     <UserPlus size={14}/> Cadastrar Devedor
                   </button>
