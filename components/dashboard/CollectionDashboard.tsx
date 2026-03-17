@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { LoanInstallment, Tenant } from '../../types';
 import {
   InstallmentAction,
@@ -12,6 +12,7 @@ import {
 import {
   AlertTriangle,
   CalendarDays,
+  CheckCircle2,
   ChevronRight,
   Clock3,
   Phone,
@@ -75,6 +76,7 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
   const [selectedBucket, setSelectedBucket]       = useState<BucketId>('today');
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
   const [installmentAction, setInstallmentAction] = useState<InstallmentAction>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const today = new Date().toISOString().split('T')[0];
   const d3    = addDays(today, 3);
@@ -107,6 +109,15 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
       ]),
     ) as Record<BucketId, number>,
     [bucketItems],
+  );
+
+  const paidToday = useMemo(() => {
+    return installments.filter(i => i.status === 'paid' && i.paid_at?.startsWith(today));
+  }, [installments, today]);
+
+  const totalReceivedToday = useMemo(() =>
+    paidToday.reduce((sum, i) => sum + (Number(i.amount_paid) || 0), 0),
+    [paidToday],
   );
 
   const selectedItems = bucketItems[selectedBucket]
@@ -165,8 +176,25 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
           </div>
         </div>
 
+        {/* Recebidos Hoje */}
+        <div className="mt-6 rounded-[1.4rem] border border-[rgba(143,179,157,0.20)] bg-[rgba(143,179,157,0.06)] px-5 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[rgba(143,179,157,0.15)] text-[color:var(--accent-positive)]">
+              <CheckCircle2 size={18} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--accent-positive)]">Recebidos Hoje</p>
+              <p className="text-2xl font-black text-[color:var(--text-primary)] tabular-nums">{fmtMoney(totalReceivedToday)}</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-sm font-bold text-[color:var(--text-secondary)] tabular-nums">{paidToday.length}</p>
+            <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text-faint)]">parcela{paidToday.length !== 1 ? 's' : ''}</p>
+          </div>
+        </div>
+
         {/* Bucket selector */}
-        <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-6">
+        <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-6">
           {(Object.keys(bucketMeta) as BucketId[]).map((bucketId) => {
             const meta     = bucketMeta[bucketId];
             const isActive = selectedBucket === bucketId;
@@ -175,7 +203,7 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
             return (
               <button
                 key={bucketId}
-                onClick={() => setSelectedBucket(bucketId)}
+                onClick={() => { setSelectedBucket(bucketId); setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); }}
                 className={`rounded-[1.4rem] border px-4 py-4 text-left transition-all ${meta.tone} ${isActive ? 'ring-1 ring-white/10' : 'opacity-90 hover:opacity-100'}`}
               >
                 <div className="mb-4 flex items-center justify-between">
@@ -194,7 +222,7 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
       </div>
 
       {/* Active queue */}
-      <div className="panel-card overflow-hidden rounded-[2rem]">
+      <div ref={listRef} className="panel-card overflow-hidden rounded-[2rem]">
         <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
           <div>
             <p className="section-kicker mb-1">Fila ativa</p>

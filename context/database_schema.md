@@ -35,8 +35,8 @@ CREATE TABLE IF NOT EXISTS public.tenants (
     pix_city TEXT,
     support_whatsapp TEXT,
     trial_ends_at TIMESTAMPTZ,
-    -- Stripe / Billing (V20)
-    plan TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'pro', 'pro_max')),
+    -- Stripe / Billing (V20 → V24: renomeado basic→caderneta, enterprise→empresarial)
+    plan TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'caderneta', 'empresarial')),
     plan_status TEXT DEFAULT 'inactive' CHECK (plan_status IN ('active', 'inactive', 'past_due', 'canceled')),
     stripe_customer_id TEXT,
     stripe_subscription_id TEXT,
@@ -150,8 +150,8 @@ BEGIN
     ELSIF (new.raw_user_meta_data->>'company_name') IS NOT NULL THEN
         generated_slug := lower(regexp_replace(new.raw_user_meta_data->>'company_name', E'[^\\w]+', '-', 'g')) || '-' || floor(random()*10000)::text;
         
-        INSERT INTO public.tenants (name, slug, owner_name, owner_email)
-        VALUES (new.raw_user_meta_data->>'company_name', generated_slug, new.raw_user_meta_data->>'full_name', new.email)
+        INSERT INTO public.tenants (name, slug, owner_name, owner_email, trial_ends_at)
+        VALUES (new.raw_user_meta_data->>'company_name', generated_slug, new.raw_user_meta_data->>'full_name', new.email, NOW() + INTERVAL '15 days')
         RETURNING id INTO new_tenant_id;
         
         INSERT INTO public.profiles (id, email, full_name, role, tenant_id)
@@ -671,8 +671,8 @@ BEGIN
         UPDATE auth.users SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('tenant_id', invite_record.tenant_id) WHERE id = new.id;
     ELSIF (new.raw_user_meta_data->>'company_name') IS NOT NULL THEN
         generated_slug := lower(regexp_replace(new.raw_user_meta_data->>'company_name', E'[^\\w]+', '-', 'g')) || '-' || floor(random()*10000)::text;
-        INSERT INTO public.tenants (name, slug, owner_name, owner_email)
-        VALUES (new.raw_user_meta_data->>'company_name', generated_slug, new.raw_user_meta_data->>'full_name', new.email)
+        INSERT INTO public.tenants (name, slug, owner_name, owner_email, trial_ends_at)
+        VALUES (new.raw_user_meta_data->>'company_name', generated_slug, new.raw_user_meta_data->>'full_name', new.email, NOW() + INTERVAL '15 days')
         RETURNING id INTO new_tenant_id;
         INSERT INTO public.profiles (id, email, full_name, role, tenant_id)
         VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name', 'admin', new_tenant_id);
@@ -761,4 +761,28 @@ ALTER TABLE public.investments
 CREATE INDEX IF NOT EXISTS idx_investments_original_code
   ON public.investments (tenant_id, original_contract_code)
   WHERE original_contract_code IS NOT NULL;
+
+-- =================================================================
+-- V24: RPCs de pagamento, prorrogação e criação de cliente com endereço
+-- =================================================================
+
+-- pay_installment(p_installment_id UUID, p_amount_paid NUMERIC) → void
+-- Registra pagamento parcial/total. Atualiza amount_paid, status (partial/paid), paid_at.
+
+-- refinance_installment(p_installment_id UUID, p_payment_amount NUMERIC, p_new_due_date DATE) → void
+-- Paga valor de entrada, zera multa/juros mora, reagenda para nova data como 'pending'.
+
+-- admin_update_installment(p_installment_id UUID, p_new_amount_total NUMERIC, p_new_due_date DATE) → void
+-- Edição administrativa: altera valor total e data de vencimento.
+
+-- pay_interest_only(p_installment_id UUID, p_interest_amount NUMERIC) → void
+-- Registra pagamento de juros sem abater da parcela. Incrementa interest_payments_total.
+
+-- defer_remaining_to_last(p_installment_id UUID) → JSON
+-- Prorrogação: marca parcela como paga, acumula saldo residual na última parcela pendente.
+-- Se todas as demais estão pagas, cria nova parcela extra (+30 dias).
+-- Retorna: { action: 'accumulated'|'created'|'none', amount_deferred, target_number|new_installment_id }
+
+-- create_client_direct (V24 — atualizado com campos de endereço)
+-- Parâmetros adicionais: p_cep, p_logradouro, p_numero, p_bairro, p_cidade, p_uf (todos TEXT DEFAULT NULL)
 ```

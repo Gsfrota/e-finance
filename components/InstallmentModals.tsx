@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { LoanInstallment, Tenant } from '../types';
 import { getSupabase } from '../services/supabase';
-import { X, CheckCircle2, Calendar, DollarSign, Loader2, AlertTriangle, RefreshCw, Pencil, Save, Printer, Percent } from 'lucide-react';
+import { X, CheckCircle2, Calendar, DollarSign, Loader2, AlertTriangle, RefreshCw, Pencil, Save, Printer, Percent, ArrowDownToLine } from 'lucide-react';
 import { parseSupabaseError } from '../services/supabase';
 import ReceiptTemplate from './ReceiptTemplate';
 
@@ -74,6 +74,8 @@ const Header: React.FC<{ title: string, subtitle: string, icon: React.ReactNode,
 export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess, installment, tenant, payerName }) => {
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
+  const [deferring, setDeferring] = useState(false);
+  const [deferResult, setDeferResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isReceiptMode, setIsReceiptMode] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('PIX');
@@ -83,6 +85,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   useEffect(() => {
     if (isOpen && installment) {
       setError(null);
+      setDeferResult(null);
       setPaymentMethod('PIX');
       // Check if already paid (History Mode)
       if (installment.status === 'paid') {
@@ -93,6 +96,33 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       }
     }
   }, [isOpen, installment, outstanding]);
+
+  const handleDefer = async () => {
+    if (!installment) return;
+    setDeferring(true);
+    setError(null);
+    const supabase = getSupabase();
+    if (!supabase) return;
+    try {
+      const { data, error: rpcError } = await supabase.rpc('defer_remaining_to_last', {
+        p_installment_id: installment.id,
+      });
+      if (rpcError) throw rpcError;
+      const result = data as any;
+      if (result?.action === 'accumulated') {
+        setDeferResult(`${formatCurrency(result.amount_deferred)} prorrogado para parcela #${result.target_number}`);
+      } else if (result?.action === 'created') {
+        setDeferResult(`Nova parcela criada com ${formatCurrency(result.amount_deferred)}`);
+      } else {
+        setDeferResult('Sem saldo residual para prorrogar.');
+      }
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message || 'Erro ao prorrogar saldo.');
+    } finally {
+      setDeferring(false);
+    }
+  };
 
   // Torna o background não-selecionável quando o comprovante está aberto
   useEffect(() => {
@@ -189,14 +219,27 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       />
       
       <form onSubmit={handleSubmit} className="p-8 space-y-6">
-        <div className="bg-emerald-900/10 border border-emerald-900/30 p-4 rounded-2xl text-center">
-            <p className="text-xs text-emerald-400 font-bold uppercase tracking-widest mb-1">Valor Total Pendente</p>
-            <p className="text-3xl font-black text-white">{formatCurrency(outstanding)}</p>
-            {(installment.fine_amount > 0 || installment.interest_delay_amount > 0) && (
-                <p className="text-[10px] text-emerald-500/70 mt-1 uppercase font-bold">
-                    Inclui Multas e Juros de Atraso
-                </p>
-            )}
+        <div className="bg-emerald-900/10 border border-emerald-900/30 p-4 rounded-2xl">
+            <p className="text-xs text-emerald-400 font-bold uppercase tracking-widest mb-2 text-center">Saldo Devedor</p>
+            <p className="text-3xl font-black text-white text-center mb-3">{formatCurrency(outstanding)}</p>
+            <div className="space-y-1.5 text-xs border-t border-emerald-900/30 pt-3">
+              <div className="flex justify-between text-slate-400">
+                <span>Valor original</span>
+                <span className="font-mono">{formatCurrency(normalizeNumber(installment.amount_total))}</span>
+              </div>
+              {(normalizeNumber(installment.fine_amount) > 0 || normalizeNumber(installment.interest_delay_amount) > 0) && (
+                <div className="flex justify-between text-amber-400">
+                  <span>Multa + juros mora</span>
+                  <span className="font-mono">+ {formatCurrency(normalizeNumber(installment.fine_amount) + normalizeNumber(installment.interest_delay_amount))}</span>
+                </div>
+              )}
+              {normalizeNumber(installment.amount_paid) > 0 && (
+                <div className="flex justify-between text-emerald-400">
+                  <span>Já pago</span>
+                  <span className="font-mono">- {formatCurrency(normalizeNumber(installment.amount_paid))}</span>
+                </div>
+              )}
+            </div>
         </div>
 
         <div className="space-y-4">
@@ -242,15 +285,33 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
                 <AlertTriangle size={14} /> {error}
             </div>
           )}
+
+          {deferResult && (
+            <div className="bg-emerald-900/20 border border-emerald-900/50 p-3 rounded-xl text-emerald-400 text-xs flex items-center gap-2">
+                <CheckCircle2 size={14} /> {deferResult}
+            </div>
+          )}
         </div>
 
         <button
-          type="submit" disabled={loading}
-          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]"
+          type="submit" disabled={loading || !!deferResult}
+          className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]"
         >
           {loading ? <Loader2 className="animate-spin" size={18}/> : <CheckCircle2 size={18}/>}
           {loading ? 'Processando...' : 'Confirmar Recebimento'}
         </button>
+
+        {installment.status === 'partial' && outstanding > 0 && !deferResult && (
+          <button
+            type="button"
+            onClick={handleDefer}
+            disabled={deferring}
+            className="w-full mt-2 bg-amber-700/30 hover:bg-amber-700/50 border border-amber-600/30 text-amber-300 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+          >
+            {deferring ? <Loader2 className="animate-spin" size={16}/> : <ArrowDownToLine size={16}/>}
+            {deferring ? 'Prorrogando...' : `Prorrogar saldo de ${formatCurrency(outstanding)} para a última parcela`}
+          </button>
+        )}
       </form>
     </ModalBackdrop>
   );
@@ -552,41 +613,41 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
         subtitle={`Parcela #${installment.number}`}
         icon={<Percent size={24}/>}
         onClose={onClose}
-        colorClass="text-amber-400"
+        colorClass="text-[color:var(--accent-caution)]"
       />
 
       <form onSubmit={handleSubmit} className="p-8 space-y-5">
-        <div className="bg-amber-900/10 border border-amber-900/30 p-4 rounded-2xl">
-          <p className="text-[10px] text-amber-400/80 font-black uppercase tracking-widest mb-1">Parcela Original</p>
-          <p className="text-2xl font-black text-white">{formatCurrency(outstanding)}</p>
-          <p className="text-[10px] text-amber-500/70 mt-1 font-bold uppercase">Ainda em aberto</p>
+        <div className="bg-[color:var(--accent-caution-bg)] border border-[color:var(--accent-caution-border)] p-4 rounded-2xl">
+          <p className="text-[10px] text-[color:var(--accent-caution)] font-black uppercase tracking-widest mb-1 opacity-80">Parcela Original</p>
+          <p className="text-2xl font-black text-[color:var(--text-primary)]">{formatCurrency(outstanding)}</p>
+          <p className="text-[10px] text-[color:var(--accent-caution)] mt-1 font-bold uppercase opacity-70">Ainda em aberto</p>
         </div>
 
         {totalInterestPaid > 0 && (
-          <div className="bg-slate-900/50 border border-slate-700/50 p-3 rounded-xl flex justify-between items-center">
-            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Juros já cobrados</span>
-            <span className="text-amber-400 font-black text-sm">{formatCurrency(totalInterestPaid)}</span>
+          <div className="bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] p-3 rounded-xl flex justify-between items-center">
+            <span className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest">Juros já cobrados</span>
+            <span className="text-[color:var(--accent-caution)] font-black text-sm">{formatCurrency(totalInterestPaid)}</span>
           </div>
         )}
 
         <div>
-          <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+          <label className="block text-[10px] font-black text-[color:var(--text-muted)] uppercase tracking-widest mb-2 ml-1">
             Valor dos Juros (R$)
           </label>
           <div className="relative">
-            <Percent size={16} className="absolute left-4 top-4 text-amber-400"/>
+            <Percent size={16} className="absolute left-4 top-4 text-[color:var(--accent-caution)]"/>
             <input
               type="number" step="0.01" required autoFocus
               value={amount} onChange={e => setAmount(e.target.value)}
               placeholder="0,00"
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+              className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-4 py-3.5 text-[color:var(--text-primary)] font-mono text-lg outline-none focus:ring-2 focus:ring-[color:var(--accent-caution)] focus:border-transparent transition-all"
             />
           </div>
         </div>
 
-        <div className="bg-amber-900/10 border border-amber-800/30 p-3 rounded-xl flex gap-2.5 items-start">
-          <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5"/>
-          <p className="text-[10px] text-amber-200/80 leading-relaxed font-medium">
+        <div className="bg-[color:var(--accent-caution-bg)] border border-[color:var(--accent-caution-border)] p-3 rounded-xl flex gap-2.5 items-start">
+          <AlertTriangle size={14} className="text-[color:var(--accent-caution)] shrink-0 mt-0.5"/>
+          <p className="text-[10px] text-[color:var(--text-secondary)] leading-relaxed font-medium">
             O valor da parcela <strong>não será descontado</strong>. A parcela continua em aberto após este registro.
           </p>
         </div>
@@ -599,7 +660,7 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
 
         <button
           type="submit" disabled={loading}
-          className="w-full bg-amber-600 hover:bg-amber-500 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-amber-900/20 transition-all active:scale-[0.98]"
+          className="w-full bg-[color:var(--accent-caution-btn)] hover:bg-[color:var(--accent-caution-btn-hover)] text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]"
         >
           {loading ? <Loader2 className="animate-spin" size={18}/> : <Percent size={18}/>}
           {loading ? 'Registrando...' : 'Registrar Pagamento de Juros'}

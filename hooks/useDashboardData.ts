@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { getSupabase } from '../services/supabase';
+import { getSupabase, withRetry } from '../services/supabase';
+import { getCached, setCached } from '../services/cache';
 import { Investment, LoanInstallment, AdminDashboardStats, DashboardKPIs } from '../types';
 
 // --- TYPES ---
@@ -11,6 +12,7 @@ export interface DashboardDataState {
   investments: Investment[];
   installments: LoanInstallment[];
   loading: boolean;
+  isStale: boolean;
   error: string | null;
   refetch: () => void;
   monthRange: { start: string; end: string };
@@ -79,6 +81,8 @@ const buildKPIs = (
         totalReceivable: 0,
         activeContractsCount: investments.length,
         overdueContractsCount: 0,
+        receivedToday: 0,
+        receivedTodayCount: 0,
     };
 
     const todayYMD = new Date().toISOString().split('T')[0];
@@ -147,6 +151,10 @@ const buildKPIs = (
         }
 
         if (inst.paid_at) {
+            if (inst.paid_at.startsWith(todayYMD)) {
+                kpis.receivedToday += amountPaid;
+                kpis.receivedTodayCount++;
+            }
             const paidAt = new Date(inst.paid_at);
             const rangeStart = new Date(monthRange.startISO);
             const rangeEnd = new Date(monthRange.endISO);
@@ -225,24 +233,48 @@ const INITIAL_KPIS: DashboardKPIs = {
     totalReceivable: 0,
     activeContractsCount: 0,
     overdueContractsCount: 0,
+    receivedToday: 0,
+    receivedTodayCount: 0,
 };
 
+interface CachedDashboard {
+  stats: AdminDashboardStats;
+  detailedKPIs: DashboardKPIs;
+  investments: Investment[];
+  installments: LoanInstallment[];
+  monthRange: { start: string; end: string };
+}
+
 export const useDashboardData = (tenantId?: string) => {
-  const [data, setData] = useState<DashboardDataState>({
-    stats: INITIAL_STATS,
-    detailedKPIs: INITIAL_KPIS,
-    investments: [],
-    installments: [],
-    loading: true,
-    error: null,
-    refetch: () => {},
-    monthRange: { start: '', end: '' }
+  const [data, setData] = useState<DashboardDataState>(() => {
+    const cacheKey = `dashboard_${tenantId ?? 'default'}`;
+    const cached = getCached<CachedDashboard>(cacheKey);
+    if (cached) {
+      return {
+        ...cached.data,
+        loading: true,
+        isStale: true,
+        error: null,
+        refetch: () => {},
+      };
+    }
+    return {
+      stats: INITIAL_STATS,
+      detailedKPIs: INITIAL_KPIS,
+      investments: [],
+      installments: [],
+      loading: true,
+      isStale: false,
+      error: null,
+      refetch: () => {},
+      monthRange: { start: '', end: '' }
+    };
   });
 
   const fetchData = useCallback(async () => {
     setData(prev => ({ ...prev, loading: true, error: null }));
     const supabase = getSupabase();
-    
+
     if (!supabase) {
       setData(prev => ({ ...prev, loading: false, error: "Supabase client not initialized" }));
       return;
@@ -253,30 +285,36 @@ export const useDashboardData = (tenantId?: string) => {
       const todayYMD = new Date().toISOString().split('T')[0];
 
       // 1. Investimentos
-      const investmentsPromise = supabase
-        .from('investments')
-        .select(`
-          *,
-          investor:profiles!investments_user_id_fkey(id, full_name, email, role),
-          payer:profiles!investments_payer_id_fkey(id, full_name, email)
-        `)
-        .order('created_at', { ascending: false });
+      const investmentsPromise = withRetry(() =>
+        supabase
+          .from('investments')
+          .select(`
+            *,
+            investor:profiles!investments_user_id_fkey(id, full_name, email, role),
+            payer:profiles!investments_payer_id_fkey(id, full_name, email)
+          `)
+          .order('created_at', { ascending: false })
+          .then(r => r)
+      );
 
       // 2. Todas as Parcelas
-      const installmentsPromise = supabase
-        .from('loan_installments')
-        .select(`
-          *,
-          investment:investments (
-            id,
-            user_id,
-            asset_name,
-            interest_rate,
-            investor:profiles!investments_user_id_fkey (role),
-            payer:profiles!investments_payer_id_fkey (id, full_name, email)
-          )
-        `)
-        .order('due_date', { ascending: true });
+      const installmentsPromise = withRetry(() =>
+        supabase
+          .from('loan_installments')
+          .select(`
+            *,
+            investment:investments (
+              id,
+              user_id,
+              asset_name,
+              interest_rate,
+              investor:profiles!investments_user_id_fkey (role),
+              payer:profiles!investments_payer_id_fkey (id, full_name, email)
+            )
+          `)
+          .order('due_date', { ascending: true })
+          .then(r => r)
+      );
 
       const [invRes, instRes] = await Promise.all([investmentsPromise, installmentsPromise]);
 
@@ -340,15 +378,22 @@ export const useDashboardData = (tenantId?: string) => {
         active_contracts: safeInvestments.length,
       };
 
-      setData({
+      const newData: CachedDashboard = {
         stats: derivedStats,
-        detailedKPIs: computedKPIs, 
+        detailedKPIs: computedKPIs,
         investments: safeInvestments,
         installments: uiInstallments,
+        monthRange: { start: monthRange.startYMD, end: monthRange.endYMD }
+      };
+
+      setCached(`dashboard_${tenantId ?? 'default'}`, newData);
+
+      setData({
+        ...newData,
         loading: false,
+        isStale: false,
         error: null,
         refetch: fetchData,
-        monthRange: { start: monthRange.startYMD, end: monthRange.endYMD }
       });
 
     } catch (err: any) {
@@ -362,6 +407,7 @@ export const useDashboardData = (tenantId?: string) => {
   }, [tenantId]);
 
   useEffect(() => {
+    setData(prev => ({ ...prev, refetch: fetchData }));
     fetchData();
   }, [fetchData]);
 

@@ -22,7 +22,7 @@ export interface Tenant {
   support_whatsapp?: string;
 
   // Subscription (Stripe)
-  plan?: 'free' | 'pro' | 'pro_max';
+  plan?: 'free' | 'caderneta' | 'empresarial';
   plan_status?: 'active' | 'inactive' | 'past_due' | 'canceled';
   stripe_customer_id?: string;
   stripe_subscription_id?: string;
@@ -208,6 +208,10 @@ export interface DashboardKPIs {
   totalReceivable: number;
   activeContractsCount?: number;
   overdueContractsCount?: number;
+
+  // Recebidos Hoje
+  receivedToday: number;
+  receivedTodayCount: number;
 
   // New Wealth Metrics (Optional for compatibility)
   totalReinvestedCapital?: number;

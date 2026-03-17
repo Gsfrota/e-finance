@@ -213,6 +213,12 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
         p_phone_number: toNull(inviteForm.phone_number),
         p_cpf:          toNull(cpfDigits),
         p_photo_url:    toNull(inviteForm.photo_url),
+        p_cep:          toNull(inviteForm.cep),
+        p_logradouro:   toNull(inviteForm.logradouro),
+        p_numero:       toNull(inviteForm.numero),
+        p_bairro:       toNull(inviteForm.bairro),
+        p_cidade:       toNull(inviteForm.cidade),
+        p_uf:           toNull(inviteForm.uf),
       });
       if (error) throw error;
       setClientCreated(true);
@@ -638,7 +644,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
 
       <div className="flex gap-2 border-b border-[color:var(--border-subtle)] pb-px overflow-x-auto scrollbar-hide">
         <button onClick={() => setActiveTab('all')} className={`px-4 py-3 text-xs font-black uppercase transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'all' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><Users size={16}/> Base Geral ({counts.all})</button>
-        <button onClick={() => setActiveTab('pending')} className={`px-4 py-3 text-xs font-black uppercase transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'pending' ? 'text-amber-400 border-amber-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><Hourglass size={16}/> Pendentes ({counts.pending})</button>
+        <button onClick={() => setActiveTab('pending')} className={`px-4 py-3 text-xs font-black uppercase transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'pending' ? 'text-[color:var(--accent-caution)] border-[color:var(--accent-caution)]' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><Hourglass size={16}/> Pendentes ({counts.pending})</button>
         <button onClick={() => setActiveTab('investor')} className={`px-4 py-3 text-xs font-black uppercase transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'investor' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><DollarSign size={16}/> Investidores ({counts.investor})</button>
         <button onClick={() => setActiveTab('debtor')} className={`px-4 py-3 text-xs font-black uppercase transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'debtor' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><CreditCard size={16}/> Devedores ({counts.debtor})</button>
       </div>
@@ -659,7 +665,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                 const isPending = user.status === 'PENDENTE';
 
                 const cardStyles = isPending
-                    ? 'border-amber-500/30 shadow-amber-900/10 bg-[color:var(--bg-elevated)]'
+                    ? 'border-[color:var(--accent-caution-border)] bg-[color:var(--bg-elevated)]'
                     : isOwner ? 'border-purple-500/50 shadow-purple-900/20' : isAdmin ? 'border-[color:var(--border-subtle)] shadow-slate-900/10' : 'border-[color:var(--border-subtle)] hover:border-teal-900';
 
                 return (
@@ -694,7 +700,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                         <div>
                             <div className="flex items-center gap-4 mb-4">
                                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg overflow-hidden ${
-                                    isPending ? 'bg-amber-900/40 text-amber-400 border border-amber-500/30' :
+                                    isPending ? 'bg-[color:var(--accent-caution-bg-strong)] text-[color:var(--accent-caution)] border border-[color:var(--accent-caution-border)]' :
                                     isOwner ? 'bg-purple-900/40 text-purple-400 border border-purple-500/30' :
                                     isAdmin ? 'bg-indigo-900/40 text-indigo-400' :
                                     user.role === 'investor' ? 'bg-teal-900/40 text-teal-400' : 'bg-red-900/40 text-red-400'
@@ -707,7 +713,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                                     <h3 className="text-[color:var(--text-primary)] font-bold truncate text-base">{user.fullName}</h3>
                                     <p className="text-[color:var(--text-muted)] text-[10px] truncate font-mono">{user.email}</p>
                                     <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${
-                                        isPending ? 'bg-amber-900/30 text-amber-400 border border-amber-500/20' :
+                                        isPending ? 'bg-[color:var(--accent-caution-bg)] text-[color:var(--accent-caution)] border border-[color:var(--accent-caution-border)]' :
                                         isOwner ? 'bg-purple-900/30 text-purple-400 border border-purple-500/20' :
                                         isAdmin ? 'bg-indigo-900/30 text-indigo-400' :
                                         user.role === 'investor' ? 'bg-teal-900/30 text-teal-400' : 'bg-red-900/30 text-red-400'
@@ -720,7 +726,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
 
                         <div className="grid grid-cols-1 gap-3">
                             {isPending ? (
-                                <button onClick={() => handleSendLink(user.inviteCode!)} className="flex items-center justify-center gap-2 bg-[color:var(--bg-base)] hover:bg-amber-900/30 border border-[color:var(--border-subtle)] hover:border-amber-700 text-amber-400 hover:text-amber-300 text-[10px] font-black uppercase py-3 rounded-xl transition-colors tracking-widest">
+                                <button onClick={() => handleSendLink(user.inviteCode!)} className="flex items-center justify-center gap-2 bg-[color:var(--bg-base)] hover:bg-[color:var(--accent-caution-bg-strong)] border border-[color:var(--border-subtle)] hover:border-[color:var(--accent-caution-border)] text-[color:var(--accent-caution)] text-[10px] font-black uppercase py-3 rounded-xl transition-colors tracking-widest">
                                     {copiedInviteCode === user.inviteCode ? <Check size={14} /> : <Send size={14} />}
                                     {copiedInviteCode === user.inviteCode ? 'Copiado!' : 'Enviar Link'}
                                 </button>
