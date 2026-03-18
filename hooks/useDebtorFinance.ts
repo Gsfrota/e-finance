@@ -64,13 +64,13 @@ export const useDebtorFinance = () => {
         }
 
         // 1. Busca Perfil
-        const { data: profile } = await withRetry(() =>
-          supabase.from('profiles').select('full_name').eq('id', user.id).single().then(r => r)
+        const { data: profile } = await withRetry(async () =>
+          await supabase.from('profiles').select('full_name').eq('id', user.id).single()
         );
 
         // 2. Busca Contratos e Parcelas
-        const { data: investments, error } = await withRetry(() =>
-          supabase
+        const { data: investments, error } = await withRetry(async () =>
+          await supabase
             .from('investments')
             .select(`
               id,
@@ -82,7 +82,6 @@ export const useDebtorFinance = () => {
               )
             `)
             .eq('payer_id', user.id)
-            .then(r => r)
         );
 
         if (error) throw error;

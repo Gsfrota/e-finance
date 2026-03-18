@@ -1631,7 +1631,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
             <p className="mt-4 max-w-2xl text-sm leading-7 text-[color:var(--text-secondary)]">Crie, acompanhe e revise contratos com leitura clara de principal, prazo e cronograma financeiro.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-            <button onClick={() => onNavigate ? onNavigate(AppView.LEGACY_CONTRACT) : (() => { setNlContractMode('legacy'); setIsNLContractOpen(true); })()} className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-6 py-3 text-sm font-semibold text-[color:var(--text-primary)] transition-all hover:bg-white/[0.08]">
+            <button onClick={() => onNavigate ? onNavigate(AppView.LEGACY_CONTRACT) : setIsNLContractOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-6 py-3 text-sm font-semibold text-[color:var(--text-primary)] transition-all hover:bg-white/[0.08]">
                 <History size={16} className="text-amber-400"/> Contrato Antigo
             </button>
 <button onClick={handleOpenWizard} className="inline-flex items-center justify-center gap-2 rounded-full bg-[color:var(--accent-brass)] px-6 py-3 text-sm font-extrabold text-[color:var(--text-on-accent)] transition-all hover:bg-[color:var(--accent-brass-strong)]">

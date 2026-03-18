@@ -41,7 +41,7 @@ interface RawInstallment {
   interest_delay_amount: number;
 }
 
-interface RawInvestment extends Investment {
+interface RawInvestment extends Omit<Investment, 'loan_installments'> {
   loan_installments: RawInstallment[];
 }
 
@@ -179,7 +179,7 @@ function computeMetrics(
     else if (hasLatePayment) healthStatus = 'late';
     else if (installments.length === 0) healthStatus = 'waiting';
 
-    return { ...inv, roi, healthStatus, nextPaymentDate: assetNextPaymentStr };
+    return { ...inv, roi, healthStatus, nextPaymentDate: assetNextPaymentStr } as unknown as EnrichedInvestment;
   });
 
   const chartArray = Array.from(chartMap.values())
@@ -252,13 +252,13 @@ export const useInvestorMetrics = (filter: InvestorFilter = defaultFilter) => {
         }
 
         // Busca perfil
-        const { data: profile } = await withRetry(() =>
-          supabase.from('profiles').select('full_name').eq('id', user.id).single().then((r) => r)
+        const { data: profile } = await withRetry(async () =>
+          await supabase.from('profiles').select('full_name').eq('id', user.id).single()
         );
 
         // Busca investimentos com parcelas
-        const { data: invData, error } = await withRetry(() =>
-          supabase
+        const { data: invData, error } = await withRetry(async () =>
+          await supabase
             .from('investments')
             .select(`
               *,
@@ -275,7 +275,6 @@ export const useInvestorMetrics = (filter: InvestorFilter = defaultFilter) => {
             `)
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
-            .then((r) => r)
         );
 
         if (error) throw error;

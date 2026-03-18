@@ -2,7 +2,7 @@
  * Teste manual do PTT de alerta.
  * Uso: npx tsx scripts/test-alert-ptt.ts
  */
-import { sendAlertPtt } from '../src/channels/whatsapp-alert';
+import { sendAlertCall } from '../src/channels/whatsapp-alert';
 
 const TO = process.env.TEST_WA_PHONE || '5585991318582';
 const TTS = 'Atenção! Salomão fora do ar! O bot WhatsApp está desconectado. Acesse urgente!';
@@ -14,7 +14,7 @@ process.env.UAZAPI_SERVER_URL = process.env.UAZAPI_SERVER_URL || 'https://proces
 
 async function main() {
   console.log(`Gerando PTT e enviando para ${TO}...`);
-  await sendAlertPtt(TO, TTS, FALLBACK);
+  await sendAlertCall(TO, FALLBACK);
   console.log('Enviado!');
 }
 

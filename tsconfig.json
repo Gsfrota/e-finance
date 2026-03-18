@@ -1,4 +1,9 @@
 {
+  "exclude": [
+    "supabase/functions",
+    "scripts",
+    "e-finance-bot"
+  ],
   "compilerOptions": {
     "target": "ES2022",
     "experimentalDecorators": true,

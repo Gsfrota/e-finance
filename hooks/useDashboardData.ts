@@ -285,8 +285,8 @@ export const useDashboardData = (tenantId?: string) => {
       const todayYMD = new Date().toISOString().split('T')[0];
 
       // 1. Investimentos
-      const investmentsPromise = withRetry(() =>
-        supabase
+      const investmentsPromise = withRetry(async () =>
+        await supabase
           .from('investments')
           .select(`
             *,
@@ -294,12 +294,11 @@ export const useDashboardData = (tenantId?: string) => {
             payer:profiles!investments_payer_id_fkey(id, full_name, email, photo_url)
           `)
           .order('created_at', { ascending: false })
-          .then(r => r)
       );
 
       // 2. Todas as Parcelas
-      const installmentsPromise = withRetry(() =>
-        supabase
+      const installmentsPromise = withRetry(async () =>
+        await supabase
           .from('loan_installments')
           .select(`
             *,
@@ -313,7 +312,6 @@ export const useDashboardData = (tenantId?: string) => {
             )
           `)
           .order('due_date', { ascending: true })
-          .then(r => r)
       );
 
       const [invRes, instRes] = await Promise.all([investmentsPromise, installmentsPromise]);

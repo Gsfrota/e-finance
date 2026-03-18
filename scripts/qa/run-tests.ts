@@ -150,7 +150,7 @@ async function runTests(): Promise<void> {
     // If JSON parsing fails, treat as all tests passed if exit was 0
     // or all failed otherwise
     if (jsonOutput.includes('"passed"')) {
-      console.log(`${YELLOW}Não foi possível parsear o report JSON. Verificar manualmente.${RESET}`);
+      console.log(`${CYAN}Não foi possível parsear o report JSON. Verificar manualmente.${RESET}`);
     }
   }
 

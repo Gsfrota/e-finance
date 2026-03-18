@@ -106,7 +106,7 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
     () => Object.fromEntries(
       Object.entries(bucketItems).map(([key, items]) => [
         key,
-        items.reduce((sum, i) => sum + calcOutstanding(i), 0),
+        (items as LoanInstallment[]).reduce((sum, i) => sum + calcOutstanding(i), 0),
       ]),
     ) as Record<BucketId, number>,
     [bucketItems],
