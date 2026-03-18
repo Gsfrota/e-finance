@@ -1,13 +1,13 @@
-import React from 'react';
-import { useInvestorMetrics } from '../hooks/useInvestorMetrics';
+import React, { useState } from 'react';
+import { useInvestorMetrics, InvestorFilter, InvestorPeriod } from '../hooks/useInvestorMetrics';
 import {
   ArrowUpRight,
-  Calendar,
   Landmark,
   MessageCircle,
   ShieldCheck,
   TrendingUp,
   Wallet,
+  WifiOff,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -19,8 +19,16 @@ import {
   CartesianGrid,
 } from 'recharts';
 
+const PERIOD_LABELS: { key: InvestorPeriod; label: string }[] = [
+  { key: 'month', label: 'Este mês' },
+  { key: 'last_month', label: 'Mês anterior' },
+  { key: 'year', label: 'Este ano' },
+  { key: 'all', label: 'Tudo' },
+];
+
 const InvestorDashboard: React.FC = () => {
-  const { metrics, investments, loading } = useInvestorMetrics();
+  const [filter, setFilter] = useState<InvestorFilter>({ period: 'month' });
+  const { metrics, investments, loading, isStale } = useInvestorMetrics(filter);
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -62,13 +70,20 @@ const InvestorDashboard: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 pb-12 animate-fade-in md:space-y-6">
+      {isStale && (
+        <div className="flex items-center gap-1.5 px-4 py-1 text-xs text-amber-400">
+          <WifiOff size={12} /> Exibindo dados da última sessão
+        </div>
+      )}
+
+      {/* Header */}
       <div className="panel-card rounded-[2rem] px-6 py-7 md:px-8 md:py-8">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="section-kicker mb-2">Visão do investidor</p>
             <h1 className="font-display text-3xl leading-none text-[color:var(--text-primary)] md:text-5xl">Carteira de {metrics.userName}</h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-[color:var(--text-secondary)]">
-              Acompanhe o capital alocado, o lucro já realizado e o próximo recebimento previsto sem depender de relatórios externos.
+              Acompanhe o que entrou em caixa, o lucro de juros e o que está previsto para este mês.
             </p>
           </div>
 
@@ -84,60 +99,103 @@ const InvestorDashboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:gap-5 xl:grid-cols-3">
-        <div className="panel-card rounded-[1.8rem] p-4 md:p-6">
+      {/* Barra de filtros */}
+      <div className="flex flex-wrap items-center gap-3 px-1">
+        {/* Botões de período */}
+        {PERIOD_LABELS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setFilter((f) => ({ ...f, period: key }))}
+            className={`rounded-full px-4 py-2 text-xs font-extrabold uppercase tracking-[0.16em] transition-all ${
+              filter.period === key
+                ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)]'
+                : 'border border-white/10 bg-white/[0.03] text-[color:var(--text-secondary)] hover:bg-white/[0.06]'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+
+        {/* Dropdown de contratos */}
+        <select
+          value={filter.investmentId ?? ''}
+          onChange={(e) => setFilter((f) => ({ ...f, investmentId: e.target.value || undefined }))}
+          className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-extrabold uppercase tracking-[0.16em] text-[color:var(--text-secondary)] outline-none transition-all hover:bg-white/[0.06] cursor-pointer"
+        >
+          <option value="">Todos os contratos</option>
+          {investments.map((inv) => (
+            <option key={inv.id} value={String(inv.id)}>
+              {inv.asset_name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Grid de 4 cards */}
+      <div className="grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-4">
+        {/* Card 1 — Lucro Bruto (destaque) */}
+        <div className="panel-card col-span-2 rounded-[1.8rem] p-4 md:p-6 xl:col-span-1">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="section-kicker mb-1">Principal</p>
-              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Capital alocado</h3>
+              <p className="section-kicker mb-1">Recebido</p>
+              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Lucro Bruto</h3>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]">
               <Wallet size={18} />
             </div>
           </div>
-          <div className="mt-8 text-xl font-extrabold text-[color:var(--text-primary)] sm:text-3xl">{formatCurrency(metrics.totalAllocated)}</div>
-          <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Volume principal comprometido na carteira atual.</p>
+          <div className="mt-8 text-xl font-extrabold text-[color:var(--accent-brass)] sm:text-3xl">{formatCurrency(metrics.grossReceived)}</div>
+          <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Total recebido em caixa no período selecionado.</p>
         </div>
 
-        <div className="panel-card rounded-[1.8rem] p-4 md:p-6">
+        {/* Card 2 — Lucro de Juros */}
+        <div className="panel-card col-span-2 rounded-[1.8rem] p-4 md:p-6 xl:col-span-1">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="section-kicker mb-1">Resultado</p>
-              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Lucro realizado</h3>
+              <p className="section-kicker mb-1">Rendimento</p>
+              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Lucro de Juros</h3>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(143,179,157,0.14)] text-[color:var(--accent-positive)] ring-1 ring-[rgba(143,179,157,0.16)]">
               <TrendingUp size={18} />
             </div>
           </div>
-          <div className="mt-8 text-xl font-extrabold text-[color:var(--accent-positive)] sm:text-3xl">{formatCurrency(metrics.totalProfit)}</div>
-          <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Apurado em regime de caixa, conforme o pagamento efetivo das parcelas.</p>
+          <div className="mt-8 text-xl font-extrabold text-[color:var(--accent-positive)] sm:text-3xl">{formatCurrency(metrics.interestProfit)}</div>
+          <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Parcela dos juros já realizada sobre o capital emprestado.</p>
         </div>
 
-        <div data-testid="next-payment-card" className="panel-card rounded-[1.8rem] p-4 md:p-6">
+        {/* Card 3 — Previsto no Mês */}
+        <div className="panel-card col-span-2 rounded-[1.8rem] p-4 md:p-6 xl:col-span-1">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="section-kicker mb-1">Próximo recebimento</p>
-              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Agenda</h3>
+              <p className="section-kicker mb-1">A receber</p>
+              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Previsto no Mês</h3>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(144,160,189,0.14)] text-[color:var(--accent-steel)] ring-1 ring-[rgba(144,160,189,0.16)]">
-              <Calendar size={18} />
+              <ArrowUpRight size={18} />
             </div>
           </div>
-          {metrics.nextPaymentDate ? (
-            <>
-              <div data-testid="next-payment-value" className="mt-8 text-xl font-extrabold text-[color:var(--text-primary)] sm:text-3xl">{formatCurrency(metrics.nextPaymentValue)}</div>
-              <p data-testid="next-payment-date" className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Recebimento previsto em {metrics.nextPaymentDate}.</p>
-            </>
-          ) : (
-            <>
-              <div className="mt-8 text-xl font-extrabold text-[color:var(--text-primary)] sm:text-3xl">—</div>
-              <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Não há pagamentos futuros cadastrados na carteira atual.</p>
-            </>
-          )}
+          <div className="mt-8 text-xl font-extrabold text-[color:var(--accent-steel)] sm:text-3xl">{formatCurrency(metrics.expectedThisMonth)}</div>
+          <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Parcelas pendentes e atrasadas com vencimento neste mês.</p>
+        </div>
+
+        {/* Card 4 — Capital em Giro */}
+        <div className="panel-card col-span-2 rounded-[1.8rem] p-4 md:p-6 xl:col-span-1">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="section-kicker mb-1">Principal</p>
+              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Capital em Giro</h3>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.06] text-[color:var(--text-secondary)] ring-1 ring-white/10">
+              <Landmark size={18} />
+            </div>
+          </div>
+          <div className="mt-8 text-xl font-extrabold text-[color:var(--text-primary)] sm:text-3xl">{formatCurrency(metrics.totalAllocated)}</div>
+          <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Volume principal comprometido na carteira atual.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+        {/* Gráfico — não filtrado, mostra fluxo completo */}
         <div className="panel-card rounded-[1.8rem] p-4 md:p-6">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
@@ -174,6 +232,7 @@ const InvestorDashboard: React.FC = () => {
           </div>
         </div>
 
+        {/* Lista de ativos */}
         <div className="panel-card overflow-hidden rounded-[1.8rem]">
           <div className="border-b border-white/10 px-6 py-6">
             <p className="section-kicker mb-1">Carteira</p>

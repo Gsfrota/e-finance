@@ -86,7 +86,7 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
   const d30   = addDays(today, 30);
 
   const pendingInstallments = useMemo(
-    () => installments.filter((i) => i.status !== 'paid'),
+    () => installments.filter((i) => i.status !== 'paid' && i.status !== 'partial'),
     [installments],
   );
 
@@ -113,7 +113,9 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
   );
 
   const paidToday = useMemo(() => {
-    return installments.filter(i => i.status === 'paid' && i.paid_at?.startsWith(today));
+    return installments.filter(
+      i => (i.status === 'paid' || i.status === 'partial') && i.paid_at?.startsWith(today)
+    );
   }, [installments, today]);
 
   const totalReceivedToday = useMemo(() =>
@@ -282,8 +284,8 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
             Nenhum título neste recorte.
           </div>
         ) : (
-          <div className="divide-y divide-white/[0.04]">
-            {selectedItems.map((installment) => {
+          <div>
+            {selectedItems.map((installment, idx) => {
               const late         = installment.due_date < today;
               const isToday      = installment.due_date === today;
               const debtorName   = installment.investment?.payer?.full_name || installment.investment?.payer_name || 'Cliente';
@@ -292,6 +294,7 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
               const owed         = calcOutstanding(installment);
               const totalInstallments = installment.investment?.total_installments ?? null;
               const initials     = debtorName.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase();
+              const photoUrl     = installment.investment?.payer?.photo_url;
 
               // Month abbreviations in PT-BR
               const monthNames = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
@@ -299,8 +302,11 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
               const monthAbbr = monthNames[parseInt(month) - 1];
 
               return (
-                <button
-                  key={installment.id}
+                <div key={installment.id}>
+                  {idx > 0 && (
+                    <div className="mx-5 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+                  )}
+                  <button
                   onClick={() => setSelectedInstallment(installment)}
                   className="group w-full flex items-center gap-0 text-left transition-all duration-200 hover:bg-white/[0.03] active:bg-white/[0.05] cursor-pointer"
                 >
@@ -314,13 +320,26 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
                   }`} />
 
                   <div className="flex flex-1 items-center gap-4 px-5 py-4 min-w-0">
-                    {/* Avatar iniciais */}
-                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-black tracking-wide transition-transform duration-200 group-hover:scale-105 ${
-                      late
-                        ? 'bg-[rgba(198,126,105,0.15)] text-[color:var(--accent-danger)] border border-[rgba(198,126,105,0.25)]'
-                        : 'bg-white/[0.06] text-[color:var(--text-secondary)] border border-white/10'
+                    {/* Avatar foto ou iniciais */}
+                    <div className={`relative h-11 w-11 shrink-0 rounded-2xl overflow-hidden transition-transform duration-200 group-hover:scale-105 ${
+                      !photoUrl ? (late
+                        ? 'bg-[rgba(198,126,105,0.15)] border border-[rgba(198,126,105,0.25)]'
+                        : 'bg-white/[0.06] border border-white/10') : ''
                     }`}>
-                      {initials}
+                      {photoUrl ? (
+                        <img
+                          src={photoUrl}
+                          alt={debtorName}
+                          className="h-full w-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      ) : (
+                        <div className={`flex h-full w-full items-center justify-center text-xs font-black tracking-wide ${
+                          late ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--text-secondary)]'
+                        }`}>
+                          {initials}
+                        </div>
+                      )}
                     </div>
 
                     {/* Info central */}
@@ -331,7 +350,7 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
                           Parcela {installment.number}{totalInstallments ? `/${totalInstallments}` : ''}
                         </span>
                       </div>
-                      <p className="text-[13px] font-bold text-[color:var(--text-primary)] truncate leading-tight group-hover:text-white transition-colors duration-150">
+                      <p className="text-[15px] font-extrabold text-[color:var(--text-primary)] truncate leading-tight group-hover:text-white transition-colors duration-150">
                         {debtorName}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
@@ -380,6 +399,7 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
                     </div>
                   </div>
                 </button>
+                </div>
               );
             })}
           </div>

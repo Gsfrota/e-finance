@@ -92,6 +92,29 @@ vi.mock('../src/actions/admin-actions', () => ({
   isValidCpf: (value?: string | null) => value === '52998224725',
   formatCurrency: (value: number) => `R$ ${value.toFixed(2)}`,
   formatDate: (value: string) => value,
+  extractDebtorNameSimple: (text: string) => {
+    const cleaned = text.replace(/cpf\s*[:\-]?\s*\d[\d.\-]*/gi, '').replace(/r\$\s*[\d.,]+\s*(mil|k)?/gi, '').replace(/\d+\s*(%|por\s*cento|parcelas?|x|vezes)/gi, '').trim();
+    const match = cleaned.match(/^([A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+(?:\s+[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+)*)/);
+    return match?.[1] && match[1].length >= 3 ? match[1] : null;
+  },
+  extractAmount: (text: string) => {
+    const m = text.match(/r\$\s*([0-9][0-9.]*[0-9](?:,[0-9]{1,2})?|[0-9]+(?:,[0-9]{1,2})?)\s*(mil|k)?/i)
+      || text.match(/([0-9]+(?:[.,][0-9]+)?)\s*(mil|k)\b/i)
+      || text.match(/([0-9][0-9.]*[0-9](?:,[0-9]{1,2})?|[0-9]+(?:,[0-9]{1,2})?)\s*(mil|k)?\s*reais?/i);
+    if (!m?.[1]) return null;
+    const v = parseFloat(m[1].replace(/\./g, '').replace(',', '.')) * (/mil|k/i.test(m[2] || '') ? 1000 : 1);
+    return v >= 100 ? v : null;
+  },
+  extractRate: (text: string) => {
+    const m = text.match(/(\d+(?:[.,]\d+)?)\s*%/) || text.match(/(\d+(?:[.,]\d+)?)\s*(?:por\s*cento|porcento)/i);
+    return m?.[1] ? parseFloat(m[1].replace(',', '.')) : null;
+  },
+  extractInstallments: (text: string) => {
+    const m = text.match(/(\d{1,3})\s*(?:x|parcelas?|vezes)/i);
+    if (!m?.[1]) return null;
+    const n = Number(m[1]);
+    return Number.isFinite(n) && n >= 1 ? Math.round(n) : null;
+  },
 }));
 
 vi.mock('../src/observability/logger', () => ({

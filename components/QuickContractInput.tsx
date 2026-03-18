@@ -1,8 +1,18 @@
 
-import React, { useState } from 'react';
-import { Zap, X, Loader2, CheckCircle2, AlertTriangle, User, UserPlus, ArrowLeft, Pencil, Mail, Phone, Key, History, ChevronDown, ChevronUp } from 'lucide-react';
-import { parseContractFromText, ParsedContract } from '../services/gemini';
+import React, { useState, useEffect, useRef } from 'react';
+import { Zap, X, Loader2, CheckCircle2, AlertTriangle, User, UserPlus, ArrowLeft, Pencil, Mail, Phone, Key, History, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
+
+interface ParsedContract {
+  debtor_name: string;
+  amount_invested: number;
+  current_value: number;
+  installment_value: number;
+  total_installments: number;
+  due_day: number | null;
+  frequency: 'monthly' | 'weekly' | 'daily';
+  calculation_mode: string;
+}
 import { Profile, Tenant } from '../types';
 
 interface QuickContractInputProps {
@@ -12,9 +22,10 @@ interface QuickContractInputProps {
   profiles: Profile[];
   currentTenant: Tenant | null;
   currentUserId: string | null;
+  initialMode?: 'legacy';
 }
 
-type Step = 'input' | 'confirm' | 'new-debtor' | 'done';
+type Step = 'confirm' | 'new-debtor' | 'done';
 
 // Versão editável do contrato (todos string para os inputs)
 interface EditableContract {
@@ -55,18 +66,21 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
   profiles,
   currentTenant,
   currentUserId,
+  initialMode = 'ai',
 }) => {
-  const [step, setStep] = useState<Step>('input');
-  const [text, setText] = useState('');
-  const [parsing, setParsing] = useState(false);
+  const [step, setStep] = useState<Step>('confirm');
   const [editable, setEditable] = useState<EditableContract | null>(null);
   const [matchedDebtor, setMatchedDebtor] = useState<Profile | null>(null);
-  const [parseError, setParseError] = useState('');
   const [newDebtor, setNewDebtor] = useState({ full_name: '', email: '', phone_number: '', cpf: '' });
   const [cpfError, setCpfError] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [sourceType, setSourceType] = useState<'own' | 'profit'>('own');
+
+  // Debtor picker state
+  const [debtorSearch, setDebtorSearch] = useState('');
+  const [debtorDropdownOpen, setDebtorDropdownOpen] = useState(false);
+  const debtorInputRef = useRef<HTMLInputElement>(null);
 
   // Legacy contract state
   const [isLegacy, setIsLegacy] = useState(false);
@@ -75,13 +89,33 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
   const [legacyCode, setLegacyCode] = useState('');
   const [legacyOpen, setLegacyOpen] = useState(false);
 
+  // Inicializa modo legacy quando o modal abre
+  useEffect(() => {
+    if (!isOpen) return;
+    if (initialMode === 'legacy') {
+      setEditable({
+        debtor_name: '',
+        amount_invested: '0',
+        current_value: '0',
+        installment_value: '0',
+        total_installments: '12',
+        due_day: '10',
+        frequency: 'monthly',
+      });
+      setMatchedDebtor(null);
+      setDebtorSearch('');
+      setDebtorDropdownOpen(false);
+      setIsLegacy(true);
+      setLegacyOpen(true);
+      setStep('confirm');
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const resetAndClose = () => {
-    setStep('input');
-    setText('');
+    setStep('confirm');
     setEditable(null);
-    setParseError('');
     setMatchedDebtor(null);
     setNewDebtor({ full_name: '', email: '', phone_number: '', cpf: '' });
     setCpfError('');
@@ -92,6 +126,8 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
     setLegacyPaidCount(0);
     setLegacyCode('');
     setLegacyOpen(false);
+    setDebtorSearch('');
+    setDebtorDropdownOpen(false);
     onClose();
   };
 
@@ -103,22 +139,6 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
         normalized.includes(p.full_name.toLowerCase().split(' ')[0])
       ) || null
     );
-  };
-
-  const handleParse = async () => {
-    if (!text.trim()) return;
-    setParsing(true);
-    setParseError('');
-    try {
-      const result = await parseContractFromText(text);
-      setEditable(toEditable(result));
-      setMatchedDebtor(findDebtorByName(result.debtor_name));
-      setStep('confirm');
-    } catch (err: any) {
-      setParseError(err.message || 'Erro ao interpretar a frase.');
-    } finally {
-      setParsing(false);
-    }
   };
 
   // Sincroniza devedor quando nome muda manualmente
@@ -257,8 +277,12 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
           <div className="flex items-center gap-3">
             <div className="p-2 bg-teal-500/10 rounded-xl text-teal-400"><Zap size={20} /></div>
             <div>
-              <h2 className="text-white font-black text-base uppercase tracking-wide">Cadastro Rápido</h2>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Linguagem Natural</p>
+              <h2 className="text-white font-black text-base uppercase tracking-wide">
+                Contrato Antigo
+              </h2>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+                Cadastro Manual
+              </p>
             </div>
           </div>
           <button onClick={resetAndClose} className="text-slate-500 hover:text-white transition-colors">
@@ -268,35 +292,6 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
 
         {/* Scrollable body */}
         <div className="overflow-y-auto flex-1">
-
-          {/* STEP: INPUT */}
-          {step === 'input' && (
-            <div className="p-6 space-y-5">
-              <p className="text-slate-400 text-xs leading-relaxed">
-                Descreva o contrato em português. A IA vai extrair os dados automaticamente.
-              </p>
-              <textarea
-                className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-white text-sm resize-none focus:border-teal-500 outline-none transition-all placeholder:text-slate-600 min-h-[110px]"
-                placeholder='Ex: "Emprestei 1000 reais ao Guilherme, ele paga 2mil todo dia 10 em 10 parcelas de 200"'
-                value={text}
-                onChange={e => setText(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) handleParse(); }}
-              />
-              {parseError && (
-                <div className="flex items-start gap-2 p-3 bg-red-900/20 border border-red-900/30 rounded-xl text-xs text-red-400">
-                  <AlertTriangle size={14} className="mt-0.5 shrink-0" />{parseError}
-                </div>
-              )}
-              <button
-                onClick={handleParse}
-                disabled={!text.trim() || parsing}
-                className="w-full bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
-              >
-                {parsing ? <><Loader2 size={16} className="animate-spin"/> Interpretando...</> : <><Zap size={16}/> Interpretar</>}
-              </button>
-              <p className="hidden md:block text-center text-[10px] text-slate-600">Ctrl+Enter para enviar</p>
-            </div>
-          )}
 
           {/* STEP: CONFIRM (com campos editáveis) */}
           {step === 'confirm' && editable && (
@@ -309,24 +304,100 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
               {/* Devedor */}
               <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
                 <p className="text-[10px] font-black uppercase text-slate-500">Devedor</p>
-                <div>
-                  <label className={labelCls}>Nome</label>
-                  <input
-                    className={inputCls}
-                    value={editable.debtor_name}
-                    onChange={e => handleDebtorNameChange(e.target.value)}
-                  />
-                </div>
-                {/* Status do match */}
+
+                {/* Cliente selecionado */}
                 {matchedDebtor ? (
-                  <div className="flex items-center gap-2 text-xs text-emerald-400">
-                    <CheckCircle2 size={13}/>
-                    <span>Vinculado a <strong>{matchedDebtor.full_name}</strong></span>
+                  <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-3 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={15} className="text-emerald-400 shrink-0"/>
+                      <div>
+                        <p className="text-xs text-emerald-300 font-bold">{matchedDebtor.full_name}</p>
+                        {matchedDebtor.phone_number && (
+                          <p className="text-[10px] text-slate-500">{matchedDebtor.phone_number}</p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setMatchedDebtor(null); setDebtorSearch(''); setDebtorDropdownOpen(true); setTimeout(() => debtorInputRef.current?.focus(), 50); }}
+                      className="text-slate-500 hover:text-white transition-colors ml-2"
+                    >
+                      <X size={14}/>
+                    </button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 text-xs text-[color:var(--accent-caution)]">
-                    <AlertTriangle size={13}/>
-                    <span>Não encontrado — será criado como novo devedor</span>
+                  /* Combobox de busca */
+                  <div className="relative">
+                    <div className="relative">
+                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"/>
+                      <input
+                        ref={debtorInputRef}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600"
+                        placeholder="Buscar cliente existente..."
+                        value={debtorSearch}
+                        onChange={e => { setDebtorSearch(e.target.value); setDebtorDropdownOpen(true); }}
+                        onFocus={() => setDebtorDropdownOpen(true)}
+                        onBlur={() => setTimeout(() => setDebtorDropdownOpen(false), 150)}
+                      />
+                    </div>
+
+                    {debtorDropdownOpen && (
+                      <div className="absolute z-10 mt-1 w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-52 overflow-y-auto">
+                        {/* Clientes filtrados */}
+                        {profiles
+                          .filter(p => p.role === 'debtor' && (
+                            !debtorSearch.trim() ||
+                            p.full_name.toLowerCase().includes(debtorSearch.toLowerCase()) ||
+                            (p.phone_number || '').includes(debtorSearch)
+                          ))
+                          .slice(0, 8)
+                          .map(p => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => {
+                                setMatchedDebtor(p);
+                                setEditable(prev => prev ? { ...prev, debtor_name: p.full_name } : prev);
+                                setDebtorSearch('');
+                                setDebtorDropdownOpen(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-800 text-left transition-colors"
+                            >
+                              <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
+                                <User size={13} className="text-slate-400"/>
+                              </div>
+                              <div>
+                                <p className="text-xs text-white font-semibold">{p.full_name}</p>
+                                {p.phone_number && <p className="text-[10px] text-slate-500">{p.phone_number}</p>}
+                              </div>
+                            </button>
+                          ))
+                        }
+                        {profiles.filter(p => p.role === 'debtor').length === 0 && (
+                          <p className="text-xs text-slate-500 px-3 py-2.5">Nenhum cliente cadastrado</p>
+                        )}
+                        {/* Opção: criar novo */}
+                        <button
+                          type="button"
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => {
+                            setDebtorDropdownOpen(false);
+                            setNewDebtor({ full_name: debtorSearch, email: '', phone_number: '', cpf: '' });
+                            setCpfError('');
+                            setStep('new-debtor');
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 border-t border-slate-800 hover:bg-slate-800 text-left transition-colors"
+                        >
+                          <div className="w-7 h-7 rounded-full bg-teal-500/20 flex items-center justify-center shrink-0">
+                            <UserPlus size={13} className="text-teal-400"/>
+                          </div>
+                          <p className="text-xs text-teal-400 font-bold">
+                            {debtorSearch ? `Criar "${debtorSearch}"` : 'Criar novo devedor'}
+                          </p>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -500,10 +571,10 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
 
               <div className="flex gap-3 pb-1">
                 <button
-                  onClick={() => { setStep('input'); setCreateError(''); }}
+                  onClick={resetAndClose}
                   className="flex-1 py-3 rounded-2xl border border-slate-700 text-slate-400 hover:text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:bg-slate-800"
                 >
-                  <ArrowLeft size={14}/> Voltar
+                  <ArrowLeft size={14}/> Cancelar
                 </button>
                 {matchedDebtor ? (
                   <button
@@ -515,7 +586,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                   </button>
                 ) : (
                   <button
-                    onClick={() => { setNewDebtor({ full_name: editable.debtor_name, email: '', phone_number: '', cpf: '' }); setCpfError(''); setStep('new-debtor'); }}
+                    onClick={() => { setNewDebtor({ full_name: debtorSearch || editable.debtor_name, email: '', phone_number: '', cpf: '' }); setCpfError(''); setDebtorDropdownOpen(false); setStep('new-debtor'); }}
                     className="flex-[2] bg-[color:var(--accent-caution-btn)] hover:bg-[color:var(--accent-caution-btn-hover)] text-white py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
                   >
                     <UserPlus size={14}/> Cadastrar Devedor

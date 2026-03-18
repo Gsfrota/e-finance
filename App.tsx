@@ -12,6 +12,8 @@ import OnboardingWizard from './components/OnboardingWizard';
 import { AssistantPaywall } from './components/SubscriptionTab';
 import AdminUserDetails from './components/AdminUserDetails';
 import ResetPassword from './components/ResetPassword';
+import DailyCollectionView from './components/DailyCollectionView';
+import LegacyContractPage from './components/LegacyContractPage';
 import { AppView, UserRole, Tenant, Profile } from './types';
 import { getSupabase, isProduction, logError } from './services/supabase';
 import {
@@ -35,6 +37,7 @@ import {
   Sun,
   Moon,
   Clock,
+  PhoneCall,
 } from 'lucide-react';
 
 const isInTrial = (tenant: Tenant | null | undefined): boolean => {
@@ -64,7 +67,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
     return localStorage.getItem('EF_SIDEBAR_COLLAPSED') === 'true';
   });
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    return (localStorage.getItem('EF_THEME') as 'dark' | 'light') || 'dark';
+    return (localStorage.getItem('EF_THEME') as 'dark' | 'light') || 'light';
   });
 
   const toggleSidebar = () => {
@@ -98,6 +101,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
     [AppView.SETTINGS]: 'Configurações',
     [AppView.ASSISTANT]: 'Assistente',
     [AppView.COLLECTION]: 'Cobranças',
+    [AppView.LEGACY_CONTRACT]: 'Contrato Antigo',
     [AppView.RESET_PASSWORD]: 'Segurança',
   };
 
@@ -211,6 +215,20 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
               </button>
 
               <button
+                onClick={() => handleViewChange(AppView.COLLECTION)}
+                title={collapsed ? 'Cobranças' : undefined}
+                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.COLLECTION ? activeClass : inactiveClass}`}
+              >
+                <PhoneCall size={20} className="shrink-0" />
+                {!collapsed && (
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold">Cobranças</div>
+                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Agenda do dia</div>
+                  </div>
+                )}
+              </button>
+
+              <button
                 onClick={() => handleViewChange(AppView.ASSISTANT)}
                 title={collapsed ? 'Assistente' : undefined}
                 className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.ASSISTANT ? activeClass : inactiveClass}`}
@@ -278,22 +296,22 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
               <button
                 onClick={() => handleViewChange(AppView.SETTINGS)}
                 title={`${getTrialDaysLeft(tenant.trial_ends_at!)}d de trial`}
-                className={`${btnBase} ${btnCollapsed} text-yellow-400 hover:bg-yellow-900/20`}
+                className={`${btnBase} ${btnCollapsed} text-[color:var(--accent-premium)] hover:bg-[color:var(--accent-premium-bg)]`}
               >
                 <Clock size={18} className="shrink-0" />
               </button>
             ) : (
               <button
                 onClick={() => handleViewChange(AppView.SETTINGS)}
-                className="w-full rounded-2xl bg-yellow-900/20 border border-yellow-700/30 px-4 py-3 text-left transition-all hover:bg-yellow-900/30"
+                className="w-full rounded-2xl bg-[color:var(--accent-premium-bg)] border border-[color:var(--accent-premium-border)] px-4 py-3 text-left transition-all hover:bg-[color:var(--accent-premium-bg-strong)]"
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <Clock size={14} className="text-yellow-400 shrink-0" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-yellow-400">
+                  <Clock size={14} className="text-[color:var(--accent-premium)] shrink-0" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[color:var(--accent-premium)]">
                     {getTrialDaysLeft(tenant.trial_ends_at!)} dias de trial
                   </span>
                 </div>
-                <p className="text-[10px] text-yellow-200/60 leading-relaxed">Período gratuito. Clique para assinar.</p>
+                <p className="text-[10px] text-[color:var(--accent-premium-faint)] leading-relaxed">Período gratuito. Clique para assinar.</p>
               </button>
             )
           )}
@@ -627,14 +645,6 @@ const App: React.FC = () => {
     );
   }
 
-  if (currentView === AppView.LOGIN) {
-    return (
-      <div className="min-h-screen text-[color:var(--text-primary)]">
-        <Login onLoginSuccess={() => setIsLoading(true)} />
-      </div>
-    );
-  }
-
   if (isLoading) {
       return (
         <div className="flex h-screen flex-col items-center justify-center text-[color:var(--accent-brass)]">
@@ -642,6 +652,14 @@ const App: React.FC = () => {
             <p className="section-kicker animate-pulse text-[color:var(--text-secondary)]">Preparando operação</p>
         </div>
       );
+  }
+
+  if (currentView === AppView.LOGIN) {
+    return (
+      <div className="min-h-screen text-[color:var(--text-primary)]">
+        <Login onLoginSuccess={() => setIsLoading(true)} />
+      </div>
+    );
   }
 
   return (
@@ -668,18 +686,21 @@ const App: React.FC = () => {
               onNewContract={() => { setContractAutoNew(true); setCurrentView(AppView.CONTRACTS); }}
             />
           )}
-          {(currentView === AppView.DASHBOARD || currentView === AppView.COLLECTION) && (
+          {currentView === AppView.DASHBOARD && (
             <Dashboard
                 targetUserId={targetUserId}
                 userRole={profile?.role}
                 tenant={tenant}
-                defaultTab={currentView === AppView.COLLECTION ? 'collection' : 'overview'}
+                defaultTab="overview"
                 onBack={targetUserId ? () => { setTargetUserId(undefined); setCurrentView(AppView.USERS); } : undefined}
                 onNavigate={(view) => {
                     if (view !== AppView.DASHBOARD && view !== AppView.USER_DETAILS) setTargetUserId(undefined);
                     setCurrentView(view);
                 }}
             />
+          )}
+          {currentView === AppView.COLLECTION && profile?.role === 'admin' && (
+            <DailyCollectionView tenant={tenant} />
           )}
           {currentView === AppView.USERS && profile?.role === 'admin' && (
               <AdminUsers onViewDashboard={(uid) => { setTargetUserId(uid); setCurrentView(AppView.USER_DETAILS); }} />
@@ -688,13 +709,19 @@ const App: React.FC = () => {
               <AdminUserDetails userId={targetUserId} onBack={() => { setTargetUserId(undefined); setCurrentView(AppView.USERS); }} />
           )}
           {currentView === AppView.CONTRACTS && profile?.role === 'admin' && (
-              <AdminContracts autoOpenCreate={contractAutoNew} />
+              <AdminContracts autoOpenCreate={contractAutoNew} onNavigate={(view) => setCurrentView(view)} />
+          )}
+          {currentView === AppView.LEGACY_CONTRACT && profile?.role === 'admin' && (
+              <LegacyContractPage
+                onBack={() => setCurrentView(AppView.CONTRACTS)}
+                onSuccess={() => setCurrentView(AppView.CONTRACTS)}
+              />
           )}
           {currentView === AppView.SETTINGS && profile?.role === 'admin' && tenant && (
               <AdminSettings tenant={tenant} onUpdate={(updated) => setTenant(updated)} profile={profile} />
           )}
           {currentView === AppView.ASSISTANT && profile?.role === 'admin' && tenant && profile && (
-              (tenant?.plan === 'pro_max' && tenant?.plan_status === 'active') || isInTrial(tenant) ? (
+              (tenant?.plan === 'empresarial' && tenant?.plan_status === 'active') || isInTrial(tenant) ? (
                 <AdminAssistant tenant={tenant} profile={profile} />
               ) : (
                 <AssistantPaywall tenant={tenant} />

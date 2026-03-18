@@ -1,4 +1,8 @@
 :root {
+  /* ── Header azul (BossCash style) ── */
+  --header-blue: #2196F3;
+  --header-blue-dark: #1976D2;
+
   --bg-base: #0f1d33;
   --bg-elevated: #172540;
   --bg-soft: #1c2d4d;
@@ -41,9 +45,31 @@
   --accent-positive-subtle: rgba(52,  211, 153, 0.12);
   --accent-positive-border: rgba(52,  211, 153, 0.22);
   --accent-steel-border:    rgba(148, 180, 255, 0.20);
+
+  /* ── Premium (gold — plano Enterprise, trial, badges) ── */
+  --accent-premium:          #facc15;
+  --accent-premium-strong:   #fde047;
+  --accent-premium-muted:    rgba(250, 204, 21, 0.70);
+  --accent-premium-faint:    rgba(250, 204, 21, 0.50);
+  --accent-premium-bg:       rgba(113, 63, 18, 0.20);
+  --accent-premium-bg-strong:rgba(113, 63, 18, 0.40);
+  --accent-premium-border:   rgba(161, 98, 7, 0.40);
+  --accent-premium-btn:      #ca8a04;
+  --accent-premium-btn-hover:#eab308;
+
+  /* ── Caution (amber — pending, warnings, juros) ── */
+  --accent-caution:          #f59e0b;
+  --accent-caution-bg:       rgba(120, 53, 15, 0.10);
+  --accent-caution-bg-strong:rgba(120, 53, 15, 0.30);
+  --accent-caution-border:   rgba(120, 53, 15, 0.30);
+  --accent-caution-btn:      #d97706;
+  --accent-caution-btn-hover:#f59e0b;
 }
 
 [data-theme="light"] {
+  --header-blue: #2196F3;
+  --header-blue-dark: #1976D2;
+
   --bg-base:      #f0f4fa;
   --bg-elevated:  #ffffff;
   --bg-soft:      #e4eaf5;
@@ -85,6 +111,25 @@
   --accent-positive-subtle: rgba(5,   150, 105, 0.08);
   --accent-positive-border: rgba(5,   150, 105, 0.20);
   --accent-steel-border:    rgba(37,   99, 235, 0.20);
+
+  /* ── Premium — versão light (escurecido para contraste) ── */
+  --accent-premium:          #a16207;
+  --accent-premium-strong:   #854d0e;
+  --accent-premium-muted:    rgba(161, 98, 7, 0.70);
+  --accent-premium-faint:    rgba(161, 98, 7, 0.50);
+  --accent-premium-bg:       rgba(161, 98, 7, 0.08);
+  --accent-premium-bg-strong:rgba(161, 98, 7, 0.15);
+  --accent-premium-border:   rgba(161, 98, 7, 0.25);
+  --accent-premium-btn:      #92400e;
+  --accent-premium-btn-hover:#a16207;
+
+  /* ── Caution — versão light ── */
+  --accent-caution:          #b45309;
+  --accent-caution-bg:       rgba(180, 83, 9, 0.06);
+  --accent-caution-bg-strong:rgba(180, 83, 9, 0.12);
+  --accent-caution-border:   rgba(180, 83, 9, 0.20);
+  --accent-caution-btn:      #92400e;
+  --accent-caution-btn-hover:#b45309;
 }
 
 *,
@@ -417,4 +462,12 @@ html {
   textarea {
     font-size: 16px !important;
   }
+}
+
+/* Prevent date inputs from overflowing on mobile */
+input[type="date"] {
+  max-width: 100%;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
 }

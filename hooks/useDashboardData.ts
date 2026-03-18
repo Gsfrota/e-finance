@@ -291,7 +291,7 @@ export const useDashboardData = (tenantId?: string) => {
           .select(`
             *,
             investor:profiles!investments_user_id_fkey(id, full_name, email, role),
-            payer:profiles!investments_payer_id_fkey(id, full_name, email)
+            payer:profiles!investments_payer_id_fkey(id, full_name, email, photo_url)
           `)
           .order('created_at', { ascending: false })
           .then(r => r)
@@ -309,7 +309,7 @@ export const useDashboardData = (tenantId?: string) => {
               asset_name,
               interest_rate,
               investor:profiles!investments_user_id_fkey (role),
-              payer:profiles!investments_payer_id_fkey (id, full_name, email)
+              payer:profiles!investments_payer_id_fkey (id, full_name, email, photo_url)
             )
           `)
           .order('due_date', { ascending: true })

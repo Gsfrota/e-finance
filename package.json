@@ -10,10 +10,10 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "test:qa": "bash scripts/pre-deploy-qa.sh"
   },
   "dependencies": {
-    "@google/genai": "^1.37.0",
     "@supabase/supabase-js": "^2.91.0",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
@@ -29,6 +29,7 @@
     "@playwright/test": "^1.50.0",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

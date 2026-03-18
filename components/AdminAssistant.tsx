@@ -201,7 +201,7 @@ const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant, profile }) => {
                   className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl px-5 py-3 text-sm text-[color:var(--text-primary)] font-mono focus:border-teal-500 outline-none"
                 />
                 {phonePreview && (
-                  <div className={`mt-2 text-xs ${phonePreview.wasInferred ? 'text-amber-400' : 'text-teal-400'}`}>
+                  <div className={`mt-2 text-xs ${phonePreview.wasInferred ? 'text-[color:var(--accent-caution)]' : 'text-teal-400'}`}>
                     {phonePreview.wasInferred ? '⚠ ' : '✓ '}
                     {phonePreview.display}
                     {phonePreview.wasInferred && ' — código de país inferido como Brasil'}
@@ -248,7 +248,7 @@ const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant, profile }) => {
           icon={<Sun size={24} />}
           title="Mensagem Matinal"
           subtitle="Resumo financeiro automático todo dia de manhã"
-          colorClass="bg-amber-900/30 text-amber-400"
+          colorClass="bg-[color:var(--accent-caution-bg-strong)] text-[color:var(--accent-caution)]"
         />
 
         {/* Toggle */}
@@ -408,7 +408,7 @@ Quer ver o detalhamento completo?`}
 
         <div className="flex items-center justify-between bg-white/[0.03] rounded-2xl border border-[color:var(--border-subtle)] px-5 py-4">
           <div className="flex items-center gap-3">
-            <Sun size={18} className="text-amber-400" />
+            <Sun size={18} className="text-[color:var(--accent-caution)]" />
             <div>
               <p className="text-[color:var(--text-primary)] font-semibold text-sm">Briefing Matinal</p>
               <p className="text-[color:var(--text-secondary)] text-xs">Resumo diário às {config.morning_briefing_time} BRT</p>

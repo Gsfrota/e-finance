@@ -51,6 +51,10 @@ vi.mock('../src/actions/admin-actions', () => ({
   isValidCpf: () => true,
   formatCurrency: (value: number) => `R$ ${value.toFixed(2)}`,
   formatDate: (value: string) => value,
+  extractDebtorNameSimple: () => null,
+  extractAmount: () => null,
+  extractRate: () => null,
+  extractInstallments: () => null,
 }));
 
 vi.mock('../src/observability/logger', () => ({

@@ -122,3 +122,29 @@ export const isSupabaseConfigured = () => {
     const current = getSupabaseConfig();
     return !!(current.url && current.key && current.url.startsWith('http'));
 };
+
+/**
+ * Executa fn com retry automático e timeout por tentativa.
+ * Backoff exponencial: 1s → 2s → 4s.
+ */
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  opts = { retries: 3, timeoutMs: 10000, backoffMs: 1000 }
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < opts.retries; attempt++) {
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Timeout após ${opts.timeoutMs}ms`)), opts.timeoutMs)
+      );
+      const result = await Promise.race([fn(), timeoutPromise]);
+      return result;
+    } catch (err) {
+      lastError = err;
+      if (attempt < opts.retries - 1) {
+        await new Promise(r => setTimeout(r, opts.backoffMs * Math.pow(2, attempt)));
+      }
+    }
+  }
+  throw lastError;
+}

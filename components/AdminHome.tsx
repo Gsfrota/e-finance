@@ -16,6 +16,11 @@ import {
   Users,
   LayoutDashboard,
   ArrowLeft,
+  TrendingUp,
+  Wallet,
+  BarChart3,
+  AlertTriangle,
+  Calendar,
 } from 'lucide-react';
 
 interface AdminHomeProps {
@@ -197,6 +202,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
     clientesQuePageramCount,
   } = useHomeData(tenant?.id);
 
+  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
   const [showContratosHojeModal, setShowContratosHojeModal] = useState(false);
   const [subView, setSubView] = useState<'home' | 'pagaram-hoje'>('home');
   const [activeTab, setActiveTab] = useState<'home' | 'receivables' | 'collection'>('home');
@@ -227,264 +233,194 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
     );
   }
 
-  // ─── Ações rápidas ─────────────────────────────────────────────────────────
-  const quickActions = [
-    {
-      icon: Zap,
-      label: 'Criar Contrato',
-      sublabel: 'Novo crédito',
-      color: 'brass',
-      border: 'border-[rgba(202,176,122,0.3)]',
-      bg: 'bg-[rgba(202,176,122,0.07)]',
-      iconBg: 'bg-[rgba(202,176,122,0.14)]',
-      iconColor: 'text-[color:var(--accent-brass)]',
-      onClick: () => onNewContract(),
-    },
-    {
-      icon: UserPlus,
-      label: 'Cadastrar Cliente',
-      sublabel: 'Novo devedor',
-      color: 'teal',
-      border: 'border-[rgba(45,212,191,0.25)]',
-      bg: 'bg-[rgba(45,212,191,0.05)]',
-      iconBg: 'bg-[rgba(45,212,191,0.12)]',
-      iconColor: 'text-teal-400',
-      onClick: () => onNavigate(AppView.USERS),
-    },
-    {
-      icon: Phone,
-      label: 'Cobranças de Hoje',
-      sublabel: 'Agenda do dia',
-      color: 'blue',
-      border: 'border-[rgba(96,165,250,0.25)]',
-      bg: 'bg-[rgba(96,165,250,0.05)]',
-      iconBg: 'bg-[rgba(96,165,250,0.12)]',
-      iconColor: 'text-blue-400',
-      onClick: () => onNavigate(AppView.COLLECTION),
-    },
-    {
-      icon: UserCog,
-      label: 'Editar Cliente',
-      sublabel: 'Atualizar dados',
-      color: 'steel',
-      border: 'border-[rgba(144,160,189,0.25)]',
-      bg: 'bg-[rgba(144,160,189,0.05)]',
-      iconBg: 'bg-[rgba(144,160,189,0.12)]',
-      iconColor: 'text-[color:var(--accent-steel)]',
-      onClick: () => onNavigate(AppView.USERS),
-    },
+  // ─── Menu grid items (BossCash style) ──────────────────────────────────────
+  const menuItems = [
+    { icon: Users,         label: 'Clientes',           onClick: () => onNavigate(AppView.USERS),       highlight: false },
+    { icon: Zap,           label: 'Novo Emprestimo',    onClick: () => onNewContract(),                  highlight: false },
+    { icon: TrendingUp,    label: 'Desempenho',         onClick: () => setActiveTab('receivables'),      highlight: false },
+    { icon: Wallet,        label: 'Meus Recebimentos',  onClick: () => setActiveTab('collection'),       highlight: false },
+    { icon: BarChart3,     label: 'Meus Relatorios',    onClick: () => setActiveTab('receivables'),      highlight: false },
+    { icon: UserCog,       label: 'Usuarios',           onClick: () => onNavigate(AppView.USERS),       highlight: false },
+    { icon: AlertTriangle, label: 'Inadimplentes',      onClick: () => onNavigate(AppView.COLLECTION),  highlight: true  },
   ];
 
+  // ─── KPI data for avisos ──────────────────────────────────────────────────
+  const parcelasVencendo = useMemo(
+    () => installments.filter(i => i.due_date === today && i.status !== 'paid').length,
+    [installments, today],
+  );
+  const parcelasAtrasadas = useMemo(
+    () => installments.filter(i => i.due_date < today && i.status !== 'paid').length,
+    [installments, today],
+  );
+
+  const totalRecebidoHoje = useMemo(
+    () => parcelasPagasHoje.reduce((s, i) => s + (Number(i.amount_paid) || 0), 0),
+    [parcelasPagasHoje],
+  );
+
   const tabs = [
-    { id: 'home' as const, icon: LayoutDashboard, label: 'Início' },
+    { id: 'home' as const, icon: LayoutDashboard, label: 'Inicio' },
     { id: 'receivables' as const, icon: FileText, label: 'Parcelas' },
-    { id: 'collection' as const, icon: Phone, label: 'Cobranças' },
+    { id: 'collection' as const, icon: Phone, label: 'Cobrancas' },
   ];
 
   return (
-    <div className="space-y-6 pb-12 animate-fade-in">
-      {/* ── Header de boas-vindas ──────────────────────────────────────────── */}
-      <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
-        <p className="section-kicker mb-2">Painel de entrada</p>
-        <h2 className="font-display gradient-underline text-3xl leading-none text-[color:var(--text-primary)] md:text-5xl">
-          {getGreeting()}, {firstName}
-        </h2>
-        <p className="mt-3 text-sm text-[color:var(--text-faint)] capitalize">{todayLabel()}</p>
-
-        {/* ── Abas de navegação ── */}
-        <div className="mt-5 flex gap-2">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[0.72rem] font-semibold transition-all duration-200 cursor-pointer ${
-                activeTab === tab.id
-                  ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)]'
-                  : 'bg-white/[0.06] text-[color:var(--text-muted)] hover:bg-white/[0.1] hover:text-[color:var(--text-primary)]'
-              }`}
-            >
-              <tab.icon size={12} />
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="animate-fade-in pb-12">
 
       {/* ── Aba: Parcelas ─────────────────────────────────────────────────── */}
       {activeTab === 'receivables' && (
-        <InstallmentsTable data={installments} onUpdate={refetch} tenant={tenant} />
+        <div className="space-y-4">
+          <button onClick={() => setActiveTab('home')} className="flex items-center gap-2 text-sm font-semibold px-1 py-2 transition-colors" style={{ color: 'var(--text-muted)' }}>
+            <ArrowLeft size={16} /> Voltar
+          </button>
+          <InstallmentsTable data={installments} onUpdate={refetch} tenant={tenant} />
+        </div>
       )}
 
       {/* ── Aba: Cobranças ────────────────────────────────────────────────── */}
       {activeTab === 'collection' && (
-        <CollectionDashboard installments={installments} onUpdate={refetch} tenant={tenant} />
+        <div className="space-y-4">
+          <button onClick={() => setActiveTab('home')} className="flex items-center gap-2 text-sm font-semibold px-1 py-2 transition-colors" style={{ color: 'var(--text-muted)' }}>
+            <ArrowLeft size={16} /> Voltar
+          </button>
+          <CollectionDashboard installments={installments} onUpdate={refetch} tenant={tenant} />
+        </div>
       )}
 
-      {/* ── Aba: Início ───────────────────────────────────────────────────── */}
+      {/* ── Aba: Início (BossCash Grid) ──────────────────────────────────── */}
       {activeTab === 'home' && (
-        <>
-          {/* Ações Rápidas */}
+        <div className="space-y-6">
+
+          {/* ── Grid Menu 3x3 ─────────────────────────────────────────────── */}
+          <div className="grid grid-cols-3 gap-3">
+            {menuItems.map(item => (
+              <button
+                key={item.label}
+                onClick={item.onClick}
+                className={`flex flex-col items-center justify-center gap-2 rounded-2xl p-4 min-h-[100px] transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer ${
+                  item.highlight
+                    ? 'text-white shadow-md'
+                    : 'shadow-sm hover:shadow-md'
+                }`}
+                style={item.highlight
+                  ? { background: 'var(--header-blue)', color: 'white' }
+                  : { background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }
+                }
+              >
+                <item.icon size={28} style={item.highlight ? { color: 'white' } : { color: 'var(--text-primary)' }} />
+                <span className={`text-xs font-semibold text-center leading-tight ${item.highlight ? 'text-white' : ''}`}
+                  style={item.highlight ? {} : { color: 'var(--text-primary)' }}>
+                  {item.label}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* ── Avisos do dia! ────────────────────────────────────────────── */}
           <div>
-            <div className="mb-4 pl-1">
-              <p className="section-kicker mb-1">Acesso rápido</p>
-              <h3 className="font-display text-2xl leading-none text-[color:var(--text-primary)] md:text-4xl">
-                Ações do dia
-              </h3>
+            <div className="flex items-center justify-between mb-3 px-1">
+              <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>Avisos do dia!</h3>
+              <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                {new Date().toLocaleDateString('pt-BR')}
+              </span>
             </div>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              {quickActions.map(action => (
-                <button
-                  key={action.label}
-                  onClick={action.onClick}
-                  className={`panel-card rounded-[1.6rem] p-5 text-left transition-all duration-200 hover:scale-[1.02] hover:shadow-lg border ${action.border} ${action.bg} cursor-pointer`}
-                >
-                  <div
-                    className={`mb-4 flex h-11 w-11 items-center justify-center rounded-full ${action.iconBg}`}
-                  >
-                    <action.icon size={20} className={action.iconColor} />
-                  </div>
-                  <div className="text-sm font-bold text-[color:var(--text-primary)]">
-                    {action.label}
-                  </div>
-                  <div className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
-                    {action.sublabel}
-                  </div>
-                </button>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { label: 'Contratos Renovados', value: contratosHoje.length, color: '#0D47A1' },
+                { label: 'Contratos Vigentes', value: investments.length, color: '#2196F3' },
+                { label: 'Parcelas Vencendo', value: parcelasVencendo, color: '#FF9800' },
+                { label: 'Parcelas Atrasados', value: parcelasAtrasadas, color: '#F44336' },
+              ].map(stat => (
+                <div key={stat.label} className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                  <p className="text-[10px] font-medium leading-tight mb-1" style={{ color: 'var(--text-muted)' }}>
+                    {stat.label}
+                  </p>
+                  {loading ? (
+                    <div className="skeleton h-7 w-8 rounded mx-auto" />
+                  ) : (
+                    <p className="text-xl font-black tabular-nums" style={{ color: stat.color }}>
+                      {stat.value}
+                    </p>
+                  )}
+                </div>
               ))}
             </div>
           </div>
 
-          {/* Avisos do Dia */}
+          {/* ── Meus Relatórios ──────────────────────────────────────────── */}
           <div>
-            <div className="mb-4 pl-1">
-              <p className="section-kicker mb-1">Resumo operacional</p>
-              <h3 className="font-display text-2xl leading-none text-[color:var(--text-primary)] md:text-4xl">
-                Avisos do dia
-              </h3>
-            </div>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              {/* Contratos criados hoje */}
+            <h3 className="text-lg font-bold mb-3 px-1" style={{ color: 'var(--text-primary)' }}>Meus Relatorios</h3>
+            <div className="grid grid-cols-2 gap-3">
               <button
-                disabled={contratosHoje.length === 0}
-                onClick={() => contratosHoje.length > 0 && setShowContratosHojeModal(true)}
-                className={`panel-card rounded-[1.6rem] p-5 text-left transition-all duration-200 ${
-                  contratosHoje.length > 0
-                    ? 'border border-[rgba(202,176,122,0.2)] hover:border-[rgba(202,176,122,0.35)] cursor-pointer hover:scale-[1.01]'
-                    : 'border border-white/[0.06] cursor-default'
-                }`}
+                onClick={() => setActiveTab('receivables')}
+                className="rounded-2xl p-4 text-left transition-all hover:shadow-md active:scale-[0.98]"
+                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
               >
-                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-[rgba(202,176,122,0.12)]">
-                  <FileText size={16} className="text-[color:var(--accent-brass)]" />
-                </div>
-                <div className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-faint)] mb-2">
-                  Contratos hoje
-                </div>
-                {loading ? (
-                  <div className="skeleton h-8 w-12 rounded-lg" />
-                ) : (
-                  <div className="font-display text-4xl leading-none text-[color:var(--text-primary)]">
-                    {contratosHoje.length}
-                  </div>
-                )}
-                {contratosHoje.length > 0 && (
-                  <div className="mt-2 flex items-center gap-1 text-[0.65rem] font-semibold text-[color:var(--accent-brass)]">
-                    <span>ver lista</span>
-                    <ChevronRight size={11} />
-                  </div>
-                )}
+                <BarChart3 size={24} style={{ color: 'var(--header-blue)' }} className="mb-2" />
+                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Fluxo de Caixa</p>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Faturamento total e fluxo por periodo</p>
+                <ChevronRight size={16} style={{ color: 'var(--text-faint)' }} className="mt-2" />
               </button>
-
-              {/* Total de contratos */}
-              <div className="panel-card rounded-[1.6rem] p-5 border border-white/[0.06]">
-                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06]">
-                  <FileText size={16} className="text-[color:var(--text-muted)]" />
-                </div>
-                <div className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-faint)] mb-2">
-                  Total contratos
-                </div>
-                {loading ? (
-                  <div className="skeleton h-8 w-12 rounded-lg" />
-                ) : (
-                  <div className="font-display text-4xl leading-none text-[color:var(--text-primary)]">
-                    {investments.length}
-                  </div>
-                )}
-              </div>
-
-              {/* Total de clientes */}
-              <div className="panel-card rounded-[1.6rem] p-5 border border-white/[0.06]">
-                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06]">
-                  <Users size={16} className="text-[color:var(--text-muted)]" />
-                </div>
-                <div className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-faint)] mb-2">
-                  Total clientes
-                </div>
-                {loading ? (
-                  <div className="skeleton h-8 w-12 rounded-lg" />
-                ) : (
-                  <div className="font-display text-4xl leading-none text-[color:var(--text-primary)]">
-                    {clientCount}
-                  </div>
-                )}
-              </div>
-
-              {/* Pagaram hoje */}
               <button
-                disabled={clientesQuePageramCount === 0}
-                onClick={() => clientesQuePageramCount > 0 && setSubView('pagaram-hoje')}
-                className={`panel-card rounded-[1.6rem] p-5 text-left transition-all duration-200 ${
-                  clientesQuePageramCount > 0
-                    ? 'border border-[rgba(45,212,191,0.2)] hover:border-[rgba(45,212,191,0.35)] cursor-pointer hover:scale-[1.01]'
-                    : 'border border-white/[0.06] cursor-default'
-                }`}
+                onClick={() => clientesQuePageramCount > 0 ? setSubView('pagaram-hoje') : undefined}
+                className="rounded-2xl p-4 text-left transition-all hover:shadow-md active:scale-[0.98]"
+                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
               >
-                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-[rgba(45,212,191,0.1)]">
-                  <Users size={16} className="text-teal-400" />
-                </div>
-                <div className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-faint)] mb-2">
-                  Pagaram hoje
-                </div>
-                {loading ? (
-                  <div className="skeleton h-8 w-12 rounded-lg" />
-                ) : (
-                  <div className="font-display text-4xl leading-none text-[color:var(--text-primary)]">
-                    {clientesQuePageramCount}
-                  </div>
-                )}
-                {clientesQuePageramCount > 0 && (
-                  <div className="mt-2 flex items-center gap-1 text-[0.65rem] font-semibold text-teal-400">
-                    <span>ver lista</span>
-                    <ChevronRight size={11} />
-                  </div>
-                )}
+                <Calendar size={24} style={{ color: 'var(--header-blue)' }} className="mb-2" />
+                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Hoje</p>
+                <p className="text-lg font-black tabular-nums" style={{ color: 'var(--header-blue)' }}>{formatCurrency(totalRecebidoHoje)}</p>
+                <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Recebimentos Hoje</p>
+                <ChevronRight size={16} style={{ color: 'var(--text-faint)' }} className="mt-1" />
+              </button>
+              <button
+                onClick={() => setActiveTab('receivables')}
+                className="rounded-2xl p-4 text-left transition-all hover:shadow-md active:scale-[0.98]"
+                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
+              >
+                <TrendingUp size={24} style={{ color: 'var(--header-blue)' }} className="mb-2" />
+                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Resultados</p>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Seus Resultados</p>
+                <ChevronRight size={16} style={{ color: 'var(--text-faint)' }} className="mt-2" />
+              </button>
+              <button
+                onClick={() => onNavigate(AppView.USERS)}
+                className="rounded-2xl p-4 text-left transition-all hover:shadow-md active:scale-[0.98]"
+                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
+              >
+                <Users size={24} style={{ color: 'var(--header-blue)' }} className="mb-2" />
+                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Top Clientes</p>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Veja aqui quais sao os clientes que pagam em dia</p>
+                <ChevronRight size={16} style={{ color: 'var(--text-faint)' }} className="mt-1" />
               </button>
             </div>
           </div>
 
-          {/* ── Modal: Contratos Criados Hoje ─────────────────────────────────── */}
+          {/* ── Modal: Contratos Criados Hoje ─────────────────────────────── */}
           {showContratosHojeModal && (
             <Modal
               title="Contratos criados hoje"
               onClose={() => setShowContratosHojeModal(false)}
             >
               {contratosHoje.length === 0 ? (
-                <p className="text-sm text-[color:var(--text-secondary)]">Nenhum contrato criado hoje.</p>
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Nenhum contrato criado hoje.</p>
               ) : (
                 <div className="space-y-2">
                   {contratosHoje.map(inv => (
                     <div
                       key={inv.id}
-                      className="flex items-center justify-between rounded-2xl bg-white/[0.03] px-4 py-3"
+                      className="flex items-center justify-between rounded-2xl px-4 py-3"
+                      style={{ background: 'var(--bg-soft)' }}
                     >
                       <div>
-                        <div className="text-sm font-semibold text-[color:var(--text-primary)]">
+                        <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                           {inv.asset_name || 'Contrato'}
                         </div>
-                        <div className="text-[0.7rem] text-[color:var(--text-faint)]">
+                        <div className="text-[0.7rem]" style={{ color: 'var(--text-faint)' }}>
                           {(inv as any).payer?.full_name || '—'}
                         </div>
                       </div>
-                      <div className="text-sm font-bold text-[color:var(--accent-brass)]">
+                      <div className="text-sm font-bold" style={{ color: 'var(--accent-brass)' }}>
                         {formatCurrency(inv.amount_invested ?? 0)}
                       </div>
                     </div>
@@ -493,7 +429,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
               )}
             </Modal>
           )}
-        </>
+        </div>
       )}
 
     </div>

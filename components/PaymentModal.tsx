@@ -181,8 +181,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
 
             {/* Negotiation CTA */}
             {installment.is_late && !loading && (
-                <div className="w-full bg-amber-900/10 border border-amber-900/30 p-4 rounded-xl text-left">
-                    <h4 className="text-amber-500 font-bold text-xs uppercase flex items-center gap-2 mb-2">
+                <div className="w-full bg-[color:var(--accent-caution-bg)] border border-[color:var(--accent-caution-border)] p-4 rounded-xl text-left">
+                    <h4 className="text-[color:var(--accent-caution)] font-bold text-xs uppercase flex items-center gap-2 mb-2">
                         <AlertTriangle size={14}/> Dificuldades com o pagamento?
                     </h4>
                     <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all mt-2">

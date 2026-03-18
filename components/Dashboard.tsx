@@ -12,6 +12,7 @@ import {
   AlertCircle,
   WalletCards,
   Clock,
+  WifiOff,
 } from 'lucide-react';
 import { AppView, UserRole, Tenant } from '../types';
 import InvestorDashboard from './InvestorDashboard';
@@ -59,7 +60,7 @@ const DashboardSkeleton: React.FC = () => (
 
 // Sub-component for Admin View
 const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultTab?: 'overview' | 'receivables' | 'collection'; onNavigate?: (view: AppView) => void }> = ({ tenant, defaultTab = 'overview', onNavigate }) => {
-  const { stats, detailedKPIs, investments, installments, loading, error, refetch } = useDashboardData(tenant?.id);
+  const { stats, detailedKPIs, investments, installments, loading, isStale, error, refetch } = useDashboardData(tenant?.id);
   const [activeTab, setActiveTab] = useState<'overview' | 'receivables' | 'collection'>(defaultTab);
 
   // Relógio em tempo real
@@ -102,6 +103,11 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
 
   return (
     <div className="space-y-6 pb-12 animate-fade-in">
+      {isStale && (
+        <div className="flex items-center gap-1.5 px-4 py-1 text-xs text-amber-400">
+          <WifiOff size={12} /> Exibindo dados da última sessão
+        </div>
+      )}
       <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div>

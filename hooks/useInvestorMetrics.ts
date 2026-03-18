@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { getSupabase } from '../services/supabase';
+import { useState, useEffect, useRef } from 'react';
+import { getSupabase, withRetry } from '../services/supabase';
+import { getCached, setCached } from '../services/cache';
 import { Investment } from '../types';
 
 // Tipagem local enriquecida para o frontend
@@ -9,9 +10,19 @@ export interface EnrichedInvestment extends Investment {
   nextPaymentDate?: string;
 }
 
+export type InvestorPeriod = 'month' | 'last_month' | 'year' | 'all';
+
+export interface InvestorFilter {
+  period: InvestorPeriod;
+  investmentId?: string; // undefined = todos
+}
+
 export interface InvestorMetrics {
   totalAllocated: number;
-  totalProfit: number;
+  grossReceived: number;
+  interestProfit: number;
+  expectedThisMonth: number;
+  totalProjectedProfit: number;
   nextPaymentDate: string | null;
   nextPaymentValue: number;
   chartData: { name: string; projected: number; received: number; rawDate: number }[];
@@ -19,19 +30,206 @@ export interface InvestorMetrics {
   userName: string;
 }
 
-export const useInvestorMetrics = () => {
-  const [metrics, setMetrics] = useState<InvestorMetrics>({
-    totalAllocated: 0,
-    totalProfit: 0,
-    nextPaymentDate: null,
-    nextPaymentValue: 0,
-    chartData: [],
-    activeContracts: 0,
-    userName: ''
+interface RawInstallment {
+  due_date: string;
+  amount_total: number;
+  amount_interest: number;
+  amount_paid: number;
+  status: string;
+  paid_at: string | null;
+  fine_amount: number;
+  interest_delay_amount: number;
+}
+
+interface RawInvestment extends Investment {
+  loan_installments: RawInstallment[];
+}
+
+interface CachedRawData {
+  invData: RawInvestment[];
+  userName: string;
+}
+
+interface CachedInvestorData {
+  metrics: InvestorMetrics;
+  investments: EnrichedInvestment[];
+}
+
+// --- Helpers puros ---
+
+function getPeriodBounds(period: InvestorPeriod): { start: Date; end: Date } {
+  const now = new Date();
+  if (period === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    return { start, end };
+  }
+  if (period === 'last_month') {
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    return { start, end };
+  }
+  if (period === 'year') {
+    const start = new Date(now.getFullYear(), 0, 1);
+    const end = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+    return { start, end };
+  }
+  // 'all'
+  return { start: new Date(0), end: new Date(8640000000000000) };
+}
+
+function inPeriod(dateStr: string | null | undefined, bounds: { start: Date; end: Date }): boolean {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  return d >= bounds.start && d <= bounds.end;
+}
+
+function computeMetrics(
+  invData: RawInvestment[],
+  userName: string,
+  filter: InvestorFilter
+): { metrics: InvestorMetrics; investments: EnrichedInvestment[] } {
+  const bounds = getPeriodBounds(filter.period);
+  const thisMonthBounds = getPeriodBounds('month');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let totalAllocated = 0;
+  let grossReceived = 0;
+  let interestProfit = 0;
+  let expectedThisMonth = 0;
+  let totalProjectedProfit = 0;
+  let nextPayment: { date: Date; val: number } | null = null;
+
+  const chartMap = new Map<string, { projected: number; received: number; sortDate: number }>();
+
+  const enrichedInvestments: EnrichedInvestment[] = invData.map((inv: RawInvestment) => {
+    const matchesContract = !filter.investmentId || String(inv.id) === filter.investmentId;
+
+    if (matchesContract) {
+      totalAllocated += Number(inv.amount_invested || 0);
+    }
+
+    const installments = inv.loan_installments || [];
+    let hasLatePayment = false;
+    const isEnded = installments.length > 0 && installments.every((i) => i.status === 'paid');
+    let assetNextPaymentStr: string | undefined = undefined;
+
+    installments.forEach((inst) => {
+      const dueDate = new Date(inst.due_date + 'T00:00:00');
+      const monthKey = dueDate.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+      const sortKey = new Date(dueDate.getFullYear(), dueDate.getMonth(), 1).getTime();
+
+      if (inst.status !== 'paid' && dueDate < today) {
+        hasLatePayment = true;
+      }
+
+      // Chart data — usa todos os contratos (sem filtro de contrato), mostra fluxo completo
+      if (!chartMap.has(monthKey)) {
+        chartMap.set(monthKey, { projected: 0, received: 0, sortDate: sortKey });
+      }
+      const chartEntry = chartMap.get(monthKey)!;
+      chartEntry.projected += Number(inst.amount_total || 0);
+      if (inst.status === 'paid') {
+        chartEntry.received += Number(inst.amount_paid || 0);
+      }
+
+      // Métricas filtradas por contrato
+      if (matchesContract) {
+        const amountPaid = Number(inst.amount_paid || 0);
+        const amountTotal = Number(inst.amount_total || 1);
+        const amountInterest = Number(inst.amount_interest || 0);
+
+        // Lucro Bruto: paid/partial com paid_at no período selecionado
+        if ((inst.status === 'paid' || inst.status === 'partial') && inPeriod(inst.paid_at, bounds)) {
+          grossReceived += amountPaid;
+        }
+
+        // Lucro de Juros: proporcional para partial
+        if (inst.status === 'paid') {
+          interestProfit += amountInterest;
+        } else if (inst.status === 'partial') {
+          interestProfit += (amountPaid / amountTotal) * amountInterest;
+        }
+
+        // Previsto no Mês: sempre mês atual, ignora período do filtro
+        if ((inst.status === 'pending' || inst.status === 'late') && inPeriod(inst.due_date + 'T00:00:00', thisMonthBounds)) {
+          expectedThisMonth += Number(inst.amount_total || 0);
+        }
+
+        // Total projetado (para gráfico e referência)
+        totalProjectedProfit += amountInterest;
+
+        // Próximo pagamento global
+        if (inst.status !== 'paid') {
+          if (!nextPayment || dueDate < nextPayment.date) {
+            nextPayment = { date: dueDate, val: Number(inst.amount_total) };
+          }
+          if (!assetNextPaymentStr) assetNextPaymentStr = dueDate.toLocaleDateString('pt-BR');
+        }
+      }
+    });
+
+    const invested = Number(inv.amount_invested) || 1;
+    const totalReceivable = Number(inv.current_value) || 0;
+    const roi = ((totalReceivable - invested) / invested) * 100;
+
+    let healthStatus: 'ok' | 'late' | 'ended' | 'waiting' = 'ok';
+    if (isEnded) healthStatus = 'ended';
+    else if (hasLatePayment) healthStatus = 'late';
+    else if (installments.length === 0) healthStatus = 'waiting';
+
+    return { ...inv, roi, healthStatus, nextPaymentDate: assetNextPaymentStr };
   });
+
+  const chartArray = Array.from(chartMap.values())
+    .sort((a, b) => a.sortDate - b.sortDate)
+    .map((item) => ({
+      name: new Date(item.sortDate).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+      projected: item.projected,
+      received: item.received,
+      rawDate: item.sortDate,
+    }));
+
+  const newMetrics: InvestorMetrics = {
+    totalAllocated,
+    grossReceived: Math.round(grossReceived * 100) / 100,
+    interestProfit: Math.round(interestProfit * 100) / 100,
+    expectedThisMonth: Math.round(expectedThisMonth * 100) / 100,
+    totalProjectedProfit,
+    nextPaymentDate: nextPayment ? (nextPayment as { date: Date; val: number }).date.toLocaleDateString('pt-BR') : null,
+    nextPaymentValue: nextPayment ? (nextPayment as { date: Date; val: number }).val : 0,
+    chartData: chartArray,
+    activeContracts: enrichedInvestments.length,
+    userName,
+  };
+
+  const sortedInvestments = enrichedInvestments.sort((a, b) => {
+    const score = (s: string) => (s === 'late' ? 0 : s === 'ok' ? 1 : s === 'waiting' ? 2 : 3);
+    return score(a.healthStatus) - score(b.healthStatus);
+  });
+
+  return { metrics: newMetrics, investments: sortedInvestments };
+}
+
+// --- Hook ---
+
+const defaultFilter: InvestorFilter = { period: 'month' };
+
+export const useInvestorMetrics = (filter: InvestorFilter = defaultFilter) => {
+  const [metricsState, setMetricsState] = useState<InvestorMetrics>(() => ({
+    totalAllocated: 0, grossReceived: 0, interestProfit: 0, expectedThisMonth: 0,
+    totalProjectedProfit: 0, nextPaymentDate: null, nextPaymentValue: 0,
+    chartData: [], activeContracts: 0, userName: '',
+  }));
   const [investments, setInvestments] = useState<EnrichedInvestment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isStale, setIsStale] = useState(false);
 
+  // Guarda o userId para a chave do cache raw
+  const userIdRef = useRef<string | null>(null);
+
+  // Effect 1: busca dados do Supabase e cacheia raw
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -42,135 +240,77 @@ export const useInvestorMetrics = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // 1. Busca Perfil (Nome)
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('id', user.id)
-          .single();
+        userIdRef.current = user.id;
+        const rawCacheKey = `investor_raw_${user.id}`;
+        const cachedRaw = getCached<CachedRawData>(rawCacheKey);
 
-        // 2. Busca Investimentos com as Parcelas
-        const { data: invData, error } = await supabase
-          .from('investments')
-          .select(`
-            *,
-            loan_installments (
-              due_date,
-              amount_total,
-              amount_interest,
-              amount_paid,
-              status
-            )
-          `)
-          .eq('user_id', user.id) 
-          .order('created_at', { ascending: false });
+        if (cachedRaw) {
+          const result = computeMetrics(cachedRaw.data.invData, cachedRaw.data.userName, filter);
+          setMetricsState(result.metrics);
+          setInvestments(result.investments);
+          setIsStale(cachedRaw.stale);
+        }
+
+        // Busca perfil
+        const { data: profile } = await withRetry(() =>
+          supabase.from('profiles').select('full_name').eq('id', user.id).single().then((r) => r)
+        );
+
+        // Busca investimentos com parcelas
+        const { data: invData, error } = await withRetry(() =>
+          supabase
+            .from('investments')
+            .select(`
+              *,
+              loan_installments (
+                due_date,
+                amount_total,
+                amount_interest,
+                amount_paid,
+                status,
+                paid_at,
+                fine_amount,
+                interest_delay_amount
+              )
+            `)
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .then((r) => r)
+        );
 
         if (error) throw error;
 
-        // 3. Processamento de Dados
-        let totalAllocated = 0;
-        let totalProfit = 0;
-        let nextPayment: { date: Date; val: number } | null = null;
-        
-        const chartMap = new Map<string, { projected: number; received: number; sortDate: number }>();
-        const today = new Date();
-        today.setHours(0,0,0,0);
+        const userName = profile?.full_name?.split(' ')[0] || 'Investidor';
+        const rawData: CachedRawData = { invData: invData || [], userName };
 
-        const enrichedInvestments: EnrichedInvestment[] = (invData || []).map((inv: any) => {
-          totalAllocated += Number(inv.amount_invested || 0);
-          
-          const installments = inv.loan_installments || [];
-          let hasLatePayment = false;
-          let isEnded = installments.length > 0 && installments.every((i: any) => i.status === 'paid');
-          let assetNextPaymentStr = undefined;
+        setCached<CachedRawData>(rawCacheKey, rawData);
 
-          installments.forEach((inst: any) => {
-             const dueDate = new Date(inst.due_date + 'T00:00:00'); // Fix timezone issue
-             const monthKey = dueDate.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
-             const sortKey = new Date(dueDate.getFullYear(), dueDate.getMonth(), 1).getTime(); // Normalize month start
-
-             // Status Check
-             if (inst.status !== 'paid' && dueDate < today) {
-                 hasLatePayment = true;
-             }
-
-             // Chart Data Aggregation
-             if (!chartMap.has(monthKey)) {
-                chartMap.set(monthKey, { projected: 0, received: 0, sortDate: sortKey });
-             }
-             const chartEntry = chartMap.get(monthKey)!;
-
-             chartEntry.projected += Number(inst.amount_total || 0);
-             if (inst.status === 'paid') {
-                 chartEntry.received += Number(inst.amount_paid || 0);
-                 totalProfit += Number(inst.amount_interest || 0);
-             }
-
-             // Global Next Payment Logic
-             if (inst.status !== 'paid') {
-                 if (!nextPayment || dueDate < nextPayment.date) {
-                     nextPayment = { date: dueDate, val: Number(inst.amount_total) };
-                 }
-                 // Local Asset Next Payment (for sorting/display if needed)
-                 if (!assetNextPaymentStr) assetNextPaymentStr = dueDate.toLocaleDateString('pt-BR');
-             }
-          });
-
-          // ROI Calculation
-          const invested = Number(inv.amount_invested) || 1; // avoid division by zero
-          const totalReceivable = Number(inv.current_value) || 0;
-          const roi = ((totalReceivable - invested) / invested) * 100;
-
-          // Health Status Logic
-          let healthStatus: 'ok' | 'late' | 'ended' | 'waiting' = 'ok';
-          if (isEnded) healthStatus = 'ended';
-          else if (hasLatePayment) healthStatus = 'late';
-          else if (installments.length === 0) healthStatus = 'waiting';
-
-          return {
-              ...inv,
-              roi,
-              healthStatus,
-              nextPaymentDate: assetNextPaymentStr
-          };
-        });
-
-        // 4. Formata Gráfico
-        // Ordena por data e garante que mostramos o futuro próximo se houver dados
-        const chartArray = Array.from(chartMap.values())
-            .sort((a, b) => a.sortDate - b.sortDate)
-            .map(item => ({
-                name: new Date(item.sortDate).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-                projected: item.projected,
-                received: item.received,
-                rawDate: item.sortDate
-            }));
-
-        setMetrics({
-            totalAllocated,
-            totalProfit,
-            nextPaymentDate: nextPayment ? nextPayment.date.toLocaleDateString('pt-BR') : null,
-            nextPaymentValue: nextPayment ? nextPayment.val : 0,
-            chartData: chartArray,
-            activeContracts: enrichedInvestments.length,
-            userName: profile?.full_name?.split(' ')[0] || 'Investidor'
-        });
-
-        // Ordena investimentos: Atrasados primeiro, depois ativos, depois finalizados
-        setInvestments(enrichedInvestments.sort((a, b) => {
-            const score = (s: string) => s === 'late' ? 0 : s === 'ok' ? 1 : s === 'waiting' ? 2 : 3;
-            return score(a.healthStatus) - score(b.healthStatus);
-        }));
-
+        const result = computeMetrics(rawData.invData, rawData.userName, filter);
+        setMetricsState(result.metrics);
+        setInvestments(result.investments);
+        setIsStale(false);
       } catch (err) {
-        console.error("Erro ao carregar métricas do investidor:", err);
+        console.error('Erro ao carregar métricas do investidor:', err);
       } finally {
         setLoading(false);
       }
     };
 
     loadData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { metrics, investments, loading };
+  // Effect 2: recomputa quando o filtro muda (sem re-fetch)
+  useEffect(() => {
+    if (!userIdRef.current) return;
+    const rawCacheKey = `investor_raw_${userIdRef.current}`;
+    const cachedRaw = getCached<CachedRawData>(rawCacheKey);
+    if (!cachedRaw) return;
+
+    const result = computeMetrics(cachedRaw.data.invData, cachedRaw.data.userName, filter);
+    setMetricsState(result.metrics);
+    setInvestments(result.investments);
+  }, [filter.period, filter.investmentId]);
+
+  return { metrics: metricsState, investments, loading, isStale };
 };

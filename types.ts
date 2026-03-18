@@ -125,7 +125,7 @@ export interface Investment {
 
   // Campos virtuais (Joins)
   investor?: { full_name: string; cpf?: string; email?: string; role?: UserRole };
-  payer?: { full_name: string; cpf?: string; email?: string };
+  payer?: { full_name: string; cpf?: string; email?: string; photo_url?: string };
   investor_name?: string;
   payer_name?: string;
   loan_installments?: LoanInstallment[];
@@ -257,5 +257,6 @@ export enum AppView {
   SETTINGS = 'SETTINGS',
   ASSISTANT = 'ASSISTANT',
   COLLECTION = 'COLLECTION',
-  RESET_PASSWORD = 'RESET_PASSWORD'
+  RESET_PASSWORD = 'RESET_PASSWORD',
+  LEGACY_CONTRACT = 'LEGACY_CONTRACT'
 }

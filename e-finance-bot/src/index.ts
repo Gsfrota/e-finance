@@ -11,6 +11,7 @@ import { runWithPresence } from './channels/presence';
 import { isDuplicateMessage } from './utils/message-dedupe';
 import { createInboundBuffer } from './utils/inbound-buffer';
 import { logStructuredMessage } from './observability/logger';
+import { handleConnectionEvent } from './alerts/connection-alert';
 
 dns.setDefaultResultOrder('ipv4first');
 logStructuredMessage('runtime_network_config', {
@@ -116,6 +117,14 @@ export function createApp(): Express {
     res.sendStatus(200);
 
     try {
+      // Detectar connection events (estrutura diferente de message events)
+      const rawEvent = req.body as Record<string, unknown>;
+      const eventType = (rawEvent.EventType ?? rawEvent.eventType ?? rawEvent.event) as string | undefined;
+      if (eventType === 'connection' || (!rawEvent.message && rawEvent.status && !rawEvent.sender)) {
+        void handleConnectionEvent(rawEvent);
+        return;
+      }
+
       // Suporta dois formatos de payload da UazAPI:
       // 1. Formato aninhado real: { EventType, message: { fromMe, text, sender_pn, ... }, chat: {...} }
       // 2. Formato flat (testes sintéticos): { fromMe, text, sender, ... }

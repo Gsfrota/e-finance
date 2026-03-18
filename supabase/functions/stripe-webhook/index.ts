@@ -12,9 +12,9 @@ const supabase = createClient(
 );
 
 // Mapa de amount_total (centavos) → plano
-const PLAN_BY_AMOUNT: Record<number, 'pro' | 'pro_max'> = {
-  9900: 'pro',
-  17000: 'pro_max',
+const PLAN_BY_AMOUNT: Record<number, 'caderneta' | 'empresarial'> = {
+  15000: 'caderneta',
+  27500: 'empresarial',
 };
 
 Deno.serve(async (req: Request) => {
@@ -51,7 +51,7 @@ Deno.serve(async (req: Request) => {
         }
 
         const amountTotal = session.amount_total ?? 0;
-        const plan = PLAN_BY_AMOUNT[amountTotal] ?? 'pro';
+        const plan = PLAN_BY_AMOUNT[amountTotal] ?? 'caderneta';
 
         const { error } = await supabase
           .from('tenants')
@@ -88,6 +88,18 @@ Deno.serve(async (req: Request) => {
 
         if (error) {
           console.error('Erro ao atualizar plan_status:', error);
+        }
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const subId = invoice.subscription as string;
+        if (subId) {
+          await supabase
+            .from('tenants')
+            .update({ plan_status: 'past_due', plan_updated_at: new Date().toISOString() })
+            .eq('stripe_subscription_id', subId);
         }
         break;
       }

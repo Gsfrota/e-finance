@@ -103,4 +103,16 @@ export const config = {
     maxPerWindow: parseInt(process.env.RATE_LIMIT_MAX || '20', 10),
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
   },
+
+  // Alertas de conexão UazAPI
+  alerts: {
+    emergencyTelegramChatId: process.env.ALERT_TELEGRAM_CHAT_ID || '',
+    // Instância WA alternativa (diferente da instância do bot) para fallback
+    emergencyWaPhone: process.env.ALERT_WA_PHONE || '',
+    // Números extras para ligação de emergência (vírgula separados)
+    extraAlertPhones: (process.env.ALERT_WA_EXTRA_PHONES || '').split(',').map(p => p.trim()).filter(Boolean),
+    emergencyWaInstanceToken: process.env.ALERT_WA_INSTANCE_TOKEN || '',
+    emergencyWaInstanceServer: process.env.ALERT_WA_INSTANCE_SERVER || process.env.UAZAPI_SERVER_URL || 'https://processai.uazapi.com',
+    connectionCooldownMs: parseInt(process.env.ALERT_CONNECTION_COOLDOWN_MS || '300000', 10),
+  },
 };

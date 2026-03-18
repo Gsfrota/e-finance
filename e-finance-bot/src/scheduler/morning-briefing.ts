@@ -1,6 +1,6 @@
 import { getSupabaseClient } from '../infra/runtime-clients';
 import {
-  getDashboardSummary, getDebtorsToCollectToday, formatCurrency,
+  getDebtorsToCollectToday, formatCurrency,
 } from '../actions/admin-actions';
 import * as wa from '../channels/whatsapp';
 import * as tg from '../channels/telegram';
@@ -16,7 +16,7 @@ interface ProfileChannel {
   telegram_chat_id: string | null;
 }
 
-async function getAdminProfiles(tenantId: string): Promise<ProfileChannel[]> {
+export async function getAdminProfiles(tenantId: string): Promise<ProfileChannel[]> {
   const { data, error } = await db()
     .from('profiles')
     .select('id, full_name, whatsapp_phone, telegram_chat_id')
@@ -50,15 +50,12 @@ export async function buildBriefingMessage(profile: ProfileChannel, tenantId: st
   const firstName = profile.full_name?.split(' ')[0] || 'Gestor';
 
   try {
-    const [dashboard, collection] = await Promise.all([
-      getDashboardSummary(tenantId),
-      getDebtorsToCollectToday(tenantId),
-    ]);
+    const collection = await getDebtorsToCollectToday(tenantId);
 
-    const totalReceivable = dashboard.expectedMonth - dashboard.receivedMonth;
+    const totalToday = collection.reduce((sum, d) => sum + d.totalDue, 0);
 
     if (collection.length === 0) {
-      return `Bom dia ${firstName}! 🌅\nHoje não há cobranças programadas.\n\nSaldo a receber no mês: *${formatCurrency(totalReceivable)}*\n\nQuer ver o resumo completo?`;
+      return `Bom dia ${firstName}! 🌅\nHoje não há cobranças programadas.\n\nQuer ver o resumo completo?`;
     }
 
     const lines = collection.slice(0, 5).map(d =>
@@ -68,7 +65,7 @@ export async function buildBriefingMessage(profile: ProfileChannel, tenantId: st
     const extraCount = collection.length - 5;
     const extraLine = extraCount > 0 ? `\n_...e mais ${extraCount} cobrança(s)_` : '';
 
-    return `Bom dia ${firstName}! 🌅\nHoje você tem *${formatCurrency(totalReceivable)}* para receber.\n\n📋 *Cobranças do dia:*\n${lines.join('\n')}${extraLine}\n\nQuer ver o detalhamento completo?`;
+    return `Bom dia ${firstName}! 🌅\nHoje você tem *${formatCurrency(totalToday)}* para receber.\n\n📋 *Cobranças do dia:*\n${lines.join('\n')}${extraLine}\n\nQuer ver o detalhamento completo?`;
   } catch (err) {
     console.error('[buildBriefingMessage] erro:', err);
     return `Bom dia ${firstName}! 🌅\nOcorreu um problema ao carregar seu resumo. Tente acessar o dashboard.`;

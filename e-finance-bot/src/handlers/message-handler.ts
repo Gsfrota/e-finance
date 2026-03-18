@@ -14,6 +14,7 @@ import {
   ContractDraft, DebtorToCollect, getContractOpenInstallments,
   getContractOpenInstallmentByNumber, normalizeCpf, isValidCpf,
   getInstallmentByDebtorAndMonth, extractDebtorNameSimple,
+  extractAmount, extractRate, extractInstallments,
 } from '../actions/admin-actions';
 import { logStructuredMessage } from '../observability/logger';
 import { estimateCostUsd } from '../observability/cost-estimator';
@@ -252,6 +253,64 @@ function extractCpfFromText(text: string): string | null {
   }
 
   return null;
+}
+
+interface PartialContractEntities {
+  debtor_name?: string;
+  debtor_cpf?: string;
+  amount?: number;
+  rate?: number;
+  installments?: number;
+}
+
+function extractAllContractEntities(text: string): PartialContractEntities {
+  const result: PartialContractEntities = {};
+  const name = extractDebtorNameSimple(text);
+  if (name) result.debtor_name = name;
+  const cpf = extractCpfFromText(text);
+  if (cpf && isValidCpf(cpf)) result.debtor_cpf = cpf;
+  const amount = extractAmount(text);
+  if (amount !== null) result.amount = amount;
+  const rate = extractRate(text);
+  if (rate !== null) result.rate = rate;
+  const inst = extractInstallments(text);
+  if (inst !== null) result.installments = inst;
+  return result;
+}
+
+function mergeContractEntities(
+  existing: Record<string, unknown>,
+  incoming: PartialContractEntities,
+): Record<string, unknown> {
+  const merged = { ...existing };
+  for (const [key, value] of Object.entries(incoming)) {
+    if (value !== undefined && (merged[key] === undefined || merged[key] === null || merged[key] === '')) {
+      merged[key] = value;
+    }
+  }
+  return merged;
+}
+
+function getNextMissingStep(draft: Record<string, unknown>): number {
+  if (!draft.debtor_name) return 1;
+  if (!draft.debtor_cpf) return 11;
+  if (draft.amount === undefined || draft.amount === null) return 12;
+  if (draft.rate === undefined || draft.rate === null) return 13;
+  if (draft.installments === undefined || draft.installments === null) return 14;
+  return 2;
+}
+
+function getStepPrompt(step: number, draft: Record<string, unknown>): string {
+  switch (step) {
+    case 1: return 'Qual é o *nome completo do devedor*?';
+    case 11: return draft.debtor_name
+      ? `Certo, *${draft.debtor_name}*. Qual é o *CPF* do devedor?`
+      : 'Qual é o *CPF* do devedor?';
+    case 12: return 'Qual é o *valor principal* emprestado? (Ex: *R$ 5.000* ou *20 mil*)';
+    case 13: return 'Qual é a *taxa de juros mensal* (% a.m.)? Se não houver juros, responda *pular*.';
+    case 14: return 'Quantas *parcelas mensais*? Se for uma parcela única, responda *pular*.';
+    default: return '';
+  }
 }
 
 function maskCpf(cpf?: string): string {
@@ -1498,8 +1557,37 @@ async function dispatchIntent(
         return formatContractConfirmationMessage(draft);
       }
 
-      await updateSessionContext(session.id, { pendingAction: 'criar_contrato', pendingStep: 1 });
-      return 'Claro! Qual é o *nome completo do devedor*?';
+      // Extrai entidades do texto original para capturar dados fora de ordem
+      const initialEntities = extractAllContractEntities(originalText);
+      const pendingData = mergeContractEntities({}, initialEntities);
+      const nextStep = getNextMissingStep(pendingData);
+
+      if (nextStep === 2) {
+        // Tudo preenchido — confirmação
+        const draft: ContractDraft = {
+          debtor_name: String(pendingData.debtor_name),
+          debtor_cpf: String(pendingData.debtor_cpf),
+          amount: Number(pendingData.amount),
+          rate: Number(pendingData.rate ?? 0),
+          installments: Number(pendingData.installments ?? 1),
+          frequency: 'monthly',
+        };
+        await updateSessionContext(session.id, {
+          pendingAction: 'criar_contrato',
+          pendingStep: 2,
+          pendingData: draft as unknown as Record<string, unknown>,
+        });
+        return formatContractConfirmationMessage(draft);
+      }
+
+      await updateSessionContext(session.id, {
+        pendingAction: 'criar_contrato',
+        pendingStep: nextStep,
+        pendingData: pendingData as Record<string, unknown>,
+      });
+      return Object.keys(pendingData).length > 0
+        ? getStepPrompt(nextStep, pendingData)
+        : `Claro! ${getStepPrompt(nextStep, pendingData)}`;
     }
 
     case 'marcar_pagamento': {
@@ -1811,15 +1899,35 @@ async function handlePendingAction(
           result: 'failed',
           reason: parsed.reason || 'unknown',
         });
-        // Tenta extrair pelo menos o nome para iniciar fluxo guiado
-        const extractedName = extractDebtorNameSimple(text);
-        if (extractedName) {
+        // Extrai todos os campos possíveis do texto
+        const extracted = extractAllContractEntities(text);
+        const existingData = (pendingData as Record<string, unknown>) || {};
+        const merged = mergeContractEntities(existingData, extracted);
+
+        if (Object.keys(extracted).length > 0) {
+          const nextStep = getNextMissingStep(merged);
+          if (nextStep === 2) {
+            const draft: ContractDraft = {
+              debtor_name: String(merged.debtor_name),
+              debtor_cpf: String(merged.debtor_cpf),
+              amount: Number(merged.amount),
+              rate: Number(merged.rate ?? 0),
+              installments: Number(merged.installments ?? 1),
+              frequency: 'monthly',
+            };
+            await updateSessionContext(session.id, {
+              pendingAction: 'criar_contrato',
+              pendingStep: 2,
+              pendingData: draft as unknown as Record<string, unknown>,
+            });
+            return formatContractConfirmationMessage(draft);
+          }
           await updateSessionContext(session.id, {
             pendingAction: 'criar_contrato',
-            pendingStep: 11,
-            pendingData: { debtor_name: extractedName } as unknown as Record<string, unknown>,
+            pendingStep: nextStep,
+            pendingData: merged as Record<string, unknown>,
           });
-          return `Certo, *${extractedName}*. Qual é o *CPF* do devedor?`;
+          return getStepPrompt(nextStep, merged);
         }
         return 'Qual é o *nome completo do devedor*?';
       }
@@ -1851,7 +1959,7 @@ async function handlePendingAction(
 
     if (pendingStep === 11) {
       const partialDraft = (pendingData as any) || {};
-      if (!partialDraft.debtor_name) {
+      if (Object.keys(partialDraft).length === 0) {
         await clearSessionContext(session.id);
         return 'Contexto expirado. Pode começar de novo.';
       }
@@ -1860,12 +1968,22 @@ async function handlePendingAction(
       if (!extractedCpf) return 'CPF não reconhecido. Envie o CPF com 11 dígitos (com ou sem máscara).';
       if (!isValidCpf(extractedCpf)) return 'CPF inválido. Verifique os dígitos e envie novamente.';
 
-      // Fluxo original: já tem amount → vai direto para confirmação (step 2)
-      if (partialDraft.amount !== undefined && partialDraft.amount !== null) {
-        const draft = partialDraft as ContractDraft;
-        draft.debtor_cpf = extractedCpf;
-        if (draft.due_day && !draft.start_date) {
-          draft.start_date = suggestFirstInstallmentDate(draft.due_day);
+      // Extrai campos bônus do texto
+      const bonusEntities = extractAllContractEntities(text);
+      const merged = mergeContractEntities({ ...partialDraft, debtor_cpf: extractedCpf }, bonusEntities);
+      const nextStep = getNextMissingStep(merged);
+
+      if (nextStep === 2) {
+        const draft: ContractDraft = {
+          debtor_name: String(merged.debtor_name),
+          debtor_cpf: String(merged.debtor_cpf),
+          amount: Number(merged.amount),
+          rate: Number(merged.rate ?? 0),
+          installments: Number(merged.installments ?? 1),
+          frequency: 'monthly',
+        };
+        if ((merged as any).due_day && !draft.start_date) {
+          draft.start_date = suggestFirstInstallmentDate((merged as any).due_day);
         }
         await updateSessionContext(session.id, {
           pendingAction: 'criar_contrato',
@@ -1875,18 +1993,17 @@ async function handlePendingAction(
         return formatContractConfirmationMessage(draft);
       }
 
-      // Fluxo guiado: ainda não tem amount → vai para step 12
       await updateSessionContext(session.id, {
         pendingAction: 'criar_contrato',
-        pendingStep: 12,
-        pendingData: { ...partialDraft, debtor_cpf: extractedCpf } as unknown as Record<string, unknown>,
+        pendingStep: nextStep,
+        pendingData: merged as Record<string, unknown>,
       });
-      return 'Qual é o *valor principal* emprestado? (Ex: *R$ 5.000* ou *20 mil*)';
+      return getStepPrompt(nextStep, merged);
     }
 
     if (pendingStep === 12) {
       const partialDraft = (pendingData as any) || {};
-      if (!partialDraft.debtor_name) {
+      if (Object.keys(partialDraft).length === 0) {
         await clearSessionContext(session.id);
         return 'Contexto expirado. Pode começar de novo.';
       }
@@ -1902,17 +2019,39 @@ async function handlePendingAction(
 
       if (!amount) return 'Não reconheci o valor. Tente: *R$ 5.000*, *20 mil* ou *5000*.';
 
+      // Extrai campos bônus do texto
+      const bonusEntities12 = extractAllContractEntities(text);
+      const merged12 = mergeContractEntities({ ...partialDraft, amount }, bonusEntities12);
+      const nextStep12 = getNextMissingStep(merged12);
+
+      if (nextStep12 === 2) {
+        const draft: ContractDraft = {
+          debtor_name: String(merged12.debtor_name),
+          debtor_cpf: String(merged12.debtor_cpf),
+          amount: Number(merged12.amount),
+          rate: Number(merged12.rate ?? 0),
+          installments: Number(merged12.installments ?? 1),
+          frequency: 'monthly',
+        };
+        await updateSessionContext(session.id, {
+          pendingAction: 'criar_contrato',
+          pendingStep: 2,
+          pendingData: draft as unknown as Record<string, unknown>,
+        });
+        return formatContractConfirmationMessage(draft);
+      }
+
       await updateSessionContext(session.id, {
         pendingAction: 'criar_contrato',
-        pendingStep: 13,
-        pendingData: { ...partialDraft, amount } as unknown as Record<string, unknown>,
+        pendingStep: nextStep12,
+        pendingData: merged12 as Record<string, unknown>,
       });
-      return 'Qual é a *taxa de juros mensal* (% a.m.)? Se não houver juros, responda *pular*.';
+      return getStepPrompt(nextStep12, merged12);
     }
 
     if (pendingStep === 13) {
       const partialDraft = (pendingData as any) || {};
-      if (!partialDraft.debtor_name || partialDraft.amount === undefined) {
+      if (Object.keys(partialDraft).length === 0) {
         await clearSessionContext(session.id);
         return 'Contexto expirado. Pode começar de novo.';
       }
@@ -1929,17 +2068,39 @@ async function handlePendingAction(
         }
       }
 
+      // Extrai campos bônus do texto
+      const bonusEntities13 = extractAllContractEntities(text);
+      const merged13 = mergeContractEntities({ ...partialDraft, rate }, bonusEntities13);
+      const nextStep13 = getNextMissingStep(merged13);
+
+      if (nextStep13 === 2) {
+        const draft: ContractDraft = {
+          debtor_name: String(merged13.debtor_name),
+          debtor_cpf: String(merged13.debtor_cpf),
+          amount: Number(merged13.amount),
+          rate: Number(merged13.rate ?? 0),
+          installments: Number(merged13.installments ?? 1),
+          frequency: 'monthly',
+        };
+        await updateSessionContext(session.id, {
+          pendingAction: 'criar_contrato',
+          pendingStep: 2,
+          pendingData: draft as unknown as Record<string, unknown>,
+        });
+        return formatContractConfirmationMessage(draft);
+      }
+
       await updateSessionContext(session.id, {
         pendingAction: 'criar_contrato',
-        pendingStep: 14,
-        pendingData: { ...partialDraft, rate } as unknown as Record<string, unknown>,
+        pendingStep: nextStep13,
+        pendingData: merged13 as Record<string, unknown>,
       });
-      return 'Quantas *parcelas mensais*? Se for uma parcela única, responda *pular*.';
+      return getStepPrompt(nextStep13, merged13);
     }
 
     if (pendingStep === 14) {
       const partialDraft = (pendingData as any) || {};
-      if (!partialDraft.debtor_name || partialDraft.amount === undefined) {
+      if (Object.keys(partialDraft).length === 0) {
         await clearSessionContext(session.id);
         return 'Contexto expirado. Pode começar de novo.';
       }
@@ -1954,12 +2115,16 @@ async function handlePendingAction(
         }
       }
 
+      // Extrai campos bônus do texto
+      const bonusEntities14 = extractAllContractEntities(text);
+      const merged14 = mergeContractEntities({ ...partialDraft, installments }, bonusEntities14);
+
       const draft: ContractDraft = {
-        debtor_name: String(partialDraft.debtor_name),
-        debtor_cpf: String(partialDraft.debtor_cpf || ''),
-        amount: Number(partialDraft.amount),
-        rate: Number(partialDraft.rate ?? 0),
-        installments,
+        debtor_name: String(merged14.debtor_name),
+        debtor_cpf: String(merged14.debtor_cpf || ''),
+        amount: Number(merged14.amount),
+        rate: Number(merged14.rate ?? 0),
+        installments: Number(merged14.installments ?? 1),
         frequency: 'monthly',
       };
 

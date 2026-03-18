@@ -89,10 +89,10 @@ const InstallmentRowActions: React.FC<InstallmentRowActionsProps> = ({
                 {onInterestOnly && (
                     <button
                         onClick={() => { onInterestOnly(installment); setIsOpen(false); }}
-                        className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-amber-900/10 group transition-colors border-b border-slate-700/50"
+                        className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-[color:var(--accent-caution-bg)] group transition-colors border-b border-slate-700/50"
                     >
-                        <Percent size={14} className="text-amber-400 group-hover:scale-110 transition-transform"/>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">Pagar Só Juros</span>
+                        <Percent size={14} className="text-[color:var(--accent-caution)] group-hover:scale-110 transition-transform"/>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-[color:var(--accent-caution)]">Pagar Só Juros</span>
                     </button>
                 )}
             </>

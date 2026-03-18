@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
-import { Investment, Tenant, Profile } from '../types';
+import { Investment, Tenant, Profile, AppView } from '../types';
 import QuickContractInput from './QuickContractInput';
 import ContractDetail from './ContractDetail';
 import ContractRenewalModal from './ContractRenewalModal';
@@ -10,7 +10,7 @@ import {
     ArrowRight, Calendar, Zap, Wallet, ChevronRight,
     Minus, Plus, Banknote, Percent, CalendarDays,
     CalendarClock, UserPlus, Loader2, UserCog, ShieldCheck, Eye, ChevronDown, Coins, TrendingUp, Sparkles,
-    Trash2, Pencil, Mail, Phone, Key, MapPin, Activity
+    Trash2, Pencil, Mail, Phone, Key, MapPin, Activity, History
 } from 'lucide-react';
 
 // --- PURE BUSINESS LOGIC (No React Dependencies) ---
@@ -259,8 +259,8 @@ type EditableContractInstallment = {
 
 // --- MAIN COMPONENT ---
 
-interface AdminContractsProps { autoOpenCreate?: boolean; }
-const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false }) => {
+interface AdminContractsProps { autoOpenCreate?: boolean; onNavigate?: (view: AppView) => void; }
+const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false, onNavigate }) => {
   const [contracts, setContracts] = useState<Investment[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
@@ -1266,10 +1266,10 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false 
                     <div className="bg-gradient-to-b from-[color:var(--bg-elevated)] to-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
 
-                        <div className="flex justify-between items-end border-b border-[color:var(--border-subtle)] pb-6 mb-6">
-                            <div>
+                        <div className="flex flex-wrap justify-between items-end gap-y-2 border-b border-[color:var(--border-subtle)] pb-6 mb-6">
+                            <div className="min-w-0">
                                 <p className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest mb-1">Total a Receber</p>
-                                <p className="text-4xl font-black text-[color:var(--text-primary)] tracking-tight">{formatCurrency(formData.current_value)}</p>
+                                <p className="text-4xl font-black text-[color:var(--text-primary)] tracking-tight truncate">{formatCurrency(formData.current_value)}</p>
                             </div>
                             <div className="text-right">
                                 <div className="bg-teal-900/30 border border-teal-500/20 text-teal-400 px-3 py-1 rounded-lg text-xs font-bold inline-block mb-1">
@@ -1631,10 +1631,10 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false 
             <p className="mt-4 max-w-2xl text-sm leading-7 text-[color:var(--text-secondary)]">Crie, acompanhe e revise contratos com leitura clara de principal, prazo e cronograma financeiro.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-            <button onClick={() => setIsNLContractOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-6 py-3 text-sm font-semibold text-[color:var(--text-primary)] transition-all hover:bg-white/[0.08]">
-                <Zap size={16} className="text-[color:var(--accent-steel)]"/> Cadastro Rápido
+            <button onClick={() => onNavigate ? onNavigate(AppView.LEGACY_CONTRACT) : (() => { setNlContractMode('legacy'); setIsNLContractOpen(true); })()} className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-6 py-3 text-sm font-semibold text-[color:var(--text-primary)] transition-all hover:bg-white/[0.08]">
+                <History size={16} className="text-amber-400"/> Contrato Antigo
             </button>
-            <button onClick={handleOpenWizard} className="inline-flex items-center justify-center gap-2 rounded-full bg-[color:var(--accent-brass)] px-6 py-3 text-sm font-extrabold text-[color:var(--text-on-accent)] transition-all hover:bg-[color:var(--accent-brass-strong)]">
+<button onClick={handleOpenWizard} className="inline-flex items-center justify-center gap-2 rounded-full bg-[color:var(--accent-brass)] px-6 py-3 text-sm font-extrabold text-[color:var(--text-on-accent)] transition-all hover:bg-[color:var(--accent-brass-strong)]">
                 <PlusCircle size={16} /> Novo Contrato
             </button>
         </div>
@@ -1747,6 +1747,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false 
         profiles={profiles}
         currentTenant={currentTenant}
         currentUserId={currentUserId}
+        initialMode="legacy"
       />
     </div>
   );

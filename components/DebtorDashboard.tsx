@@ -1,21 +1,22 @@
 import React, { useState } from 'react';
 import { useDebtorFinance, DebtorContract } from '../hooks/useDebtorFinance';
 import PaymentModal from './PaymentModal';
-import { 
-  AlertTriangle, 
-  CheckCircle2, 
-  Calendar, 
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Calendar,
   ChevronDown,
   ChevronUp,
   CreditCard,
   MessageCircle,
   QrCode,
   ShieldCheck,
-  Package
+  Package,
+  WifiOff,
 } from 'lucide-react';
 
 const DebtorDashboard: React.FC = () => {
-  const { metrics, loading } = useDebtorFinance();
+  const { metrics, loading, isStale } = useDebtorFinance();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedInstallment, setSelectedInstallment] = useState<any>(null);
   
@@ -66,7 +67,11 @@ const DebtorDashboard: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-24 md:pb-12 max-w-5xl mx-auto relative">
-      
+      {isStale && (
+        <div className="flex items-center gap-1.5 px-4 py-1 text-xs text-amber-400">
+          <WifiOff size={12} /> Exibindo dados da última sessão
+        </div>
+      )}
       {/* 1. HERO STATUS SECTION */}
       <div
         data-testid={metrics.hasLatePayment ? 'late-payment-alert' : 'status-hero'}

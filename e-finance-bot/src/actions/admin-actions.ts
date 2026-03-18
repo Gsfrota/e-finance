@@ -824,7 +824,7 @@ function extractPrincipalAndTotal(text: string): { principal: number; total: num
   return null;
 }
 
-function extractAmount(text: string): number | null {
+export function extractAmount(text: string): number | null {
   const candidates = [
     text.match(/r\$\s*([0-9][0-9.]*[0-9](?:,[0-9]{1,2})?|[0-9]+(?:,[0-9]{1,2})?)\s*(mil|k)?/i),
     text.match(/(?:valor|total|emprestimo|empréstimo|contrato\s+de)\s*(?:de)?\s*([0-9][0-9.]*[0-9](?:,[0-9]{1,2})?|[0-9]+(?:,[0-9]{1,2})?)\s*(mil|k)?/i),
@@ -841,7 +841,7 @@ function extractAmount(text: string): number | null {
   return null;
 }
 
-function extractRate(text: string): number | null {
+export function extractRate(text: string): number | null {
   // Matches "1.8%" or "1,8%" (symbol)
   const symbolMatch = text.match(/(\d+(?:[.,]\d+)?)\s*%/);
   if (symbolMatch?.[1]) return parsePtBrNumber(symbolMatch[1]);
@@ -851,7 +851,7 @@ function extractRate(text: string): number | null {
   return null;
 }
 
-function extractInstallments(text: string): number | null {
+export function extractInstallments(text: string): number | null {
   const match = text.match(/(\d{1,3})\s*(?:x|parcelas?|vezes)/i);
   if (!match?.[1]) return null;
   const n = Number(match[1]);

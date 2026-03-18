@@ -32,9 +32,17 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT UNIQUE,
     full_name TEXT,
-    role TEXT DEFAULT 'investor' CHECK (role IN ('admin', 'investor', 'debtor')), 
+    role TEXT DEFAULT 'investor' CHECK (role IN ('admin', 'investor', 'debtor')),
     cpf TEXT,
     tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
+    phone_number TEXT,
+    cep TEXT,
+    logradouro TEXT,
+    numero TEXT,
+    bairro TEXT,
+    cidade TEXT,
+    uf TEXT,
+    photo_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );

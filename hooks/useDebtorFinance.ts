@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getSupabase } from '../services/supabase';
+import { getSupabase, withRetry } from '../services/supabase';
+import { getCached, setCached } from '../services/cache';
 
 export interface DebtorInstallment {
   id: string;
@@ -35,14 +36,15 @@ export interface DebtorMetrics {
 }
 
 export const useDebtorFinance = () => {
-  const [metrics, setMetrics] = useState<DebtorMetrics>({
-    currentBalance: 0,
-    hasLatePayment: false,
-    nextPayment: null,
-    userName: '',
-    contracts: []
+  const [metrics, setMetrics] = useState<DebtorMetrics>(() => {
+    const cached = getCached<DebtorMetrics>('debtor_finance');
+    return cached?.data ?? { currentBalance: 0, hasLatePayment: false, nextPayment: null, userName: '', contracts: [] };
   });
   const [loading, setLoading] = useState(true);
+  const [isStale, setIsStale] = useState(() => {
+    const cached = getCached<DebtorMetrics>('debtor_finance');
+    return cached?.stale ?? false;
+  });
 
   useEffect(() => {
     const loadData = async () => {
@@ -54,22 +56,34 @@ export const useDebtorFinance = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
+        const cacheKey = `debtor_finance_${user.id}`;
+        const cached = getCached<DebtorMetrics>(cacheKey);
+        if (cached) {
+          setMetrics(cached.data);
+          setIsStale(cached.stale);
+        }
+
         // 1. Busca Perfil
-        const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
+        const { data: profile } = await withRetry(() =>
+          supabase.from('profiles').select('full_name').eq('id', user.id).single().then(r => r)
+        );
 
         // 2. Busca Contratos e Parcelas
-        const { data: investments, error } = await supabase
-          .from('investments')
-          .select(`
-            id,
-            tenant_id,
-            asset_name,
-            current_value,
-            loan_installments (
-              id, number, due_date, amount_total, status, amount_paid
-            )
-          `)
-          .eq('payer_id', user.id);
+        const { data: investments, error } = await withRetry(() =>
+          supabase
+            .from('investments')
+            .select(`
+              id,
+              tenant_id,
+              asset_name,
+              current_value,
+              loan_installments (
+                id, number, due_date, amount_total, status, amount_paid
+              )
+            `)
+            .eq('payer_id', user.id)
+            .then(r => r)
+        );
 
         if (error) throw error;
 
@@ -165,13 +179,19 @@ export const useDebtorFinance = () => {
             return score(a.status) - score(b.status);
         });
 
-        setMetrics({
+        const newMetrics: DebtorMetrics = {
             currentBalance: globalBalance,
             hasLatePayment: globalHasLate,
             nextPayment: globalNextPayment,
             userName: profile?.full_name?.split(' ')[0] || 'Cliente',
             contracts: contracts
-        });
+        };
+
+        const cacheKeyFull = `debtor_finance_${user.id}`;
+        setCached(cacheKeyFull, newMetrics);
+
+        setMetrics(newMetrics);
+        setIsStale(false);
 
       } catch (err) {
         console.error("Erro ao carregar finanças do devedor:", err);
@@ -183,5 +203,5 @@ export const useDebtorFinance = () => {
     loadData();
   }, []);
 
-  return { metrics, loading };
+  return { metrics, loading, isStale };
 };

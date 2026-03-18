@@ -14,7 +14,7 @@ No test runner is configured.
 
 ## Environment
 
-Copy `.env` to `.env.local` and add `GEMINI_API_KEY` for AI features. Supabase credentials are read from `localStorage` at runtime (keys `EF_EXTERNAL_SUPABASE_URL` / `EF_EXTERNAL_SUPABASE_KEY`), falling back to hardcoded defaults in `services/supabase.ts`.
+Supabase credentials are read from `localStorage` at runtime (keys `EF_EXTERNAL_SUPABASE_URL` / `EF_EXTERNAL_SUPABASE_KEY`), falling back to hardcoded defaults in `services/supabase.ts`.
 
 **Database setup**: Run the SQL script in `context/database_schema.md` (currently v16) via the Supabase SQL Editor when setting up a new environment or migrating.
 
@@ -47,7 +47,6 @@ All data fetching goes through custom hooks (`hooks/`) which call `services/supa
 ### Key Services
 
 - `services/supabase.ts` — Supabase client factory + shared helpers (`isValidCPF`, `parseSupabaseError`, `logError`)
-- `services/gemini.ts` — Google GenAI (Gemini) for portfolio analysis; key injected via `process.env.GEMINI_API_KEY` at build time by Vite
 - `services/pix.ts` — Generates PIX payment strings (Brazilian instant payment standard); used with `qrcode.react` in `PaymentModal.tsx`
 
 ### Path Alias

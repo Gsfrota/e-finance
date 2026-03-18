@@ -42,7 +42,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
+    command: 'npx vite --port 3001',
     url: 'http://localhost:3001',
     reuseExistingServer: true,
   },
