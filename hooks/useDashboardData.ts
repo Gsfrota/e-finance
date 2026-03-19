@@ -85,7 +85,8 @@ const buildKPIs = (
         receivedTodayCount: 0,
     };
 
-    const todayYMD = new Date().toISOString().split('T')[0];
+    const _now = new Date();
+    const todayYMD = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
     const overdueContractIds = new Set<number>();
 
     // Map para acesso rápido aos dados de origem do contrato
@@ -151,7 +152,9 @@ const buildKPIs = (
         }
 
         if (inst.paid_at) {
-            if (inst.paid_at.startsWith(todayYMD)) {
+            const _p = new Date(inst.paid_at);
+            const _paidYMD = `${_p.getFullYear()}-${String(_p.getMonth() + 1).padStart(2, '0')}-${String(_p.getDate()).padStart(2, '0')}`;
+            if (_paidYMD === todayYMD && amountPaid > 0) {
                 kpis.receivedToday += amountPaid;
                 kpis.receivedTodayCount++;
             }
@@ -282,7 +285,8 @@ export const useDashboardData = (tenantId?: string) => {
 
     try {
       const monthRange = getMonthRange();
-      const todayYMD = new Date().toISOString().split('T')[0];
+      const _now2 = new Date();
+      const todayYMD = `${_now2.getFullYear()}-${String(_now2.getMonth() + 1).padStart(2, '0')}-${String(_now2.getDate()).padStart(2, '0')}`;
 
       // 1. Investimentos
       const investmentsPromise = withRetry(async () =>
@@ -307,6 +311,10 @@ export const useDashboardData = (tenantId?: string) => {
               user_id,
               asset_name,
               interest_rate,
+              current_value,
+              total_installments,
+              amount_invested,
+              installment_value,
               investor:profiles!investments_user_id_fkey (role),
               payer:profiles!investments_payer_id_fkey (id, full_name, email, photo_url)
             )
@@ -360,6 +368,19 @@ export const useDashboardData = (tenantId?: string) => {
                 status: (inst.status === 'pending' && isOverdue) ? 'late' : inst.status,
                 contract_name: inst.investment?.asset_name || 'Desconhecido'
             });
+        }
+      });
+
+      // Agrupar TODAS as parcelas por investment_id para que o detail screen tenha acesso às irmãs
+      const siblingsByInvestment = new Map<number, LoanInstallment[]>();
+      uniqueInstallments.forEach((inst: any) => {
+        const invId = inst.investment_id;
+        if (!siblingsByInvestment.has(invId)) siblingsByInvestment.set(invId, []);
+        siblingsByInvestment.get(invId)!.push(inst);
+      });
+      uiInstallments.forEach(inst => {
+        if (inst.investment) {
+          (inst.investment as any).loan_installments = siblingsByInvestment.get(inst.investment_id) || [];
         }
       });
 

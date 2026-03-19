@@ -12,13 +12,14 @@ import {
 import {
   AlertCircle,
   ArrowLeft,
-  Bot,
   Calendar,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Loader2,
   RefreshCw,
   Search,
-  SlidersHorizontal,
   User,
 } from 'lucide-react';
 
@@ -32,8 +33,17 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
   const [installmentAction, setInstallmentAction] = useState<InstallmentAction>(null);
   const [search, setSearch] = useState('');
+  const [showOtherDues, setShowOtherDues] = useState(false);
+  const [showPaidToday, setShowPaidToday] = useState(false);
+  const [showOverdue, setShowOverdue] = useState(false);
 
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const today = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
 
   const overdueItems = useMemo(
     () => installments.filter(i => i.due_date < today && i.status !== 'paid'),
@@ -46,9 +56,14 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
   );
 
   const paidToday = useMemo(
-    () => installments.filter(
-      i => (i.status === 'paid' || i.status === 'partial') && i.paid_at?.startsWith(today),
-    ),
+    () => installments.filter(i => {
+      if (i.status !== 'paid' && i.status !== 'partial') return false;
+      if (Number(i.amount_paid) === 0) return false;  // Exclui parcelas absorvidas
+      if (!i.paid_at) return false;
+      const p = new Date(i.paid_at);
+      const paidYMD = `${p.getFullYear()}-${String(p.getMonth() + 1).padStart(2, '0')}-${String(p.getDate()).padStart(2, '0')}`;
+      return paidYMD === today;
+    }),
     [installments, today],
   );
 
@@ -62,16 +77,49 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
     [todayItems],
   );
 
-  const grandTotal = totalOverdue + totalToday;
+  const totalPaidToday = useMemo(
+    () => paidToday.reduce((s, i) => s + (Number(i.amount_paid) || 0), 0),
+    [paidToday],
+  );
+
+  const grandTotal = totalToday;
+
+  const addDays = (base: string, days: number) => {
+    const date = new Date(`${base}T00:00:00`);
+    date.setDate(date.getDate() + days);
+    return date.toISOString().split('T')[0];
+  };
+
+  const d3 = useMemo(() => addDays(today, 3), [today]);
+  const d7 = useMemo(() => addDays(today, 7), [today]);
+  const d15 = useMemo(() => addDays(today, 15), [today]);
+  const d30 = useMemo(() => addDays(today, 30), [today]);
+
+  const futureBuckets = useMemo(() => {
+    const pending = installments.filter(i => i.status !== 'paid');
+    return {
+      '3d':  pending.filter(i => i.due_date > today && i.due_date <= d3),
+      '7d':  pending.filter(i => i.due_date > d3 && i.due_date <= d7),
+      '15d': pending.filter(i => i.due_date > d7 && i.due_date <= d15),
+      '30d': pending.filter(i => i.due_date > d15 && i.due_date <= d30),
+    };
+  }, [installments, today, d3, d7, d15, d30]);
+
+  const bucketConfig = [
+    { key: '3d' as const, label: '3 dias', color: 'var(--accent-brass, #CAB07A)' },
+    { key: '7d' as const, label: '7 dias', color: 'var(--accent-steel, #90A0BD)' },
+    { key: '15d' as const, label: '15 dias', color: 'var(--accent-positive, #4CAF50)' },
+    { key: '30d' as const, label: '30 dias', color: 'var(--text-secondary)' },
+  ];
 
   const todayLabel = useMemo(() => {
     const [y, m, d] = today.split('-');
     return `${d}/${m}/${y}`;
   }, [today]);
 
-  // Somente as cobranças de HOJE, filtradas por busca
-  const allPending = useMemo(() => {
-    const items = [...todayItems].sort((a, b) => a.due_date.localeCompare(b.due_date));
+  // Cobranças de HOJE filtradas por busca
+  const filteredToday = useMemo(() => {
+    const items = [...todayItems].sort((a, b) => a.number - b.number);
     if (!search.trim()) return items;
     const q = search.toLowerCase();
     return items.filter(i => {
@@ -79,6 +127,19 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
       return name.toLowerCase().includes(q);
     });
   }, [todayItems, search]);
+
+  // Atrasados filtrados por busca
+  const filteredOverdue = useMemo(() => {
+    const items = [...overdueItems].sort(
+      (a, b) => a.due_date.localeCompare(b.due_date) || a.number - b.number,
+    );
+    if (!search.trim()) return items;
+    const q = search.toLowerCase();
+    return items.filter(i => {
+      const name = (i as any).investment?.payer?.full_name || '';
+      return name.toLowerCase().includes(q);
+    });
+  }, [overdueItems, search]);
 
   // ── Sub-view: Form Screen ──────────────────────────────────────────────────
   if (installmentAction !== null) {
@@ -111,31 +172,30 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
   return (
     <div className="animate-fade-in min-h-screen" style={{ background: 'var(--bg-base)' }}>
 
-      {/* ── Blue Header ─────────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-20 flex items-center justify-between px-4 py-3" style={{ background: 'var(--header-blue)' }}>
-        {onBack && (
-          <button onClick={onBack} className="p-1 text-white/90 hover:text-white">
-            <ArrowLeft size={22} />
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <div className="sticky top-0 z-20 flex items-center justify-between px-5 py-4 border-b border-[color:var(--border-subtle)] bg-[color:var(--bg-base)]">
+        {onBack ? (
+          <button onClick={onBack} className="p-1.5 text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition-colors">
+            <ArrowLeft size={20} />
           </button>
-        )}
-        <h1 className="text-lg font-bold text-white flex-1 text-center">Cobranca Diaria</h1>
-        <div className="flex items-center gap-2">
-          <button className="p-1.5 text-white/80 hover:text-white"><Bot size={20} /></button>
-          <button
-            onClick={refetch}
-            disabled={loading}
-            className="p-1.5 text-white/80 hover:text-white disabled:opacity-40"
-          >
-            <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
-          </button>
-          <button className="p-1.5 text-white/80 hover:text-white"><SlidersHorizontal size={20} /></button>
+        ) : <div className="w-8" />}
+        <div className="flex-1 text-center">
+          <p className="section-kicker">Agenda</p>
+          <h1 className="text-base font-black text-[color:var(--text-primary)] uppercase tracking-tighter leading-none">Cobrança Diária</h1>
         </div>
+        <button
+          onClick={refetch}
+          disabled={loading}
+          className="p-1.5 text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] disabled:opacity-40 transition-colors"
+        >
+          <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+        </button>
       </div>
 
       {/* ── Loading ─────────────────────────────────────────────────────────── */}
       {loading && (
         <div className="flex items-center justify-center py-20">
-          <Loader2 size={32} className="animate-spin" style={{ color: 'var(--header-blue)' }} />
+          <Loader2 size={32} className="animate-spin text-[color:var(--accent-brass)]" />
         </div>
       )}
 
@@ -151,51 +211,92 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
         <div className="px-4 py-4 space-y-4">
 
           {/* ── Summary Card ──────────────────────────────────────────────── */}
-          <div className="rounded-2xl bg-[var(--bg-elevated)] p-5 shadow-sm" style={{ border: '1px solid var(--border-subtle)' }}>
+          <div className="panel-card rounded-[2rem] p-5">
             {/* Top row */}
             <div className="flex items-start justify-between mb-2">
               <div>
-                <p className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
-                  Receber - Hoje {todayLabel}
-                </p>
+                <p className="section-kicker mb-1">Receber hoje</p>
+                <p className="text-base font-bold text-[color:var(--text-primary)]">{todayLabel}</p>
               </div>
               <div className="text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Carteira</p>
-                <p className="text-sm font-extrabold" style={{ color: 'var(--header-blue)' }}>{tenant?.name || 'RCRN'}</p>
+                <p className="section-kicker mb-1">Carteira</p>
+                <p className="text-sm font-extrabold text-[color:var(--accent-brass)]">{tenant?.name || 'RCRN'}</p>
               </div>
             </div>
 
             {/* Total amount */}
-            <p className="text-3xl font-black tabular-nums mb-3" style={{ color: 'var(--accent-positive)' }}>
+            <p className="text-3xl font-black tabular-nums mb-3 text-[color:var(--accent-positive)]">
               {fmtMoney(grandTotal)}
             </p>
 
             {/* Outros vencimentos button */}
-            <button className="flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors hover:opacity-80 mb-4"
-              style={{ borderColor: 'var(--header-blue)', color: 'var(--header-blue)' }}
+            <button
+              onClick={() => setShowOtherDues(v => !v)}
+              className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all hover:opacity-80 mb-4 ring-1 ring-[color:var(--accent-brass-border)] text-[color:var(--accent-brass)] bg-[color:var(--accent-brass-subtle)]"
             >
               <Calendar size={16} />
               Outros vencimentos
+              <ChevronDown size={14} className={`transition-transform duration-200 ${showOtherDues ? 'rotate-180' : ''}`} />
             </button>
 
             {/* Stat boxes */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(33, 150, 243, 0.08)' }}>
-                <Calendar size={22} style={{ color: 'var(--header-blue)' }} />
+              <div className="flex items-center gap-3 rounded-xl p-3 bg-[color:var(--bg-soft)]">
+                <Calendar size={22} className="text-[color:var(--accent-brass)]" />
                 <div>
-                  <p className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>{todayItems.length}</p>
-                  <p className="text-[11px] font-medium" style={{ color: 'var(--text-secondary)' }}>Recebimento Hoje</p>
+                  <p className="text-2xl font-black text-[color:var(--text-primary)]">{todayItems.length}</p>
+                  <p className="text-[11px] font-medium text-[color:var(--text-secondary)]">Recebimento Hoje</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(244, 67, 54, 0.08)' }}>
-                <AlertCircle size={22} style={{ color: 'var(--accent-danger)' }} />
+              <button
+                onClick={() => setShowOverdue(v => !v)}
+                className="flex items-center gap-3 rounded-xl p-3 text-left transition-all hover:opacity-80"
+                style={{ background: showOverdue ? 'rgba(244, 67, 54, 0.16)' : 'rgba(244, 67, 54, 0.08)', border: showOverdue ? '1px solid rgba(244, 67, 54, 0.3)' : '1px solid transparent' }}
+              >
+                <AlertCircle size={22} className="text-[color:var(--accent-danger)]" />
                 <div>
-                  <p className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>{overdueItems.length}</p>
-                  <p className="text-[11px] font-medium" style={{ color: 'var(--text-secondary)' }}>Recebimentos em Atraso</p>
+                  <p className="text-2xl font-black text-[color:var(--text-primary)]">{overdueItems.length}</p>
+                  <p className="text-[11px] font-medium text-[color:var(--text-secondary)]">Recebimentos em Atraso</p>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
+
+          {/* ── Outros Vencimentos (future buckets) ─────────────────────── */}
+          {showOtherDues && (
+            <div className="space-y-3 animate-fade-in">
+              {bucketConfig.map(({ key, label, color }) => {
+                const items = futureBuckets[key];
+                const total = items.reduce((s, i) => s + calcOutstanding(i), 0);
+                return (
+                  <div key={key} className="rounded-2xl bg-[var(--bg-elevated)] shadow-sm overflow-hidden" style={{ border: '1px solid var(--border-subtle)' }}>
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <CalendarDays size={18} style={{ color }} />
+                        <div>
+                          <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Próximos {label}</p>
+                          <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{items.length} parcela{items.length !== 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+                      <p className="text-sm font-extrabold tabular-nums" style={{ color }}>
+                        {items.length > 0 ? fmtMoney(total) : '—'}
+                      </p>
+                    </div>
+                    {items.length > 0 && (
+                      <div className="border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+                        {items
+                          .slice()
+                          .sort((a, b) => a.due_date.localeCompare(b.due_date) || a.number - b.number)
+                          .map(inst => (
+                            <ClientCard key={inst.id} inst={inst} onClick={() => setSelectedInstallment(inst)} />
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* ── Search Bar ────────────────────────────────────────────────── */}
           <div className="relative">
@@ -217,22 +318,110 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
             </div>
           </div>
 
-          {/* ── Client List ───────────────────────────────────────────────── */}
-          {allPending.length === 0 && paidToday.length === 0 && (
+          {/* ── Seção Atrasados (colapsável) ──────────────────────────── */}
+          {showOverdue && filteredOverdue.length > 0 && (
+            <div className="rounded-2xl bg-[var(--bg-elevated)] overflow-hidden shadow-sm animate-fade-in" style={{ border: '1px solid rgba(244, 67, 54, 0.25)' }}>
+              <div className="flex items-center justify-between px-4 py-3" style={{ background: 'rgba(244, 67, 54, 0.06)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(244, 67, 54, 0.12)' }}>
+                    <AlertCircle size={20} style={{ color: 'var(--accent-danger, #f44336)' }} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--accent-danger, #f44336)' }}>Em Atraso</p>
+                    <p className="text-lg font-black tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmtMoney(totalOverdue)}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-base font-black" style={{ color: 'var(--text-secondary)' }}>{filteredOverdue.length}</p>
+                  <p className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>parcela{filteredOverdue.length !== 1 ? 's' : ''}</p>
+                </div>
+              </div>
+              <div className="border-t divide-y" style={{ borderColor: 'var(--border-subtle)' }}>
+                {filteredOverdue.map(inst => (
+                  <ClientCard
+                    key={inst.id}
+                    inst={inst}
+                    isOverdue
+                    onClick={() => setSelectedInstallment(inst)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Client List (apenas hoje) ──────────────────────────────── */}
+          {filteredToday.length === 0 && paidToday.length === 0 && !showOverdue && (
             <div className="rounded-2xl bg-[var(--bg-elevated)] p-10 text-center shadow-sm">
               <p className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>Nenhuma cobranca pendente para hoje.</p>
             </div>
           )}
 
-          <div className="space-y-3">
-            {allPending.map(inst => (
-              <ClientCard
-                key={inst.id}
-                inst={inst}
-                onClick={() => setSelectedInstallment(inst)}
-              />
-            ))}
-          </div>
+          {filteredToday.length > 0 && (
+            <div className="space-y-3">
+              {filteredToday.map(inst => (
+                <ClientCard
+                  key={inst.id}
+                  inst={inst}
+                  onClick={() => setSelectedInstallment(inst)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* ── Recebidos Hoje ────────────────────────────────────────────── */}
+          {paidToday.length > 0 && (
+            <div className="rounded-2xl bg-[var(--bg-elevated)] overflow-hidden shadow-sm" style={{ border: '1px solid var(--border-subtle)' }}>
+              <button
+                onClick={() => setShowPaidToday(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(76, 175, 80, 0.12)' }}>
+                    <CheckCircle2 size={20} style={{ color: 'var(--accent-positive, #4CAF50)' }} />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--accent-positive, #4CAF50)' }}>Recebidos Hoje</p>
+                    <p className="text-2xl font-black tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmtMoney(totalPaidToday)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-base font-black" style={{ color: 'var(--text-secondary)' }}>{paidToday.length}</p>
+                    <p className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>parcela{paidToday.length !== 1 ? 's' : ''}</p>
+                  </div>
+                  <ChevronDown size={16} className={`transition-transform duration-200 ${showPaidToday ? 'rotate-180' : ''}`} style={{ color: 'var(--text-muted)' }} />
+                </div>
+              </button>
+
+              {showPaidToday && (
+                <div className="border-t divide-y" style={{ borderColor: 'var(--border-subtle)' }}>
+                  {paidToday.map(inst => {
+                    const name = (inst as any).investment?.payer?.full_name || (inst as any).payer_name || 'Cliente';
+                    const contractName = (inst as any).investment?.asset_name || (inst as any).contract_name || 'Contrato';
+                    const initials = name.split(' ').slice(0, 2).map((n: string) => n[0] || '').join('').toUpperCase();
+                    return (
+                      <button
+                        key={inst.id}
+                        onClick={() => setSelectedInstallment(inst)}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:opacity-80 transition-opacity"
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-black" style={{ background: 'rgba(76, 175, 80, 0.12)', color: 'var(--accent-positive, #4CAF50)', border: '1px solid rgba(76, 175, 80, 0.2)' }}>
+                          {initials}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-bold truncate" style={{ color: 'var(--text-primary)' }}>{name}</p>
+                          <p className="text-[10px] uppercase tracking-wide truncate" style={{ color: 'var(--text-muted)' }}>{contractName} · Parcela #{inst.number}</p>
+                        </div>
+                        <p className="text-sm font-extrabold tabular-nums shrink-0" style={{ color: 'var(--accent-positive, #4CAF50)' }}>
+                          {fmtMoney(Number(inst.amount_paid) || 0)}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -242,8 +431,9 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
 // ── Client Card (BossCash style) ──────────────────────────────────────────────
 const ClientCard: React.FC<{
   inst: LoanInstallment;
+  isOverdue?: boolean;
   onClick: () => void;
-}> = ({ inst, onClick }) => {
+}> = ({ inst, isOverdue = false, onClick }) => {
   const debtorName = (inst as any).investment?.payer?.full_name || (inst as any).payer_name || 'Cliente';
   const contractId = (inst as any).investment?.id
     ? `#CT${String((inst as any).investment.id).slice(-8)}`
@@ -251,6 +441,7 @@ const ClientCard: React.FC<{
   const photoUrl = (inst as any).investment?.payer?.photo_url;
   const initials = debtorName.split(' ').slice(0, 2).map((n: string) => n[0] || '').join('').toUpperCase();
   const outstanding = calcOutstanding(inst);
+  const isPartial = inst.status === 'partial';
 
   return (
     <button
@@ -258,20 +449,36 @@ const ClientCard: React.FC<{
       className="group w-full flex items-center gap-3 rounded-2xl p-4 text-left transition-all hover:shadow-md active:scale-[0.98]"
       style={{
         background: 'var(--bg-elevated)',
-        border: '1.5px solid #26a69a',
+        border: isPartial ? '1.5px solid #42A5F5'
+              : isOverdue ? '1.5px solid var(--accent-danger, #f44336)'
+              : '1.5px solid #26a69a',
       }}
     >
       {/* Avatar */}
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-200 overflow-hidden">
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full overflow-hidden"
+        style={{ background: isPartial ? 'rgba(66, 165, 245, 0.1)' : isOverdue ? 'rgba(244, 67, 54, 0.1)' : 'rgba(38, 166, 154, 0.1)' }}>
         {photoUrl ? (
           <img src={photoUrl} alt={debtorName} className="h-full w-full object-cover" />
         ) : (
-          <User size={24} className="text-gray-400" />
+          <User size={24} style={{ color: isPartial ? '#42A5F5' : isOverdue ? 'var(--accent-danger, #f44336)' : '#26a69a' }} />
         )}
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          {isOverdue && !isPartial && (
+            <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(244, 67, 54, 0.12)', color: 'var(--accent-danger, #f44336)' }}>
+              Atrasado
+            </span>
+          )}
+          {isPartial && (
+            <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md"
+              style={{ background: 'rgba(66, 165, 245, 0.12)', color: '#42A5F5' }}>
+              Parcial
+            </span>
+          )}
+        </div>
         <p className="text-[15px] font-bold truncate" style={{ color: 'var(--text-primary)' }}>{debtorName}</p>
         <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
           Contrato: {contractId}
@@ -279,11 +486,17 @@ const ClientCard: React.FC<{
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
           Parcela: {inst.number}   Venc.: {fmtDate(inst.due_date)}
         </p>
+        {isPartial && (
+          <p className="text-xs font-semibold" style={{ color: '#42A5F5' }}>
+            Recebido: {fmtMoney(Number(inst.amount_paid) || 0)}
+          </p>
+        )}
       </div>
 
       {/* Amount badge + chevron */}
       <div className="flex items-center gap-2 shrink-0">
-        <span className="rounded-lg px-3 py-1.5 text-sm font-bold text-white tabular-nums" style={{ background: '#4CAF50' }}>
+        <span className="rounded-lg px-3 py-1.5 text-sm font-bold text-white tabular-nums"
+          style={{ background: isPartial ? '#42A5F5' : isOverdue ? 'var(--accent-danger, #f44336)' : '#4CAF50' }}>
           {fmtMoney(outstanding)}
         </span>
         <ChevronRight size={18} style={{ color: 'var(--text-faint)' }} />

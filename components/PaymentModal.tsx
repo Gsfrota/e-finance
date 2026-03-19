@@ -65,7 +65,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
   const whatsappMessage = `Olá, sou o cliente ${payerName}. Tive problemas para pagar a parcela ${installment.number} do contrato ${installment.contract_name}.`;
-  const whatsappLink = `https://wa.me/558431914090?text=${encodeURIComponent(whatsappMessage)}`;
+  const whatsappLink = `https://api.whatsapp.com/send?phone=558520284195&text=${encodeURIComponent(whatsappMessage)}`;
 
   // Valor a exibir (Prioridade: Servidor > Parcela Local)
   const displayAmount = data?.amount ?? installment.amount_total;
@@ -185,9 +185,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
                     <h4 className="text-[color:var(--accent-caution)] font-bold text-xs uppercase flex items-center gap-2 mb-2">
                         <AlertTriangle size={14}/> Dificuldades com o pagamento?
                     </h4>
-                    <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all mt-2">
-                        <MessageCircle size={16}/> Falar com Suporte
-                    </a>
+                    <p className="text-xs text-[color:var(--text-secondary)] leading-relaxed mt-1">
+                        Salve o contato <strong className="text-[color:var(--text-primary)]">Salomão</strong> no seu celular e chame pelo WhatsApp para negociar.
+                    </p>
                 </div>
             )}
         </div>

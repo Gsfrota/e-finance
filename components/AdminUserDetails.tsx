@@ -84,7 +84,7 @@ const InstallmentCard: React.FC<InstallmentCardProps> = ({
     : isLate
       ? 'chip chip-late'
       : isPartial
-        ? 'chip chip-pending'
+        ? 'chip chip-partial'
         : 'chip chip-pending';
 
   const chipLabel = isPaid ? 'Pago' : isLate ? 'Atrasado' : isPartial ? 'Parcial' : 'A Vencer';

@@ -130,7 +130,7 @@ function computeMetrics(
       }
       const chartEntry = chartMap.get(monthKey)!;
       chartEntry.projected += Number(inst.amount_total || 0);
-      if (inst.status === 'paid') {
+      if (inst.status === 'paid' || inst.status === 'partial') {
         chartEntry.received += Number(inst.amount_paid || 0);
       }
 

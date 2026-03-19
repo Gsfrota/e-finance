@@ -27,6 +27,7 @@ function computeMetrics(installments: LoanInstallment[]): ContractMetrics {
   let principalAReceber = 0;
   let fineAcumulada = 0;
   let parcelasPagas = 0;
+  let parcelasPartiais = 0;
   let parcelasPendentes = 0;
   let parcelasAtrasadas = 0;
 
@@ -50,7 +51,7 @@ function computeMetrics(installments: LoanInstallment[]): ContractMetrics {
       totalRecebido += pago;
       jurosAReceber += (Number(i.amount_interest) || 0) * (1 - ratio);
       principalAReceber += (Number(i.amount_principal) || 0) * (1 - ratio);
-      parcelasPendentes++;
+      parcelasPartiais++;
     } else if (i.status === 'late') {
       jurosAReceber += Number(i.amount_interest) || 0;
       principalAReceber += Number(i.amount_principal) || 0;
@@ -80,6 +81,7 @@ function computeMetrics(installments: LoanInstallment[]): ContractMetrics {
     fineAcumulada,
     rentabilidadeReal,
     parcelasPagas,
+    parcelasPartiais,
     parcelasPendentes,
     parcelasAtrasadas,
     parcelasTotal,

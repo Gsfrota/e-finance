@@ -70,6 +70,10 @@ export interface MessageLogPayload {
   confirmationState?: string;
   idempotencyKey?: string;
 
+  inputText?: string;
+  responseText?: string;
+  extractedArgs?: string;
+
   [key: string]: unknown;
 }
 

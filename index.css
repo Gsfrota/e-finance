@@ -358,6 +358,7 @@ nav.glass-border {
 .chip-pending { background: var(--accent-warning-subtle);  color: var(--accent-warning);  border: 1px solid var(--accent-warning-border); }
 .chip-late    { background: var(--accent-danger-subtle);   color: var(--accent-danger);   border: 1px solid var(--accent-danger-border); }
 .chip-paid    { background: var(--accent-steel-subtle);    color: var(--accent-steel);    border: 1px solid var(--accent-steel-border); }
+.chip-partial { background: rgba(66, 165, 245, 0.12);      color: #42A5F5;                border: 1px solid rgba(66, 165, 245, 0.3); }
 
 /* ── Skeleton Loader ── */
 @keyframes shimmer {

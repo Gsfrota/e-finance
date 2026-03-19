@@ -23,6 +23,7 @@ interface CollectionDashboardProps {
   installments: LoanInstallment[];
   onUpdate?: () => void;
   tenant?: Tenant | null;
+  initialBucket?: BucketId;
 }
 
 const addDays = (base: string, days: number) => {
@@ -72,21 +73,24 @@ const bucketMeta: Record<BucketId, { title: string; subtitle: string; tone: stri
   },
 };
 
-export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ installments, onUpdate, tenant }) => {
-  const [selectedBucket, setSelectedBucket]       = useState<BucketId>('today');
+export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ installments, onUpdate, tenant, initialBucket }) => {
+  const [selectedBucket, setSelectedBucket]       = useState<BucketId>(initialBucket ?? 'today');
   const [showPaidToday, setShowPaidToday]         = useState(false);
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
   const [installmentAction, setInstallmentAction] = useState<InstallmentAction>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+  })();
   const d3    = addDays(today, 3);
   const d7    = addDays(today, 7);
   const d15   = addDays(today, 15);
   const d30   = addDays(today, 30);
 
   const pendingInstallments = useMemo(
-    () => installments.filter((i) => i.status !== 'paid' && i.status !== 'partial'),
+    () => installments.filter((i) => i.status !== 'paid'),
     [installments],
   );
 
@@ -113,9 +117,14 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
   );
 
   const paidToday = useMemo(() => {
-    return installments.filter(
-      i => (i.status === 'paid' || i.status === 'partial') && i.paid_at?.startsWith(today)
-    );
+    return installments.filter(i => {
+      if (i.status !== 'paid' && i.status !== 'partial') return false;
+      if (Number(i.amount_paid) === 0) return false;  // Exclui parcelas absorvidas
+      if (!i.paid_at) return false;
+      const p = new Date(i.paid_at);
+      const paidYMD = `${p.getFullYear()}-${String(p.getMonth() + 1).padStart(2, '0')}-${String(p.getDate()).padStart(2, '0')}`;
+      return paidYMD === today;
+    });
   }, [installments, today]);
 
   const totalReceivedToday = useMemo(() =>

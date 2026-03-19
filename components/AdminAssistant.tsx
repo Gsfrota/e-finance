@@ -9,20 +9,15 @@ interface AdminAssistantProps {
   profile: Profile;
 }
 
-const SectionHeader: React.FC<{
-  icon: React.ReactNode;
-  title: string;
-  subtitle?: string;
-  colorClass: string;
-}> = ({ icon, title, subtitle, colorClass }) => (
-  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[color:var(--border-subtle)]">
-    <div className={`p-3 rounded-xl ${colorClass}`}>{icon}</div>
-    <div>
-      <h3 className="text-lg font-black text-[color:var(--text-primary)] uppercase">{title}</h3>
-      {subtitle && <p className="text-[10px] text-[color:var(--text-muted)] font-bold uppercase tracking-wide">{subtitle}</p>}
-    </div>
-  </div>
-);
+type AssistantSection = 'conexoes' | 'whitelist' | 'briefing' | 'perguntas' | 'automacoes';
+
+const NAV_ITEMS: { id: AssistantSection; label: string; icon: React.ReactNode }[] = [
+  { id: 'conexoes',   label: 'Conexões',       icon: <Bot size={16} /> },
+  { id: 'whitelist',  label: 'Lista de Acesso', icon: <Shield size={16} /> },
+  { id: 'briefing',   label: 'Briefing Matinal', icon: <Sun size={16} /> },
+  { id: 'perguntas',  label: 'Perguntas',       icon: <MessageCircle size={16} /> },
+  { id: 'automacoes', label: 'Automações',      icon: <Zap size={16} /> },
+];
 
 type KnownCountry = 'BR' | 'US' | 'AR' | 'MX' | 'CO' | 'PE' | 'CL' | 'PY' | 'UY' | 'BO' | 'PT' | 'ES' | 'GB' | 'FR' | 'DE' | 'IT' | 'unknown';
 
@@ -38,18 +33,18 @@ const COUNTRY_PREFIXES: Array<{ code: string; country: KnownCountry; lengths: nu
   { code: '598', country: 'UY', lengths: [11] },
   { code: '591', country: 'BO', lengths: [11] },
   { code: '595', country: 'PY', lengths: [12] },
-  { code: '55', country: 'BR', lengths: [12, 13] },
-  { code: '54', country: 'AR', lengths: [13] },
-  { code: '52', country: 'MX', lengths: [12] },
-  { code: '57', country: 'CO', lengths: [12] },
-  { code: '51', country: 'PE', lengths: [11] },
-  { code: '56', country: 'CL', lengths: [11] },
-  { code: '44', country: 'GB', lengths: [12, 13] },
-  { code: '34', country: 'ES', lengths: [11] },
-  { code: '33', country: 'FR', lengths: [11] },
-  { code: '49', country: 'DE', lengths: [12, 13, 14] },
-  { code: '39', country: 'IT', lengths: [11, 12] },
-  { code: '1', country: 'US', lengths: [11] },
+  { code: '55',  country: 'BR', lengths: [12, 13] },
+  { code: '54',  country: 'AR', lengths: [13] },
+  { code: '52',  country: 'MX', lengths: [12] },
+  { code: '57',  country: 'CO', lengths: [12] },
+  { code: '51',  country: 'PE', lengths: [11] },
+  { code: '56',  country: 'CL', lengths: [11] },
+  { code: '44',  country: 'GB', lengths: [12, 13] },
+  { code: '34',  country: 'ES', lengths: [11] },
+  { code: '33',  country: 'FR', lengths: [11] },
+  { code: '49',  country: 'DE', lengths: [12, 13, 14] },
+  { code: '39',  country: 'IT', lengths: [11, 12] },
+  { code: '1',   country: 'US', lengths: [11] },
 ];
 
 function normalizePhoneDisplay(raw: string): PhonePreview | null {
@@ -75,8 +70,9 @@ function normalizePhoneDisplay(raw: string): PhonePreview | null {
   return { e164: digits, display: '+' + digits, country: 'unknown', wasInferred: true };
 }
 
-const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant, profile }) => {
+const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant }) => {
   const { config, loading, saving, error, saveConfig } = useBotConfig(tenant.id);
+  const [activeSection, setActiveSection] = useState<AssistantSection>('conexoes');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [rawPhone, setRawPhone] = useState('');
   const [phonePreview, setPhonePreview] = useState<PhonePreview | null>(null);
@@ -100,355 +96,392 @@ const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant, profile }) => {
     saveConfig({ morning_briefing_targets: next.length > 0 ? next : [target] });
   };
 
-  const exampleName = profile.full_name?.split(' ')[0] || 'Gestor';
-
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto pt-20 flex justify-center">
+      <div className="max-w-5xl mx-auto pt-20 flex justify-center">
         <RefreshCw className="animate-spin text-[color:var(--text-muted)]" size={28} />
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-12">
-      <div className="border-b border-[color:var(--border-subtle)] pb-6">
+    <div className="max-w-5xl mx-auto animate-fade-in pb-16">
+      {/* Page header */}
+      <div className="border-b border-[color:var(--border-subtle)] pb-6 mb-8">
         <p className="section-kicker mb-2">Configuração</p>
         <h2 className="font-display text-5xl leading-none text-[color:var(--text-primary)]">Assistente</h2>
         <p className="text-[color:var(--text-muted)] text-xs font-bold uppercase tracking-[0.2em] mt-2">Automações, Conexões e Comportamento do Bot</p>
       </div>
 
       {error && (
-        <div className="bg-red-900/30 border border-red-700 rounded-2xl px-5 py-4 text-red-300 text-sm font-medium">
+        <div className="bg-red-900/30 border border-red-700 rounded-xl px-5 py-4 text-red-300 text-sm font-medium mb-6">
           {error}
         </div>
       )}
 
-      {/* SEÇÃO 1: Conexões */}
-      <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[2.5rem] p-8 shadow-[var(--shadow-panel)]">
-        <SectionHeader
-          icon={<Bot size={24} />}
-          title="Conexões"
-          subtitle="Vincule seus canais ao assistente"
-          colorClass="bg-teal-900/30 text-teal-400"
-        />
-        <BotConnectionWidget />
+      {/* Tab bar */}
+      <div className="flex border-b border-[color:var(--border-subtle)] overflow-x-auto mb-8">
+        {NAV_ITEMS.map(item => (
+          <button
+            key={item.id}
+            onClick={() => setActiveSection(item.id)}
+            className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 transition-colors ${
+              activeSection === item.id
+                ? 'border-teal-400 text-[color:var(--text-primary)]'
+                : 'border-transparent text-[color:var(--text-muted)] hover:text-[color:var(--text-secondary)]'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
 
-      {/* SEÇÃO 1.5: Whitelist de Acesso */}
-      <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[2.5rem] p-8 shadow-[var(--shadow-panel)]">
-        <SectionHeader
-          icon={<Shield size={24} />}
-          title="Lista de Acesso"
-          subtitle="Controle quem pode usar o assistente"
-          colorClass="bg-rose-900/30 text-rose-400"
-        />
-
-        {/* Toggle whitelist */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <p className="font-semibold text-sm text-[color:var(--text-primary)]">Ativar lista de acesso</p>
-            <p className="text-xs text-[color:var(--text-secondary)] mt-0.5">
-              Apenas números cadastrados abaixo podem usar o bot
-            </p>
-          </div>
-          <button
-            onClick={() => saveConfig({ whitelist_enabled: !config.whitelist_enabled })}
-            className="text-teal-400 hover:text-teal-300 transition-colors"
-          >
-            {config.whitelist_enabled
-              ? <ToggleRight size={36} />
-              : <ToggleLeft size={36} className="text-[color:var(--text-muted)]" />}
-          </button>
-        </div>
-
-        {config.whitelist_enabled && (
-          <>
-            {/* Lista de números cadastrados */}
-            {config.whitelist_phones.length > 0 && (
-              <div className="mb-5 space-y-2">
-                {config.whitelist_phones.map(phone => (
-                  <div key={phone} className="flex items-center justify-between bg-white/[0.03] rounded-2xl border border-[color:var(--border-subtle)] px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <Phone size={15} className="text-teal-400" />
-                      <span className="text-sm font-mono text-[color:var(--text-primary)]">{phone}</span>
-                    </div>
-                    <button
-                      onClick={() => saveConfig({ whitelist_phones: config.whitelist_phones.filter(p => p !== phone) })}
-                      className="text-[color:var(--text-muted)] hover:text-rose-400 transition-colors"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                ))}
+          {/* CONEXÕES */}
+          {activeSection === 'conexoes' && (
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-base font-bold text-[color:var(--text-primary)] mb-0.5">Conexões</h3>
+                <p className="text-sm text-[color:var(--text-muted)]">Vincule seus canais ao assistente.</p>
               </div>
-            )}
+              <div className="border-t border-[color:var(--border-subtle)] pt-6">
+                <BotConnectionWidget />
+              </div>
+            </div>
+          )}
 
-            {/* Formulário de adição */}
-            {addingPhone ? (
-              <div className="bg-white/[0.03] rounded-2xl border border-[color:var(--border-subtle)] p-5">
-                <label className="text-xs font-bold uppercase tracking-widest text-[color:var(--text-secondary)] mb-2 block">
-                  Número de WhatsApp
-                </label>
-                <input
-                  type="tel"
-                  placeholder="Ex: 85991318582 ou +15551234567"
-                  value={rawPhone}
-                  onChange={e => {
-                    setRawPhone(e.target.value);
-                    setPhonePreview(normalizePhoneDisplay(e.target.value));
-                  }}
-                  className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl px-5 py-3 text-sm text-[color:var(--text-primary)] font-mono focus:border-teal-500 outline-none"
-                />
-                {phonePreview && (
-                  <div className={`mt-2 text-xs ${phonePreview.wasInferred ? 'text-[color:var(--accent-caution)]' : 'text-teal-400'}`}>
-                    {phonePreview.wasInferred ? '⚠ ' : '✓ '}
-                    {phonePreview.display}
-                    {phonePreview.wasInferred && ' — código de país inferido como Brasil'}
+          {/* WHITELIST */}
+          {activeSection === 'whitelist' && (
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-base font-bold text-[color:var(--text-primary)] mb-0.5">Lista de Acesso</h3>
+                <p className="text-sm text-[color:var(--text-muted)]">Controle quem pode usar o assistente.</p>
+              </div>
+              <div className="border-t border-[color:var(--border-subtle)] pt-6 space-y-6">
+                {/* Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-sm text-[color:var(--text-primary)]">Ativar lista de acesso</p>
+                    <p className="text-xs text-[color:var(--text-muted)] mt-0.5">
+                      Apenas números cadastrados abaixo podem usar o bot
+                    </p>
                   </div>
-                )}
-                <div className="flex gap-3 mt-4">
                   <button
-                    disabled={!phonePreview}
-                    onClick={async () => {
-                      if (!phonePreview) return;
-                      const updated = [...new Set([...config.whitelist_phones, phonePreview.e164])];
-                      await saveConfig({ whitelist_phones: updated });
-                      setRawPhone('');
-                      setPhonePreview(null);
-                      setAddingPhone(false);
-                    }}
-                    className="flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest bg-teal-600 hover:bg-teal-500 text-white disabled:opacity-40 transition-all"
+                    onClick={() => saveConfig({ whitelist_enabled: !config.whitelist_enabled })}
+                    className="text-teal-400 hover:text-teal-300 transition-colors"
                   >
-                    Cadastrar número
-                  </button>
-                  <button
-                    onClick={() => { setAddingPhone(false); setRawPhone(''); setPhonePreview(null); }}
-                    className="px-5 py-3 rounded-xl text-xs font-bold text-[color:var(--text-secondary)] border border-[color:var(--border-subtle)] hover:border-[color:var(--border-strong)] transition-all"
-                  >
-                    Cancelar
+                    {config.whitelist_enabled
+                      ? <ToggleRight size={36} />
+                      : <ToggleLeft size={36} className="text-[color:var(--text-muted)]" />}
                   </button>
                 </div>
+
+                {config.whitelist_enabled && (
+                  <>
+                    {/* Tabela de números */}
+                    {config.whitelist_phones.length > 0 && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[260px]">
+                          <thead>
+                            <tr className="border-b border-[color:var(--border-subtle)]">
+                              <th className="text-left text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] pb-2">Número</th>
+                              <th className="w-10" />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {config.whitelist_phones.map(phone => (
+                              <tr key={phone} className="border-b border-[color:var(--border-subtle)] last:border-0">
+                                <td className="py-3">
+                                  <div className="flex items-center gap-2">
+                                    <Phone size={14} className="text-teal-400 shrink-0" />
+                                    <span className="font-mono text-sm text-[color:var(--text-primary)] break-all">{phone}</span>
+                                  </div>
+                                </td>
+                                <td className="py-3 text-right">
+                                  <button
+                                    onClick={() => saveConfig({ whitelist_phones: config.whitelist_phones.filter(p => p !== phone) })}
+                                    className="text-[color:var(--text-muted)] hover:text-red-400 transition-colors p-1"
+                                  >
+                                    <X size={15} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Formulário de adição */}
+                    {addingPhone ? (
+                      <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl p-5 space-y-4">
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">
+                            Número de WhatsApp
+                          </label>
+                          <input
+                            type="tel"
+                            placeholder="Ex: 85991318582 ou +15551234567"
+                            value={rawPhone}
+                            onChange={e => {
+                              setRawPhone(e.target.value);
+                              setPhonePreview(normalizePhoneDisplay(e.target.value));
+                            }}
+                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-sm text-[color:var(--text-primary)] font-mono focus:border-teal-500 outline-none transition-colors"
+                          />
+                          {phonePreview && (
+                            <p className={`mt-1.5 text-xs ${phonePreview.wasInferred ? 'text-[color:var(--accent-caution)]' : 'text-teal-400'}`}>
+                              {phonePreview.wasInferred ? '⚠ ' : '✓ '}
+                              {phonePreview.display}
+                              {phonePreview.wasInferred && ' — código de país inferido como Brasil'}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex gap-3">
+                          <button
+                            disabled={!phonePreview}
+                            onClick={async () => {
+                              if (!phonePreview) return;
+                              const updated = [...new Set([...config.whitelist_phones, phonePreview.e164])];
+                              await saveConfig({ whitelist_phones: updated });
+                              setRawPhone('');
+                              setPhonePreview(null);
+                              setAddingPhone(false);
+                            }}
+                            className="flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide bg-teal-600 hover:bg-teal-500 text-white disabled:opacity-40 transition-all"
+                          >
+                            Cadastrar número
+                          </button>
+                          <button
+                            onClick={() => { setAddingPhone(false); setRawPhone(''); setPhonePreview(null); }}
+                            className="px-4 py-2.5 rounded-xl text-xs font-medium text-[color:var(--text-secondary)] border border-[color:var(--border-subtle)] hover:border-[color:var(--border-strong)] transition-all"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setAddingPhone(true)}
+                        className="flex items-center gap-2 text-sm text-teal-400 hover:text-teal-300 transition-colors font-medium"
+                      >
+                        <Plus size={15} /> Adicionar número
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
-            ) : (
-              <button
-                onClick={() => setAddingPhone(true)}
-                className="w-full py-3 rounded-2xl text-xs font-black uppercase tracking-widest border border-dashed border-[color:var(--border-strong)] text-[color:var(--text-secondary)] hover:border-teal-500 hover:text-teal-400 transition-all flex items-center justify-center gap-2"
-              >
-                <Plus size={15} /> Adicionar número
-              </button>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* SEÇÃO 2: Mensagem Matinal */}
-      <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[2.5rem] p-8 shadow-[var(--shadow-panel)]">
-        <SectionHeader
-          icon={<Sun size={24} />}
-          title="Mensagem Matinal"
-          subtitle="Resumo financeiro automático todo dia de manhã"
-          colorClass="bg-[color:var(--accent-caution-bg-strong)] text-[color:var(--accent-caution)]"
-        />
-
-        {/* Toggle */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <p className="text-[color:var(--text-primary)] font-semibold text-sm">Ativar briefing matinal</p>
-            <p className="text-[color:var(--text-secondary)] text-xs mt-0.5">O bot envia um resumo diário nos canais vinculados</p>
-          </div>
-          <button
-            onClick={() => saveConfig({ morning_briefing_enabled: !config.morning_briefing_enabled })}
-            className="text-teal-400 hover:text-teal-300 transition-colors"
-          >
-            {config.morning_briefing_enabled
-              ? <ToggleRight size={36} />
-              : <ToggleLeft size={36} className="text-[color:var(--text-muted)]" />
-            }
-          </button>
-        </div>
-
-        {config.morning_briefing_enabled && (
-          <>
-            {/* Horário */}
-            <div className="mb-5">
-              <label className="text-[color:var(--text-secondary)] text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-                <Clock size={13} /> Horário (horário de Brasília)
-              </label>
-              <input
-                type="time"
-                value={config.morning_briefing_time}
-                onChange={e => saveConfig({ morning_briefing_time: e.target.value })}
-                className="bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl px-5 py-3 text-[color:var(--text-primary)] text-sm font-mono focus:border-teal-500 outline-none transition-all w-40"
-              />
             </div>
+          )}
 
-            {/* Destinatários */}
-            <div className="mb-6">
-              <label className="text-[color:var(--text-secondary)] text-xs font-bold uppercase tracking-widest mb-3 block">
-                Destinatários
-              </label>
-              <div className="flex gap-3">
-                {[
-                  { key: 'admin', label: 'Administradores' },
-                  { key: 'investor', label: 'Investidores' },
-                ].map(({ key, label }) => {
-                  const active = config.morning_briefing_targets.includes(key);
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => toggleTarget(key)}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all border ${
-                        active
-                          ? 'bg-teal-600/20 border-teal-500/50 text-teal-300'
-                          : 'bg-white/[0.03] border-[color:var(--border-strong)] text-[color:var(--text-secondary)] hover:border-[color:var(--border-strong)]'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
+          {/* BRIEFING MATINAL */}
+          {activeSection === 'briefing' && (
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-base font-bold text-[color:var(--text-primary)] mb-0.5">Briefing Matinal</h3>
+                <p className="text-sm text-[color:var(--text-muted)]">Resumo financeiro automático enviado todo dia de manhã.</p>
               </div>
-            </div>
-
-            {/* Preview */}
-            <div>
-              <label className="text-[color:var(--text-secondary)] text-xs font-bold uppercase tracking-widest mb-3 block">
-                Preview da mensagem
-              </label>
-              <div className="bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-5 font-mono text-sm text-[color:var(--text-primary)] whitespace-pre-line leading-relaxed">
-{`Bom dia ${exampleName}! 🌅
-Hoje você tem R$\u00a01.200,00 para receber.
-
-📋 Cobranças do dia:
-  • João Silva — Parcela 3/12 — R$\u00a0500,00
-  • Ana Souza — Parcela 7/12 — R$\u00a0700,00
-
-Quer ver o detalhamento completo?`}
-              </div>
-              <p className="text-[color:var(--text-faint)] text-xs mt-2">* Os valores reais serão gerados com os dados do dia.</p>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* SEÇÃO 3: Perguntas de Acompanhamento */}
-      <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[2.5rem] p-8 shadow-[var(--shadow-panel)]">
-        <SectionHeader
-          icon={<MessageCircle size={24} />}
-          title="Perguntas de Acompanhamento"
-          subtitle="O bot sugere a próxima ação após cada resposta"
-          colorClass="bg-indigo-900/30 text-indigo-400"
-        />
-
-        {/* Toggle */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <p className="text-[color:var(--text-primary)] font-semibold text-sm">Ativar perguntas de acompanhamento</p>
-            <p className="text-[color:var(--text-secondary)] text-xs mt-0.5">
-              Ex: após ver o dashboard → "Quer ver quem está atrasado hoje?"
-            </p>
-          </div>
-          <button
-            onClick={() => saveConfig({ followup_enabled: !config.followup_enabled })}
-            className="text-teal-400 hover:text-teal-300 transition-colors"
-          >
-            {config.followup_enabled
-              ? <ToggleRight size={36} />
-              : <ToggleLeft size={36} className="text-[color:var(--text-muted)]" />
-            }
-          </button>
-        </div>
-
-        {config.followup_enabled && (
-          <div>
-            <label className="text-[color:var(--text-secondary)] text-xs font-bold uppercase tracking-widest mb-3 block">
-              Estilo das perguntas
-            </label>
-            <div className="flex flex-col gap-2">
-              {[
-                { value: 'natural', label: 'Natural', example: '"Quer ver quem está atrasado hoje?"' },
-                { value: 'direto', label: 'Direto', example: '"Ver atrasados hoje?"' },
-              ].map(({ value, label, example }) => (
-                <label
-                  key={value}
-                  className={`flex items-start gap-4 cursor-pointer rounded-2xl border px-5 py-4 transition-all ${
-                    config.followup_style === value
-                      ? 'border-indigo-500/50 bg-indigo-900/10'
-                      : 'border-[color:var(--border-subtle)] bg-white/[0.03] hover:border-[color:var(--border-strong)]'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="followup_style"
-                    value={value}
-                    checked={config.followup_style === value}
-                    onChange={() => saveConfig({ followup_style: value as 'natural' | 'direto' })}
-                    className="mt-1 accent-indigo-500"
-                  />
+              <div className="border-t border-[color:var(--border-subtle)] pt-6 space-y-6">
+                {/* Toggle */}
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[color:var(--text-primary)] font-semibold text-sm">{label}</p>
-                    <p className="text-[color:var(--text-secondary)] text-xs mt-0.5">{example}</p>
+                    <p className="font-semibold text-sm text-[color:var(--text-primary)]">Ativar briefing matinal</p>
+                    <p className="text-xs text-[color:var(--text-muted)] mt-0.5">O bot envia um resumo diário nos canais vinculados</p>
                   </div>
-                </label>
-              ))}
+                  <button
+                    onClick={() => saveConfig({ morning_briefing_enabled: !config.morning_briefing_enabled })}
+                    className="text-teal-400 hover:text-teal-300 transition-colors"
+                  >
+                    {config.morning_briefing_enabled
+                      ? <ToggleRight size={36} />
+                      : <ToggleLeft size={36} className="text-[color:var(--text-muted)]" />}
+                  </button>
+                </div>
+
+                {config.morning_briefing_enabled && (
+                  <>
+                    {/* Horário */}
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2 flex items-center gap-1.5">
+                        <Clock size={12} /> Horário (Brasília)
+                      </label>
+                      <input
+                        type="time"
+                        value={config.morning_briefing_time}
+                        onChange={e => saveConfig({ morning_briefing_time: e.target.value })}
+                        className="bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-[color:var(--text-primary)] text-sm font-mono focus:border-teal-500 outline-none transition-colors w-40"
+                      />
+                    </div>
+
+                    {/* Destinatários */}
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-3">
+                        Destinatários
+                      </label>
+                      <div className="flex gap-3">
+                        {[
+                          { key: 'admin',    label: 'Administradores' },
+                          { key: 'investor', label: 'Investidores' },
+                        ].map(({ key, label }) => {
+                          const active = config.morning_briefing_targets.includes(key);
+                          return (
+                            <button
+                              key={key}
+                              onClick={() => toggleTarget(key)}
+                              className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all border ${
+                                active
+                                  ? 'bg-teal-600/20 border-teal-500/50 text-teal-300'
+                                  : 'bg-white/[0.03] border-[color:var(--border-subtle)] text-[color:var(--text-secondary)] hover:border-[color:var(--border-strong)]'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <SaveActionButton saving={saving} success={saveSuccess} onSave={handleSave} />
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
 
-      {/* SEÇÃO 4: Automações */}
-      <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[2.5rem] p-8 shadow-[var(--shadow-panel)]">
-        <SectionHeader
-          icon={<Zap size={24} />}
-          title="Automações"
-          subtitle="Regras de disparo automático"
-          colorClass="bg-violet-900/30 text-violet-400"
-        />
+          {/* PERGUNTAS */}
+          {activeSection === 'perguntas' && (
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-base font-bold text-[color:var(--text-primary)] mb-0.5">Perguntas de Acompanhamento</h3>
+                <p className="text-sm text-[color:var(--text-muted)]">O bot sugere a próxima ação após cada resposta.</p>
+              </div>
+              <div className="border-t border-[color:var(--border-subtle)] pt-6 space-y-6">
+                {/* Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-sm text-[color:var(--text-primary)]">Ativar perguntas de acompanhamento</p>
+                    <p className="text-xs text-[color:var(--text-muted)] mt-0.5">
+                      Ex: após ver o dashboard → "Quer ver quem está atrasado hoje?"
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => saveConfig({ followup_enabled: !config.followup_enabled })}
+                    className="text-teal-400 hover:text-teal-300 transition-colors"
+                  >
+                    {config.followup_enabled
+                      ? <ToggleRight size={36} />
+                      : <ToggleLeft size={36} className="text-[color:var(--text-muted)]" />}
+                  </button>
+                </div>
 
-        <div className="flex items-center justify-between bg-white/[0.03] rounded-2xl border border-[color:var(--border-subtle)] px-5 py-4">
-          <div className="flex items-center gap-3">
-            <Sun size={18} className="text-[color:var(--accent-caution)]" />
-            <div>
-              <p className="text-[color:var(--text-primary)] font-semibold text-sm">Briefing Matinal</p>
-              <p className="text-[color:var(--text-secondary)] text-xs">Resumo diário às {config.morning_briefing_time} BRT</p>
+                {config.followup_enabled && (
+                  <fieldset className="border border-[color:var(--border-subtle)] rounded-xl p-4 space-y-2">
+                    <legend className="text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] px-1">Estilo das perguntas</legend>
+                    {[
+                      { value: 'natural', label: 'Natural', example: '"Quer ver quem está atrasado hoje?"' },
+                      { value: 'direto',  label: 'Direto',  example: '"Ver atrasados hoje?"' },
+                    ].map(({ value, label, example }) => (
+                      <label
+                        key={value}
+                        className={`flex items-start gap-4 cursor-pointer rounded-lg border px-4 py-3 transition-all ${
+                          config.followup_style === value
+                            ? 'border-teal-500/50 bg-teal-900/10'
+                            : 'border-[color:var(--border-subtle)] hover:border-[color:var(--border-strong)]'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="followup_style"
+                          value={value}
+                          checked={config.followup_style === value}
+                          onChange={() => saveConfig({ followup_style: value as 'natural' | 'direto' })}
+                          className="mt-0.5 accent-teal-500"
+                        />
+                        <div>
+                          <p className="text-[color:var(--text-primary)] font-semibold text-sm">{label}</p>
+                          <p className="text-[color:var(--text-muted)] text-xs mt-0.5">{example}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </fieldset>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <SaveActionButton saving={saving} success={saveSuccess} onSave={handleSave} />
+              </div>
             </div>
-          </div>
-          <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-            config.morning_briefing_enabled
-              ? 'bg-green-900/40 text-green-400 border border-green-700/50'
-              : 'bg-white/[0.04] text-[color:var(--text-muted)] border border-[color:var(--border-subtle)]'
-          }`}>
-            {config.morning_briefing_enabled ? 'Ativo' : 'Inativo'}
-          </span>
-        </div>
+          )}
 
-        <p className="text-[color:var(--text-faint)] text-xs mt-4 text-center">
-          Mais automações em breve (lembretes de cobrança, alertas de atraso...)
-        </p>
-      </div>
+          {/* AUTOMAÇÕES */}
+          {activeSection === 'automacoes' && (
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-base font-bold text-[color:var(--text-primary)] mb-0.5">Automações</h3>
+                <p className="text-sm text-[color:var(--text-muted)]">Regras de disparo automático ativas no assistente.</p>
+              </div>
+              <div className="border-t border-[color:var(--border-subtle)] pt-6">
+                <div className="space-y-3">
+                  {[
+                    {
+                      icon: <Sun size={15} className="text-[color:var(--accent-caution)] shrink-0" />,
+                      label: 'Briefing Matinal',
+                      desc: `Resumo diário às ${config.morning_briefing_time} BRT`,
+                      active: config.morning_briefing_enabled,
+                    },
+                    {
+                      icon: <MessageCircle size={15} className="text-[color:var(--text-muted)] shrink-0" />,
+                      label: 'Perguntas de Acompanhamento',
+                      desc: 'Sugestão de próxima ação após cada resposta',
+                      active: config.followup_enabled,
+                    },
+                  ].map(({ icon, label, desc, active }) => (
+                    <div key={label} className="flex items-center justify-between gap-4 py-3 border-b border-[color:var(--border-subtle)] last:border-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {icon}
+                        <div className="min-w-0">
+                          <p className="text-[color:var(--text-primary)] font-medium text-sm">{label}</p>
+                          <p className="text-[color:var(--text-muted)] text-xs mt-0.5 truncate">{desc}</p>
+                        </div>
+                      </div>
+                      <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${
+                        active
+                          ? 'bg-green-900/40 text-green-400 border border-green-700/50'
+                          : 'bg-white/[0.04] text-[color:var(--text-muted)] border border-[color:var(--border-subtle)]'
+                      }`}>
+                        {active ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[color:var(--text-muted)] text-xs mt-4">
+                  Mais automações em breve (lembretes de cobrança, alertas de atraso...)
+                </p>
+              </div>
+            </div>
+          )}
 
-      {/* Botão salvar */}
-      <div className="pt-2 sticky bottom-4 z-10">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 shadow-2xl ${
-            saveSuccess
-              ? 'bg-green-600 text-white'
-              : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-900/50'
-          }`}
-        >
-          {saving
-            ? <><RefreshCw className="animate-spin" size={18} /> Salvando...</>
-            : saveSuccess
-              ? <><CheckCircle2 size={18} /> Salvo!</>
-              : <><Save size={18} /> Salvar Configurações</>
-          }
-        </button>
-      </div>
     </div>
   );
 };
+
+const SaveActionButton: React.FC<{ saving: boolean; success: boolean; onSave: () => void }> = ({ saving, success, onSave }) => (
+  <button
+    onClick={onSave}
+    disabled={saving}
+    className={`w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${
+      success
+        ? 'bg-green-600 text-white'
+        : 'bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] text-[color:var(--text-on-accent)]'
+    }`}
+  >
+    {saving
+      ? <><RefreshCw className="animate-spin" size={15} /> Salvando...</>
+      : success
+        ? <><CheckCircle2 size={15} /> Salvo!</>
+        : <><Save size={15} /> Salvar</>}
+  </button>
+);
 
 export default AdminAssistant;

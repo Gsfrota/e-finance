@@ -1,17 +1,23 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { AppView, Tenant, Profile } from '../types';
+import { AppView, Tenant, Profile, LoanInstallment } from '../types';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { getSupabase } from '../services/supabase';
 import { InstallmentsTable } from './dashboard/DashboardWidgets';
 import { CollectionDashboard } from './dashboard/CollectionDashboard';
+import { SalaryDashboard } from './dashboard/SalaryDashboard';
+import {
+  InstallmentDetailScreen,
+  InstallmentFormScreen,
+  type InstallmentAction,
+} from './InstallmentDetailFlow';
+import ContractDetail from './ContractDetail';
 import {
   Zap,
-  UserPlus,
-  UserCog,
+  Bot,
   Phone,
-  X,
   ChevronRight,
+  ChevronDown,
   FileText,
   Users,
   LayoutDashboard,
@@ -53,7 +59,8 @@ const useHomeData = (tenantId?: string) => {
       .then(({ data }) => setProfiles((data as Profile[]) ?? []));
   }, [tenantId]);
 
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   const contratosHoje = useMemo(
     () => investments.filter(inv => inv.created_at?.startsWith(today)),
@@ -162,32 +169,6 @@ const todayLabel = () =>
     year: 'numeric',
   });
 
-// ─── Modal genérico ───────────────────────────────────────────────────────────
-const Modal: React.FC<{ title: string; onClose: () => void; children: React.ReactNode }> = ({
-  title,
-  onClose,
-  children,
-}) => (
-  <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-4">
-    <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    />
-    <div className="relative z-10 w-full max-w-lg panel-card rounded-[2rem] p-6 max-h-[80vh] flex flex-col">
-      <div className="flex items-center justify-between mb-5">
-        <h3 className="font-display text-2xl text-[color:var(--text-primary)]">{title}</h3>
-        <button
-          onClick={onClose}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-[color:var(--text-muted)] hover:bg-white/[0.1] hover:text-[color:var(--text-primary)] transition-colors cursor-pointer"
-          aria-label="Fechar"
-        >
-          <X size={16} />
-        </button>
-      </div>
-      <div className="overflow-y-auto custom-scrollbar flex-1">{children}</div>
-    </div>
-  </div>
-);
 
 const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNewContract }) => {
   const {
@@ -202,10 +183,20 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
     clientesQuePageramCount,
   } = useHomeData(tenant?.id);
 
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
-  const [showContratosHojeModal, setShowContratosHojeModal] = useState(false);
-  const [subView, setSubView] = useState<'home' | 'pagaram-hoje'>('home');
-  const [activeTab, setActiveTab] = useState<'home' | 'receivables' | 'collection'>('home');
+  const today = useMemo(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+  }, []);
+  const [subView, setSubView] = useState<
+    'home' | 'pagaram-hoje' | 'contratos-hoje' |
+    'contratos-vigentes' | 'parcelas-vencendo' | 'parcelas-atrasadas'
+  >('home');
+  const [selectedContractId, setSelectedContractId] = useState<number | null>(null);
+  const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
+  const [installmentAction, setInstallmentAction] = useState<InstallmentAction>(null);
+  const [activeTab, setActiveTab] = useState<'home' | 'receivables' | 'collection' | 'inadimplentes' | 'salary'>('home');
+  const [collectionKey, setCollectionKey] = useState(0);
+  const [collectionBucket, setCollectionBucket] = useState<'today' | 'overdue'>('today');
 
   const firstName = profile?.full_name?.split(' ')[0] || 'Administrador';
 
@@ -223,7 +214,37 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
     return Array.from(map.values());
   }, [parcelasPagasHoje]);
 
-  // ─── Sub-página ────────────────────────────────────────────────────────────
+  // ─── KPI data para avisos (declarado antes dos early returns) ───────────────
+  const parcelasVencendo = useMemo(
+    () => installments.filter(i => i.due_date === today && i.status !== 'paid').length,
+    [installments, today],
+  );
+  const parcelasAtrasadas = useMemo(
+    () => installments.filter(i => i.due_date < today && i.status !== 'paid').length,
+    [installments, today],
+  );
+  const overdueInstallments = useMemo(
+    () => installments.filter(i => i.due_date < today && i.status !== 'paid'),
+    [installments, today],
+  );
+  const parcelasVencendoList = useMemo(
+    () => installments.filter(i => i.due_date === today && i.status !== 'paid'),
+    [installments, today],
+  );
+
+  const activeInvestments = useMemo(
+    () => investments.filter(inv =>
+      installments.filter(i => i.investment_id === inv.id).some(i => i.status !== 'paid')
+    ),
+    [investments, installments],
+  );
+
+  const totalRecebidoHoje = useMemo(
+    () => parcelasPagasHoje.reduce((s, i) => s + (Number(i.amount_paid) || 0), 0),
+    [parcelasPagasHoje],
+  );
+
+  // ─── Sub-página: Pagaram hoje ───────────────────────────────────────────────
   if (subView === 'pagaram-hoje') {
     return (
       <PagaramHojePage
@@ -233,31 +254,387 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
     );
   }
 
+  // ─── Sub-página: Contratos Renovados ────────────────────────────────────────
+  if (subView === 'contratos-hoje') {
+    // Parcelas do contrato selecionado
+    const contratoInstallments = selectedContractId
+      ? installments.filter(i => i.investment_id === selectedContractId)
+      : [];
+
+    // Tela de detalhe/ação de parcela
+    if (selectedInstallment && !installmentAction) {
+      return (
+        <InstallmentDetailScreen
+          installment={selectedInstallment}
+          onBack={() => setSelectedInstallment(null)}
+          onAction={action => setInstallmentAction(action)}
+        />
+      );
+    }
+
+    if (installmentAction) {
+      return (
+        <InstallmentFormScreen
+          action={installmentAction}
+          onBack={() => setInstallmentAction(null)}
+          onDone={() => { setInstallmentAction(null); setSelectedInstallment(null); refetch(); }}
+          tenant={tenant}
+        />
+      );
+    }
+
+    return (
+      <div className="space-y-6 pb-12 animate-fade-in">
+        <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
+          <button
+            onClick={() => { setSubView('home'); setSelectedContractId(null); }}
+            className="mb-5 flex items-center gap-2 text-sm font-semibold text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition-colors cursor-pointer"
+          >
+            <ArrowLeft size={16} />
+            Voltar
+          </button>
+          <p className="section-kicker mb-2">Hoje</p>
+          <h2 className="font-display text-3xl leading-none text-[color:var(--text-primary)] md:text-5xl">
+            Contratos Renovados
+          </h2>
+        </div>
+
+        {contratosHoje.length === 0 ? (
+          <div className="panel-card rounded-[2rem] px-6 py-10 text-center border border-white/[0.06]">
+            <p className="text-sm text-[color:var(--text-secondary)]">Nenhum contrato criado hoje.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {contratosHoje.map(inv => {
+              const isExpanded = selectedContractId === inv.id;
+              return (
+                <div key={inv.id} className="panel-card rounded-[1.6rem] border border-white/[0.06] overflow-hidden">
+                  <button
+                    onClick={() => setSelectedContractId(isExpanded ? null : inv.id)}
+                    className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer"
+                  >
+                    <div className="text-left">
+                      <div className="text-sm font-bold text-[color:var(--text-primary)]">
+                        {inv.asset_name || 'Contrato'}
+                      </div>
+                      <div className="text-[0.7rem] text-[color:var(--text-faint)] mt-0.5">
+                        {(inv as any).payer?.full_name || '—'}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold" style={{ color: 'var(--accent-brass)' }}>
+                        {formatCurrency(inv.amount_invested ?? 0)}
+                      </span>
+                      <ChevronDown
+                        size={16}
+                        className={`transition-transform text-[color:var(--text-faint)] ${isExpanded ? 'rotate-180' : ''}`}
+                      />
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-white/[0.06] px-4 pb-3">
+                      {contratoInstallments.length === 0 ? (
+                        <p className="text-xs text-[color:var(--text-faint)] py-3 text-center">Nenhuma parcela encontrada.</p>
+                      ) : (
+                        contratoInstallments.map(inst => (
+                          <button
+                            key={inst.id}
+                            onClick={() => setSelectedInstallment(inst)}
+                            className="w-full flex items-center justify-between py-2.5 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.03] rounded-lg px-2 transition-colors cursor-pointer"
+                          >
+                            <div className="text-left">
+                              <div className="text-xs font-semibold text-[color:var(--text-primary)]">
+                                Parcela {inst.number}
+                              </div>
+                              <div className="text-[0.65rem] text-[color:var(--text-faint)]">
+                                Vence {inst.due_date ? inst.due_date.split('-').reverse().join('/') : '—'}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-[color:var(--text-primary)]">
+                                {formatCurrency(Number(inst.amount_total) || 0)}
+                              </span>
+                              <span className={`chip text-[0.6rem] ${inst.status === 'paid' ? 'chip-paid' : inst.status === 'late' ? 'chip-late' : inst.status === 'partial' ? 'chip-partial' : 'chip-pending'}`}>
+                                {inst.status === 'paid' ? 'Pago' : inst.status === 'late' ? 'Atrasado' : inst.status === 'partial' ? 'Parcial' : 'Pendente'}
+                              </span>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Sub-página: Contratos Vigentes ─────────────────────────────────────────
+  if (subView === 'contratos-vigentes') {
+    if (selectedContractId !== null) {
+      return (
+        <ContractDetail
+          investmentId={selectedContractId}
+          onBack={() => setSelectedContractId(null)}
+          tenant={tenant}
+        />
+      );
+    }
+
+    return (
+      <div className="space-y-6 pb-12 animate-fade-in">
+        <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
+          <button
+            onClick={() => setSubView('home')}
+            className="mb-5 flex items-center gap-2 text-sm font-semibold text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition-colors cursor-pointer"
+          >
+            <ArrowLeft size={16} />
+            Voltar
+          </button>
+          <p className="section-kicker mb-2">Carteira ativa</p>
+          <h2 className="font-display text-3xl leading-none text-[color:var(--text-primary)] md:text-5xl">
+            Contratos Vigentes
+          </h2>
+        </div>
+
+        {activeInvestments.length === 0 ? (
+          <div className="panel-card rounded-[2rem] px-6 py-10 text-center border border-white/[0.06]">
+            <p className="text-sm text-[color:var(--text-secondary)]">Nenhum contrato vigente encontrado.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {activeInvestments.map(inv => {
+              const payer = (inv as any).payer;
+              const invInstallments = installments.filter(i => i.investment_id === inv.id);
+              return (
+                <button
+                  key={inv.id}
+                  onClick={() => setSelectedContractId(inv.id)}
+                  className="w-full panel-card rounded-[1.6rem] border border-white/[0.06] flex items-center justify-between px-5 py-4 hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer text-left"
+                >
+                  <div>
+                    <div className="text-sm font-bold text-[color:var(--text-primary)]">
+                      {payer?.full_name || '—'}
+                    </div>
+                    <div className="text-[0.7rem] text-[color:var(--text-faint)] mt-0.5">
+                      {inv.asset_name || 'Contrato'} · {invInstallments.filter(i => i.status !== 'paid').length}/{invInstallments.length} sem pagamento
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-sm font-bold" style={{ color: 'var(--accent-brass)' }}>
+                        {formatCurrency(Number(inv.amount_invested) || 0)}
+                      </div>
+                      <div className="text-[0.65rem] text-[color:var(--text-faint)]">
+                        Total: {formatCurrency(Number((inv as any).current_value) || 0)}
+                      </div>
+                    </div>
+                    <ChevronRight size={16} className="text-[color:var(--text-faint)]" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Sub-página: Parcelas Vencendo Hoje ──────────────────────────────────────
+  if (subView === 'parcelas-vencendo') {
+    if (selectedInstallment && !installmentAction) {
+      return (
+        <InstallmentDetailScreen
+          installment={selectedInstallment}
+          onBack={() => setSelectedInstallment(null)}
+          onAction={action => setInstallmentAction(action)}
+        />
+      );
+    }
+    if (installmentAction) {
+      return (
+        <InstallmentFormScreen
+          action={installmentAction}
+          onBack={() => setInstallmentAction(null)}
+          onDone={() => { setInstallmentAction(null); setSelectedInstallment(null); refetch(); }}
+          tenant={tenant}
+        />
+      );
+    }
+
+    return (
+      <div className="space-y-6 pb-12 animate-fade-in">
+        <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
+          <button
+            onClick={() => setSubView('home')}
+            className="mb-5 flex items-center gap-2 text-sm font-semibold text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition-colors cursor-pointer"
+          >
+            <ArrowLeft size={16} />
+            Voltar
+          </button>
+          <p className="section-kicker mb-2">Vencem hoje</p>
+          <h2 className="font-display text-3xl leading-none text-[color:var(--text-primary)] md:text-5xl">
+            Parcelas Vencendo
+          </h2>
+        </div>
+
+        {parcelasVencendoList.length === 0 ? (
+          <div className="panel-card rounded-[2rem] px-6 py-10 text-center border border-white/[0.06]">
+            <p className="text-sm text-[color:var(--text-secondary)]">Nenhuma parcela vencendo hoje.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {parcelasVencendoList.map(inst => {
+              const payer = (inst as any).investment?.payer;
+              const assetName = (inst as any).investment?.asset_name || 'Contrato';
+              return (
+                <button
+                  key={inst.id}
+                  onClick={() => setSelectedInstallment(inst)}
+                  className="w-full panel-card rounded-[1.6rem] border border-white/[0.06] flex items-center justify-between px-5 py-4 hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer text-left"
+                >
+                  <div>
+                    <div className="text-sm font-bold text-[color:var(--text-primary)]">
+                      {payer?.full_name || '—'}
+                    </div>
+                    <div className="text-[0.7rem] text-[color:var(--text-faint)] mt-0.5">
+                      {assetName} · Parcela {inst.number}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-sm font-bold" style={{ color: 'var(--accent-brass)' }}>
+                        {formatCurrency(Number(inst.amount_total) || 0)}
+                      </div>
+                      <span className={`chip text-[0.6rem] ${inst.status === 'partial' ? 'chip-partial' : 'chip-pending'}`}>
+                        {inst.status === 'partial' ? 'Parcial' : 'Pendente'}
+                      </span>
+                    </div>
+                    <ChevronRight size={16} className="text-[color:var(--text-faint)]" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Sub-página: Parcelas Atrasadas ──────────────────────────────────────────
+  if (subView === 'parcelas-atrasadas') {
+    if (selectedInstallment && !installmentAction) {
+      return (
+        <InstallmentDetailScreen
+          installment={selectedInstallment}
+          onBack={() => setSelectedInstallment(null)}
+          onAction={action => setInstallmentAction(action)}
+        />
+      );
+    }
+    if (installmentAction) {
+      return (
+        <InstallmentFormScreen
+          action={installmentAction}
+          onBack={() => setInstallmentAction(null)}
+          onDone={() => { setInstallmentAction(null); setSelectedInstallment(null); refetch(); }}
+          tenant={tenant}
+        />
+      );
+    }
+
+    const nowMs = new Date().getTime();
+
+    return (
+      <div className="space-y-6 pb-12 animate-fade-in">
+        <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
+          <button
+            onClick={() => setSubView('home')}
+            className="mb-5 flex items-center gap-2 text-sm font-semibold text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition-colors cursor-pointer"
+          >
+            <ArrowLeft size={16} />
+            Voltar
+          </button>
+          <p className="section-kicker mb-2">Em atraso</p>
+          <h2 className="font-display text-3xl leading-none text-[color:var(--text-primary)] md:text-5xl">
+            Parcelas Atrasadas
+          </h2>
+        </div>
+
+        <div className="panel-card rounded-[2rem] px-6 py-5 flex items-center gap-3" style={{ background: 'rgba(198,126,105,0.08)', border: '1px solid rgba(198,126,105,0.20)' }}>
+          <AlertTriangle size={20} style={{ color: 'var(--accent-danger)' }} />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--accent-danger)' }}>Inadimplentes</p>
+            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+              {overdueInstallments.length} parcela{overdueInstallments.length !== 1 ? 's' : ''} em atraso
+            </p>
+          </div>
+        </div>
+
+        {overdueInstallments.length === 0 ? (
+          <div className="panel-card rounded-[2rem] px-6 py-10 text-center border border-white/[0.06]">
+            <p className="text-sm text-[color:var(--text-secondary)]">Nenhuma parcela em atraso.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {overdueInstallments.map(inst => {
+              const payer = (inst as any).investment?.payer;
+              const assetName = (inst as any).investment?.asset_name || 'Contrato';
+              const dueMs = new Date(inst.due_date).getTime();
+              const diasAtraso = Math.floor((nowMs - dueMs) / (1000 * 60 * 60 * 24));
+              const outstanding =
+                (Number(inst.amount_total) || 0) +
+                (Number(inst.fine_amount) || 0) +
+                (Number(inst.interest_delay_amount) || 0) -
+                (Number(inst.amount_paid) || 0);
+              return (
+                <button
+                  key={inst.id}
+                  onClick={() => setSelectedInstallment(inst)}
+                  className="w-full panel-card rounded-[1.6rem] border border-white/[0.06] flex items-center justify-between px-5 py-4 hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer text-left"
+                  style={{ borderColor: 'rgba(198,126,105,0.15)' }}
+                >
+                  <div>
+                    <div className="text-sm font-bold text-[color:var(--text-primary)]">
+                      {payer?.full_name || '—'}
+                    </div>
+                    <div className="text-[0.7rem] text-[color:var(--text-faint)] mt-0.5">
+                      {assetName} · Parcela {inst.number} · {diasAtraso}d atraso
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-sm font-bold" style={{ color: 'var(--accent-danger)' }}>
+                        {formatCurrency(outstanding)}
+                      </div>
+                      <span className="chip chip-late text-[0.6rem]">Atrasado</span>
+                    </div>
+                    <ChevronRight size={16} className="text-[color:var(--text-faint)]" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // ─── Menu grid items (BossCash style) ──────────────────────────────────────
   const menuItems = [
-    { icon: Users,         label: 'Clientes',           onClick: () => onNavigate(AppView.USERS),       highlight: false },
-    { icon: Zap,           label: 'Novo Emprestimo',    onClick: () => onNewContract(),                  highlight: false },
-    { icon: TrendingUp,    label: 'Desempenho',         onClick: () => setActiveTab('receivables'),      highlight: false },
-    { icon: Wallet,        label: 'Meus Recebimentos',  onClick: () => setActiveTab('collection'),       highlight: false },
-    { icon: BarChart3,     label: 'Meus Relatorios',    onClick: () => setActiveTab('receivables'),      highlight: false },
-    { icon: UserCog,       label: 'Usuarios',           onClick: () => onNavigate(AppView.USERS),       highlight: false },
-    { icon: AlertTriangle, label: 'Inadimplentes',      onClick: () => onNavigate(AppView.COLLECTION),  highlight: true  },
+    { icon: Users,         label: 'Clientes',             onClick: () => onNavigate(AppView.USERS),                                                                         variant: 'default' as const },
+    { icon: Zap,           label: 'Novo Emprestimo',      onClick: () => onNewContract(),                                                                                    variant: 'default' as const },
+    { icon: TrendingUp,    label: 'Salário',              onClick: () => setActiveTab('salary'),                                                                             variant: 'default' as const },
+    { icon: Wallet,        label: 'Meus Recebimentos',    onClick: () => { setCollectionBucket('today'); setCollectionKey(k => k + 1); setActiveTab('collection'); },         variant: 'default' as const },
+    { icon: BarChart3,     label: 'Meus Relatorios',      onClick: () => onNavigate(AppView.DASHBOARD),                                                                      variant: 'default' as const },
+    { icon: Bot,           label: 'Assistente',           onClick: () => onNavigate(AppView.ASSISTANT),                                                                      variant: 'default' as const },
+    { icon: Calendar,      label: 'Cobrancas de Hoje',   onClick: () => onNavigate(AppView.COLLECTION),                                                                       variant: 'default' as const },
+    { icon: AlertTriangle, label: 'Inadimplentes',        onClick: () => { setCollectionBucket('overdue'); setCollectionKey(k => k + 1); setActiveTab('inadimplentes'); },   variant: 'danger'  as const },
   ];
-
-  // ─── KPI data for avisos ──────────────────────────────────────────────────
-  const parcelasVencendo = useMemo(
-    () => installments.filter(i => i.due_date === today && i.status !== 'paid').length,
-    [installments, today],
-  );
-  const parcelasAtrasadas = useMemo(
-    () => installments.filter(i => i.due_date < today && i.status !== 'paid').length,
-    [installments, today],
-  );
-
-  const totalRecebidoHoje = useMemo(
-    () => parcelasPagasHoje.reduce((s, i) => s + (Number(i.amount_paid) || 0), 0),
-    [parcelasPagasHoje],
-  );
 
   const tabs = [
     { id: 'home' as const, icon: LayoutDashboard, label: 'Inicio' },
@@ -284,7 +661,36 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
           <button onClick={() => setActiveTab('home')} className="flex items-center gap-2 text-sm font-semibold px-1 py-2 transition-colors" style={{ color: 'var(--text-muted)' }}>
             <ArrowLeft size={16} /> Voltar
           </button>
-          <CollectionDashboard installments={installments} onUpdate={refetch} tenant={tenant} />
+          <CollectionDashboard key={collectionKey} initialBucket={collectionBucket} installments={installments} onUpdate={refetch} tenant={tenant} />
+        </div>
+      )}
+
+      {/* ── Aba: Salário ──────────────────────────────────────────────────── */}
+      {activeTab === 'salary' && (
+        <div className="space-y-4">
+          <button onClick={() => setActiveTab('home')} className="flex items-center gap-2 text-sm font-semibold px-1 py-2 transition-colors" style={{ color: 'var(--text-muted)' }}>
+            <ArrowLeft size={16} /> Voltar
+          </button>
+          <SalaryDashboard installments={installments} tenant={tenant} onUpdate={refetch} />
+        </div>
+      )}
+
+      {/* ── Aba: Inadimplentes ────────────────────────────────────────────── */}
+      {activeTab === 'inadimplentes' && (
+        <div className="space-y-4">
+          <button onClick={() => setActiveTab('home')} className="flex items-center gap-2 text-sm font-semibold px-1 py-2 transition-colors" style={{ color: 'var(--text-muted)' }}>
+            <ArrowLeft size={16} /> Voltar
+          </button>
+          <div className="panel-card rounded-[2rem] px-6 py-5 flex items-center gap-3" style={{ background: 'rgba(198,126,105,0.08)', border: '1px solid rgba(198,126,105,0.20)' }}>
+            <AlertTriangle size={20} style={{ color: 'var(--accent-danger)' }} />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--accent-danger)' }}>Inadimplentes</p>
+              <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                {parcelasAtrasadas} parcela{parcelasAtrasadas !== 1 ? 's' : ''} em atraso
+              </p>
+            </div>
+          </div>
+          <CollectionDashboard key={collectionKey} initialBucket="overdue" installments={overdueInstallments} onUpdate={refetch} tenant={tenant} />
         </div>
       )}
 
@@ -292,25 +698,21 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
       {activeTab === 'home' && (
         <div className="space-y-6">
 
-          {/* ── Grid Menu 3x3 ─────────────────────────────────────────────── */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* ── Grid Menu 4x2 ─────────────────────────────────────────────── */}
+          <div className="grid grid-cols-4 gap-3">
             {menuItems.map(item => (
               <button
                 key={item.label}
                 onClick={item.onClick}
-                className={`flex flex-col items-center justify-center gap-2 rounded-2xl p-4 min-h-[100px] transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer ${
-                  item.highlight
-                    ? 'text-white shadow-md'
-                    : 'shadow-sm hover:shadow-md'
-                }`}
-                style={item.highlight
-                  ? { background: 'var(--header-blue)', color: 'white' }
+                className="flex flex-col items-center justify-center gap-2 rounded-2xl p-3 min-h-[88px] transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer shadow-sm hover:shadow-md"
+                style={item.variant === 'danger'
+                  ? { background: 'rgba(198,126,105,0.12)', border: '1px solid rgba(198,126,105,0.28)', color: 'var(--accent-danger)' }
                   : { background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }
                 }
               >
-                <item.icon size={28} style={item.highlight ? { color: 'white' } : { color: 'var(--text-primary)' }} />
-                <span className={`text-xs font-semibold text-center leading-tight ${item.highlight ? 'text-white' : ''}`}
-                  style={item.highlight ? {} : { color: 'var(--text-primary)' }}>
+                <item.icon size={24} style={item.variant === 'danger' ? { color: 'var(--accent-danger)' } : { color: 'var(--text-primary)' }} />
+                <span className="text-[10px] font-semibold text-center leading-tight"
+                  style={{ color: item.variant === 'danger' ? 'var(--accent-danger)' : 'var(--text-primary)' }}>
                   {item.label}
                 </span>
               </button>
@@ -327,12 +729,37 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
             </div>
             <div className="grid grid-cols-4 gap-2">
               {[
-                { label: 'Contratos Renovados', value: contratosHoje.length, color: '#0D47A1' },
-                { label: 'Contratos Vigentes', value: investments.length, color: '#2196F3' },
-                { label: 'Parcelas Vencendo', value: parcelasVencendo, color: '#FF9800' },
-                { label: 'Parcelas Atrasados', value: parcelasAtrasadas, color: '#F44336' },
+                {
+                  label: 'Contratos Renovados',
+                  value: contratosHoje.length,
+                  color: '#0D47A1',
+                  onClick: () => setSubView('contratos-hoje'),
+                },
+                {
+                  label: 'Contratos Vigentes',
+                  value: activeInvestments.length,
+                  color: '#2196F3',
+                  onClick: () => setSubView('contratos-vigentes'),
+                },
+                {
+                  label: 'Parcelas Vencendo',
+                  value: parcelasVencendo,
+                  color: '#FF9800',
+                  onClick: () => setSubView('parcelas-vencendo'),
+                },
+                {
+                  label: 'Parcelas Atrasados',
+                  value: parcelasAtrasadas,
+                  color: '#F44336',
+                  onClick: () => setSubView('parcelas-atrasadas'),
+                },
               ].map(stat => (
-                <div key={stat.label} className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                <button
+                  key={stat.label}
+                  onClick={stat.onClick}
+                  className="rounded-xl p-3 text-center transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer"
+                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
+                >
                   <p className="text-[10px] font-medium leading-tight mb-1" style={{ color: 'var(--text-muted)' }}>
                     {stat.label}
                   </p>
@@ -343,7 +770,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                       {stat.value}
                     </p>
                   )}
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -396,39 +823,6 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
             </div>
           </div>
 
-          {/* ── Modal: Contratos Criados Hoje ─────────────────────────────── */}
-          {showContratosHojeModal && (
-            <Modal
-              title="Contratos criados hoje"
-              onClose={() => setShowContratosHojeModal(false)}
-            >
-              {contratosHoje.length === 0 ? (
-                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Nenhum contrato criado hoje.</p>
-              ) : (
-                <div className="space-y-2">
-                  {contratosHoje.map(inv => (
-                    <div
-                      key={inv.id}
-                      className="flex items-center justify-between rounded-2xl px-4 py-3"
-                      style={{ background: 'var(--bg-soft)' }}
-                    >
-                      <div>
-                        <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                          {inv.asset_name || 'Contrato'}
-                        </div>
-                        <div className="text-[0.7rem]" style={{ color: 'var(--text-faint)' }}>
-                          {(inv as any).payer?.full_name || '—'}
-                        </div>
-                      </div>
-                      <div className="text-sm font-bold" style={{ color: 'var(--accent-brass)' }}>
-                        {formatCurrency(inv.amount_invested ?? 0)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Modal>
-          )}
         </div>
       )}
 

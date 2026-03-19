@@ -201,9 +201,17 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         if (deferErr) throw deferErr;
       }
 
+      // Persiste método de pagamento (non-critical — ignora erro)
+      await supabase
+        .from('loan_installments')
+        .update({ payment_method: paymentMethod })
+        .eq('id', installment.id);
+
       onSuccess();
-      installment.amount_paid = val;
-      installment.paid_at = new Date().toISOString();
+      const isPartialPayment = val < calculateOutstanding(installment) - 0.01;
+      installment.amount_paid = (installment.amount_paid || 0) + val;
+      installment.status = isPartialPayment ? 'partial' : 'paid';
+      if (!isPartialPayment) installment.paid_at = new Date().toISOString();
       setIsReceiptMode(true);
     } catch (err: any) {
       setError(err.message || 'Erro ao processar pagamento.');

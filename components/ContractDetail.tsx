@@ -10,7 +10,11 @@ import { Investment, LoanInstallment, Tenant, AvulsoPayment } from '../types';
 import { useContractDetail } from '../hooks/useContractDetail';
 import { getSupabase, parseSupabaseError } from '../services/supabase';
 import ReceiptTemplate from './ReceiptTemplate';
-import { InstallmentFormScreen } from './InstallmentDetailFlow';
+import {
+  InstallmentDetailScreen as SharedInstallmentDetailScreen,
+  InstallmentFormScreen,
+  InstallmentAction as SharedInstallmentAction,
+} from './InstallmentDetailFlow';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -64,7 +68,7 @@ const installmentStatusBadge = (status: LoanInstallment['status']) => {
     paid:    { label: 'Pago',     cls: 'chip chip-paid' },
     pending: { label: 'Pendente', cls: 'chip chip-pending' },
     late:    { label: 'Atrasado', cls: 'chip chip-late' },
-    partial: { label: 'Parcial',  cls: 'chip chip-pending' },
+    partial: { label: 'Parcial',  cls: 'chip chip-partial' },
   };
   const s = map[status];
   return <span className={s.cls}>{s.label}</span>;
@@ -72,15 +76,34 @@ const installmentStatusBadge = (status: LoanInstallment['status']) => {
 
 const panelCard = 'panel-card rounded-[1.6rem]';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Helpers de falta ──────────────────────────────────────────────────────────
 
-type InstallmentAction =
-  | null
-  | { type: 'pay';      installment: LoanInstallment }
-  | { type: 'unpay';    installment: LoanInstallment }
-  | { type: 'refinance'; installment: LoanInstallment }
-  | { type: 'edit';     installment: LoanInstallment }
-  | { type: 'interest'; installment: LoanInstallment };
+const getMissedEvents = (inst: LoanInstallment, siblings: LoanInstallment[]): string[] => {
+  const fmtDt = (iso: string) => new Date(iso).toLocaleDateString('pt-BR');
+  const events: string[] = [];
+
+  // Evento 1: pagamento parcial (se houver)
+  if (normalizeNumber(inst.amount_paid) > 0 && inst.status !== 'paid') {
+    events.push(`Pagamento parcial de ${fmt(normalizeNumber(inst.amount_paid))} registrado`);
+  }
+
+  // Evento 2: falta/absorção
+  if ((inst as any).missed_at) {
+    const missDate = fmtDt((inst as any).missed_at);
+    if (inst.status === 'paid' && normalizeNumber(inst.amount_total) === 0) {
+      const target = siblings.find(s => (s as any).deferred_from_id === inst.id);
+      if (target) {
+        events.push(`Nao paga em ${missDate} — valor acumulado na parcela #${target.number}`);
+      } else {
+        events.push(`Nao paga em ${missDate} — valor redistribuido`);
+      }
+    } else {
+      events.push(`Falta registrada em ${missDate} — parcela adiada`);
+    }
+  }
+
+  return events;
+};
 
 // ── KpiTile ───────────────────────────────────────────────────────────────────
 
@@ -100,182 +123,6 @@ const KpiTile: React.FC<KpiTileProps> = ({ label, value, color = 'var(--text-pri
   </div>
 );
 
-// ── InstallmentDetailScreen ───────────────────────────────────────────────────
-
-interface InstallmentDetailScreenProps {
-  installment: LoanInstallment;
-  onBack: () => void;
-  onAction: (action: NonNullable<InstallmentAction>) => void;
-}
-
-const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = ({ installment, onBack, onAction }) => {
-  const isPaid    = installment.status === 'paid';
-  const isLate    = installment.status === 'late';
-  const isPartial = installment.status === 'partial';
-  const multa     = normalizeNumber(installment.fine_amount) + normalizeNumber(installment.interest_delay_amount);
-  const outstanding = calculateOutstanding(installment);
-
-  return (
-    <div className="flex h-full flex-col bg-[color:var(--bg-elevated)]">
-
-      {/* Header */}
-      <div className="flex items-center gap-3 border-b border-[color:var(--border-subtle)] px-5 py-5 shrink-0">
-        <button onClick={onBack} className="rounded-full p-2 text-[color:var(--text-muted)] hover:bg-[color:var(--bg-soft)] transition-colors">
-          <ArrowLeft size={20} />
-        </button>
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)]">
-            Parcela {installment.number}
-          </p>
-          <h3 className="text-xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter leading-none mt-0.5">
-            Detalhes
-          </h3>
-        </div>
-        {installmentStatusBadge(installment.status)}
-      </div>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-5 space-y-4">
-
-        {/* Resumo financeiro */}
-        <div className="panel-card rounded-2xl p-5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[color:var(--text-faint)] mb-1">
-            {isPaid ? 'Valor Pago' : isPartial ? 'Pago Parcialmente' : 'Total Devido'}
-          </p>
-          <p className={`text-3xl font-black tabular-nums leading-none mb-5 ${
-            isPaid    ? 'text-[color:var(--accent-positive)]' :
-            isPartial ? 'text-[color:var(--accent-brass)]' :
-            isLate    ? 'text-[color:var(--accent-danger)]' :
-                        'text-[color:var(--text-primary)]'
-          }`}>
-            {isPaid || isPartial ? fmt(normalizeNumber(installment.amount_paid)) : fmt(outstanding)}
-          </p>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-[color:var(--bg-soft)] px-3 py-2.5">
-              <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--text-faint)] mb-1">Vencimento</p>
-              <p className={`text-sm font-bold tabular-nums ${isLate ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--text-primary)]'}`}>
-                {fmtDate(installment.due_date)}
-              </p>
-              <p className="text-[10px] text-[color:var(--text-faint)] capitalize mt-0.5">{fmtWeekday(installment.due_date)}</p>
-            </div>
-            <div className="rounded-xl bg-[color:var(--bg-soft)] px-3 py-2.5">
-              <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--text-faint)] mb-1">Valor Original</p>
-              <p className="text-sm font-bold tabular-nums text-[color:var(--text-primary)]">{fmt(normalizeNumber(installment.amount_total))}</p>
-            </div>
-            <div className="rounded-xl bg-[color:var(--bg-soft)] px-3 py-2.5">
-              <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--text-faint)] mb-1">Principal</p>
-              <p className="text-sm font-bold tabular-nums text-[color:var(--text-secondary)]">{fmt(normalizeNumber(installment.amount_principal))}</p>
-            </div>
-            <div className="rounded-xl bg-[color:var(--bg-soft)] px-3 py-2.5">
-              <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--text-faint)] mb-1">Juros</p>
-              <p className="text-sm font-bold tabular-nums text-[color:var(--accent-brass)]">{fmt(normalizeNumber(installment.amount_interest))}</p>
-            </div>
-
-            {multa > 0 && (
-              <div className="col-span-2 rounded-xl bg-[rgba(198,126,105,0.08)] border border-[rgba(198,126,105,0.2)] px-3 py-2.5">
-                <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--accent-danger)] mb-1">Multa / Juros de Atraso</p>
-                <p className="text-sm font-bold tabular-nums text-[color:var(--accent-danger)]">+{fmt(multa)}</p>
-              </div>
-            )}
-            {isPaid && installment.paid_at && (
-              <div className="col-span-2 rounded-xl bg-[rgba(52,211,153,0.06)] border border-[rgba(52,211,153,0.15)] px-3 py-2.5">
-                <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--accent-positive)] mb-1">Pago em</p>
-                <p className="text-sm font-bold tabular-nums text-[color:var(--accent-positive)]">{fmtDatetime(installment.paid_at)}</p>
-              </div>
-            )}
-            {normalizeNumber((installment as any).interest_payments_total) > 0 && (
-              <div className="col-span-2 rounded-xl bg-[rgba(202,176,122,0.08)] border border-[rgba(202,176,122,0.14)] px-3 py-2.5">
-                <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--accent-brass)] mb-1">Juros já cobrados</p>
-                <p className="text-sm font-bold tabular-nums text-[color:var(--accent-brass)]">{fmt(normalizeNumber((installment as any).interest_payments_total))}</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Ações */}
-        <div className="space-y-2">
-          <p className="text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)] px-1 mb-3">Ações</p>
-
-          {!isPaid && (
-            <button
-              onClick={() => onAction({ type: 'pay', installment })}
-              className="w-full flex items-center gap-4 rounded-2xl bg-[rgba(52,211,153,0.10)] px-4 py-4 text-left ring-1 ring-[rgba(52,211,153,0.2)] active:scale-[0.98] transition-all"
-            >
-              <CheckCircle2 size={22} className="text-[color:var(--accent-positive)] shrink-0" />
-              <div>
-                <p className="text-sm font-extrabold text-[color:var(--accent-positive)] uppercase tracking-wide">Dar Baixa</p>
-                <p className="text-[10px] text-[color:var(--text-faint)] mt-0.5">Registrar recebimento total ou parcial</p>
-              </div>
-            </button>
-          )}
-
-          {!isPaid && (
-            <button
-              onClick={() => onAction({ type: 'refinance', installment })}
-              className="w-full flex items-center gap-4 rounded-2xl bg-[rgba(148,180,255,0.08)] px-4 py-4 text-left ring-1 ring-[rgba(148,180,255,0.18)] active:scale-[0.98] transition-all"
-            >
-              <RefreshCw size={22} className="text-[color:var(--accent-steel)] shrink-0" />
-              <div>
-                <p className="text-sm font-extrabold text-[color:var(--accent-steel)] uppercase tracking-wide">Renegociar</p>
-                <p className="text-[10px] text-[color:var(--text-faint)] mt-0.5">Re-agendar com entrada parcial</p>
-              </div>
-            </button>
-          )}
-
-          {!isPaid && (
-            <button
-              onClick={() => onAction({ type: 'interest', installment })}
-              className="w-full flex items-center gap-4 rounded-2xl bg-[rgba(202,176,122,0.10)] px-4 py-4 text-left ring-1 ring-[rgba(202,176,122,0.20)] active:scale-[0.98] transition-all"
-            >
-              <Percent size={22} className="text-[color:var(--accent-brass)] shrink-0" />
-              <div>
-                <p className="text-sm font-extrabold text-[color:var(--accent-brass)] uppercase tracking-wide">Pagar Só Juros</p>
-                <p className="text-[10px] text-[color:var(--text-faint)] mt-0.5">Principal permanece em aberto</p>
-              </div>
-            </button>
-          )}
-
-          {isPaid && (
-            <button
-              onClick={() => onAction({ type: 'unpay', installment })}
-              className="w-full flex items-center gap-4 rounded-2xl bg-[rgba(198,126,105,0.08)] px-4 py-4 text-left ring-1 ring-[rgba(198,126,105,0.22)] active:scale-[0.98] transition-all"
-            >
-              <XCircle size={22} className="text-[color:var(--accent-danger)] shrink-0" />
-              <div>
-                <p className="text-sm font-extrabold text-[color:var(--accent-danger)] uppercase tracking-wide">Marcar como Não Pago</p>
-                <p className="text-[10px] text-[color:var(--text-faint)] mt-0.5">Reverter pagamento — volta para Pendente</p>
-              </div>
-            </button>
-          )}
-
-          {isPaid && (
-            <button
-              onClick={() => onAction({ type: 'pay', installment })}
-              className="w-full flex items-center gap-4 rounded-2xl bg-[color:var(--bg-soft)] px-4 py-4 text-left ring-1 ring-[color:var(--border-subtle)] active:scale-[0.98] transition-all"
-            >
-              <FileText size={22} className="text-[color:var(--text-muted)] shrink-0" />
-              <div>
-                <p className="text-sm font-extrabold text-[color:var(--text-secondary)] uppercase tracking-wide">Ver Comprovante</p>
-                <p className="text-[10px] text-[color:var(--text-faint)] mt-0.5">Gerar recibo de pagamento</p>
-              </div>
-            </button>
-          )}
-
-          <button
-            onClick={() => onAction({ type: 'edit', installment })}
-            className="w-full flex items-center gap-4 rounded-2xl bg-[color:var(--bg-soft)] px-4 py-4 text-left ring-1 ring-[color:var(--border-subtle)] active:scale-[0.98] transition-all"
-          >
-            <Pencil size={22} className="text-[color:var(--text-muted)] shrink-0" />
-            <div>
-              <p className="text-sm font-extrabold text-[color:var(--text-secondary)] uppercase tracking-wide">Editar Parcela</p>
-              <p className="text-[10px] text-[color:var(--text-faint)] mt-0.5">Alterar valor e data de vencimento</p>
-            </div>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // ── AvulsoPaymentScreen ───────────────────────────────────────────────────────
 
@@ -490,7 +337,7 @@ interface ContractDetailProps {
 const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, onRenew, tenant }) => {
   const { data, loading, error, refetch } = useContractDetail(investmentId);
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
-  const [installmentAction, setInstallmentAction]     = useState<InstallmentAction>(null);
+  const [installmentAction, setInstallmentAction]     = useState<SharedInstallmentAction>(null);
   const [avulsoOpen, setAvulsoOpen]                   = useState(false);
   const [avulsoPayments, setAvulsoPayments]           = useState<AvulsoPayment[]>([]);
 
@@ -562,7 +409,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
   // ── Sub-view: detalhe da parcela ──
   if (selectedInstallment !== null) {
     return (
-      <InstallmentDetailScreen
+      <SharedInstallmentDetailScreen
         installment={selectedInstallment}
         onBack={() => setSelectedInstallment(null)}
         onAction={(action) => setInstallmentAction(action)}
@@ -766,6 +613,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                 <p className="section-kicker">Parcelas</p>
                 <div className="flex gap-2 text-[10px] font-bold">
                   <span className="chip chip-paid">{data.metrics.parcelasPagas} pagas</span>
+                  {data.metrics.parcelasPartiais > 0 && <span className="chip chip-partial">{data.metrics.parcelasPartiais} parciais</span>}
                   {data.metrics.parcelasAtrasadas > 0 && <span className="chip chip-late">{data.metrics.parcelasAtrasadas} atrasadas</span>}
                   {data.metrics.parcelasPendentes > 0 && <span className="chip chip-pending">{data.metrics.parcelasPendentes} pendentes</span>}
                 </div>
@@ -783,10 +631,18 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                     const isLate    = i.status === 'late';
                     const isPaid    = i.status === 'paid';
                     const isPartial = i.status === 'partial';
+                    const isMissed  = !!(i as any).missed_at && i.status !== 'paid';
+                    const isAbsorbed = !!(i as any).missed_at && i.status === 'paid' && normalizeNumber(i.amount_total) === 0;
                     return (
                       <button
                         key={i.id}
-                        onClick={() => setSelectedInstallment(i)}
+                        onClick={() => {
+                          const enriched = {
+                            ...i,
+                            investment: { ...data.investment, loan_installments: data.installments },
+                          };
+                          setSelectedInstallment(enriched as any);
+                        }}
                         className={`w-full panel-card rounded-2xl p-4 text-left transition-all active:scale-[0.98] hover:ring-1 hover:ring-[color:var(--border-strong)] ${
                           isLate ? 'ring-1 ring-[color:var(--accent-danger)]/30 bg-[rgba(198,126,105,0.04)]' :
                           isPaid ? 'opacity-70' : ''
@@ -798,7 +654,11 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                             Parcela {i.number}
                           </span>
                           <div className="flex items-center gap-2">
-                            {installmentStatusBadge(i.status)}
+                            {isMissed
+                              ? <span className="chip chip-late">Falta</span>
+                              : isAbsorbed
+                              ? <span className="chip" style={{ background: 'rgba(117,117,117,0.12)', color: '#757575' }}>Absorvida</span>
+                              : installmentStatusBadge(i.status)}
                             <ChevronRight size={14} className="text-[color:var(--text-faint)]" />
                           </div>
                         </div>
@@ -853,6 +713,21 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                             </div>
                           )}
                         </div>
+
+                        {(() => {
+                          const events = getMissedEvents(i, data.installments);
+                          if (events.length === 0) return null;
+                          return (
+                            <div className="mt-2 pt-2 border-t border-[color:var(--border-subtle)] space-y-1">
+                              {events.map((ev, idx) => (
+                                <div key={idx} className="flex items-start gap-2">
+                                  <AlertTriangle size={11} className="text-[color:var(--accent-danger)] shrink-0 mt-0.5" />
+                                  <p className="text-[10px] text-[color:var(--accent-danger)] font-semibold leading-tight">{ev}</p>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </button>
                     );
                   })}

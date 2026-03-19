@@ -616,6 +616,10 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
   const originalUserText = sanitizeUserText(msg.text || '');
   let textToProcess = originalUserText;
 
+  const inputTextForLog = (msg.text || '').slice(0, 200);
+  let responseTextForLog = '';
+  let extractedArgsForLog = '';
+
   const llmUsage = { callCount: 0, tokensIn: 0, tokensOut: 0 };
 
   const finalize = async (
@@ -627,6 +631,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
 
     const baseText = (text || '').trim() || 'Nao consegui montar uma resposta agora.';
     if (shouldSkipConversationalLayer(String(telemetry.action || '')) || opts.skipLlm) {
+      responseTextForLog = baseText.slice(0, 300);
       return { text: baseText };
     }
 
@@ -653,7 +658,9 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       llmUsage.tokensOut += reply.tokensOut;
     }
 
-    return { text: reply.text || baseText };
+    const finalText = reply.text || baseText;
+    responseTextForLog = finalText.slice(0, 300);
+    return { text: finalText };
   };
 
   if (!msg.audioBuffer && !msg.imageBuffer) {
@@ -1164,6 +1171,8 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
 
     await saveMessageTimed(session.id, 'user', textToProcess, userMediaType, telemetry.intent);
 
+    extractedArgsForLog = JSON.stringify(actionPlan.args || {}).slice(0, 200);
+
     logStructuredMessage('action_plan_created', {
       channel: msg.channel,
       messageId: msg.messageId,
@@ -1340,6 +1349,9 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       estimatedCostUsd: llmUsage.tokensIn > 0 || llmUsage.tokensOut > 0
         ? estimateCostUsd(llmUsage.tokensIn, llmUsage.tokensOut)
         : undefined,
+      inputText: inputTextForLog || undefined,
+      responseText: responseTextForLog || undefined,
+      extractedArgs: extractedArgsForLog || undefined,
     });
   }
 }

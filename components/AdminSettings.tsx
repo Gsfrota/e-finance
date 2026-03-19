@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Tenant, Profile } from '../types';
 import { getSupabase, cleanNumbers, isValidCPF } from '../services/supabase';
-import { Save, Building2, CheckCircle2, RefreshCw, QrCode, MessageCircle, Crown, User, CreditCard, Upload, Activity } from 'lucide-react';
+import { Save, Building2, CheckCircle2, RefreshCw, QrCode, MessageCircle, Crown, CreditCard, Upload, Activity } from 'lucide-react';
 import SubscriptionTab from './SubscriptionTab';
 
 interface AdminSettingsProps {
@@ -11,10 +11,18 @@ interface AdminSettingsProps {
     profile?: Profile;
 }
 
-type SettingsTab = 'company' | 'subscription';
+type SettingsSection = 'empresa' | 'responsavel' | 'pix' | 'atendimento' | 'assinatura';
+
+const NAV_ITEMS: { id: SettingsSection; label: string; icon: React.ReactNode }[] = [
+    { id: 'empresa',     label: 'Empresa',      icon: <Building2 size={16} /> },
+    { id: 'responsavel', label: 'Responsável',   icon: <Crown size={16} /> },
+    { id: 'pix',         label: 'PIX',           icon: <QrCode size={16} /> },
+    { id: 'atendimento', label: 'Atendimento',   icon: <MessageCircle size={16} /> },
+    { id: 'assinatura',  label: 'Assinatura',    icon: <CreditCard size={16} /> },
+];
 
 const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile }) => {
-    const [activeTab, setActiveTab] = useState<SettingsTab>('company');
+    const [activeSection, setActiveSection] = useState<SettingsSection>('empresa');
 
     // Company Info
     const [name, setName] = useState(tenant.name);
@@ -61,17 +69,9 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
     const validatePixKey = () => {
         const cleanKey = pixKey.trim();
         if (!cleanKey) return "Chave Pix é obrigatória.";
-
-        if (pixKeyType === 'CPF') {
-            if (!isValidCPF(cleanKey)) return "CPF Inválido.";
-        }
-        if (pixKeyType === 'PHONE') {
-            const digits = cleanNumbers(cleanKey);
-            if (digits.length < 10) return "Telefone Inválido.";
-        }
-        if (pixKeyType === 'EMAIL') {
-            if (!cleanKey.includes('@')) return "E-mail Inválido.";
-        }
+        if (pixKeyType === 'CPF' && !isValidCPF(cleanKey)) return "CPF Inválido.";
+        if (pixKeyType === 'PHONE' && cleanNumbers(cleanKey).length < 10) return "Telefone Inválido.";
+        if (pixKeyType === 'EMAIL' && !cleanKey.includes('@')) return "E-mail Inválido.";
         return null;
     };
 
@@ -80,15 +80,11 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
         setFieldError(null);
 
         const error = validatePixKey();
-        if (error) {
-            setFieldError(error);
-            return;
-        }
+        if (error) { setFieldError(error); return; }
 
         setLoading(true);
         const supabase = getSupabase();
 
-        // Saneamento final antes do Banco
         let sanitizedPixKey = pixKey.trim();
         if (pixKeyType === 'CPF' || pixKeyType === 'CNPJ' || pixKeyType === 'PHONE') {
             sanitizedPixKey = cleanNumbers(sanitizedPixKey);
@@ -109,7 +105,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
                 pix_key: sanitizedPixKey,
                 pix_name: pixName.toUpperCase().trim(),
                 pix_city: pixCity.toUpperCase().trim(),
-                support_whatsapp: cleanWhatsapp
+                support_whatsapp: cleanWhatsapp,
             };
 
             const { error: dbError } = await supabase.from('tenants')
@@ -128,159 +124,246 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
     };
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-12">
-            <div className="border-b border-[color:var(--border-subtle)] pb-6">
+        <div className="max-w-5xl mx-auto animate-fade-in pb-16">
+            {/* Page header */}
+            <div className="border-b border-[color:var(--border-subtle)] pb-6 mb-8">
                 <h2 className="text-3xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter">Configurações</h2>
-                <p className="text-[color:var(--text-muted)] text-xs font-bold uppercase tracking-[0.2em] mt-1">Identidade, Propriedade, Financeiro e Assinatura</p>
+                <p className="text-[color:var(--text-muted)] text-xs font-bold uppercase tracking-[0.2em] mt-1">Identidade, financeiro e assinatura</p>
             </div>
 
-            {/* Abas */}
-            <div className="flex gap-2 bg-[color:var(--bg-elevated)] p-1.5 rounded-2xl border border-[color:var(--border-subtle)]">
-                <button
-                    onClick={() => setActiveTab('company')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${
-                        activeTab === 'company'
-                            ? 'bg-[color:var(--bg-strong)] text-[color:var(--text-primary)] shadow'
-                            : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-secondary)]'
-                    }`}
-                >
-                    <Building2 size={14} /> Empresa & Financeiro
-                </button>
-                <button
-                    onClick={() => setActiveTab('subscription')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${
-                        activeTab === 'subscription'
-                            ? 'bg-[color:var(--bg-strong)] text-[color:var(--text-primary)] shadow'
-                            : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-secondary)]'
-                    }`}
-                >
-                    <CreditCard size={14} /> Assinatura
-                </button>
+            {/* Tab bar */}
+            <div className="flex border-b border-[color:var(--border-subtle)] overflow-x-auto mb-8">
+                {NAV_ITEMS.map(item => (
+                    <button
+                        key={item.id}
+                        onClick={() => setActiveSection(item.id)}
+                        className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 transition-colors ${
+                            activeSection === item.id
+                                ? 'border-teal-400 text-[color:var(--text-primary)]'
+                                : 'border-transparent text-[color:var(--text-muted)] hover:text-[color:var(--text-secondary)]'
+                        }`}
+                    >
+                        {item.label}
+                    </button>
+                ))}
             </div>
 
-            {/* Conteúdo da aba Empresa */}
-            {activeTab === 'company' && (
-                <form onSubmit={handleUpdate} className="space-y-8">
+            <form onSubmit={handleUpdate} key={activeSection}>
 
-                    {/* 1. DADOS DA EMPRESA */}
-                    <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[2.5rem] p-8 shadow-2xl">
-                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[color:var(--border-subtle)]">
-                            <div className="p-3 bg-indigo-900/30 rounded-xl text-indigo-400">
-                                <Building2 size={24}/>
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-black text-[color:var(--text-primary)] uppercase">Identidade Visual</h3>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <input required type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Nome da Empresa" className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)]" />
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-3">
-                                    <label className="flex-1 cursor-pointer">
-                                        <div className="flex items-center gap-3 bg-[color:var(--bg-base)] border border-dashed border-[color:var(--border-subtle)] hover:border-indigo-500 rounded-2xl p-4 transition-colors">
-                                            {logoUploading
-                                                ? <Activity className="text-indigo-400 animate-spin" size={18} />
-                                                : <Upload className="text-[color:var(--text-muted)]" size={18} />}
-                                            <span className="text-sm text-[color:var(--text-muted)]">
-                                                {logoUploading ? 'Enviando...' : logoUrl ? 'Trocar logotipo' : 'Selecionar logotipo'}
-                                            </span>
-                                        </div>
-                                        <input type="file" accept="image/*" className="hidden" disabled={logoUploading}
-                                            onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); }} />
-                                    </label>
-                                    {logoUrl && (
-                                        <img src={logoUrl} alt="Logo preview"
-                                            className="w-12 h-12 rounded-xl object-cover border border-[color:var(--border-subtle)] shrink-0 bg-slate-800" />
-                                    )}
+                        {/* EMPRESA */}
+                        {activeSection === 'empresa' && (
+                            <div className="space-y-8">
+                                <div>
+                                    <h3 className="text-base font-bold text-[color:var(--text-primary)] mb-0.5">Empresa</h3>
+                                    <p className="text-sm text-[color:var(--text-muted)]">Nome e logotipo exibidos na plataforma e nos comprovantes.</p>
                                 </div>
-                                {logoUploadError && <p className="text-red-400 text-xs pl-1">{logoUploadError}</p>}
+                                <div className="border-t border-[color:var(--border-subtle)] pt-6 space-y-5">
+                                    <div>
+                                        <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">Nome da Empresa</label>
+                                        <input
+                                            required
+                                            type="text"
+                                            value={name}
+                                            onChange={e => setName(e.target.value)}
+                                            placeholder="Ex: Crédito Certo"
+                                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-colors"
+                                        />
+                                        <p className="text-[color:var(--text-muted)] text-xs mt-1.5">Este nome aparece nos comprovantes de pagamento enviados aos devedores.</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">Logotipo</label>
+                                        <div className="flex items-center gap-4">
+                                            <label className="cursor-pointer flex-1">
+                                                <div className="flex items-center gap-3 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] hover:border-teal-500 rounded-xl px-4 py-3 transition-colors">
+                                                    {logoUploading
+                                                        ? <Activity className="text-teal-400 animate-spin shrink-0" size={16} />
+                                                        : <Upload className="text-[color:var(--text-muted)] shrink-0" size={16} />}
+                                                    <span className="text-sm text-[color:var(--text-muted)]">
+                                                        {logoUploading ? 'Enviando...' : logoUrl ? 'Trocar logotipo' : 'Selecionar logotipo'}
+                                                    </span>
+                                                </div>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    disabled={logoUploading}
+                                                    onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); }}
+                                                />
+                                            </label>
+                                            {logoUrl && (
+                                                <img
+                                                    src={logoUrl}
+                                                    alt="Logo preview"
+                                                    className="w-12 h-12 rounded-xl object-cover border border-[color:var(--border-subtle)] shrink-0 bg-slate-800"
+                                                />
+                                            )}
+                                        </div>
+                                        {logoUploadError && <p className="text-red-400 text-xs mt-1.5">{logoUploadError}</p>}
+                                    </div>
+                                </div>
+                                <SaveButton loading={loading} success={success} />
                             </div>
-                        </div>
-                    </div>
+                        )}
 
-                    {/* 2. DADOS DO PROPRIETÁRIO */}
-                    <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[2.5rem] p-8 shadow-2xl">
-                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[color:var(--border-subtle)]">
-                            <div className="p-3 bg-purple-900/30 rounded-xl text-purple-400">
-                                <Crown size={24}/>
+                        {/* RESPONSÁVEL */}
+                        {activeSection === 'responsavel' && (
+                            <div className="space-y-8">
+                                <div>
+                                    <h3 className="text-base font-bold text-[color:var(--text-primary)] mb-0.5">Responsável</h3>
+                                    <p className="text-sm text-[color:var(--text-muted)]">Dados oficiais do proprietário da conta.</p>
+                                </div>
+                                <div className="border-t border-[color:var(--border-subtle)] pt-6 space-y-5">
+                                    <div>
+                                        <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">Nome Legal</label>
+                                        <input
+                                            type="text"
+                                            value={ownerName}
+                                            onChange={e => setOwnerName(e.target.value)}
+                                            placeholder="Nome completo do responsável"
+                                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-colors"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">E-mail Owner</label>
+                                        <input
+                                            type="email"
+                                            value={ownerEmail}
+                                            onChange={e => setOwnerEmail(e.target.value)}
+                                            placeholder="email@empresa.com"
+                                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-colors"
+                                        />
+                                    </div>
+                                </div>
+                                <SaveButton loading={loading} success={success} />
                             </div>
-                            <div>
-                                <h3 className="text-lg font-black text-[color:var(--text-primary)] uppercase">Responsável Legal</h3>
-                                <p className="text-[10px] text-[color:var(--text-muted)] font-bold uppercase tracking-wide">Dados oficiais do proprietário da conta</p>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="relative group">
-                                 <User className="absolute left-4 top-4 text-[color:var(--text-muted)] group-focus-within:text-purple-400 transition-colors" size={18} />
-                                 <input type="text" value={ownerName} onChange={e => setOwnerName(e.target.value)} placeholder="Nome do Responsável" className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl pl-12 pr-4 py-4 text-[color:var(--text-primary)] focus:border-purple-500 outline-none transition-all" />
-                            </div>
-                            <div className="relative group">
-                                 <Crown className="absolute left-4 top-4 text-[color:var(--text-muted)] group-focus-within:text-purple-400 transition-colors" size={18} />
-                                 <input type="email" value={ownerEmail} onChange={e => setOwnerEmail(e.target.value)} placeholder="E-mail Principal (Owner)" className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl pl-12 pr-4 py-4 text-[color:var(--text-primary)] focus:border-purple-500 outline-none transition-all" />
-                            </div>
-                        </div>
-                    </div>
+                        )}
 
-                    {/* 3. DADOS PIX */}
-                    <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[2.5rem] p-8 shadow-2xl">
-                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[color:var(--border-subtle)]">
-                            <div className="p-3 bg-teal-900/30 rounded-xl text-teal-400">
-                                <QrCode size={24}/>
+                        {/* PIX */}
+                        {activeSection === 'pix' && (
+                            <div className="space-y-8">
+                                <div>
+                                    <h3 className="text-base font-bold text-[color:var(--text-primary)] mb-0.5">PIX</h3>
+                                    <p className="text-sm text-[color:var(--text-muted)]">Dados de recebimento exibidos no QR Code de pagamento.</p>
+                                </div>
+                                <div className="border-t border-[color:var(--border-subtle)] pt-6 space-y-5">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        <div>
+                                            <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">Tipo de Chave</label>
+                                            <select
+                                                value={pixKeyType}
+                                                onChange={e => setPixKeyType(e.target.value as any)}
+                                                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-colors"
+                                            >
+                                                <option value="CNPJ">CNPJ</option>
+                                                <option value="CPF">CPF</option>
+                                                <option value="EMAIL">E-mail</option>
+                                                <option value="PHONE">Celular</option>
+                                                <option value="EVP">Chave Aleatória (EVP)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">Chave PIX</label>
+                                            <input
+                                                required
+                                                type="text"
+                                                value={pixKey}
+                                                onChange={e => setPixKey(e.target.value)}
+                                                placeholder="Sua chave PIX"
+                                                className={`w-full bg-[color:var(--bg-base)] border ${fieldError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'} rounded-xl px-4 py-3 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-colors`}
+                                            />
+                                            {fieldError && <p className="text-red-400 text-xs mt-1.5">{fieldError}</p>}
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">Nome do Beneficiário</label>
+                                            <input
+                                                required
+                                                type="text"
+                                                value={pixName}
+                                                onChange={e => setPixName(e.target.value)}
+                                                placeholder="NOME COMPLETO OU RAZAO SOCIAL"
+                                                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-[color:var(--text-primary)] text-sm uppercase focus:border-teal-500 outline-none transition-colors"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">Cidade</label>
+                                            <input
+                                                required
+                                                type="text"
+                                                value={pixCity}
+                                                onChange={e => setPixCity(e.target.value)}
+                                                placeholder="SAO PAULO"
+                                                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-[color:var(--text-primary)] text-sm uppercase focus:border-teal-500 outline-none transition-colors"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <SaveButton loading={loading} success={success} />
                             </div>
-                            <div>
-                                <h3 className="text-lg font-black text-[color:var(--text-primary)] uppercase">Dados de Recebimento (Pix)</h3>
-                            </div>
-                        </div>
+                        )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <select value={pixKeyType} onChange={(e) => setPixKeyType(e.target.value as any)} className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)]">
-                                <option value="CNPJ">CNPJ</option>
-                                <option value="CPF">CPF</option>
-                                <option value="EMAIL">E-mail</option>
-                                <option value="PHONE">Celular</option>
-                                <option value="EVP">Chave Aleatória (EVP)</option>
-                            </select>
-                            <div className="relative">
-                                <input required type="text" value={pixKey} onChange={e => setPixKey(e.target.value)} placeholder="Chave Pix" className={`w-full bg-[color:var(--bg-base)] border ${fieldError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'} rounded-2xl p-4 text-[color:var(--text-primary)]`} />
-                                {fieldError && <p className="text-red-500 text-[10px] mt-1 ml-2 font-bold uppercase">{fieldError}</p>}
+                        {/* ATENDIMENTO */}
+                        {activeSection === 'atendimento' && (
+                            <div className="space-y-8">
+                                <div>
+                                    <h3 className="text-base font-bold text-[color:var(--text-primary)] mb-0.5">Atendimento</h3>
+                                    <p className="text-sm text-[color:var(--text-muted)]">Canal de suporte exibido nos comprovantes e comunicações.</p>
+                                </div>
+                                <div className="border-t border-[color:var(--border-subtle)] pt-6 space-y-5">
+                                    <div>
+                                        <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">WhatsApp do Consultor</label>
+                                        <input
+                                            type="text"
+                                            value={whatsapp}
+                                            onChange={e => setWhatsapp(e.target.value)}
+                                            placeholder="5585999999999"
+                                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-colors"
+                                        />
+                                        <p className="text-[color:var(--text-muted)] text-xs mt-1.5">Número com código do país. Ex: 5585912345678</p>
+                                    </div>
+                                </div>
+                                <SaveButton loading={loading} success={success} />
                             </div>
-                            <input required type="text" value={pixName} onChange={e => setPixName(e.target.value)} placeholder="Nome do Beneficiário" className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] uppercase" />
-                            <input required type="text" value={pixCity} onChange={e => setPixCity(e.target.value)} placeholder="Cidade" className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] uppercase" />
-                        </div>
-                    </div>
+                        )}
 
-                    <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[2.5rem] p-8 shadow-2xl">
-                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[color:var(--border-subtle)]">
-                            <div className="p-3 bg-green-900/30 rounded-xl text-green-400">
-                                <MessageCircle size={24}/>
+                        {/* ASSINATURA — sem botão salvar, delegado ao SubscriptionTab */}
+                        {activeSection === 'assinatura' && (
+                            <div className="space-y-8">
+                                <div>
+                                    <h3 className="text-base font-bold text-[color:var(--text-primary)] mb-0.5">Assinatura</h3>
+                                    <p className="text-sm text-[color:var(--text-muted)]">Plano atual, faturamento e gerenciamento da assinatura.</p>
+                                </div>
+                                <div className="border-t border-[color:var(--border-subtle)] pt-6">
+                                    <SubscriptionTab
+                                        tenant={tenant}
+                                        adminEmail={profile?.email || tenant.owner_email}
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="text-lg font-black text-[color:var(--text-primary)] uppercase">Atendimento</h3>
-                            </div>
-                        </div>
-                        <input type="text" value={whatsapp} onChange={e => setWhatsapp(e.target.value)} placeholder="WhatsApp do Consultor" className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)]" />
-                    </div>
+                        )}
 
-                    <div className="pt-4 sticky bottom-4 z-10">
-                        <button type="submit" disabled={loading}
-                            className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 shadow-2xl ${
-                                success ? 'bg-green-600 text-white' : 'bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] text-[color:var(--text-on-accent)]'
-                            }`}>
-                            {loading ? <RefreshCw className="animate-spin" size={18}/> : success ? <><CheckCircle2 size={18}/> Salvo!</> : <><Save size={18}/> Salvar Todas as Alterações</>}
-                        </button>
-                    </div>
-                </form>
-            )}
-
-            {/* Conteúdo da aba Assinatura */}
-            {activeTab === 'subscription' && (
-                <SubscriptionTab
-                    tenant={tenant}
-                    adminEmail={profile?.email || tenant.owner_email}
-                />
-            )}
+            </form>
         </div>
     );
 };
+
+const SaveButton: React.FC<{ loading: boolean; success: boolean }> = ({ loading, success }) => (
+    <div className="flex justify-end pt-2">
+        <button
+            type="submit"
+            disabled={loading}
+            className={`w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${
+                success
+                    ? 'bg-green-600 text-white'
+                    : 'bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] text-[color:var(--text-on-accent)]'
+            }`}
+        >
+            {loading
+                ? <><RefreshCw className="animate-spin" size={15} /> Salvando...</>
+                : success
+                    ? <><CheckCircle2 size={15} /> Salvo!</>
+                    : <><Save size={15} /> Salvar</>}
+        </button>
+    </div>
+);
 
 export default AdminSettings;

@@ -5,7 +5,7 @@ export default defineConfig({
   timeout: 30_000,
   retries: process.env.CI ? 2 : 0,
   use: {
-    baseURL: 'http://localhost:3001',
+    baseURL: 'http://localhost:4173',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -42,8 +42,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npx vite --port 3001',
-    url: 'http://localhost:3001',
+    command: 'npx vite --port 4173',
+    url: 'http://localhost:4173',
     reuseExistingServer: true,
   },
 });

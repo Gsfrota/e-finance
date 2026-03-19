@@ -1,21 +1,21 @@
 
 import React from 'react';
 import { Tenant } from '../types';
-import { Crown, Zap, CheckCircle2, ExternalLink, Lock, Star, Bot, BarChart3, Users, FileText, Settings, Clock, AlertCircle, Smartphone, TrendingUp } from 'lucide-react';
+import { Crown, CheckCircle2, ExternalLink, Lock, Star, Bot, BarChart3, Users, FileText, Settings, Clock, AlertCircle, Smartphone, TrendingUp, Building2 } from 'lucide-react';
 
 const getTrialDaysLeft = (trial_ends_at: string): number => {
   const diff = new Date(trial_ends_at).getTime() - Date.now();
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
 };
 
-// Payment Links de produção — criar em Stripe Dashboard → Payment Links usando:
-// Caderneta:   price_1TBPCCACn07Lx1HlBs6jVpSg (R$150/mês)
-// Empresarial: price_1TBPCCACn07Lx1Hl9oVyp3EY (R$275/mês)
-const CADERNETA_PAYMENT_LINK = 'https://buy.stripe.com/caderneta'; // TODO: substituir pela URL gerada no Stripe Dashboard
-const EMPRESARIAL_PAYMENT_LINK = 'https://buy.stripe.com/empresarial'; // TODO: substituir pela URL gerada no Stripe Dashboard
+// Payment Links de produção (Stripe livemode)
+// Caderneta:   price_1TClkd0OdUyqvIqVJuNexoLI (R$150/mês) — prod_UB80PnGOAAQuNl
+// Empresarial: price_1TClke0OdUyqvIqVAztaS2sU (R$275/mês) — prod_UB802rvwFurlTU
+const CADERNETA_PAYMENT_LINK = 'https://buy.stripe.com/7sY00b575dQc7ys42e1VK00';
+const EMPRESARIAL_PAYMENT_LINK = 'https://buy.stripe.com/aFa14f0QPfYkdWQ6am1VK01';
 
-// Stripe Dashboard → Settings → Customer Portal → copiar link
-const STRIPE_CUSTOMER_PORTAL = 'https://billing.stripe.com/p/login/test_eVq14ma4Vdc7afr0jycIE00';
+// Stripe Dashboard → Settings → Billing → Customer Portal → copiar link de produção
+const STRIPE_CUSTOMER_PORTAL = 'https://billing.stripe.com/p/login/test_eVq14ma4Vdc7afr0jycIE00'; // TODO: substituir pela URL do portal de produção
 
 interface SubscriptionTabProps {
   tenant: Tenant;
@@ -47,13 +47,13 @@ const CADERNETA_FEATURES = [
   { icon: Users, label: 'Gestão de clientes' },
   { icon: BarChart3, label: 'Dashboard informativo de cobrança' },
   { icon: Settings, label: 'Configurações e Pix integrado' },
+  { icon: Bot, label: 'Assistente IA integrado ao WhatsApp' },
 ];
 
 const EMPRESARIAL_EXTRAS = [
+  { icon: Building2, label: 'Multi-empresa (filiais em outros estados ou locais)' },
   { icon: Smartphone, label: 'Portal do cliente (login próprio para consulta e pagamento)' },
   { icon: TrendingUp, label: 'Portal do investidor (login próprio para consultar portfólio)' },
-  { icon: Bot, label: 'Agente IA integrado ao WhatsApp' },
-  { icon: Zap, label: 'Briefing matinal e follow-up automatizado' },
 ];
 
 const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail }) => {
@@ -259,24 +259,24 @@ export default SubscriptionTab;
 
 /* Paywall inline para o Assistente */
 export const AssistantPaywall: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
-  const empresarialLink = buildPaymentLink(EMPRESARIAL_PAYMENT_LINK, tenant.id, tenant.owner_email);
+  const cadernetaLink = buildPaymentLink(CADERNETA_PAYMENT_LINK, tenant.id, tenant.owner_email);
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-8 animate-fade-in">
-      <div className="p-5 bg-[color:var(--accent-premium-bg)] rounded-3xl mb-6">
-        <Lock size={48} className="text-[color:var(--accent-premium)]" />
+      <div className="p-5 bg-teal-900/30 rounded-3xl mb-6">
+        <Lock size={48} className="text-teal-400" />
       </div>
-      <h2 className="text-3xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter mb-3">Recurso Empresarial</h2>
+      <h2 className="text-3xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter mb-3">Recurso Caderneta</h2>
       <p className="text-[color:var(--text-secondary)] text-sm max-w-md mb-8">
-        O Agente IA com briefing matinal e automações por WhatsApp está disponível apenas no plano <strong className="text-[color:var(--accent-premium)]">Empresarial</strong> (R$275/mês).
+        O Assistente IA com automações por WhatsApp está disponível a partir do plano <strong className="text-teal-400">Caderneta</strong> (R$150/mês).
       </p>
       <div className="flex flex-col sm:flex-row gap-4">
         <a
-          href={empresarialLink}
+          href={cadernetaLink}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-[color:var(--accent-premium-btn)] hover:bg-[color:var(--accent-premium-btn-hover)] text-white transition-all"
+          className="flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-teal-600 hover:bg-teal-500 text-white transition-all"
         >
-          <Crown size={16} /> Assinar Empresarial — R$275/mês
+          <Star size={16} /> Assinar Caderneta — R$150/mês
         </a>
       </div>
     </div>

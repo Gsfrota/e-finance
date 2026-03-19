@@ -64,7 +64,8 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onLogout, userRole, tenant, profile }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
-    return localStorage.getItem('EF_SIDEBAR_COLLAPSED') === 'true';
+    const stored = localStorage.getItem('EF_SIDEBAR_COLLAPSED');
+    return stored === null ? true : stored === 'true';
   });
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('EF_THEME') as 'dark' | 'light') || 'light';

@@ -76,7 +76,10 @@ export interface LoanInstallment {
   
   status: 'pending' | 'paid' | 'late' | 'partial';
   paid_at?: string;
+  payment_method?: string;
   interest_payments_total?: number;
+  missed_at?: string;          // Timestamp da falta registrada
+  deferred_from_id?: string;   // ID da parcela de origem (quando postergada)
   contract_name?: string; // Virtual for UI
   investment?: Investment; // Join
 }
@@ -169,6 +172,7 @@ export interface ContractMetrics {
   fineAcumulada: number;
   rentabilidadeReal: number;
   parcelasPagas: number;
+  parcelasPartiais: number;
   parcelasPendentes: number;
   parcelasAtrasadas: number;
   parcelasTotal: number;

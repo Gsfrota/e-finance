@@ -26,7 +26,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
   const paidDate = installment.paid_at ? new Date(installment.paid_at) : new Date();
   const clientName = payerName || 'Cliente';
   const totalPaid = Number(installment.amount_paid);
-  const installmentAmount = Number(installment.amount);
+  const installmentAmount = Number(installment.amount_total);
   const hasPenalties = Number(installment.fine_amount) > 0 || Number(installment.interest_delay_amount) > 0;
 
   const fmtCurrency = (val: number) =>
