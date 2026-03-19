@@ -11,20 +11,28 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
 );
 
-// Mapa de amount_total (centavos) → plano
-const PLAN_BY_AMOUNT: Record<number, 'caderneta' | 'empresarial'> = {
-  15000: 'caderneta',
-  27500: 'empresarial',
+// CRÍTICA-3: Mapa por price_id (estável mesmo com cupons/impostos)
+const PLAN_BY_PRICE: Record<string, 'caderneta' | 'empresarial'> = {
+  'price_1TClkd0OdUyqvIqVJuNexoLI': 'caderneta',
+  'price_1TClke0OdUyqvIqVAztaS2sU': 'empresarial',
 };
+
+// ALTA-5: Validação de UUID
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
 
-  const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET') ?? '';
-  const signature = req.headers.get('stripe-signature');
+  // CRÍTICA-4: Fail-fast se STRIPE_WEBHOOK_SECRET não configurado
+  const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
+  if (!webhookSecret) {
+    console.error('STRIPE_WEBHOOK_SECRET não configurado — abortando');
+    return new Response('Configuration error', { status: 500 });
+  }
 
+  const signature = req.headers.get('stripe-signature');
   if (!signature) {
     return new Response('Missing stripe-signature header', { status: 400 });
   }
@@ -45,13 +53,23 @@ Deno.serve(async (req: Request) => {
         const session = event.data.object as Stripe.Checkout.Session;
         const tenantId = session.client_reference_id;
 
-        if (!tenantId) {
-          console.warn('checkout.session.completed sem client_reference_id');
+        // ALTA-5: Validar formato UUID antes de usar
+        if (!tenantId || !UUID_REGEX.test(tenantId)) {
+          console.warn(`client_reference_id inválido: ${tenantId}`);
           break;
         }
 
-        const amountTotal = session.amount_total ?? 0;
-        const plan = PLAN_BY_AMOUNT[amountTotal] ?? 'caderneta';
+        // CRÍTICA-3: Expandir line_items e mapear por price_id
+        const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
+          expand: ['line_items'],
+        });
+        const priceId = fullSession.line_items?.data[0]?.price?.id ?? '';
+        const plan = PLAN_BY_PRICE[priceId];
+
+        if (!plan) {
+          console.error(`Plano não identificado para price_id: ${priceId}`);
+          break;
+        }
 
         const { error } = await supabase
           .from('tenants')
