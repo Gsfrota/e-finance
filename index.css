@@ -207,15 +207,113 @@ textarea {
   font: inherit;
 }
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6,
 .font-display {
   font-family: 'Playfair Display', serif;
+}
+
+/* ── Sistema de Tipografia (Stripe-inspired) ── */
+.type-display {
+  font-family: 'Playfair Display', serif;
+  font-size: 2.25rem;
+  font-weight: 600;
   letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+.type-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+.type-heading {
+  font-family: 'Inter', sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+.type-subheading {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+.type-body {
+  font-size: 0.875rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.type-caption {
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.type-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.type-micro {
+  font-size: 0.5625rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* Métricas financeiras — sempre tabular-nums */
+.type-metric-xl {
+  font-size: 1.875rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+.type-metric-lg {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+.type-metric-md {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+.type-metric-sm {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* Responsivo — mobile gracioso */
+@media (max-width: 767px) {
+  .type-display  { font-size: 1.875rem; }
+  .type-title    { font-size: 1.25rem; }
+  .type-metric-xl { font-size: 1.5rem; }
 }
 
 a {
@@ -304,7 +402,7 @@ nav.glass-border {
 /* ── Sistema de Botões Premium ── */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
-  border-radius: 9999px; font-weight: 700; font-size: 0.875rem;
+  border-radius: 9999px; font-weight: 600; font-size: 0.875rem;
   letter-spacing: 0.02em; transition: all 0.18s cubic-bezier(0.22, 1, 0.36, 1);
   cursor: pointer; padding: 0.625rem 1.5rem; border: none; outline: none;
   white-space: nowrap;
@@ -351,7 +449,7 @@ nav.glass-border {
 .chip {
   display: inline-flex; align-items: center; gap: 0.35rem;
   padding: 0.2rem 0.65rem; border-radius: 9999px;
-  font-size: 0.625rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
+  font-size: 0.625rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
   white-space: nowrap;
 }
 .chip-active  { background: var(--accent-positive-subtle); color: var(--accent-positive); border: 1px solid var(--accent-positive-border); }
@@ -406,9 +504,9 @@ nav.glass-border {
 }
 
 .section-kicker {
-  font-size: 0.65rem;
-  font-weight: 800;
-  letter-spacing: 0.26em;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-faint);
 }

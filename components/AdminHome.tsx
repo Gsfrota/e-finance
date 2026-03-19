@@ -112,7 +112,7 @@ const PagaramHojePage: React.FC<PagaramHojePageProps> = ({ clientesPageramHoje, 
         Voltar
       </button>
       <p className="section-kicker mb-2">Pagamentos do dia</p>
-      <h2 className="font-display text-3xl leading-none text-[color:var(--text-primary)] md:text-5xl">
+      <h2 className="type-title text-[color:var(--text-primary)] md:text-5xl">
         Quem pagou hoje
       </h2>
     </div>
@@ -294,7 +294,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
             Voltar
           </button>
           <p className="section-kicker mb-2">Hoje</p>
-          <h2 className="font-display text-3xl leading-none text-[color:var(--text-primary)] md:text-5xl">
+          <h2 className="type-title text-[color:var(--text-primary)] md:text-5xl">
             Contratos Renovados
           </h2>
         </div>
@@ -396,7 +396,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
             Voltar
           </button>
           <p className="section-kicker mb-2">Carteira ativa</p>
-          <h2 className="font-display text-3xl leading-none text-[color:var(--text-primary)] md:text-5xl">
+          <h2 className="type-title text-[color:var(--text-primary)] md:text-5xl">
             Contratos Vigentes
           </h2>
         </div>
@@ -477,7 +477,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
             Voltar
           </button>
           <p className="section-kicker mb-2">Vencem hoje</p>
-          <h2 className="font-display text-3xl leading-none text-[color:var(--text-primary)] md:text-5xl">
+          <h2 className="type-title text-[color:var(--text-primary)] md:text-5xl">
             Parcelas Vencendo
           </h2>
         </div>
@@ -560,7 +560,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
             Voltar
           </button>
           <p className="section-kicker mb-2">Em atraso</p>
-          <h2 className="font-display text-3xl leading-none text-[color:var(--text-primary)] md:text-5xl">
+          <h2 className="type-title text-[color:var(--text-primary)] md:text-5xl">
             Parcelas Atrasadas
           </h2>
         </div>
@@ -627,12 +627,12 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
   // ─── Menu grid items (BossCash style) ──────────────────────────────────────
   const menuItems = [
     { icon: Users,         label: 'Clientes',             onClick: () => onNavigate(AppView.USERS),                                                                         variant: 'default' as const },
-    { icon: Zap,           label: 'Novo Emprestimo',      onClick: () => onNewContract(),                                                                                    variant: 'default' as const },
+    { icon: Zap,           label: 'Empréstimo',           onClick: () => onNewContract(),                                                                                    variant: 'default' as const },
     { icon: TrendingUp,    label: 'Salário',              onClick: () => setActiveTab('salary'),                                                                             variant: 'default' as const },
-    { icon: Wallet,        label: 'Meus Recebimentos',    onClick: () => { setCollectionBucket('today'); setCollectionKey(k => k + 1); setActiveTab('collection'); },         variant: 'default' as const },
-    { icon: BarChart3,     label: 'Meus Relatorios',      onClick: () => onNavigate(AppView.DASHBOARD),                                                                      variant: 'default' as const },
+    { icon: Wallet,        label: 'Recebimentos',         onClick: () => { setCollectionBucket('today'); setCollectionKey(k => k + 1); setActiveTab('collection'); },         variant: 'default' as const },
+    { icon: BarChart3,     label: 'Relatórios',           onClick: () => onNavigate(AppView.DASHBOARD),                                                                      variant: 'default' as const },
     { icon: Bot,           label: 'Assistente',           onClick: () => onNavigate(AppView.ASSISTANT),                                                                      variant: 'default' as const },
-    { icon: Calendar,      label: 'Cobrancas de Hoje',   onClick: () => onNavigate(AppView.COLLECTION),                                                                       variant: 'default' as const },
+    { icon: Calendar,      label: 'Cobranças',            onClick: () => onNavigate(AppView.COLLECTION),                                                                       variant: 'default' as const },
     { icon: AlertTriangle, label: 'Inadimplentes',        onClick: () => { setCollectionBucket('overdue'); setCollectionKey(k => k + 1); setActiveTab('inadimplentes'); },   variant: 'danger'  as const },
   ];
 
@@ -684,8 +684,8 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
           <div className="panel-card rounded-[2rem] px-6 py-5 flex items-center gap-3" style={{ background: 'rgba(198,126,105,0.08)', border: '1px solid rgba(198,126,105,0.20)' }}>
             <AlertTriangle size={20} style={{ color: 'var(--accent-danger)' }} />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--accent-danger)' }}>Inadimplentes</p>
-              <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+              <p className="type-label" style={{ color: 'var(--accent-danger)' }}>Inadimplentes</p>
+              <p className="type-body font-bold" style={{ color: 'var(--text-primary)' }}>
                 {parcelasAtrasadas} parcela{parcelasAtrasadas !== 1 ? 's' : ''} em atraso
               </p>
             </div>
@@ -704,15 +704,15 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
               <button
                 key={item.label}
                 onClick={item.onClick}
-                className="flex flex-col items-center justify-center gap-2 rounded-2xl p-3 min-h-[88px] transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer shadow-sm hover:shadow-md"
+                className="flex flex-col items-center justify-start gap-2 rounded-2xl px-2 pt-5 pb-3 min-h-[88px] transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer shadow-sm hover:shadow-md"
                 style={item.variant === 'danger'
                   ? { background: 'rgba(198,126,105,0.12)', border: '1px solid rgba(198,126,105,0.28)', color: 'var(--accent-danger)' }
                   : { background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }
                 }
               >
                 <item.icon size={24} style={item.variant === 'danger' ? { color: 'var(--accent-danger)' } : { color: 'var(--text-primary)' }} />
-                <span className="text-[10px] font-semibold text-center leading-tight"
-                  style={{ color: item.variant === 'danger' ? 'var(--accent-danger)' : 'var(--text-primary)' }}>
+                <span className="type-label text-center w-full leading-tight"
+                  style={{ color: item.variant === 'danger' ? 'var(--accent-danger)' : 'var(--text-primary)', letterSpacing: 0, fontSize: '0.5rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {item.label}
                 </span>
               </button>
@@ -722,7 +722,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
           {/* ── Avisos do dia! ────────────────────────────────────────────── */}
           <div>
             <div className="flex items-center justify-between mb-3 px-1">
-              <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>Avisos do dia!</h3>
+              <h3 className="type-subheading" style={{ color: 'var(--text-primary)' }}>Avisos do dia!</h3>
               <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
                 {new Date().toLocaleDateString('pt-BR')}
               </span>
@@ -730,25 +730,25 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
             <div className="grid grid-cols-4 gap-2">
               {[
                 {
-                  label: 'Contratos Renovados',
+                  label: 'Renovados',
                   value: contratosHoje.length,
                   color: '#0D47A1',
                   onClick: () => setSubView('contratos-hoje'),
                 },
                 {
-                  label: 'Contratos Vigentes',
+                  label: 'Vigentes',
                   value: activeInvestments.length,
                   color: '#2196F3',
                   onClick: () => setSubView('contratos-vigentes'),
                 },
                 {
-                  label: 'Parcelas Vencendo',
+                  label: 'Vencendo',
                   value: parcelasVencendo,
                   color: '#FF9800',
                   onClick: () => setSubView('parcelas-vencendo'),
                 },
                 {
-                  label: 'Parcelas Atrasados',
+                  label: 'Atrasados',
                   value: parcelasAtrasadas,
                   color: '#F44336',
                   onClick: () => setSubView('parcelas-atrasadas'),
@@ -760,13 +760,13 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                   className="rounded-xl p-3 text-center transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer"
                   style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
                 >
-                  <p className="text-[10px] font-medium leading-tight mb-1" style={{ color: 'var(--text-muted)' }}>
+                  <p className="type-label w-full leading-tight mb-1" style={{ color: 'var(--text-muted)', letterSpacing: 0, fontSize: '0.5rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {stat.label}
                   </p>
                   {loading ? (
                     <div className="skeleton h-7 w-8 rounded mx-auto" />
                   ) : (
-                    <p className="text-xl font-black tabular-nums" style={{ color: stat.color }}>
+                    <p className="type-metric-lg" style={{ color: stat.color }}>
                       {stat.value}
                     </p>
                   )}
@@ -777,7 +777,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
 
           {/* ── Meus Relatórios ──────────────────────────────────────────── */}
           <div>
-            <h3 className="text-lg font-bold mb-3 px-1" style={{ color: 'var(--text-primary)' }}>Meus Relatorios</h3>
+            <h3 className="type-subheading mb-3 px-1" style={{ color: 'var(--text-primary)' }}>Meus Relatorios</h3>
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => setActiveTab('receivables')}
@@ -785,8 +785,8 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                 style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
               >
                 <BarChart3 size={24} style={{ color: 'var(--header-blue)' }} className="mb-2" />
-                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Fluxo de Caixa</p>
-                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Faturamento total e fluxo por periodo</p>
+                <p className="type-body font-bold" style={{ color: 'var(--text-primary)' }}>Fluxo de Caixa</p>
+                <p className="type-caption mt-0.5" style={{ color: 'var(--text-muted)' }}>Faturamento total e fluxo por periodo</p>
                 <ChevronRight size={16} style={{ color: 'var(--text-faint)' }} className="mt-2" />
               </button>
               <button
@@ -795,9 +795,9 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                 style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
               >
                 <Calendar size={24} style={{ color: 'var(--header-blue)' }} className="mb-2" />
-                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Hoje</p>
-                <p className="text-lg font-black tabular-nums" style={{ color: 'var(--header-blue)' }}>{formatCurrency(totalRecebidoHoje)}</p>
-                <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Recebimentos Hoje</p>
+                <p className="type-body font-bold" style={{ color: 'var(--text-primary)' }}>Hoje</p>
+                <p className="type-metric-lg" style={{ color: 'var(--header-blue)' }}>{formatCurrency(totalRecebidoHoje)}</p>
+                <p className="type-caption" style={{ color: 'var(--text-muted)' }}>Recebimentos Hoje</p>
                 <ChevronRight size={16} style={{ color: 'var(--text-faint)' }} className="mt-1" />
               </button>
               <button
@@ -806,8 +806,8 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                 style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
               >
                 <TrendingUp size={24} style={{ color: 'var(--header-blue)' }} className="mb-2" />
-                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Resultados</p>
-                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Seus Resultados</p>
+                <p className="type-body font-bold" style={{ color: 'var(--text-primary)' }}>Resultados</p>
+                <p className="type-caption mt-0.5" style={{ color: 'var(--text-muted)' }}>Seus Resultados</p>
                 <ChevronRight size={16} style={{ color: 'var(--text-faint)' }} className="mt-2" />
               </button>
               <button
@@ -816,8 +816,8 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                 style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
               >
                 <Users size={24} style={{ color: 'var(--header-blue)' }} className="mb-2" />
-                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Top Clientes</p>
-                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Veja aqui quais sao os clientes que pagam em dia</p>
+                <p className="type-body font-bold" style={{ color: 'var(--text-primary)' }}>Top Clientes</p>
+                <p className="type-caption mt-0.5" style={{ color: 'var(--text-muted)' }}>Veja aqui quais sao os clientes que pagam em dia</p>
                 <ChevronRight size={16} style={{ color: 'var(--text-faint)' }} className="mt-1" />
               </button>
             </div>
