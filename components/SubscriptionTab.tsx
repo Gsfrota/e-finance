@@ -14,8 +14,7 @@ const getTrialDaysLeft = (trial_ends_at: string): number => {
 const CADERNETA_PAYMENT_LINK = 'https://buy.stripe.com/7sY00b575dQc7ys42e1VK00';
 const EMPRESARIAL_PAYMENT_LINK = 'https://buy.stripe.com/aFa14f0QPfYkdWQ6am1VK01';
 
-// Stripe Dashboard → Settings → Billing → Customer Portal → copiar link de produção
-const STRIPE_CUSTOMER_PORTAL = 'https://billing.stripe.com/p/login/test_eVq14ma4Vdc7afr0jycIE00'; // TODO: substituir pela URL do portal de produção
+const STRIPE_CUSTOMER_PORTAL = 'https://billing.stripe.com/p/login/7sY00b575dQc7ys42e1VK00';
 
 interface SubscriptionTabProps {
   tenant: Tenant;
