@@ -60,3 +60,18 @@ jobs:
         run: |
           echo "✅ Deploy concluído!"
           echo "URL: $(gcloud run services describe ${{ env.SERVICE }} --region=${{ env.REGION }} --format='value(status.url)')"
+
+      - name: Notificar sucesso no Telegram
+        if: success()
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE }} --region=${{ env.REGION }} --format='value(status.url)')
+          MSG="✅ *Deploy concluído*%0A%0AServiço: \`${{ env.SERVICE }}\`%0ACommit: \`${{ github.sha }}\`%0APor: ${{ github.actor }}%0AURL: ${URL}"
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=7354814208&text=${MSG}&parse_mode=Markdown" > /dev/null
+
+      - name: Notificar falha no Telegram
+        if: failure()
+        run: |
+          MSG="❌ *Deploy falhou*%0A%0AServiço: \`${{ env.SERVICE }}\`%0ACommit: \`${{ github.sha }}\`%0APor: ${{ github.actor }}%0A%0A🔍 Detalhes: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=7354814208&text=${MSG}&parse_mode=Markdown" > /dev/null
