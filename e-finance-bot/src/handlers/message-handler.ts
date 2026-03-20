@@ -1204,7 +1204,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       return finalize(clarificationText, {
         action: `clarification:${actionPlan.capability}`,
         result: 'clarification',
-      });
+      }, { skipLlm: true });
     }
 
     const policyResult = await timed('policyMs', async () => runPolicyCheck({

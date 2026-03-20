@@ -72,7 +72,7 @@ const RULES: Rule[] = [
   { intent: 'cobrar_hoje', pattern: /(quem\s+tenho\s+que\s+cobrar\s+hoje|cobrar\s+hoje|lista\s+de\s+cobran[cç]a\s+de\s+hoje|quem\s+(t[aá]|est[aá])\s+me\s+devendo\s+hoje|quem\s+me\s+deve\s+hoje|quem\s+(t[aá]|est[aá])\s+devendo\s+hoje|quem\s+(?:eu\s+)?cobro\s+hoje)/i },
   { intent: 'listar_recebiveis', pattern: /\b(?:parcelas?|vencimentos?)\s+(?:vencidas?|atrasadas?|em\s+aberto)/i, entities: { filter: 'late' } },
 
-  { intent: 'criar_contrato', pattern: /(criar?\s+contrato|novo\s+contrato|registrar\s+contrato|cadastrar\s+contrato|empr[eé]stimo\s+para)/i },
+  { intent: 'criar_contrato', pattern: /(criar?\s+contrato|novo\s+contrato|registrar\s+contrato|cadastrar\s+contrato|empr[eé]stimo\s+para|fazer\s+(?:um\s+)?contrato|quero\s+(?:fazer|criar)\s+(?:um\s+)?contrato)/i },
   { intent: 'criar_contrato', pattern: /(?:fazer|novo|criar|cadastrar)\s+empr[eé]stimo|empr[eé]stimo\s+(?:pro?|para|d[eo]|cliente)/i },
   { intent: 'configurar_briefing', pattern: /todos?\s+(?:os\s+)?dias?\s+.*(?:diga|avise|mande|fale|conta|mostra)|quero\s+(?:receber|que\s+me\s+(?:diga|avise))\s+.*(?:di[aá]rio|todo\s+dia|todos\s+dias)/i },
   { intent: 'ver_dashboard', pattern: /quantos?\s+(?:clientes?|devedores?)\s+(?:eu\s+)?tenho/i },

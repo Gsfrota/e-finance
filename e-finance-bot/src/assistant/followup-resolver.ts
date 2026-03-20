@@ -326,7 +326,8 @@ function resolvePendingCapabilityConfirmation(
   state: ConversationWorkingState,
   text: string,
 ): ActionPlan | null {
-  if (!state.pendingCapability) return null;
+  // 'help' e 'greet' não são ações confirmaveis — "sim" após clarificação cai no pipeline normal
+  if (!state.pendingCapability || state.pendingCapability === 'help' || state.pendingCapability === 'greet') return null;
 
   const normalized = text.trim().toLowerCase();
   if (!/^(sim|ok|confirmo|pode|isso|s)$/i.test(normalized)) return null;
