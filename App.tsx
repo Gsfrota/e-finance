@@ -419,6 +419,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
   );
 };
 
+// Detecta se estamos voltando de um callback OAuth (PKCE ?code= ou legacy #access_token=)
+const isOAuthCallback = () => {
+  const params = new URLSearchParams(window.location.search);
+  return params.has('code') || window.location.hash.includes('access_token');
+};
+
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.LOGIN);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -426,6 +432,7 @@ const App: React.FC = () => {
   const [targetUserId, setTargetUserId] = useState<string | undefined>(undefined);
   const [contractAutoNew, setContractAutoNew] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingPhase, setLoadingPhase] = useState<'init' | 'auth' | 'profile' | 'ready'>(isOAuthCallback() ? 'auth' : 'init');
   const [appError, setAppError] = useState<string | null>(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [onboardingUser, setOnboardingUser] = useState<any>(null);
@@ -441,6 +448,7 @@ const App: React.FC = () => {
 
   const loadAppData = async (sessionUser: any, fromOnboarding = false) => {
     console.log('[LoadAppData] Starting for user:', sessionUser.email);
+    setLoadingPhase('profile');
     const supabase = getSupabase();
     if (!supabase) {
         console.error('[LoadAppData] Supabase client not available');
@@ -522,6 +530,11 @@ const App: React.FC = () => {
             });
         }
         profileLoadedRef.current = true;
+        setLoadingPhase('ready');
+        // Limpa parâmetros de callback da URL
+        if (window.location.search.includes('code=')) {
+          window.history.replaceState({}, '', window.location.pathname);
+        }
         setIsLoading(false);
         setCurrentView(AppView.HOME);
         console.log('[LoadAppData] Complete, redirecting to HOME');
@@ -563,6 +576,8 @@ const App: React.FC = () => {
             setIsLoading(false);
         } else if (event === 'SIGNED_IN' && session) {
             console.log('[SIGNED_IN] Loading app data for:', session.user.email);
+            setLoadingPhase('auth');
+            setIsLoading(true);
             if (!profileLoadedRef.current) loadAppData(session.user);
         } else if (event === 'SIGNED_OUT') {
             profileLoadedRef.current = false;
@@ -641,10 +656,42 @@ const App: React.FC = () => {
   }
 
   if (isLoading) {
+      const phaseMessages: Record<typeof loadingPhase, { label: string; sub: string }> = {
+        init: { label: 'Preparando operação', sub: 'Conectando ao servidor...' },
+        auth: { label: 'Autenticando', sub: 'Validando suas credenciais...' },
+        profile: { label: 'Carregando perfil', sub: 'Buscando seus dados...' },
+        ready: { label: 'Quase pronto', sub: 'Montando seu painel...' },
+      };
+      const phase = phaseMessages[loadingPhase];
+      const steps = ['auth', 'profile', 'ready'] as const;
+      const currentIdx = steps.indexOf(loadingPhase as any);
+
       return (
-        <div className="flex h-screen flex-col items-center justify-center text-[color:var(--accent-brass)]">
-            <Loader2 className="mb-4 animate-spin" size={40} />
-            <p className="section-kicker animate-pulse text-[color:var(--text-secondary)]">Preparando operação</p>
+        <div className="flex h-screen flex-col items-center justify-center">
+            <div className="relative mb-6">
+              <div className="absolute inset-0 rounded-full bg-[rgba(202,176,122,0.15)] blur-xl animate-pulse" style={{ width: 72, height: 72 }} />
+              <div className="relative flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[rgba(202,176,122,0.12)] ring-1 ring-[rgba(202,176,122,0.2)]">
+                <Loader2 className="animate-spin text-[color:var(--accent-brass)]" size={32} />
+              </div>
+            </div>
+            <h2 className="font-display text-xl text-[color:var(--text-primary)] mb-1">{phase.label}</h2>
+            <p className="text-xs text-[color:var(--text-muted)] mb-6">{phase.sub}</p>
+
+            {/* Barra de progresso com steps */}
+            {currentIdx >= 0 && (
+              <div className="flex items-center gap-2">
+                {steps.map((s, i) => (
+                  <div
+                    key={s}
+                    className={`h-1.5 rounded-full transition-all duration-500 ${
+                      i <= currentIdx
+                        ? 'w-8 bg-[color:var(--accent-brass)]'
+                        : 'w-4 bg-white/10'
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
         </div>
       );
   }

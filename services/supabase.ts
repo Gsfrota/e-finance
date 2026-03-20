@@ -86,6 +86,7 @@ if (config.url && config.key && config.url.startsWith('http')) {
   try {
     supabase = createClient(config.url, config.key, {
       auth: {
+        flowType: 'pkce',
         storageKey: isProduction() ? 'ef_prod_session' : 'ef_dev_session',
         persistSession: true,
         autoRefreshToken: true,
