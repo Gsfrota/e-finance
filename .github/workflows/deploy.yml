@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths-ignore:
       - 'e-finance-bot/**'
+      - '.github/workflows/**'
 
 env:
   PROJECT_ID: tribal-pillar-476701-a3
