@@ -20,7 +20,7 @@ const maskCPF = (v: string) => {
 };
 
 const inputCls = "w-full min-w-0 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:border-teal-500 outline-none transition-all";
-const labelCls = "text-[9px] font-black uppercase text-slate-500 tracking-widest block mb-1";
+const labelCls = "type-micro text-[color:var(--text-muted)] block mb-1";
 const sectionCls = "bg-slate-800 rounded-2xl p-4 md:p-6 border border-slate-700 space-y-3 overflow-hidden";
 
 const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSuccess }) => {
@@ -236,18 +236,18 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
             <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center">
               <CheckCircle2 size={36} className="text-emerald-400" />
             </div>
-            <h3 className="text-white font-black text-lg">Contrato Criado!</h3>
+            <h3 className="type-subheading text-[color:var(--text-primary)]">Contrato Criado!</h3>
             <p className="text-slate-400 text-sm">As parcelas foram geradas automaticamente.</p>
             <div className="flex gap-3 pt-2">
               <button
                 onClick={resetForm}
-                className="px-6 py-3 rounded-2xl border border-slate-700 text-slate-400 hover:text-white text-xs font-black uppercase tracking-widest transition-all hover:bg-slate-800"
+                className="px-6 py-3 rounded-2xl border border-slate-700 text-slate-400 hover:text-white type-label transition-all hover:bg-slate-800"
               >
                 Criar Outro
               </button>
               <button
                 onClick={onBack}
-                className="px-6 py-3 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-black uppercase tracking-widest transition-all"
+                className="px-6 py-3 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white type-label transition-all"
               >
                 Ver Contratos
               </button>
@@ -290,15 +290,15 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
         <div>
           <div className="flex items-center gap-2">
             <History size={16} className="text-amber-400" />
-            <h1 className="text-white font-black text-base uppercase tracking-wide">Contrato Antigo</h1>
+            <h1 className="type-subheading uppercase text-[color:var(--text-primary)]">Contrato Antigo</h1>
           </div>
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Cadastro Manual</p>
+          <p className="type-label text-[color:var(--text-muted)]">Cadastro Manual</p>
         </div>
       </div>
 
       {/* Seção 1: Devedor */}
       <div className="bg-slate-800 rounded-2xl p-4 md:p-6 border border-slate-700 space-y-3">
-        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Devedor</p>
+        <p className="type-label text-[color:var(--text-muted)]">Devedor</p>
 
         {matchedDebtor ? (
           <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-3 py-2.5">
@@ -387,7 +387,7 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
         {showNewDebtor && !matchedDebtor && (
           <div className="bg-slate-900 rounded-xl p-4 border border-slate-700 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-[10px] font-black uppercase text-teal-400 tracking-widest flex items-center gap-1.5">
+              <p className="type-label text-teal-400 flex items-center gap-1.5">
                 <UserPlus size={12} /> Novo Devedor
               </p>
               <button
@@ -447,7 +447,7 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
 
       {/* Seção 2: Valores */}
       <div className={sectionCls}>
-        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Valores</p>
+        <p className="type-label text-[color:var(--text-muted)]">Valores</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className={labelCls}>Principal (R$)</label>
@@ -474,19 +474,19 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
 
       {/* Seção 3: Origem do Capital */}
       <div className={sectionCls}>
-        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Origem do Capital</p>
+        <p className="type-label text-[color:var(--text-muted)]">Origem do Capital</p>
         <div className="flex gap-2">
           <button
             type="button"
             onClick={() => setSourceType('own')}
-            className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${sourceType === 'own' ? 'bg-teal-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-700 hover:border-slate-600'}`}
+            className={`flex-1 py-2 rounded-xl type-label transition-all ${sourceType === 'own' ? 'bg-teal-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-700 hover:border-slate-600'}`}
           >
             Capital Próprio
           </button>
           <button
             type="button"
             onClick={() => setSourceType('profit')}
-            className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${sourceType === 'profit' ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-700 hover:border-slate-600'}`}
+            className={`flex-1 py-2 rounded-xl type-label transition-all ${sourceType === 'profit' ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-700 hover:border-slate-600'}`}
           >
             Lucro Reinvestido
           </button>
@@ -495,7 +495,7 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
 
       {/* Seção 4: Vencimento */}
       <div className={sectionCls}>
-        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Vencimento</p>
+        <p className="type-label text-[color:var(--text-muted)]">Vencimento</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className={labelCls}>Frequência</label>
@@ -522,7 +522,7 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
 
       {/* Seção 5: Dados do Contrato Antigo */}
       <div className={sectionCls}>
-        <p className="text-[10px] font-black uppercase text-amber-400 tracking-widest flex items-center gap-1.5">
+        <p className="type-label text-amber-400 flex items-center gap-1.5">
           <History size={12} /> Dados do Contrato Antigo
         </p>
         <div>
@@ -580,7 +580,7 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
       <button
         onClick={handleSubmit}
         disabled={creating || (!hasDebtor && !(showNewDebtor && newDebtor.full_name))}
-        className="w-full bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
+        className="w-full bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3.5 rounded-2xl type-label flex items-center justify-center gap-2 transition-all"
       >
         {creating ? <><Loader2 size={16} className="animate-spin" /> Criando...</> : <><CheckCircle2 size={16} /> Confirmar e Criar Contrato</>}
       </button>

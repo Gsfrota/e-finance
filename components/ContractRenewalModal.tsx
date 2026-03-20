@@ -229,7 +229,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
             <ArrowLeft size={20} />
           </button>
           <div className="min-w-0">
-            <h3 className="font-display text-xl font-black text-[color:var(--text-primary)]">Renovar Contrato</h3>
+            <h3 className="type-heading text-[color:var(--text-primary)]">Renovar Contrato</h3>
             <p className="text-xs text-[color:var(--text-faint)] truncate">Pré-preenchido: <span className="font-semibold text-[color:var(--accent-brass)]">{sourceContract.asset_name}</span></p>
           </div>
         </div>
@@ -245,7 +245,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
 
           {/* Nome */}
           <div>
-            <label className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)]">Nome do Contrato</label>
+            <label className="mb-1.5 block type-label text-[color:var(--text-faint)]">Nome do Contrato</label>
             <input
               type="text"
               value={form.asset_name}
@@ -257,7 +257,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
           {/* Valor + Taxa */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)]">Valor (R$)</label>
+              <label className="mb-1.5 block type-label text-[color:var(--text-faint)]">Valor (R$)</label>
               <input
                 type="number"
                 min={0}
@@ -269,7 +269,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)]">Taxa (% a.m.)</label>
+              <label className="mb-1.5 block type-label text-[color:var(--text-faint)]">Taxa (% a.m.)</label>
               <input
                 type="number"
                 min={0}
@@ -286,7 +286,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
           {/* Parcelas + Frequência */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)]">Parcelas</label>
+              <label className="mb-1.5 block type-label text-[color:var(--text-faint)]">Parcelas</label>
               <input
                 type="number"
                 min={1}
@@ -297,7 +297,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)]">Frequência</label>
+              <label className="mb-1.5 block type-label text-[color:var(--text-faint)]">Frequência</label>
               <select
                 value={form.frequency}
                 onChange={(e) => set('frequency', e.target.value)}
@@ -314,7 +314,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
           {/* Data/Dia de vencimento */}
           {form.frequency === 'monthly' && (
             <div>
-              <label className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)]">Dia de Vencimento</label>
+              <label className="mb-1.5 block type-label text-[color:var(--text-faint)]">Dia de Vencimento</label>
               <input
                 type="number"
                 min={1}
@@ -329,7 +329,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
 
           {(form.frequency === 'daily' || form.frequency === 'freelancer') && (
             <div>
-              <label className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)]">Data de Início</label>
+              <label className="mb-1.5 block type-label text-[color:var(--text-faint)]">Data de Início</label>
               <input
                 type="date"
                 value={form.start_date}
@@ -341,13 +341,13 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
 
           {/* Modo de cálculo */}
           <div>
-            <label className="mb-2 block text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)]">Modo de Cálculo</label>
+            <label className="mb-2 block type-label text-[color:var(--text-faint)]">Modo de Cálculo</label>
             <div className="flex rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-base)] p-1">
               {(['auto', 'manual'] as const).map((mode) => (
                 <button
                   key={mode}
                   onClick={() => set('calculation_mode', mode)}
-                  className={`flex-1 rounded-xl py-2 text-xs font-extrabold uppercase tracking-wider transition-all ${
+                  className={`flex-1 rounded-xl py-2 type-label transition-all ${
                     form.calculation_mode === mode
                       ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)]'
                       : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'
@@ -361,7 +361,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
 
           {form.calculation_mode === 'manual' && (
             <div>
-              <label className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)]">Valor da Parcela (R$)</label>
+              <label className="mb-1.5 block type-label text-[color:var(--text-faint)]">Valor da Parcela (R$)</label>
               <input
                 type="number"
                 min={0}
@@ -377,7 +377,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
           {/* Preview */}
           {installmentValue > 0 && (
             <div className="rounded-2xl border border-[color:var(--accent-brass)]/20 bg-[rgba(202,176,122,0.06)] px-4 py-4">
-              <p className="mb-2 text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--accent-brass)]">Preview do Novo Contrato</p>
+              <p className="mb-2 type-label text-[color:var(--accent-brass)]">Preview do Novo Contrato</p>
               <div className="grid grid-cols-3 gap-2 text-center">
                 {[
                   { label: 'Parcela', value: fmt(installmentValue) },
@@ -386,7 +386,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 ].map(({ label, value }) => (
                   <div key={label}>
                     <p className="text-[10px] text-[color:var(--text-faint)]">{label}</p>
-                    <p className="text-sm font-extrabold text-[color:var(--accent-brass)]">{value}</p>
+                    <p className="type-metric-sm text-[color:var(--accent-brass)]">{value}</p>
                   </div>
                 ))}
               </div>
@@ -411,14 +411,14 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
         <div className="flex gap-3 border-t border-[color:var(--border-subtle)] px-6 py-5">
           <button
             onClick={onBack}
-            className="flex-1 rounded-2xl bg-[color:var(--bg-soft)] py-3.5 text-xs font-extrabold uppercase tracking-widest text-[color:var(--text-primary)] transition-all hover:bg-[color:var(--bg-strong)]"
+            className="flex-1 rounded-2xl bg-[color:var(--bg-soft)] py-3.5 type-label text-[color:var(--text-primary)] transition-all hover:bg-[color:var(--bg-strong)]"
           >
             Cancelar
           </button>
           <button
             onClick={handleSubmit}
             disabled={loading || !form.asset_name.trim() || Number(form.amount_invested) <= 0}
-            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[color:var(--accent-brass)] py-3.5 text-xs font-extrabold uppercase tracking-widest text-[color:var(--text-on-accent)] transition-all hover:opacity-90 disabled:opacity-40"
+            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[color:var(--accent-brass)] py-3.5 type-label text-[color:var(--text-on-accent)] transition-all hover:opacity-90 disabled:opacity-40"
           >
             {loading ? (
               <Loader2 size={15} className="animate-spin" />

@@ -265,7 +265,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
   };
 
   const inputCls = "w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:border-teal-500 outline-none transition-all";
-  const labelCls = "text-[9px] font-black uppercase text-slate-500 tracking-widest block mb-1";
+  const labelCls = "type-micro text-[color:var(--text-muted)] block mb-1";
 
   return (
     <>
@@ -277,10 +277,10 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
           <div className="flex items-center gap-3">
             <div className="p-2 bg-teal-500/10 rounded-xl text-teal-400"><Zap size={20} /></div>
             <div>
-              <h2 className="text-white font-black text-base uppercase tracking-wide">
+              <h2 className="type-subheading uppercase text-[color:var(--text-primary)]">
                 Contrato Antigo
               </h2>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+              <p className="type-label text-[color:var(--text-muted)]">
                 Cadastro Manual
               </p>
             </div>
@@ -303,7 +303,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
 
               {/* Devedor */}
               <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
-                <p className="text-[10px] font-black uppercase text-slate-500">Devedor</p>
+                <p className="type-label text-[color:var(--text-muted)]">Devedor</p>
 
                 {/* Cliente selecionado */}
                 {matchedDebtor ? (
@@ -313,7 +313,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                       <div>
                         <p className="text-xs text-emerald-300 font-bold">{matchedDebtor.full_name}</p>
                         {matchedDebtor.phone_number && (
-                          <p className="text-[10px] text-slate-500">{matchedDebtor.phone_number}</p>
+                          <p className="type-caption text-[color:var(--text-muted)]">{matchedDebtor.phone_number}</p>
                         )}
                       </div>
                     </div>
@@ -369,7 +369,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                               </div>
                               <div>
                                 <p className="text-xs text-white font-semibold">{p.full_name}</p>
-                                {p.phone_number && <p className="text-[10px] text-slate-500">{p.phone_number}</p>}
+                                {p.phone_number && <p className="type-caption text-[color:var(--text-muted)]">{p.phone_number}</p>}
                               </div>
                             </button>
                           ))
@@ -404,7 +404,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
 
               {/* Valores financeiros */}
               <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
-                <p className="text-[10px] font-black uppercase text-slate-500">Valores</p>
+                <p className="type-label text-[color:var(--text-muted)]">Valores</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={labelCls}>Principal (R$)</label>
@@ -431,19 +431,19 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
 
               {/* Origem do Capital */}
               <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
-                <p className="text-[10px] font-black uppercase text-slate-500">Origem do Capital</p>
+                <p className="type-label text-[color:var(--text-muted)]">Origem do Capital</p>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => setSourceType('own')}
-                    className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${sourceType === 'own' ? 'bg-teal-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-700 hover:border-slate-600'}`}
+                    className={`flex-1 py-2 rounded-xl type-label transition-all ${sourceType === 'own' ? 'bg-teal-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-700 hover:border-slate-600'}`}
                   >
                     Capital Próprio
                   </button>
                   <button
                     type="button"
                     onClick={() => setSourceType('profit')}
-                    className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${sourceType === 'profit' ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-700 hover:border-slate-600'}`}
+                    className={`flex-1 py-2 rounded-xl type-label transition-all ${sourceType === 'profit' ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-700 hover:border-slate-600'}`}
                   >
                     Lucro Reinvestido
                   </button>
@@ -452,7 +452,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
 
               {/* Datas */}
               <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
-                <p className="text-[10px] font-black uppercase text-slate-500">Vencimento</p>
+                <p className="type-label text-[color:var(--text-muted)]">Vencimento</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={labelCls}>Frequência</label>
@@ -486,7 +486,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                 >
                   <div className="flex items-center gap-2">
                     <History size={14} className={isLegacy ? 'text-amber-400' : 'text-slate-500'} />
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${isLegacy ? 'text-amber-300' : 'text-slate-500'}`}>
+                    <span className={`type-label ${isLegacy ? 'text-amber-300' : 'text-slate-500'}`}>
                       Contrato Antigo {isLegacy && '(ativo)'}
                     </span>
                   </div>
@@ -495,7 +495,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
 
                 {legacyOpen && (
                   <div className="px-4 pb-4 space-y-3 border-t border-slate-700">
-                    <p className="text-[10px] text-slate-500 pt-3 leading-relaxed">
+                    <p className="type-caption text-[color:var(--text-muted)] pt-3 leading-relaxed">
                       Ative se o contrato foi feito antes de usar a plataforma. As parcelas já recebidas serão marcadas como pagas automaticamente.
                     </p>
 
@@ -540,7 +540,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                               className="w-full accent-amber-500"
                             />
                             {legacyPaidCount > 0 && (
-                              <p className="text-[10px] text-amber-400 mt-1">
+                              <p className="type-caption text-amber-400 mt-1">
                                 Parcelas 1 a {legacyPaidCount} → <strong>PAGAS</strong> · Parcelas {legacyPaidCount + 1} a {editable.total_installments} → <strong>PENDENTES</strong>
                               </p>
                             )}
@@ -572,7 +572,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
               <div className="flex gap-3 pb-1">
                 <button
                   onClick={resetAndClose}
-                  className="flex-1 py-3 rounded-2xl border border-slate-700 text-slate-400 hover:text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:bg-slate-800"
+                  className="flex-1 py-3 rounded-2xl border border-slate-700 text-slate-400 hover:text-white type-label flex items-center justify-center gap-2 transition-all hover:bg-slate-800"
                 >
                   <ArrowLeft size={14}/> Cancelar
                 </button>
@@ -580,14 +580,14 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                   <button
                     onClick={() => handleConfirm(matchedDebtor.id)}
                     disabled={creating}
-                    className="flex-[2] bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
+                    className="flex-[2] bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white py-3 rounded-2xl type-label flex items-center justify-center gap-2 transition-all"
                   >
                     {creating ? <><Loader2 size={14} className="animate-spin"/> Criando...</> : <><CheckCircle2 size={14}/> Confirmar e Criar</>}
                   </button>
                 ) : (
                   <button
                     onClick={() => { setNewDebtor({ full_name: debtorSearch || editable.debtor_name, email: '', phone_number: '', cpf: '' }); setCpfError(''); setDebtorDropdownOpen(false); setStep('new-debtor'); }}
-                    className="flex-[2] bg-[color:var(--accent-caution-btn)] hover:bg-[color:var(--accent-caution-btn-hover)] text-white py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
+                    className="flex-[2] bg-[color:var(--accent-caution-btn)] hover:bg-[color:var(--accent-caution-btn-hover)] text-white py-3 rounded-2xl type-label flex items-center justify-center gap-2 transition-all"
                   >
                     <UserPlus size={14}/> Cadastrar Devedor
                   </button>
@@ -602,11 +602,11 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
               <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center">
                 <CheckCircle2 size={36} className="text-emerald-400" />
               </div>
-              <h3 className="text-white font-black text-lg">Contrato Criado!</h3>
+              <h3 className="type-subheading text-[color:var(--text-primary)]">Contrato Criado!</h3>
               <p className="text-slate-400 text-sm">As parcelas foram geradas automaticamente.</p>
               <button
                 onClick={() => { resetAndClose(); onSuccess(); }}
-                className="bg-teal-600 hover:bg-teal-500 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all"
+                className="bg-teal-600 hover:bg-teal-500 text-white px-8 py-3 rounded-2xl type-label transition-all"
               >
                 Ver Contratos
               </button>
@@ -628,8 +628,8 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
               <ArrowLeft size={18} />
             </button>
             <div className="flex-1">
-              <h3 className="text-white font-black text-base uppercase tracking-wide">Novo Devedor</h3>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Dados do cliente</p>
+              <h3 className="type-subheading uppercase text-[color:var(--text-primary)]">Novo Devedor</h3>
+              <p className="type-label text-[color:var(--text-muted)]">Dados do cliente</p>
             </div>
             <button type="button" onClick={resetAndClose} className="text-slate-500 hover:text-white transition-colors">
               <X size={20} />
@@ -640,23 +640,23 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
             <form onSubmit={handleCreateDebtorAndConfirm} className="space-y-4">
               {/* Identificação */}
               <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
-                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Identificação</p>
+                <p className="type-label text-[color:var(--text-muted)]">Identificação</p>
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Nome Completo *</label>
+                  <label className="type-label text-[color:var(--text-muted)] block mb-1">Nome Completo *</label>
                   <div className="relative">
                     <User size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
                     <input required type="text" value={newDebtor.full_name} onChange={e => setNewDebtor({ ...newDebtor, full_name: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600" placeholder="Nome completo" />
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">E-mail</label>
+                  <label className="type-label text-[color:var(--text-muted)] block mb-1">E-mail</label>
                   <div className="relative">
                     <Mail size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
                     <input type="email" value={newDebtor.email} onChange={e => setNewDebtor({ ...newDebtor, email: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600" placeholder="email@exemplo.com (opcional)" />
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Telefone</label>
+                  <label className="type-label text-[color:var(--text-muted)] block mb-1">Telefone</label>
                   <div className="relative">
                     <Phone size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
                     <input type="tel" value={newDebtor.phone_number} onChange={e => setNewDebtor({ ...newDebtor, phone_number: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600" placeholder="(11) 99999-9999 (opcional)" />
@@ -665,14 +665,14 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
               </div>
               {/* Documento */}
               <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
-                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Documento</p>
+                <p className="type-label text-[color:var(--text-muted)]">Documento</p>
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">CPF</label>
+                  <label className="type-label text-[color:var(--text-muted)] block mb-1">CPF</label>
                   <div className="relative">
                     <Key size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
                     <input type="text" value={newDebtor.cpf} onChange={e => { setCpfError(''); setNewDebtor({ ...newDebtor, cpf: maskCPF(e.target.value) }); }} className={`w-full bg-slate-950 border rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600 ${cpfError ? 'border-red-500' : 'border-slate-700'}`} placeholder="000.000.000-00 (opcional)" maxLength={14} />
                   </div>
-                  {cpfError && <p className="text-red-400 text-[10px] mt-1 font-bold">{cpfError}</p>}
+                  {cpfError && <p className="text-red-400 type-caption mt-1 font-bold">{cpfError}</p>}
                 </div>
               </div>
               {createError && (
@@ -681,7 +681,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                 </div>
               )}
               <div className="pb-4">
-                <button type="submit" disabled={creating} className="w-full bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+                <button type="submit" disabled={creating} className="w-full bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white py-3.5 rounded-2xl type-label flex items-center justify-center gap-2 transition-all">
                   {creating ? <><Loader2 size={14} className="animate-spin"/> Criando...</> : <><CheckCircle2 size={14}/> Cadastrar e Criar</>}
                 </button>
               </div>

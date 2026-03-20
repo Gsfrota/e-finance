@@ -79,14 +79,14 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
                 <Clock size={24} />
               </div>
               <div>
-                <p className="text-[10px] text-[color:var(--accent-premium-muted)] font-bold uppercase tracking-widest">Período de Teste</p>
-                <h3 className="text-xl font-black text-[color:var(--accent-premium-strong)]">Trial gratuito — {trialDaysLeft} {trialDaysLeft === 1 ? 'dia restante' : 'dias restantes'}</h3>
+                <p className="type-label text-[color:var(--accent-premium-muted)]">Período de Teste</p>
+                <h3 className="type-heading text-[color:var(--accent-premium-strong)]">Trial gratuito — {trialDaysLeft} {trialDaysLeft === 1 ? 'dia restante' : 'dias restantes'}</h3>
               </div>
-              <span className="ml-auto text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full text-[color:var(--accent-premium)] bg-[color:var(--accent-premium-bg-strong)]">
+              <span className="ml-auto type-label px-3 py-1 rounded-full text-[color:var(--accent-premium)] bg-[color:var(--accent-premium-bg-strong)]">
                 Ativo
               </span>
             </div>
-            <p className="text-sm text-[color:var(--accent-premium-faint)] mb-4">
+            <p className="type-body text-[color:var(--accent-premium-faint)] mb-4">
               Você está aproveitando acesso completo ao Juros Certo, incluindo o Assistente IA. Assine antes do período encerrar para não perder o acesso.
             </p>
             <div className="w-full bg-[color:var(--accent-premium-bg-strong)] rounded-full h-2">
@@ -95,7 +95,7 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
                 style={{ width: `${trialProgress}%` }}
               />
             </div>
-            <p className="text-[10px] text-[color:var(--accent-premium-faint)] mt-2 text-right">{15 - trialDaysLeft!} de 15 dias utilizados</p>
+            <p className="type-caption text-[color:var(--accent-premium-faint)] mt-2 text-right">{15 - trialDaysLeft!} de 15 dias utilizados</p>
           </div>
         ) : trialExpired ? (
           <div className="bg-red-900/20 border border-red-700/40 rounded-[2.5rem] p-8 shadow-xl">
@@ -104,14 +104,14 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
                 <AlertCircle size={24} />
               </div>
               <div>
-                <p className="text-[10px] text-red-400/70 font-bold uppercase tracking-widest">Período de Teste</p>
-                <h3 className="text-xl font-black text-red-300">Período de teste encerrado</h3>
+                <p className="type-label text-red-400/70">Período de Teste</p>
+                <h3 className="type-heading text-red-300">Período de teste encerrado</h3>
               </div>
-              <span className="ml-auto text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full text-red-400 bg-red-900/40">
+              <span className="ml-auto type-label px-3 py-1 rounded-full text-red-400 bg-red-900/40">
                 Expirado
               </span>
             </div>
-            <p className="text-sm text-red-200/60">
+            <p className="type-body text-red-200/60">
               Seu trial gratuito expirou. Assine um plano para continuar usando o Juros Certo e manter o acesso às suas operações.
             </p>
           </div>
@@ -125,11 +125,11 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
             <Crown size={24} />
           </div>
           <div>
-            <p className="text-[10px] text-[color:var(--text-muted)] font-bold uppercase tracking-widest">Plano Atual</p>
-            <h3 className="text-2xl font-black text-[color:var(--text-primary)] uppercase">{planLabel(currentPlan)}</h3>
+            <p className="type-label text-[color:var(--text-muted)]">Plano Atual</p>
+            <h3 className="type-heading uppercase text-[color:var(--text-primary)]">{planLabel(currentPlan)}</h3>
           </div>
           {hasCaderneta && (
-            <span className={`ml-auto text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full ${status.color} bg-[color:var(--bg-soft)]`}>
+            <span className={`ml-auto type-label px-3 py-1 rounded-full ${status.color} bg-[color:var(--bg-soft)]`}>
               {status.text}
             </span>
           )}
@@ -153,13 +153,13 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
         <div className={`bg-[color:var(--bg-elevated)] border rounded-[2.5rem] p-8 shadow-2xl flex flex-col ${currentPlan === 'caderneta' ? 'border-teal-500' : 'border-[color:var(--border-subtle)]'}`}>
           <div className="flex items-center gap-3 mb-1">
             <Star size={20} className="text-teal-400" />
-            <h4 className="text-lg font-black text-[color:var(--text-primary)] uppercase">Caderneta</h4>
-            {currentPlan === 'caderneta' && <span className="ml-auto text-[10px] font-black text-teal-400 bg-teal-900/30 px-2 py-0.5 rounded-full uppercase">Seu plano</span>}
+            <h4 className="type-subheading uppercase text-[color:var(--text-primary)]">Caderneta</h4>
+            {currentPlan === 'caderneta' && <span className="ml-auto type-label text-teal-400 bg-teal-900/30 px-2 py-0.5 rounded-full">Seu plano</span>}
           </div>
-          <p className="text-3xl font-black text-[color:var(--text-primary)] mt-2">R$150<span className="text-base text-[color:var(--text-secondary)] font-bold">/mês</span></p>
+          <p className="type-metric-xl text-[color:var(--text-primary)] mt-2">R$150<span className="type-body text-[color:var(--text-secondary)]">/mês</span></p>
           <ul className="mt-6 space-y-3 flex-1">
             {CADERNETA_FEATURES.map(({ icon: Icon, label }) => (
-              <li key={label} className="flex items-center gap-3 text-sm text-[color:var(--text-secondary)]">
+              <li key={label} className="flex items-center gap-3 type-body text-[color:var(--text-secondary)]">
                 <CheckCircle2 size={16} className="text-teal-400 flex-shrink-0" />
                 {label}
               </li>
@@ -171,7 +171,7 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
                 href={buildPaymentLink(CADERNETA_PAYMENT_LINK, tenant.id, adminEmail)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-teal-600 hover:bg-teal-500 text-white transition-all"
+                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl type-label bg-teal-600 hover:bg-teal-500 text-white transition-all"
               >
                 <ExternalLink size={16} /> Assinar Caderneta
               </a>
@@ -180,12 +180,12 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
                 href={STRIPE_CUSTOMER_PORTAL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-[color:var(--bg-soft)] hover:bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)] transition-all"
+                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl type-label bg-[color:var(--bg-soft)] hover:bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)] transition-all"
               >
                 <ExternalLink size={16} /> Gerenciar no Stripe
               </a>
             ) : (
-              <button disabled className="w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-[color:var(--bg-soft)] text-[color:var(--text-muted)] cursor-not-allowed">
+              <button disabled className="w-full py-4 rounded-2xl type-label bg-[color:var(--bg-soft)] text-[color:var(--text-muted)] cursor-not-allowed">
                 Incluído no Empresarial
               </button>
             )}
@@ -194,25 +194,25 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
 
         {/* Plano Empresarial */}
         <div className={`bg-[color:var(--bg-elevated)] border rounded-[2.5rem] p-8 shadow-2xl flex flex-col relative overflow-hidden ${currentPlan === 'empresarial' ? 'border-[color:var(--accent-premium)]' : 'border-[color:var(--border-subtle)]'}`}>
-          <div className="absolute top-4 right-4 bg-[color:var(--accent-premium-btn)] text-white text-[10px] font-black uppercase px-3 py-1 rounded-full">
+          <div className="absolute top-4 right-4 bg-[color:var(--accent-premium-btn)] text-white type-label px-3 py-1 rounded-full">
             Recomendado
           </div>
           <div className="flex items-center gap-3 mb-1">
             <Crown size={20} className="text-[color:var(--accent-premium)]" />
-            <h4 className="text-lg font-black text-[color:var(--text-primary)] uppercase">Empresarial</h4>
-            {currentPlan === 'empresarial' && <span className="ml-2 text-[10px] font-black text-[color:var(--accent-premium)] bg-[color:var(--accent-premium-bg)] px-2 py-0.5 rounded-full uppercase">Seu plano</span>}
+            <h4 className="type-subheading uppercase text-[color:var(--text-primary)]">Empresarial</h4>
+            {currentPlan === 'empresarial' && <span className="ml-2 type-label text-[color:var(--accent-premium)] bg-[color:var(--accent-premium-bg)] px-2 py-0.5 rounded-full">Seu plano</span>}
           </div>
-          <p className="text-3xl font-black text-[color:var(--text-primary)] mt-2">R$275<span className="text-base text-[color:var(--text-secondary)] font-bold">/mês</span></p>
+          <p className="type-metric-xl text-[color:var(--text-primary)] mt-2">R$275<span className="type-body text-[color:var(--text-secondary)]">/mês</span></p>
           <ul className="mt-6 space-y-3 flex-1">
             {CADERNETA_FEATURES.map(({ icon: Icon, label }) => (
-              <li key={label} className="flex items-center gap-3 text-sm text-[color:var(--text-secondary)]">
+              <li key={label} className="flex items-center gap-3 type-body text-[color:var(--text-secondary)]">
                 <CheckCircle2 size={16} className="text-teal-400 flex-shrink-0" />
                 {label}
               </li>
             ))}
-            <li className="pt-2 text-[10px] font-black text-[color:var(--accent-premium)] uppercase tracking-widest">+ Exclusivo Empresarial</li>
+            <li className="pt-2 type-label text-[color:var(--accent-premium)]">+ Exclusivo Empresarial</li>
             {EMPRESARIAL_EXTRAS.map(({ icon: Icon, label }) => (
-              <li key={label} className="flex items-center gap-3 text-sm text-[color:var(--text-secondary)]">
+              <li key={label} className="flex items-center gap-3 type-body text-[color:var(--text-secondary)]">
                 <CheckCircle2 size={16} className="text-[color:var(--accent-premium)] flex-shrink-0" />
                 {label}
               </li>
@@ -224,7 +224,7 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
                 href={buildPaymentLink(EMPRESARIAL_PAYMENT_LINK, tenant.id, adminEmail)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-[color:var(--accent-premium-btn)] hover:bg-[color:var(--accent-premium-btn-hover)] text-white transition-all"
+                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl type-label bg-[color:var(--accent-premium-btn)] hover:bg-[color:var(--accent-premium-btn-hover)] text-white transition-all"
               >
                 <ExternalLink size={16} /> Assinar Empresarial
               </a>
@@ -233,7 +233,7 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
                 href={buildPaymentLink(EMPRESARIAL_PAYMENT_LINK, tenant.id, adminEmail)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-[color:var(--accent-premium-btn)] hover:bg-[color:var(--accent-premium-btn-hover)] text-white transition-all"
+                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl type-label bg-[color:var(--accent-premium-btn)] hover:bg-[color:var(--accent-premium-btn-hover)] text-white transition-all"
               >
                 <Crown size={16} /> Upgrade para Empresarial
               </a>
@@ -242,7 +242,7 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
                 href={STRIPE_CUSTOMER_PORTAL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-[color:var(--bg-soft)] hover:bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)] transition-all"
+                className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl type-label bg-[color:var(--bg-soft)] hover:bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)] transition-all"
               >
                 <ExternalLink size={16} /> Gerenciar no Stripe
               </a>
@@ -264,8 +264,8 @@ export const AssistantPaywall: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
       <div className="p-5 bg-teal-900/30 rounded-3xl mb-6">
         <Lock size={48} className="text-teal-400" />
       </div>
-      <h2 className="text-3xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter mb-3">Recurso Caderneta</h2>
-      <p className="text-[color:var(--text-secondary)] text-sm max-w-md mb-8">
+      <h2 className="type-title uppercase text-[color:var(--text-primary)] mb-3">Recurso Caderneta</h2>
+      <p className="type-body text-[color:var(--text-secondary)] max-w-md mb-8">
         O Assistente IA com automações por WhatsApp está disponível a partir do plano <strong className="text-teal-400">Caderneta</strong> (R$150/mês).
       </p>
       <div className="flex flex-col sm:flex-row gap-4">
@@ -273,7 +273,7 @@ export const AssistantPaywall: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
           href={cadernetaLink}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-teal-600 hover:bg-teal-500 text-white transition-all"
+          className="flex items-center gap-2 px-8 py-4 rounded-2xl type-label bg-teal-600 hover:bg-teal-500 text-white transition-all"
         >
           <Star size={16} /> Assinar Caderneta — R$150/mês
         </a>

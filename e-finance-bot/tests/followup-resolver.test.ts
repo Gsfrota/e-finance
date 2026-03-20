@@ -38,4 +38,31 @@ describe('followup-resolver', () => {
       }),
     }));
   });
+
+  // BUG-2: followup não deve herdar lastAction quando texto indica intent contrário
+  it('não redireciona "pra receber" como cobrança quando lastAction=collection (BUG-2)', () => {
+    const plan = resolveFollowup('quanto tenho pra receber amanhã?', {
+      lastAction: 'query_collection_window',
+    });
+
+    // Deve retornar null para o intent-router classificar como recebíveis
+    expect(plan).toBeNull();
+  });
+
+  it('não redireciona "cobrar" como recebíveis quando lastAction=receivables (BUG-2)', () => {
+    const plan = resolveFollowup('quem devo cobrar amanhã?', {
+      lastAction: 'query_receivables_window',
+    });
+
+    expect(plan).toBeNull();
+  });
+
+  it('mantém followup temporal simples sem sinal contrário (BUG-2 regressão)', () => {
+    const plan = resolveFollowup('e amanhã?', {
+      lastAction: 'query_collection_window',
+    });
+
+    expect(plan).not.toBeNull();
+    expect(plan?.capability).toBe('query_collection_window');
+  });
 });

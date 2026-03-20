@@ -63,7 +63,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
       {/* ── Table ────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto">
         {/* Table header */}
-        <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 text-[10px] font-bold uppercase tracking-wider"
+        <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 type-label"
           style={{ background: 'var(--bg-soft)', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
           <span className="w-8 shrink-0">N°</span>
           <span className="w-[4.5rem] shrink-0">Venc.</span>
@@ -122,6 +122,11 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                       Recebido em {fmtDate(inst.paid_at)}
                       {(inst as any).payment_method ? ` · ${(inst as any).payment_method}` : ''}
                     </p>
+                    {(inst as any).notes && (
+                      <p className="text-[10px] italic mt-0.5" style={{ color: 'var(--text-faint)' }}>
+                        {(inst as any).notes}
+                      </p>
+                    )}
                   </div>
                 )}
                 {(inst as any).missed_at && (
@@ -142,7 +147,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
         <div className="flex items-center gap-2">
           <CheckCircle size={16} className="text-green-600 shrink-0" />
           <div>
-            <p className="text-[10px] font-bold text-green-600">Pagas</p>
+            <p className="type-label text-green-600">Pagas</p>
             <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
               {paidItems.length} parcelas,
             </p>
@@ -154,7 +159,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
         <div className="flex items-center gap-2">
           <Clock size={16} className="text-orange-500 shrink-0" />
           <div>
-            <p className="text-[10px] font-bold text-orange-500">Pendentes</p>
+            <p className="type-label text-orange-500">Pendentes</p>
             <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
               {pendingItems.length} parcelas,
             </p>
@@ -166,7 +171,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
         <div className="flex items-center gap-2">
           <AlertTriangle size={16} className="text-red-500 shrink-0" />
           <div>
-            <p className="text-[10px] font-bold text-red-500">A Receber</p>
+            <p className="type-label text-red-500">A Receber</p>
             <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
               {overdueItems.length} parcelas,
             </p>

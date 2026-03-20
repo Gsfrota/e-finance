@@ -93,7 +93,7 @@ const InstallmentCard: React.FC<InstallmentCardProps> = ({
     <div className={`panel-card rounded-2xl p-4 ${isLate ? 'ring-1 ring-[color:var(--accent-danger)]/20' : ''}`}>
       {/* Topo: número + status */}
       <div className="flex items-center justify-between mb-3">
-        <span className="text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)]">
+        <span className="type-label text-[color:var(--text-faint)]">
           Parcela {installment.number}
         </span>
         <span className={chipClass}>{chipLabel}</span>
@@ -102,13 +102,13 @@ const InstallmentCard: React.FC<InstallmentCardProps> = ({
       {/* Valores em grid */}
       <div className="grid grid-cols-3 gap-2 mb-3">
         <div>
-          <p className="text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">Vencimento</p>
+          <p className="type-micro text-[color:var(--text-faint)]">Vencimento</p>
           <p className={`text-xs font-bold ${isLate ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--text-primary)]'}`}>
             {fmtDate(installment.due_date)}
           </p>
         </div>
         <div>
-          <p className="text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">
+          <p className="type-micro text-[color:var(--text-faint)]">
             {isPaid ? 'Pago' : 'Total'}
           </p>
           <p className="text-xs font-bold text-[color:var(--accent-brass)]">
@@ -119,14 +119,14 @@ const InstallmentCard: React.FC<InstallmentCardProps> = ({
         </div>
         {hasFine ? (
           <div>
-            <p className="text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">Multa</p>
+            <p className="type-micro text-[color:var(--text-faint)]">Multa</p>
             <p className="text-xs font-bold text-[color:var(--accent-danger)]">
               +{formatCurrencyLocal(normalizeNumber(installment.fine_amount) + normalizeNumber(installment.interest_delay_amount))}
             </p>
           </div>
         ) : (
           <div>
-            <p className="text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">Original</p>
+            <p className="type-micro text-[color:var(--text-faint)]">Original</p>
             <p className="text-xs font-bold text-[color:var(--text-secondary)]">
               {formatCurrencyLocal(normalizeNumber(installment.amount_total))}
             </p>
@@ -138,7 +138,7 @@ const InstallmentCard: React.FC<InstallmentCardProps> = ({
       {normalizeNumber(installment.interest_payments_total) > 0 && (
         <div className="mb-3 flex items-center gap-1.5 rounded-xl bg-[rgba(202,176,122,0.08)] px-3 py-1.5 border border-[rgba(202,176,122,0.14)]">
           <Percent size={10} className="text-[color:var(--accent-brass)]"/>
-          <span className="text-[9px] font-bold text-[color:var(--accent-brass)] uppercase tracking-wide">
+          <span className="type-micro text-[color:var(--accent-brass)]">
             Juros cobrados: {formatCurrencyLocal(normalizeNumber(installment.interest_payments_total))}
           </span>
         </div>
@@ -149,19 +149,19 @@ const InstallmentCard: React.FC<InstallmentCardProps> = ({
         <div className="flex gap-2">
           <button
             onClick={onPay}
-            className="flex-1 rounded-xl bg-[rgba(52,211,153,0.12)] px-2 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--accent-positive)] ring-1 ring-[rgba(52,211,153,0.2)] active:scale-95 transition-all"
+            className="flex-1 rounded-xl bg-[rgba(52,211,153,0.12)] px-2 py-2.5 type-label text-[color:var(--accent-positive)] ring-1 ring-[rgba(52,211,153,0.2)] active:scale-95 transition-all"
           >
             ✓ Baixar
           </button>
           <button
             onClick={onRefinance}
-            className="flex-1 rounded-xl bg-[rgba(148,180,255,0.10)] px-2 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--accent-steel)] ring-1 ring-[rgba(148,180,255,0.18)] active:scale-95 transition-all"
+            className="flex-1 rounded-xl bg-[rgba(148,180,255,0.10)] px-2 py-2.5 type-label text-[color:var(--accent-steel)] ring-1 ring-[rgba(148,180,255,0.18)] active:scale-95 transition-all"
           >
             ↗ Reneg.
           </button>
           <button
             onClick={onInterestOnly}
-            className="flex-1 rounded-xl bg-[rgba(202,176,122,0.12)] px-2 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)] active:scale-95 transition-all"
+            className="flex-1 rounded-xl bg-[rgba(202,176,122,0.12)] px-2 py-2.5 type-label text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)] active:scale-95 transition-all"
           >
             % Juros
           </button>
@@ -176,7 +176,7 @@ const InstallmentCard: React.FC<InstallmentCardProps> = ({
         <div className="flex gap-2">
           <button
             onClick={onPay}
-            className="flex-1 rounded-xl bg-[color:var(--bg-soft)] px-3 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-muted)] ring-1 ring-[color:var(--border-subtle)] active:scale-95 transition-all flex items-center justify-center gap-1.5"
+            className="flex-1 rounded-xl bg-[color:var(--bg-soft)] px-3 py-2.5 type-label text-[color:var(--text-muted)] ring-1 ring-[color:var(--border-subtle)] active:scale-95 transition-all flex items-center justify-center gap-1.5"
           >
             <FileText size={12}/> Ver Comprovante
           </button>
@@ -316,13 +316,13 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
 
   if (loading) return (
     <div className="flex justify-center items-center h-full text-teal-500 animate-pulse">
-      <Clock size={32}/> <span className="ml-3 font-bold uppercase tracking-widest">Carregando Auditoria...</span>
+      <Clock size={32}/> <span className="ml-3 type-label">Carregando Auditoria...</span>
     </div>
   );
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
-      <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4 group">
+      <button onClick={onBack} className="flex items-center gap-2 text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] transition-colors mb-4 group">
         <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform"/> Voltar para Usuários
       </button>
 
@@ -336,14 +336,14 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
               <User size={32} className="text-slate-300"/>
             </div>
             <div>
-              <h1 className="text-2xl font-black text-white">{profile?.full_name}</h1>
-              <div className="flex items-center gap-4 mt-2 text-sm">
-                <span className="text-slate-400 font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-700">CPF: {profile?.cpf || '---'}</span>
-                <span className="text-slate-500">{profile?.email}</span>
+              <h1 className="type-heading text-[color:var(--text-primary)]">{profile?.full_name}</h1>
+              <div className="flex items-center gap-4 mt-2 type-body">
+                <span className="text-[color:var(--text-secondary)] font-mono bg-[color:var(--bg-base)] px-2 py-0.5 rounded border border-[color:var(--border-subtle)]">CPF: {profile?.cpf || '---'}</span>
+                <span className="text-[color:var(--text-muted)]">{profile?.email}</span>
               </div>
-              <div className="mt-3 inline-flex items-center gap-2 bg-slate-900/50 border border-slate-700 px-3 py-1 rounded-full">
-                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Trust Score</span>
-                <span className={`text-sm font-black ${stats.trustScore === 'A+' || stats.trustScore === 'A' ? 'text-emerald-400' : stats.trustScore === 'B' ? 'text-[color:var(--accent-caution)]' : 'text-red-400'}`}>
+              <div className="mt-3 inline-flex items-center gap-2 bg-[color:var(--bg-base)]/50 border border-[color:var(--border-subtle)] px-3 py-1 rounded-full">
+                <span className="type-label text-[color:var(--text-muted)]">Trust Score</span>
+                <span className={`text-sm font-semibold ${stats.trustScore === 'A+' || stats.trustScore === 'A' ? 'text-emerald-400' : stats.trustScore === 'B' ? 'text-[color:var(--accent-caution)]' : 'text-red-400'}`}>
                   {stats.trustScore}
                 </span>
               </div>
@@ -352,20 +352,20 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full lg:w-auto">
             <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50">
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Total Tomado</p>
-              <p className="text-white font-black text-lg">{formatCurrency(stats.totalLoaned)}</p>
+              <p className="type-label text-[color:var(--text-muted)] mb-1">Total Tomado</p>
+              <p className="type-metric-lg text-[color:var(--text-primary)]">{formatCurrency(stats.totalLoaned)}</p>
             </div>
             <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50">
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Pago</p>
-              <p className="text-teal-400 font-black text-lg">{formatCurrency(stats.totalPaid)}</p>
+              <p className="type-label text-[color:var(--text-muted)] mb-1">Pago</p>
+              <p className="type-metric-lg text-teal-400">{formatCurrency(stats.totalPaid)}</p>
             </div>
             <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50">
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Em Aberto</p>
-              <p className="text-white font-black text-lg">{formatCurrency(stats.balance)}</p>
+              <p className="type-label text-[color:var(--text-muted)] mb-1">Em Aberto</p>
+              <p className="type-metric-lg text-[color:var(--text-primary)]">{formatCurrency(stats.balance)}</p>
             </div>
             <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50">
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Inadimplência</p>
-              <p className={`${stats.defaultRate > 0 ? 'text-red-400' : 'text-green-400'} font-black text-lg`}>{stats.defaultRate.toFixed(1)}%</p>
+              <p className="type-label text-[color:var(--text-muted)] mb-1">Inadimplência</p>
+              <p className={`type-metric-lg ${stats.defaultRate > 0 ? 'text-red-400' : 'text-green-400'}`}>{stats.defaultRate.toFixed(1)}%</p>
             </div>
           </div>
         </div>
@@ -379,8 +379,8 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
               <TrendingUp size={20}/>
             </div>
             <div>
-              <h3 className="text-sm font-black text-white uppercase tracking-widest">Resumo de Riqueza</h3>
-              <p className="text-[10px] text-slate-500 font-bold">Origem e Destino do Capital</p>
+              <h3 className="type-subheading text-[color:var(--text-primary)] uppercase">Resumo de Riqueza</h3>
+              <p className="type-caption text-[color:var(--text-muted)]">Origem e Destino do Capital</p>
             </div>
           </div>
 
@@ -389,26 +389,26 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                 <Briefcase size={40} className="text-slate-400"/>
               </div>
-              <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-2">Total Aportado (Bolso)</p>
-              <p className="text-2xl font-black text-white">{formatCurrency(balanceView.total_own_capital)}</p>
+              <p className="type-label text-[color:var(--text-secondary)] mb-2">Total Aportado (Bolso)</p>
+              <p className="type-metric-xl text-[color:var(--text-primary)]">{formatCurrency(balanceView.total_own_capital)}</p>
             </div>
 
             <div className="bg-slate-950/50 rounded-2xl p-5 border border-slate-800 relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                 <TrendingUp size={40} className="text-emerald-400"/>
               </div>
-              <p className="text-[10px] text-emerald-400/80 font-black uppercase tracking-widest mb-2">Lucro Reinvestido</p>
-              <p className="text-2xl font-black text-emerald-400">{formatCurrency(balanceView.total_profit_reinvested)}</p>
-              <p className="text-[9px] text-slate-500 mt-1">Dinheiro gerado que voltou para a rua</p>
+              <p className="type-label text-emerald-400/80 mb-2">Lucro Reinvestido</p>
+              <p className="type-metric-xl text-emerald-400">{formatCurrency(balanceView.total_profit_reinvested)}</p>
+              <p className="type-micro text-[color:var(--text-muted)] mt-1">Dinheiro gerado que voltou para a rua</p>
             </div>
 
             <div className="bg-emerald-900/10 rounded-2xl p-5 border border-emerald-900/30 relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                 <Wallet size={40} className="text-emerald-300"/>
               </div>
-              <p className="text-[10px] text-emerald-300 font-black uppercase tracking-widest mb-2">Disponível em Caixa</p>
-              <p className="text-2xl font-black text-white">{formatCurrency(balanceView.available_profit_balance)}</p>
-              <p className="text-[9px] text-emerald-500/70 mt-1 font-bold">Pode ser usado para novos contratos</p>
+              <p className="type-label text-emerald-300 mb-2">Disponível em Caixa</p>
+              <p className="type-metric-xl text-[color:var(--text-primary)]">{formatCurrency(balanceView.available_profit_balance)}</p>
+              <p className="type-micro text-emerald-500/70 mt-1">Pode ser usado para novos contratos</p>
             </div>
           </div>
         </div>
@@ -416,7 +416,7 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
 
       {/* 3. CONTRACTS LIST */}
       <div className="space-y-4">
-        <h2 className="text-xl font-black text-white uppercase tracking-tighter pl-2 flex items-center gap-2">
+        <h2 className="type-heading text-[color:var(--text-primary)] uppercase pl-2 flex items-center gap-2">
           <Wallet className="text-teal-500" size={24}/> Contratos Ativos
         </h2>
 
@@ -441,25 +441,25 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
                   <div className="flex justify-between items-center">
                     <div>
                       <div className="flex items-center gap-3">
-                        <h3 className="text-lg font-black text-white">{contract.asset_name}</h3>
-                        <span className="text-[10px] bg-slate-900 text-slate-400 px-2 py-0.5 rounded border border-slate-700 font-black uppercase">{contract.type}</span>
+                        <h3 className="type-subheading text-[color:var(--text-primary)]">{contract.asset_name}</h3>
+                        <span className="type-label bg-[color:var(--bg-base)] text-[color:var(--text-secondary)] px-2 py-0.5 rounded border border-[color:var(--border-subtle)]">{contract.type}</span>
                         {lateCount > 0 && (
-                          <span className="text-[9px] bg-red-500/15 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full font-black uppercase">
+                          <span className="type-micro bg-red-500/15 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full">
                             {lateCount} atrasada{lateCount > 1 ? 's' : ''}
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 font-medium mt-1">
+                      <p className="type-caption text-[color:var(--text-muted)] mt-1">
                         Contrato #{contract.id} • Criado em {formatDate(contract.created_at)}
-                        <span className="ml-3 text-slate-600">
+                        <span className="ml-3 text-[color:var(--text-faint)]">
                           {paidCount} paga{paidCount !== 1 ? 's' : ''} · {openCount} em aberto{lateCount > 0 ? ` · ${lateCount} atrasada${lateCount > 1 ? 's' : ''}` : ''}
                         </span>
                       </p>
                     </div>
                     <div className="flex items-center gap-6">
                       <div className="text-right hidden sm:block">
-                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Valor do Contrato</p>
-                        <p className="text-white font-black">{formatCurrency(Number(contract.current_value))}</p>
+                        <p className="type-label text-[color:var(--text-muted)]">Valor do Contrato</p>
+                        <p className="type-metric-md text-[color:var(--text-primary)]">{formatCurrency(Number(contract.current_value))}</p>
                       </div>
                       <div className={`p-2 rounded-full bg-slate-900 text-slate-400 transition-transform ${expandedContractId === contract.id ? 'rotate-180' : ''}`}>
                         <ChevronDown size={20}/>

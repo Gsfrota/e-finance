@@ -12,6 +12,7 @@ export type ActionCapability =
   | 'create_contract'
   | 'mark_installment_paid'
   | 'disconnect_bot'
+  | 'greet'
   | 'help'
   | 'smalltalk_identity'
   | 'smalltalk_datetime'

@@ -21,6 +21,7 @@ function makePlan(
 export function createActionPlan(
   understanding: CommandUnderstanding,
   rawText: string,
+  role?: string,
 ): ActionPlan {
   const entities = understanding.normalizedEntities || {};
 
@@ -71,8 +72,12 @@ export function createActionPlan(
     case 'ver_minhas_parcelas':
       return makePlan('view_my_installments', understanding);
     case 'ver_meu_saldo_devedor':
+      // Admins asking "minha dívida" / "meu saldo devedor" — redirect to dashboard
+      if (role === 'admin') return makePlan('show_dashboard', understanding);
       return makePlan('view_my_debt_summary', understanding);
     case 'ver_meu_portfolio':
+      // Admins asking "meus contratos" / "meu portfólio" — redirect to list_receivables
+      if (role === 'admin') return makePlan('list_receivables', understanding, { filter: entities.filter || 'pending' });
       return makePlan('view_my_portfolio', understanding);
     case 'ver_exemplo_lembrete':
       return makePlan('preview_lembrete', understanding);
@@ -90,6 +95,8 @@ export function createActionPlan(
     }
     case 'desconectar':
       return makePlan('disconnect_bot', understanding);
+    case 'saudacao':
+      return makePlan('greet', understanding);
     case 'ajuda':
       return makePlan('help', understanding);
     case 'confirmar':

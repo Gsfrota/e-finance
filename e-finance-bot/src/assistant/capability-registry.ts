@@ -91,6 +91,16 @@ const REGISTRY: Record<ActionCapability, CapabilityDefinition> = {
     idempotencyScope: 'mutation',
     legacyIntent: 'desconectar',
   },
+  greet: {
+    name: 'greet',
+    kind: 'utility',
+    rolesAllowed: ['admin', 'investor', 'debtor'],
+    requiredArgs: [],
+    optionalArgs: [],
+    requiresConfirmation: false,
+    idempotencyScope: 'none',
+    legacyIntent: 'saudacao',
+  },
   help: {
     name: 'help',
     kind: 'utility',

@@ -22,6 +22,7 @@ export type Intent =
   | 'desconectar'
   | 'confirmar'
   | 'cancelar'
+  | 'saudacao'
   | 'ajuda'
   | 'ver_minhas_parcelas'
   | 'ver_meu_saldo_devedor'
@@ -274,6 +275,7 @@ export function inferDaysWindow(text: string): { daysAhead?: number; windowStart
     normalized.match(/proxim(?:o|os|a|as)\s+(\d{1,2})\s+dias?/),
     normalized.match(/(\d{1,2})\s+dias?\s+(?:a\s+frente|adiante|seguintes)/),
     normalized.match(/janela\s+de\s+(\d{1,2})\s+dias?/),
+    normalized.match(/\bem\s+(\d{1,2})\s*dias?\b/),
   ].find(Boolean);
 
   if (explicitDays?.[1]) {

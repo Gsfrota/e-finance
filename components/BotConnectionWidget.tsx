@@ -147,12 +147,12 @@ export function BotConnectionWidget() {
             :
           </p>
           <div className="flex items-center gap-3 mb-3">
-            <span className="text-2xl font-black text-[color:var(--text-primary)] tracking-[0.25em] font-mono">
+            <span className="text-2xl font-bold text-[color:var(--text-primary)] tracking-[0.25em] font-mono">
               {linkCode}
             </span>
             <button
               onClick={() => navigator.clipboard.writeText(linkCode)}
-              className="cursor-pointer text-[9px] font-bold uppercase tracking-widest text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] border border-[color:var(--border-subtle)] rounded-lg px-2 py-1 transition-colors"
+              className="cursor-pointer type-micro text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] border border-[color:var(--border-subtle)] rounded-lg px-2 py-1 transition-colors"
             >
               Copiar
             </button>

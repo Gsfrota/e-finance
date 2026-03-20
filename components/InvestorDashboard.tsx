@@ -51,15 +51,15 @@ const InvestorDashboard: React.FC = () => {
           <Landmark size={34} />
         </div>
         <p className="section-kicker mt-8">Conta pronta</p>
-        <h1 className="font-display mt-2 text-3xl sm:text-5xl leading-none text-[color:var(--text-primary)]">Olá, {metrics.userName}</h1>
-        <p className="mt-5 max-w-xl text-sm leading-7 text-[color:var(--text-secondary)]">
+        <h1 className="type-display mt-2 text-[color:var(--text-primary)]">Olá, {metrics.userName}</h1>
+        <p className="mt-5 max-w-xl type-body text-[color:var(--text-secondary)]">
           Sua estrutura já está ativa, mas ainda não há contratos alocados na carteira. Quando o primeiro investimento entrar, este painel passa a mostrar principal, lucro e cronograma de recebimento.
         </p>
         <a
           href={getWhatsappLink()}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-8 inline-flex items-center gap-2 rounded-full bg-[color:var(--accent-brass)] px-6 py-3 text-xs font-extrabold uppercase tracking-[0.18em] text-[color:var(--text-on-accent)] transition-all hover:bg-[color:var(--accent-brass-strong)]"
+          className="mt-8 inline-flex items-center gap-2 rounded-full bg-[color:var(--accent-brass)] px-6 py-3 type-label text-[color:var(--text-on-accent)] transition-all hover:bg-[color:var(--accent-brass-strong)]"
         >
           <MessageCircle size={14} />
           Falar com consultor
@@ -81,8 +81,8 @@ const InvestorDashboard: React.FC = () => {
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="section-kicker mb-2">Visão do investidor</p>
-            <h1 className="font-display text-3xl leading-none text-[color:var(--text-primary)] md:text-5xl">Carteira de {metrics.userName}</h1>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-[color:var(--text-secondary)]">
+            <h1 className="type-display text-[color:var(--text-primary)]">Carteira de {metrics.userName}</h1>
+            <p className="mt-4 max-w-2xl type-body text-[color:var(--text-secondary)]">
               Acompanhe o que entrou em caixa, o lucro de juros e o que está previsto para este mês.
             </p>
           </div>
@@ -91,7 +91,7 @@ const InvestorDashboard: React.FC = () => {
             href={getWhatsappLink()}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-3 text-xs font-extrabold uppercase tracking-[0.18em] text-[color:var(--text-primary)] transition-all hover:bg-white/[0.06]"
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-3 type-label text-[color:var(--text-primary)] transition-all hover:bg-white/[0.06]"
           >
             <MessageCircle size={14} className="text-[color:var(--accent-positive)]" />
             Falar com consultor
@@ -106,7 +106,7 @@ const InvestorDashboard: React.FC = () => {
           <button
             key={key}
             onClick={() => setFilter((f) => ({ ...f, period: key }))}
-            className={`rounded-full px-4 py-2 text-xs font-extrabold uppercase tracking-[0.16em] transition-all ${
+            className={`rounded-full px-4 py-2 type-label transition-all ${
               filter.period === key
                 ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)]'
                 : 'border border-white/10 bg-white/[0.03] text-[color:var(--text-secondary)] hover:bg-white/[0.06]'
@@ -120,7 +120,7 @@ const InvestorDashboard: React.FC = () => {
         <select
           value={filter.investmentId ?? ''}
           onChange={(e) => setFilter((f) => ({ ...f, investmentId: e.target.value || undefined }))}
-          className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-extrabold uppercase tracking-[0.16em] text-[color:var(--text-secondary)] outline-none transition-all hover:bg-white/[0.06] cursor-pointer"
+          className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 type-label text-[color:var(--text-secondary)] outline-none transition-all hover:bg-white/[0.06] cursor-pointer"
         >
           <option value="">Todos os contratos</option>
           {investments.map((inv) => (
@@ -138,14 +138,14 @@ const InvestorDashboard: React.FC = () => {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker mb-1">Recebido</p>
-              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Lucro Bruto</h3>
+              <h3 className="type-title font-display text-[color:var(--text-primary)]">Lucro Bruto</h3>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]">
               <Wallet size={18} />
             </div>
           </div>
-          <div className="mt-8 text-xl font-extrabold text-[color:var(--accent-brass)] sm:text-3xl">{formatCurrency(metrics.grossReceived)}</div>
-          <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Total recebido em caixa no período selecionado.</p>
+          <div className="mt-8 type-metric-lg text-[color:var(--accent-brass)]">{formatCurrency(metrics.grossReceived)}</div>
+          <p className="mt-3 type-body text-[color:var(--text-secondary)]">Total recebido em caixa no período selecionado.</p>
         </div>
 
         {/* Card 2 — Lucro de Juros */}
@@ -153,14 +153,14 @@ const InvestorDashboard: React.FC = () => {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker mb-1">Rendimento</p>
-              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Lucro de Juros</h3>
+              <h3 className="type-title font-display text-[color:var(--text-primary)]">Lucro de Juros</h3>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(143,179,157,0.14)] text-[color:var(--accent-positive)] ring-1 ring-[rgba(143,179,157,0.16)]">
               <TrendingUp size={18} />
             </div>
           </div>
-          <div className="mt-8 text-xl font-extrabold text-[color:var(--accent-positive)] sm:text-3xl">{formatCurrency(metrics.interestProfit)}</div>
-          <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Parcela dos juros já realizada sobre o capital emprestado.</p>
+          <div className="mt-8 type-metric-lg text-[color:var(--accent-positive)]">{formatCurrency(metrics.interestProfit)}</div>
+          <p className="mt-3 type-body text-[color:var(--text-secondary)]">Parcela dos juros já realizada sobre o capital emprestado.</p>
         </div>
 
         {/* Card 3 — Previsto no Mês */}
@@ -168,14 +168,14 @@ const InvestorDashboard: React.FC = () => {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker mb-1">A receber</p>
-              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Previsto no Mês</h3>
+              <h3 className="type-title font-display text-[color:var(--text-primary)]">Previsto no Mês</h3>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(144,160,189,0.14)] text-[color:var(--accent-steel)] ring-1 ring-[rgba(144,160,189,0.16)]">
               <ArrowUpRight size={18} />
             </div>
           </div>
-          <div className="mt-8 text-xl font-extrabold text-[color:var(--accent-steel)] sm:text-3xl">{formatCurrency(metrics.expectedThisMonth)}</div>
-          <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Parcelas pendentes e atrasadas com vencimento neste mês.</p>
+          <div className="mt-8 type-metric-lg text-[color:var(--accent-steel)]">{formatCurrency(metrics.expectedThisMonth)}</div>
+          <p className="mt-3 type-body text-[color:var(--text-secondary)]">Parcelas pendentes e atrasadas com vencimento neste mês.</p>
         </div>
 
         {/* Card 4 — Capital em Giro */}
@@ -183,14 +183,14 @@ const InvestorDashboard: React.FC = () => {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker mb-1">Principal</p>
-              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Capital em Giro</h3>
+              <h3 className="type-title font-display text-[color:var(--text-primary)]">Capital em Giro</h3>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.06] text-[color:var(--text-secondary)] ring-1 ring-white/10">
               <Landmark size={18} />
             </div>
           </div>
-          <div className="mt-8 text-xl font-extrabold text-[color:var(--text-primary)] sm:text-3xl">{formatCurrency(metrics.totalAllocated)}</div>
-          <p className="mt-3 text-sm leading-7 text-[color:var(--text-secondary)]">Volume principal comprometido na carteira atual.</p>
+          <div className="mt-8 type-metric-lg text-[color:var(--text-primary)]">{formatCurrency(metrics.totalAllocated)}</div>
+          <p className="mt-3 type-body text-[color:var(--text-secondary)]">Volume principal comprometido na carteira atual.</p>
         </div>
       </div>
 
@@ -200,7 +200,7 @@ const InvestorDashboard: React.FC = () => {
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker mb-1">Fluxo mensal</p>
-              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Recebimentos projetados</h3>
+              <h3 className="type-title font-display text-[color:var(--text-primary)]">Recebimentos projetados</h3>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(144,160,189,0.14)] text-[color:var(--accent-steel)] ring-1 ring-[rgba(144,160,189,0.16)]">
               <ArrowUpRight size={18} />
@@ -244,7 +244,7 @@ const InvestorDashboard: React.FC = () => {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="text-base font-semibold text-[color:var(--text-primary)]">{investment.asset_name}</div>
-                    <div className="mt-1 text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">{investment.type}</div>
+                    <div className="mt-1 type-label text-[color:var(--text-faint)]">{investment.type}</div>
                   </div>
                   <div
                     title={investment.healthStatus === 'late' ? 'Contrato com parcela(s) em atraso' : investment.healthStatus === 'ok' ? 'Todos os pagamentos em dia' : 'Contrato em andamento'}
@@ -257,11 +257,11 @@ const InvestorDashboard: React.FC = () => {
 
                 <div className="mt-5 grid grid-cols-2 gap-4 border-t border-white/10 pt-4">
                   <div>
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Principal</div>
+                    <div className="type-label text-[color:var(--text-faint)]">Principal</div>
                     <div className="mt-1 text-sm font-semibold text-[color:var(--text-primary)]">{formatCurrency(Number(investment.amount_invested))}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Total do contrato</div>
+                    <div className="type-label text-[color:var(--text-faint)]">Total do contrato</div>
                     <div className="mt-1 text-sm font-semibold text-[color:var(--text-primary)]">{formatCurrency(Number(investment.current_value))}</div>
                   </div>
                 </div>

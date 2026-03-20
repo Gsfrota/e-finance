@@ -117,9 +117,9 @@ const KpiTile: React.FC<KpiTileProps> = ({ label, value, color = 'var(--text-pri
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl" style={{ background: iconBg }}>
         <Icon size={14} style={{ color }} />
       </div>
-      <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-[color:var(--text-faint)]">{label}</p>
+      <p className="type-label text-[color:var(--text-faint)]">{label}</p>
     </div>
-    <p className="text-lg font-extrabold leading-none tracking-tight" style={{ color }}>{value}</p>
+    <p className="type-subheading leading-none" style={{ color }}>{value}</p>
   </div>
 );
 
@@ -198,8 +198,8 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
           <ArrowLeft size={20} />
         </button>
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)]">Contrato</p>
-          <h3 className="text-xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter leading-none mt-0.5">
+          <p className="type-label text-[color:var(--text-faint)]">Contrato</p>
+          <h3 className="type-heading uppercase text-[color:var(--text-primary)] leading-none mt-0.5">
             Pagamento Avulso
           </h3>
         </div>
@@ -218,7 +218,7 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Valor */}
           <div>
-            <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">
+            <label className="block type-label text-[color:var(--text-faint)] mb-2">
               Valor do Pagamento (R$)
             </label>
             <div className="relative">
@@ -235,7 +235,7 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
 
           {/* Data */}
           <div>
-            <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">
+            <label className="block type-label text-[color:var(--text-faint)] mb-2">
               Data do Pagamento
             </label>
             <input
@@ -248,7 +248,7 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
 
           {/* Observação */}
           <div>
-            <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">
+            <label className="block type-label text-[color:var(--text-faint)] mb-2">
               Observação (opcional)
             </label>
             <input
@@ -263,7 +263,7 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
           {/* Preview */}
           {amountNum > 0 && (
             <div className="rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-soft)] p-4">
-              <p className="text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)] mb-3">
+              <p className="type-label text-[color:var(--text-faint)] mb-3">
                 Parcelas quitadas (do fim do contrato)
               </p>
               {preview.items.length === 0 ? (
@@ -277,15 +277,15 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
                         <span className="text-xs font-semibold text-[color:var(--text-primary)]">
                           Parcela {inst.number}
                         </span>
-                        <span className="text-[10px] text-[color:var(--text-faint)] truncate">
+                        <span className="type-caption text-[color:var(--text-faint)] truncate">
                           {new Date(inst.due_date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}, {fmtDate(inst.due_date)}
                         </span>
                       </div>
                       <div className="text-right shrink-0">
-                        <span className={`text-xs font-extrabold tabular-nums ${newStatus === 'paid' ? 'text-[color:var(--accent-positive)]' : 'text-[color:var(--accent-brass)]'}`}>
+                        <span className={`type-metric-sm ${newStatus === 'paid' ? 'text-[color:var(--accent-positive)]' : 'text-[color:var(--accent-brass)]'}`}>
                           {fmt(applied)}
                         </span>
-                        <span className={`ml-1 text-[9px] font-bold uppercase ${newStatus === 'paid' ? 'text-[color:var(--accent-positive)]' : 'text-[color:var(--accent-brass)]'}`}>
+                        <span className={`ml-1 type-micro ${newStatus === 'paid' ? 'text-[color:var(--accent-positive)]' : 'text-[color:var(--accent-brass)]'}`}>
                           {newStatus === 'paid' ? '● quitada' : '◑ parcial'}
                         </span>
                       </div>
@@ -294,7 +294,7 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
                   {preview.surplus > 0 && (
                     <div className="mt-2 pt-2 border-t border-[color:var(--border-subtle)] flex items-center gap-2 text-[color:var(--accent-steel)]">
                       <AlertCircle size={12} className="shrink-0" />
-                      <p className="text-[10px] font-bold">
+                      <p className="type-caption font-bold">
                         Saldo excedente {fmt(preview.surplus)} — sem parcelas para abater
                       </p>
                     </div>
@@ -313,7 +313,7 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
           <button
             type="submit"
             disabled={loading || amountNum <= 0}
-            className="w-full rounded-xl bg-[rgba(202,176,122,0.12)] py-4 text-xs font-extrabold uppercase tracking-widest text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)] active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="type-label w-full rounded-xl bg-[rgba(202,176,122,0.12)] py-4 text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)] active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loading ? <Loader2 className="animate-spin" size={18} /> : <Banknote size={18} />}
             {loading ? 'Processando...' : 'Confirmar Pagamento Avulso'}
@@ -424,7 +424,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
       {loading && (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 text-[color:var(--accent-brass)]">
           <Loader2 size={36} className="animate-spin" />
-          <p className="text-xs font-bold uppercase tracking-widest text-[color:var(--text-muted)]">Carregando contrato...</p>
+          <p className="type-label text-[color:var(--text-muted)]">Carregando contrato...</p>
         </div>
       )}
 
@@ -453,7 +453,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                     </span>
                   )}
                 </div>
-                <h2 className="truncate font-display text-2xl font-black leading-none text-[color:var(--text-primary)]">
+                <h2 className="type-heading truncate leading-none text-[color:var(--text-primary)]">
                   {data.investment.asset_name}
                 </h2>
                 <p className="mt-1 text-xs text-[color:var(--text-faint)]">
@@ -467,18 +467,18 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
 
             <div className="mt-4 flex items-center gap-3 text-sm">
               <div className="rounded-xl bg-[color:var(--bg-soft)] px-3 py-1.5">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--text-faint)]">Investidor</p>
+                <p className="type-label text-[color:var(--text-faint)]">Investidor</p>
                 <p className="font-semibold text-[color:var(--text-primary)]">{data.investment.investor?.full_name ?? '—'}</p>
               </div>
               <ArrowRight size={14} className="text-[color:var(--text-faint)] shrink-0" />
               <div className="rounded-xl bg-[color:var(--bg-soft)] px-3 py-1.5">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--text-faint)]">Devedor</p>
+                <p className="type-label text-[color:var(--text-faint)]">Devedor</p>
                 <p className="font-semibold text-[color:var(--text-primary)]">{data.investment.payer?.full_name ?? '—'}</p>
               </div>
             </div>
 
             <div className="mt-4">
-              <div className="mb-1.5 flex justify-between text-[10px] font-bold uppercase tracking-wider text-[color:var(--text-faint)]">
+              <div className="mb-1.5 flex justify-between type-label text-[color:var(--text-faint)]">
                 <span>{data.metrics.parcelasPagas}/{data.metrics.parcelasTotal} parcelas pagas</span>
                 <span>{progressPct}%</span>
               </div>
@@ -490,13 +490,13 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 onClick={() => setAvulsoOpen(true)}
-                className="flex items-center gap-2 rounded-full bg-[rgba(202,176,122,0.14)] px-4 py-2 text-[11px] font-extrabold uppercase tracking-widest text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.22)] transition-all hover:bg-[rgba(202,176,122,0.24)]"
+                className="type-label flex items-center gap-2 rounded-full bg-[rgba(202,176,122,0.14)] px-4 py-2 text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.22)] transition-all hover:bg-[rgba(202,176,122,0.24)]"
               >
                 <Banknote size={13} /> Pagamento Avulso
               </button>
               {onRenew && (
                 <button onClick={() => onRenew(data.investment)}
-                  className="flex items-center gap-2 rounded-full bg-[rgba(202,176,122,0.12)] px-4 py-2 text-[11px] font-extrabold uppercase tracking-widest text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)] transition-all hover:bg-[rgba(202,176,122,0.20)]">
+                  className="type-label flex items-center gap-2 rounded-full bg-[rgba(202,176,122,0.12)] px-4 py-2 text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)] transition-all hover:bg-[rgba(202,176,122,0.20)]">
                   <RotateCcw size={13} /> Renovar Contrato
                 </button>
               )}
@@ -519,10 +519,10 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                     <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-[rgba(52,211,153,0.14)]">
                       <Wallet size={13} className="text-[color:var(--accent-positive)]" />
                     </div>
-                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-[color:var(--text-faint)]">Já Recebido</p>
+                    <p className="type-label text-[color:var(--text-faint)]">Já Recebido</p>
                   </div>
-                  <p className="text-xl font-black tabular-nums leading-none text-[color:var(--accent-positive)]">{fmt(totalPago)}</p>
-                  <p className="mt-1.5 text-[10px] text-[color:var(--text-faint)]">
+                  <p className="type-metric-lg leading-none text-[color:var(--accent-positive)]">{fmt(totalPago)}</p>
+                  <p className="mt-1.5 type-caption text-[color:var(--text-faint)]">
                     {data.metrics.parcelasPagas} parcela{data.metrics.parcelasPagas !== 1 ? 's' : ''} quitada{data.metrics.parcelasPagas !== 1 ? 's' : ''}
                   </p>
                 </div>
@@ -533,12 +533,12 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                     <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-[rgba(148,180,255,0.14)]">
                       <CircleDollarSign size={13} className="text-[color:var(--accent-steel)]" />
                     </div>
-                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-[color:var(--text-faint)]">Ainda Falta</p>
+                    <p className="type-label text-[color:var(--text-faint)]">Ainda Falta</p>
                   </div>
-                  <p className={`text-xl font-black tabular-nums leading-none ${totalRestante > 0 ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--accent-positive)]'}`}>
+                  <p className={`type-metric-lg leading-none ${totalRestante > 0 ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--accent-positive)]'}`}>
                     {fmt(totalRestante)}
                   </p>
-                  <p className="mt-1.5 text-[10px] text-[color:var(--text-faint)]">
+                  <p className="mt-1.5 type-caption text-[color:var(--text-faint)]">
                     {data.metrics.parcelasPendentes + data.metrics.parcelasAtrasadas} em aberto
                   </p>
                 </div>
@@ -549,10 +549,10 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                     <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-[rgba(202,176,122,0.14)]">
                       <TrendingUp size={13} className="text-[color:var(--accent-brass)]" />
                     </div>
-                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-[color:var(--text-faint)]">Lucro Realizado</p>
+                    <p className="type-label text-[color:var(--text-faint)]">Lucro Realizado</p>
                   </div>
-                  <p className="text-xl font-black tabular-nums leading-none text-[color:var(--accent-brass)]">{fmt(data.metrics.jurosPagos)}</p>
-                  <p className="mt-1.5 text-[10px] text-[color:var(--text-faint)]">
+                  <p className="type-metric-lg leading-none text-[color:var(--accent-brass)]">{fmt(data.metrics.jurosPagos)}</p>
+                  <p className="mt-1.5 type-caption text-[color:var(--text-faint)]">
                     + {fmt(data.metrics.jurosAReceber)} projetado
                   </p>
                 </div>
@@ -572,21 +572,21 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                         : <BadgeCheck size={13} className="text-[color:var(--accent-positive)]" />
                       }
                     </div>
-                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-[color:var(--text-faint)]">Atraso</p>
+                    <p className="type-label text-[color:var(--text-faint)]">Atraso</p>
                   </div>
                   {data.metrics.parcelasAtrasadas > 0 ? (
                     <>
-                      <p className="text-xl font-black tabular-nums leading-none text-[color:var(--accent-danger)]">
+                      <p className="type-metric-lg leading-none text-[color:var(--accent-danger)]">
                         {data.metrics.parcelasAtrasadas} parc.
                       </p>
-                      <p className="mt-1.5 text-[10px] font-semibold text-[color:var(--accent-danger)]">
+                      <p className="mt-1.5 type-caption font-semibold text-[color:var(--accent-danger)]">
                         {data.metrics.fineAcumulada > 0 ? `${fmt(data.metrics.fineAcumulada)} em multas` : 'sem multas ainda'}
                       </p>
                     </>
                   ) : (
                     <>
-                      <p className="text-xl font-black leading-none text-[color:var(--accent-positive)]">Sem atraso</p>
-                      <p className="mt-1.5 text-[10px] text-[color:var(--text-faint)]">Contrato em dia ✓</p>
+                      <p className="type-metric-lg leading-none text-[color:var(--accent-positive)]">Sem atraso</p>
+                      <p className="mt-1.5 type-caption text-[color:var(--text-faint)]">Contrato em dia ✓</p>
                     </>
                   )}
                 </div>
@@ -600,8 +600,8 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                   { label: 'Parcela',    value: fmt(data.investment.installment_value) },
                 ].map(({ label, value }) => (
                   <div key={label} className="rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-elevated)] px-3 py-3 text-center">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--text-faint)]">{label}</p>
-                    <p className="mt-1 text-sm font-extrabold text-[color:var(--text-primary)]">{value}</p>
+                    <p className="type-label text-[color:var(--text-faint)]">{label}</p>
+                    <p className="mt-1 text-sm font-semibold text-[color:var(--text-primary)]">{value}</p>
                   </div>
                 ))}
               </div>
@@ -611,18 +611,18 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
             <section>
               <div className="mb-2 flex items-center justify-between">
                 <p className="section-kicker">Parcelas</p>
-                <div className="flex gap-2 text-[10px] font-bold">
+                <div className="flex gap-2 type-caption font-bold">
                   <span className="chip chip-paid">{data.metrics.parcelasPagas} pagas</span>
                   {data.metrics.parcelasPartiais > 0 && <span className="chip chip-partial">{data.metrics.parcelasPartiais} parciais</span>}
                   {data.metrics.parcelasAtrasadas > 0 && <span className="chip chip-late">{data.metrics.parcelasAtrasadas} atrasadas</span>}
                   {data.metrics.parcelasPendentes > 0 && <span className="chip chip-pending">{data.metrics.parcelasPendentes} pendentes</span>}
                 </div>
               </div>
-              <p className="text-[10px] text-[color:var(--text-faint)] mb-3">Toque em uma parcela para ver detalhes e ações</p>
+              <p className="type-caption text-[color:var(--text-faint)] mb-3">Toque em uma parcela para ver detalhes e ações</p>
 
               {data.installments.length === 0 ? (
                 <div className={`${panelCard} flex items-center justify-center py-10`}>
-                  <p className="text-xs font-bold uppercase tracking-widest text-[color:var(--text-faint)]">Nenhuma parcela encontrada</p>
+                  <p className="type-label text-[color:var(--text-faint)]">Nenhuma parcela encontrada</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -650,7 +650,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                       >
                         {/* Número + status + seta */}
                         <div className="flex items-center justify-between mb-3">
-                          <span className="text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-faint)]">
+                          <span className="type-label text-[color:var(--text-faint)]">
                             Parcela {i.number}
                           </span>
                           <div className="flex items-center gap-2">
@@ -666,17 +666,17 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                         {/* Vencimento ↔ Valor */}
                         <div className="flex items-end justify-between mb-3">
                           <div>
-                            <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--text-faint)] mb-1">Vencimento</p>
-                            <p className="text-[10px] text-[color:var(--text-faint)] capitalize mb-0.5">{fmtWeekday(i.due_date)}</p>
-                            <p className={`text-lg font-black leading-none tabular-nums ${isLate ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--text-primary)]'}`}>
+                            <p className="type-micro text-[color:var(--text-faint)] mb-1">Vencimento</p>
+                            <p className="type-caption text-[color:var(--text-faint)] capitalize mb-0.5">{fmtWeekday(i.due_date)}</p>
+                            <p className={`type-metric-md leading-none ${isLate ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--text-primary)]'}`}>
                               {fmtDate(i.due_date)}
                             </p>
                           </div>
                           <div className="text-right">
-                            <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--text-faint)] mb-1">
+                            <p className="type-micro text-[color:var(--text-faint)] mb-1">
                               {isPaid ? 'Pago' : isPartial ? 'Pago Parcial' : 'Total Devido'}
                             </p>
-                            <p className={`text-lg font-black leading-none tabular-nums ${
+                            <p className={`type-metric-md leading-none ${
                               isPaid ? 'text-[color:var(--accent-positive)]' :
                               isPartial ? 'text-[color:var(--accent-brass)]' :
                               isLate ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--text-primary)]'
@@ -689,26 +689,26 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                         {/* Detalhes: Principal / Juros / Multa ou Pago em */}
                         <div className="grid grid-cols-3 gap-2 border-t border-[color:var(--border-subtle)] pt-3">
                           <div>
-                            <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--text-faint)] mb-0.5">Principal</p>
+                            <p className="type-micro text-[color:var(--text-faint)] mb-0.5">Principal</p>
                             <p className="text-xs font-semibold text-[color:var(--text-secondary)] tabular-nums">{fmt(i.amount_principal)}</p>
                           </div>
                           <div>
-                            <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--text-faint)] mb-0.5">Juros</p>
+                            <p className="type-micro text-[color:var(--text-faint)] mb-0.5">Juros</p>
                             <p className="text-xs font-semibold text-[color:var(--accent-brass)] tabular-nums">{fmt(i.amount_interest)}</p>
                           </div>
                           {multa > 0 ? (
                             <div>
-                              <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--text-faint)] mb-0.5">Multa</p>
+                              <p className="type-micro text-[color:var(--text-faint)] mb-0.5">Multa</p>
                               <p className="text-xs font-bold text-[color:var(--accent-danger)] tabular-nums">+{fmt(multa)}</p>
                             </div>
                           ) : isPaid && i.paid_at ? (
                             <div>
-                              <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--text-faint)] mb-0.5">Pago em</p>
+                              <p className="type-micro text-[color:var(--text-faint)] mb-0.5">Pago em</p>
                               <p className="text-xs font-semibold text-[color:var(--text-faint)] tabular-nums">{fmtDate(i.paid_at.split('T')[0])}</p>
                             </div>
                           ) : (
                             <div>
-                              <p className="text-[9px] font-bold uppercase tracking-wide text-[color:var(--text-faint)] mb-0.5">Original</p>
+                              <p className="type-micro text-[color:var(--text-faint)] mb-0.5">Original</p>
                               <p className="text-xs font-semibold text-[color:var(--text-muted)] tabular-nums">{fmt(i.amount_total)}</p>
                             </div>
                           )}
@@ -722,7 +722,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                               {events.map((ev, idx) => (
                                 <div key={idx} className="flex items-start gap-2">
                                   <AlertTriangle size={11} className="text-[color:var(--accent-danger)] shrink-0 mt-0.5" />
-                                  <p className="text-[10px] text-[color:var(--accent-danger)] font-semibold leading-tight">{ev}</p>
+                                  <p className="type-caption text-[color:var(--accent-danger)] font-semibold leading-tight">{ev}</p>
                                 </div>
                               ))}
                             </div>
@@ -746,13 +746,13 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                     <div key={ap.id} className={`${panelCard} px-4 py-3`}>
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-extrabold tabular-nums text-[color:var(--accent-brass)]">{fmt(ap.amount)}</p>
+                          <p className="type-metric-sm text-[color:var(--accent-brass)]">{fmt(ap.amount)}</p>
                           {ap.notes && (
-                            <p className="mt-0.5 truncate text-[11px] italic text-[color:var(--text-faint)]">"{ap.notes}"</p>
+                            <p className="mt-0.5 truncate type-caption italic text-[color:var(--text-faint)]">"{ap.notes}"</p>
                           )}
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-[10px] font-bold text-[color:var(--text-faint)]">
+                          <p className="type-caption text-[color:var(--text-faint)]">
                             {fmtDate(ap.paid_at.split('T')[0])}
                           </p>
                         </div>
@@ -780,7 +780,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                       <div className="mb-1 flex items-center justify-between">
                         <p className="text-xs font-bold text-[color:var(--text-primary)]">{fmtDatetime(r.renegotiated_at)}</p>
                       </div>
-                      <div className="flex flex-wrap gap-3 text-[11px]">
+                      <div className="flex flex-wrap gap-3 type-caption">
                         {r.old_installment_value != null && r.new_installment_value != null && (
                           <span className="text-[color:var(--text-secondary)]">
                             Parcela: <span className="line-through text-[color:var(--text-faint)]">{fmt(r.old_installment_value)}</span>
@@ -800,7 +800,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                           </span>
                         )}
                       </div>
-                      {r.reason && <p className="mt-1.5 text-[11px] italic text-[color:var(--text-faint)]">"{r.reason}"</p>}
+                      {r.reason && <p className="mt-1.5 type-caption italic text-[color:var(--text-faint)]">"{r.reason}"</p>}
                     </div>
                   ))}
                 </div>
@@ -818,7 +818,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                     <div className={`${panelCard} flex items-center gap-3 px-4 py-3`}>
                       <ChevronRight size={14} className="shrink-0 text-[color:var(--text-faint)]" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--text-faint)]">Contrato original</p>
+                        <p className="type-label text-[color:var(--text-faint)]">Contrato original</p>
                         <p className="truncate text-sm font-semibold text-[color:var(--text-primary)]">#{data.parent.id} — {data.parent.asset_name}</p>
                       </div>
                       {statusBadge(data.parent.status)}
@@ -828,9 +828,9 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                     <div key={r.id} className={`${panelCard} flex items-center gap-3 px-4 py-3`}>
                       <RotateCcw size={14} className="shrink-0 text-[color:var(--accent-brass)]" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--text-faint)]">Renovação</p>
+                        <p className="type-label text-[color:var(--text-faint)]">Renovação</p>
                         <p className="truncate text-sm font-semibold text-[color:var(--text-primary)]">#{r.id} — {r.asset_name}</p>
-                        <p className="text-[10px] text-[color:var(--text-faint)]">Criado em {fmtDate(r.created_at?.split('T')[0])}</p>
+                        <p className="type-caption text-[color:var(--text-faint)]">Criado em {fmtDate(r.created_at?.split('T')[0])}</p>
                       </div>
                       {statusBadge(r.status)}
                     </div>

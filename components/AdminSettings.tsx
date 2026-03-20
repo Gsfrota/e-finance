@@ -127,8 +127,8 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
         <div className="max-w-5xl mx-auto animate-fade-in pb-16">
             {/* Page header */}
             <div className="border-b border-[color:var(--border-subtle)] pb-6 mb-8">
-                <h2 className="text-3xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter">Configurações</h2>
-                <p className="text-[color:var(--text-muted)] text-xs font-bold uppercase tracking-[0.2em] mt-1">Identidade, financeiro e assinatura</p>
+                <h2 className="type-title uppercase text-[color:var(--text-primary)]">Configurações</h2>
+                <p className="type-label text-[color:var(--text-muted)] mt-1">Identidade, financeiro e assinatura</p>
             </div>
 
             {/* Tab bar */}
@@ -159,7 +159,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
                                 </div>
                                 <div className="border-t border-[color:var(--border-subtle)] pt-6 space-y-5">
                                     <div>
-                                        <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">Nome da Empresa</label>
+                                        <label className="block type-label text-[color:var(--text-muted)] mb-2">Nome da Empresa</label>
                                         <input
                                             required
                                             type="text"
@@ -171,7 +171,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
                                         <p className="text-[color:var(--text-muted)] text-xs mt-1.5">Este nome aparece nos comprovantes de pagamento enviados aos devedores.</p>
                                     </div>
                                     <div>
-                                        <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">Logotipo</label>
+                                        <label className="block type-label text-[color:var(--text-muted)] mb-2">Logotipo</label>
                                         <div className="flex items-center gap-4">
                                             <label className="cursor-pointer flex-1">
                                                 <div className="flex items-center gap-3 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] hover:border-teal-500 rounded-xl px-4 py-3 transition-colors">
@@ -214,7 +214,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
                                 </div>
                                 <div className="border-t border-[color:var(--border-subtle)] pt-6 space-y-5">
                                     <div>
-                                        <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">Nome Legal</label>
+                                        <label className="block type-label text-[color:var(--text-muted)] mb-2">Nome Legal</label>
                                         <input
                                             type="text"
                                             value={ownerName}
@@ -224,7 +224,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">E-mail Owner</label>
+                                        <label className="block type-label text-[color:var(--text-muted)] mb-2">E-mail Owner</label>
                                         <input
                                             type="email"
                                             value={ownerEmail}
@@ -248,7 +248,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
                                 <div className="border-t border-[color:var(--border-subtle)] pt-6 space-y-5">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                         <div>
-                                            <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">Tipo de Chave</label>
+                                            <label className="block type-label text-[color:var(--text-muted)] mb-2">Tipo de Chave</label>
                                             <select
                                                 value={pixKeyType}
                                                 onChange={e => setPixKeyType(e.target.value as any)}
@@ -262,7 +262,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">Chave PIX</label>
+                                            <label className="block type-label text-[color:var(--text-muted)] mb-2">Chave PIX</label>
                                             <input
                                                 required
                                                 type="text"
@@ -274,7 +274,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
                                             {fieldError && <p className="text-red-400 text-xs mt-1.5">{fieldError}</p>}
                                         </div>
                                         <div>
-                                            <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">Nome do Beneficiário</label>
+                                            <label className="block type-label text-[color:var(--text-muted)] mb-2">Nome do Beneficiário</label>
                                             <input
                                                 required
                                                 type="text"
@@ -285,7 +285,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">Cidade</label>
+                                            <label className="block type-label text-[color:var(--text-muted)] mb-2">Cidade</label>
                                             <input
                                                 required
                                                 type="text"
@@ -310,7 +310,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
                                 </div>
                                 <div className="border-t border-[color:var(--border-subtle)] pt-6 space-y-5">
                                     <div>
-                                        <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">WhatsApp do Consultor</label>
+                                        <label className="block type-label text-[color:var(--text-muted)] mb-2">WhatsApp do Consultor</label>
                                         <input
                                             type="text"
                                             value={whatsapp}

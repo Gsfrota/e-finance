@@ -1,6 +1,7 @@
-import type { ActionPlan, ConversationWorkingState } from './contracts';
+import type { ActionPlan, ActionCapability, ConversationWorkingState } from './contracts';
 import { inferInstallmentMonth } from '../ai/intent-classifier';
 import { inferTimeWindowFromText } from './time-window';
+import { buildDateWindow } from '../actions/admin-actions';
 
 function normalizeText(text: string): string {
   return text
@@ -80,6 +81,18 @@ function resolveTemporalFollowup(
 ): ActionPlan | null {
   const timeWindow = inferTimeWindowFromText(text);
   if (!timeWindow || !state.lastAction) return null;
+
+  // Se o texto contém sinal claro de intent oposto, deixa cair pro intent-router
+  const lower = text.toLowerCase();
+  const hasReceivableSignal = /receb[eií]|pra receber|vou receber|tenho a receber/.test(lower);
+  const hasCollectionSignal = /cobr[aá]r?|devo cobrar|tenho que cobrar/.test(lower);
+
+  if (state.lastAction === 'query_collection_window' && hasReceivableSignal && !hasCollectionSignal) {
+    return null;
+  }
+  if (state.lastAction === 'query_receivables_window' && hasCollectionSignal && !hasReceivableSignal) {
+    return null;
+  }
 
   if (state.lastAction === 'query_receivables_window' || state.lastAction === 'list_receivables') {
     return {
@@ -260,11 +273,82 @@ function resolveBriefingFollowup(
   };
 }
 
+const TEMPORAL_ACTIONS = new Set<ActionCapability>([
+  'list_receivables',
+  'query_receivables_window',
+  'query_collection_window',
+  'list_collection_targets',
+]);
+
+function resolveShortTemporalFollowup(
+  state: ConversationWorkingState,
+  text: string,
+): ActionPlan | null {
+  if (!state.lastAction || !TEMPORAL_ACTIONS.has(state.lastAction)) return null;
+
+  const normalized = normalizeText(text);
+  // Must be short (<=20 chars) to avoid false positives
+  if (normalized.length > 20) return null;
+
+  const shortTemporalPattern = /^(?:e\s+)?(?:em\s+)?(\d{1,2})\s*(?:dias?)?[?!]?$|^(?:e\s+)?em\s+(\d{1,2})\s*dias?[?!]?$|^(?:e\s+)?(\d{1,2})\s+dias?[?!]?$/;
+  const match = normalized.match(shortTemporalPattern);
+  if (!match) return null;
+
+  const days = Number(match[1] || match[2] || match[3]);
+  if (!Number.isFinite(days) || days < 1 || days > 60) return null;
+
+  const window = buildDateWindow(days, 'today');
+  const timeWindow = {
+    mode: 'relative_days' as const,
+    amount: days,
+    windowStart: 'today' as const,
+    startDate: window.startDate,
+    endDate: window.endDate,
+    label: `nos próximos ${days} dias`,
+  };
+
+  const capability = (
+    state.lastAction === 'query_collection_window' || state.lastAction === 'list_collection_targets'
+  ) ? 'query_collection_window' : 'query_receivables_window';
+
+  return {
+    capability,
+    confidence: 'high',
+    source: 'followup',
+    args: { time_window: timeWindow },
+    missingFields: [],
+    dependsOnContext: true,
+    requiresConfirmation: false,
+  };
+}
+
+function resolvePendingCapabilityConfirmation(
+  state: ConversationWorkingState,
+  text: string,
+): ActionPlan | null {
+  if (!state.pendingCapability) return null;
+
+  const normalized = text.trim().toLowerCase();
+  if (!/^(sim|ok|confirmo|pode|isso|s)$/i.test(normalized)) return null;
+
+  return {
+    capability: state.pendingCapability,
+    confidence: 'high',
+    source: 'followup',
+    args: {},
+    missingFields: [],
+    dependsOnContext: true,
+    requiresConfirmation: false,
+  };
+}
+
 export function resolveFollowup(
   text: string,
   state: ConversationWorkingState,
 ): ActionPlan | null {
-  return resolveDebtorCandidateSelection(state, text)
+  return resolvePendingCapabilityConfirmation(state, text)
+    || resolveShortTemporalFollowup(state, text)
+    || resolveDebtorCandidateSelection(state, text)
     || resolveTemporalFollowup(state, text)
     || resolveInstallmentFollowup(state, text)
     || resolveDetailFollowup(state, text)

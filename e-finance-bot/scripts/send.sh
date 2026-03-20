@@ -14,4 +14,4 @@ MENSAGEM="${2:?Uso: $0 <numero> <mensagem>}"
 curl -s -X POST "$UAZAPI_URL/send/text" \
   -H "token: $TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"phone\":\"$NUMERO\",\"text\":\"$MENSAGEM\"}" | python3 -m json.tool 2>/dev/null || true
+  -d "{\"number\":\"$NUMERO\",\"text\":\"$MENSAGEM\"}" | python3 -m json.tool 2>/dev/null || true

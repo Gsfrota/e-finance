@@ -7,8 +7,25 @@ import {
   ArrowLeft, CheckCircle2, AlertTriangle, Loader2, Clock3,
   DollarSign, Calendar, Percent, RefreshCw, Save, XCircle,
   Pencil, FileText, ArrowRight, ArrowDownToLine, Plus, ChevronLeft, TrendingUp,
+  Layers, ChevronDown, ChevronUp,
 } from 'lucide-react';
+
+type SurplusAction = 'next' | 'last' | 'spread';
 import { LoanInstallment, Tenant } from '../types';
+
+interface ActionSummary {
+  type: 'exact' | 'partial' | 'surplus';
+  paidAmount: number;
+  installmentNumber: number;
+  remainder?: number;
+  remainderDest?: 'last' | 'next' | 'new';
+  remainderDestNumber?: number;
+  surplusAmount?: number;
+  surplusAction?: SurplusAction;
+  surplusDestNumber?: number;
+  surplusSpreadCount?: number;
+  discountPerInstallment?: number;
+}
 import { getSupabase, parseSupabaseError } from '../services/supabase';
 import ReceiptTemplate from './ReceiptTemplate';
 
@@ -133,7 +150,7 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
       {/* ── Blue Header ─────────────────────────────────────────────────── */}
       <div className="shrink-0 px-4 py-4 flex items-center gap-3" style={{ background: 'var(--header-blue)' }}>
         <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-bold text-white truncate">{debtorName}</h3>
+          <h3 className="type-subheading text-[color:var(--text-primary)] truncate">{debtorName}</h3>
           <p className="text-xs text-white/70">Contrato: {contractId}</p>
         </div>
         <button className="p-1.5 text-white/70 hover:text-white">
@@ -291,6 +308,14 @@ const DetailRow: React.FC<{
   </div>
 );
 
+// ── Summary row helper (tela de conclusão) ────────────────────────────────────
+const SummaryRow: React.FC<{ label: string; value: string; accent?: boolean; warn?: boolean }> = ({ label, value, accent, warn }) => (
+  <div className="flex items-center justify-between">
+    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{label}</p>
+    <p className="text-sm font-bold tabular-nums" style={{ color: warn ? 'var(--accent-brass)' : accent ? 'var(--accent-positive)' : 'var(--text-primary)' }}>{value}</p>
+  </div>
+);
+
 // ── InstallmentFormScreen ─────────────────────────────────────────────────────
 
 interface InstallmentFormScreenProps {
@@ -317,12 +342,17 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
   const [paymentMethod, setPaymentMethod] = useState('PIX');
 
   // Pay step 2 state
-  const [payStep, setPayStep]             = useState<1 | 'missed' | 2>(1);
+  const [payStep, setPayStep]             = useState<1 | 'missed' | 2 | 'surplus'>(1);
   const [deferAction, setDeferAction]     = useState<'last' | 'next' | 'new'>('last');
   const [useInterest, setUseInterest]     = useState(false);
   const [interestPercent, setInterestPercent] = useState('');
   const [context, setContext]             = useState<{ nextInst: any; lastInst: any }>({ nextInst: null, lastInst: null });
   const [loadingContext, setLoadingContext] = useState(false);
+  // Surplus state
+  const [surplusAction, setSurplusAction]           = useState<SurplusAction>('next');
+  const [pendingInstallments, setPendingInstallments] = useState<Array<{id: string; number: number; amount_total: number}>>([]);
+  const [showSpreadPreview, setShowSpreadPreview]   = useState(false);
+  const [actionSummary, setActionSummary]           = useState<ActionSummary | null>(null);
 
   // Miss form state
   const [missStep, setMissStep]           = useState<1 | 2>(1);
@@ -337,13 +367,17 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
   // Derived pay values
   const amountVal             = parseFloat(amount) || 0;
   const remainder             = action.type === 'pay' ? Math.max(0, outstanding - amountVal) : 0;
+  const surplus               = action.type === 'pay' ? Math.max(0, amountVal - outstanding) : 0;
   const isPartialPay          = amountVal > 0 && remainder > 0.01;
+  const hasExcedente          = surplus > 0.01;
   const interestAmt           = useInterest && interestPercent ? remainder * (parseFloat(interestPercent) || 0) / 100 : 0;
   const remainderWithInterest = remainder + interestAmt;
+  const discountPerInstallment = pendingInstallments.length > 0 ? surplus / pendingInstallments.length : 0;
 
   useEffect(() => {
-    setError(null); setIsReceiptMode(false);
+    setError(null); setIsReceiptMode(false); setActionSummary(null);
     setPayStep(1); setDeferAction('last'); setUseInterest(false); setInterestPercent(''); setContext({ nextInst: null, lastInst: null });
+    setSurplusAction('next'); setPendingInstallments([]); setShowSpreadPreview(false);
     setMissStep(1); setMissDeferAction('postpone');
     setUseMissedInterest(false); setMissedInterestRate('');
     setDeferredInstallment(null); setRemoveDeferral(false);
@@ -384,6 +418,11 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         if (lastInst) setDeferAction('last');
         else if (nextInst) setDeferAction('next');
         else setDeferAction('new');
+        // Parcelas pendentes após a atual para surplus spread
+        const pendingAfter = pending.filter(r => r.number > installment.number);
+        setPendingInstallments(pendingAfter.map(r => ({ id: r.id, number: r.number, amount_total: r.amount_total })));
+        if (nextInst) setSurplusAction('next');
+        else setSurplusAction('last');
       }
     } finally {
       setLoadingContext(false);
@@ -411,12 +450,58 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
       setPayStep('missed');
       return;
     }
-    if (isPartialPay) {
+    if (hasExcedente) {
+      await loadContext();
+      setPayStep('surplus');
+    } else if (isPartialPay) {
       await loadContext();
       setPayStep(2);
     } else {
       await submitPayment(val, null, 0);
     }
+  };
+
+  const handlePaySurplusStep = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true); setError(null);
+    const supabase = getSupabase(); if (!supabase) return;
+    try {
+      const { error: payErr } = await supabase.rpc('pay_installment', {
+        p_installment_id: installment.id,
+        p_amount_paid: outstanding,
+      });
+      if (payErr) throw payErr;
+      const { error: surplusErr } = await supabase.rpc('apply_surplus_action', {
+        p_installment_id: installment.id,
+        p_surplus_amount: surplus,
+        p_action: surplusAction,
+      });
+      if (surplusErr) throw surplusErr;
+      await supabase.from('loan_installments').update({ payment_method: paymentMethod }).eq('id', installment.id);
+      // Nota e resumo da ação
+      const surplusDestNum = surplusAction === 'next' ? context.nextInst?.number : surplusAction === 'last' ? context.lastInst?.number : undefined;
+      const surplusNotes = surplusAction === 'next'
+        ? `Pago com excedente de ${fmtMoney(surplus)} → descontado da parcela #${context.nextInst?.number}`
+        : surplusAction === 'last'
+        ? `Pago com excedente de ${fmtMoney(surplus)} → descontado da parcela #${context.lastInst?.number}`
+        : `Pago com excedente de ${fmtMoney(surplus)} → distribuído em ${pendingInstallments.length} parcelas`;
+      await supabase.from('loan_installments').update({ notes: surplusNotes }).eq('id', installment.id);
+      setActionSummary({
+        type: 'surplus',
+        paidAmount: outstanding,
+        installmentNumber: installment.number,
+        surplusAmount: surplus,
+        surplusAction,
+        surplusDestNumber: surplusDestNum,
+        surplusSpreadCount: pendingInstallments.length,
+        discountPerInstallment,
+      });
+      installment.amount_paid = (installment.amount_paid || 0) + outstanding;
+      installment.status = 'paid';
+      installment.paid_at = new Date().toISOString();
+      onSuccess(); setIsReceiptMode(true);
+    } catch (e: any) { setError(e.message || 'Erro ao processar.'); }
+    finally { setLoading(false); }
   };
 
   const handleMissedStep = async (e: React.FormEvent) => {
@@ -479,7 +564,20 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
 
       // Persiste método de pagamento (non-critical — ignora erro)
       await supabase.from('loan_installments').update({ payment_method: paymentMethod }).eq('id', installment.id);
-      const isPartialPayment = val < calcOutstanding(installment) - 0.01;
+      const instOutstanding = calcOutstanding(installment);
+      const isPartialPayment = val < instOutstanding - 0.01;
+      // Nota e resumo da ação
+      if (action2) {
+        const destNum = action2 === 'next' ? context.nextInst?.number : action2 === 'last' ? context.lastInst?.number : undefined;
+        const rem = Math.max(0, instOutstanding - val);
+        const payNotes = action2 === 'new'
+          ? `Pagamento parcial de ${fmtMoney(val)} · saldo ${fmtMoney(rem)} → nova parcela criada`
+          : `Pagamento parcial de ${fmtMoney(val)} · saldo ${fmtMoney(rem)} → parcela #${destNum}`;
+        await supabase.from('loan_installments').update({ notes: payNotes }).eq('id', installment.id);
+        setActionSummary({ type: 'partial', paidAmount: val, installmentNumber: installment.number, remainder: rem, remainderDest: action2, remainderDestNumber: destNum });
+      } else {
+        setActionSummary({ type: 'exact', paidAmount: val, installmentNumber: installment.number });
+      }
       installment.amount_paid = (installment.amount_paid || 0) + val;
       installment.status = isPartialPayment ? 'partial' : 'paid';
       if (!isPartialPayment) installment.paid_at = new Date().toISOString();
@@ -571,7 +669,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
       <div className="flex h-full flex-col">
         <div className="flex items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-4">
           <button onClick={onBack} className="rounded-full p-2 text-[color:var(--text-muted)] hover:bg-[color:var(--bg-soft)] transition-colors"><ArrowLeft size={20} /></button>
-          <h2 className="font-display text-lg font-black text-[color:var(--text-primary)]">Comprovante</h2>
+          <h2 className="type-subheading text-[color:var(--text-primary)]">Comprovante</h2>
         </div>
         <div className="flex-1 overflow-y-auto" style={{ background: "#0a0a0f" }}>
           <ReceiptTemplate installment={installment} tenant={tenant}
@@ -581,16 +679,76 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     );
   }
   if (isReceiptMode) {
+    const sm = actionSummary;
     return (
-      <div className="flex h-full flex-col">
-        <div className="flex items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-4">
+      <div className="flex h-full flex-col" style={{ background: 'var(--bg-base)' }}>
+        <div className="flex items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-4" style={{ background: 'var(--bg-elevated)' }}>
           <button onClick={onBack} className="rounded-full p-2 text-[color:var(--text-muted)] hover:bg-[color:var(--bg-soft)] transition-colors"><ArrowLeft size={20} /></button>
-          <h2 className="font-display text-lg font-black text-[color:var(--text-primary)]">Pagamento Confirmado</h2>
+          <h2 className="type-subheading text-[color:var(--text-primary)]">Baixa Confirmada</h2>
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
-          <CheckCircle2 size={48} className="text-[color:var(--accent-positive)]" />
-          <p className="text-sm text-[color:var(--text-secondary)] text-center">Pagamento registrado com sucesso.</p>
-          <button onClick={onBack} className="px-6 py-3 rounded-2xl bg-[color:var(--bg-soft)] text-xs font-bold uppercase text-[color:var(--text-muted)] ring-1 ring-[color:var(--border-subtle)]">Voltar</button>
+        <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6 py-8">
+          {/* Ícone animado */}
+          <div className="flex h-20 w-20 items-center justify-center rounded-full" style={{ background: 'rgba(52,211,153,0.12)', border: '2px solid rgba(52,211,153,0.3)' }}>
+            <CheckCircle2 size={48} className="text-[color:var(--accent-positive)]" />
+          </div>
+
+          {/* Título */}
+          <div className="text-center">
+            <p className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+              Parcela #{sm?.installmentNumber ?? installment.number} · Baixa confirmada
+            </p>
+          </div>
+
+          {/* Card de detalhes */}
+          <div className="w-full rounded-2xl p-5 space-y-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+            {sm?.type === 'exact' && (
+              <>
+                <SummaryRow label="Parcela quitada" value={`#${sm.installmentNumber}`} />
+                <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+                <SummaryRow label="Valor recebido" value={fmtMoney(sm.paidAmount)} accent />
+                <SummaryRow label="Forma" value={paymentMethod} />
+              </>
+            )}
+            {sm?.type === 'partial' && (
+              <>
+                <SummaryRow label="Recebido" value={fmtMoney(sm.paidAmount)} accent />
+                <SummaryRow label="Saldo restante" value={fmtMoney(sm.remainder ?? 0)} warn />
+                <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+                <SummaryRow
+                  label="Adicionado em"
+                  value={sm.remainderDest === 'new' ? 'Nova parcela criada' : `Parcela #${sm.remainderDestNumber}`}
+                />
+              </>
+            )}
+            {sm?.type === 'surplus' && (
+              <>
+                <SummaryRow label="Recebido" value={fmtMoney(sm.paidAmount + (sm.surplusAmount ?? 0))} />
+                <SummaryRow label="Parcela quitada" value={fmtMoney(sm.paidAmount)} accent />
+                <SummaryRow label="Excedente" value={fmtMoney(sm.surplusAmount ?? 0)} />
+                <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+                <SummaryRow
+                  label="Aplicado em"
+                  value={
+                    sm.surplusAction === 'spread'
+                      ? `${sm.surplusSpreadCount} parcelas (−${fmtMoney(sm.discountPerInstallment ?? 0)} cada)`
+                      : `Parcela #${sm.surplusDestNumber}`
+                  }
+                  accent
+                />
+              </>
+            )}
+            {!sm && (
+              <SummaryRow label="Pagamento registrado" value="com sucesso" accent />
+            )}
+          </div>
+
+          <button
+            onClick={onBack}
+            className="type-label w-full rounded-2xl py-4 transition-all active:scale-95"
+            style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+          >
+            Fechar
+          </button>
         </div>
       </div>
     );
@@ -600,15 +758,15 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     <div className="flex h-full flex-col bg-[color:var(--bg-elevated)]">
       <div className="flex items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-4 shrink-0">
         <button onClick={onBack} className="rounded-full p-2 text-[color:var(--text-muted)] hover:bg-[color:var(--bg-soft)] transition-colors"><ArrowLeft size={20} /></button>
-        <h2 className="font-display text-lg font-black text-[color:var(--text-primary)]">{titles[action.type]}</h2>
+        <h2 className="type-subheading text-[color:var(--text-primary)]">{titles[action.type]}</h2>
       </div>
 
       <div className="px-4 pt-4 pb-2 shrink-0">
         <div className="panel-card rounded-2xl p-4">
-          <p className="text-[10px] uppercase tracking-widest text-[color:var(--text-faint)]">
+          <p className="type-label text-[color:var(--text-faint)]">
             Parcela {installment.number} · Venc. {fmtDate(installment.due_date)}
           </p>
-          <p className="text-2xl font-extrabold text-[color:var(--text-primary)] mt-1">{fmtMoney(outstanding)}</p>
+          <p className="type-metric-xl text-[color:var(--text-primary)] mt-1">{fmtMoney(outstanding)}</p>
         </div>
       </div>
 
@@ -616,7 +774,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         {action.type === 'pay' && payStep === 1 && (
           <form onSubmit={handlePayStep1} className="space-y-4 pt-2">
             <div>
-              <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">Valor Recebido (R$)</label>
+              <label className="block type-label text-[color:var(--text-faint)] mb-2">Valor Recebido (R$)</label>
               <div className="relative">
                 <DollarSign size={16} className="absolute left-4 top-4 text-[color:var(--accent-positive)]" />
                 <input type="number" step="0.01" inputMode="decimal" required value={amount}
@@ -627,14 +785,23 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
                 <div className="mt-2 flex items-center justify-between bg-amber-900/20 border border-amber-800/40 rounded-xl px-4 py-2.5">
                   <div className="flex items-center gap-2 text-amber-300">
                     <AlertTriangle size={13} className="shrink-0"/>
-                    <span className="text-[11px] font-bold">Faltam</span>
+                    <span className="type-caption font-bold">Faltam</span>
                   </div>
-                  <span className="text-amber-200 font-black text-sm tabular-nums">{fmtMoney(remainder)}</span>
+                  <span className="type-metric-sm text-amber-200">{fmtMoney(remainder)}</span>
+                </div>
+              )}
+              {hasExcedente && (
+                <div className="mt-2 flex items-center justify-between bg-emerald-900/20 border border-emerald-800/40 rounded-xl px-4 py-2.5">
+                  <div className="flex items-center gap-2 text-emerald-300">
+                    <CheckCircle2 size={13} className="shrink-0"/>
+                    <span className="type-caption font-bold">Excedente</span>
+                  </div>
+                  <span className="type-metric-sm text-emerald-200">{fmtMoney(surplus)}</span>
                 </div>
               )}
             </div>
             <div>
-              <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">Forma de Pagamento</label>
+              <label className="block type-label text-[color:var(--text-faint)] mb-2">Forma de Pagamento</label>
               <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
                 className="w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-strong)] rounded-xl px-4 py-3.5 text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-[color:var(--accent-positive)] transition-all text-sm">
                 <option value="PIX">PIX</option>
@@ -651,9 +818,12 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
             </div>
             {errorBlock}
             <button type="submit" disabled={loading || loadingContext}
-              className="w-full rounded-xl bg-[rgba(52,211,153,0.12)] py-4 text-xs font-extrabold uppercase tracking-widest text-[color:var(--accent-positive)] ring-1 ring-[rgba(52,211,153,0.2)] active:scale-95 transition-all flex items-center justify-center gap-2">
-              {loading || loadingContext ? <Loader2 className="animate-spin" size={18} /> : isPartialPay ? <ArrowRight size={18} /> : <CheckCircle2 size={18} />}
-              {loading || loadingContext ? 'Aguarde...' : isPartialPay ? `Próximo — destinar ${fmtMoney(remainder)} →` : 'Confirmar Recebimento'}
+              className="type-label w-full rounded-xl bg-[rgba(52,211,153,0.12)] py-4 text-[color:var(--accent-positive)] ring-1 ring-[rgba(52,211,153,0.2)] active:scale-95 transition-all flex items-center justify-center gap-2">
+              {loading || loadingContext ? <Loader2 className="animate-spin" size={18} /> : (isPartialPay || hasExcedente) ? <ArrowRight size={18} /> : <CheckCircle2 size={18} />}
+              {loading || loadingContext ? 'Aguarde...'
+                : isPartialPay ? `Próximo — destinar ${fmtMoney(remainder)} →`
+                : hasExcedente ? `Próximo — aplicar excedente ${fmtMoney(surplus)}`
+                : 'Confirmar Recebimento'}
             </button>
           </form>
         )}
@@ -663,16 +833,16 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
             {/* Resumo do pagamento parcial */}
             <div className="flex items-center justify-between rounded-2xl bg-amber-900/15 border border-amber-800/30 px-4 py-3">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-amber-400/80 mb-0.5">Faltam</p>
-                <p className="text-lg font-black text-[color:var(--text-primary)] tabular-nums">{fmtMoney(remainder)}</p>
+                <p className="type-label text-amber-400/80 mb-0.5">Faltam</p>
+                <p className="type-metric-md text-[color:var(--text-primary)]">{fmtMoney(remainder)}</p>
               </div>
               <div className="text-right">
-                <p className="text-[10px] text-[color:var(--text-faint)] uppercase tracking-widest">Recebido</p>
-                <p className="text-sm font-black text-[color:var(--accent-positive)] tabular-nums">{fmtMoney(amountVal)}</p>
+                <p className="type-label text-[color:var(--text-faint)]">Recebido</p>
+                <p className="type-metric-sm text-[color:var(--accent-positive)]">{fmtMoney(amountVal)}</p>
               </div>
             </div>
 
-            <p className="text-[11px] text-[color:var(--text-faint)] font-bold uppercase tracking-widest text-center">Como tratar o saldo restante?</p>
+            <p className="type-label text-[color:var(--text-faint)] text-center">Como tratar o saldo restante?</p>
 
             {/* Opções de destino */}
             <div className="space-y-2">
@@ -690,10 +860,10 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
                     <span className={`shrink-0 mt-0.5 ${deferAction === opt.id ? 'text-[color:var(--accent-positive)]' : 'text-[color:var(--text-muted)]'}`}>{opt.icon}</span>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-bold leading-tight ${deferAction === opt.id ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)]'}`}>{opt.label}</p>
-                      <p className="text-[11px] text-[color:var(--text-faint)] mt-0.5 leading-tight truncate">{opt.sublabel}</p>
+                      <p className="type-caption text-[color:var(--text-faint)] mt-0.5 leading-tight truncate">{opt.sublabel}</p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className={`text-sm font-black tabular-nums ${deferAction === opt.id ? 'text-[color:var(--accent-positive)]' : 'text-[color:var(--text-muted)]'}`}>+{fmtMoney(remainderWithInterest)}</p>
+                      <p className={`type-metric-sm ${deferAction === opt.id ? 'text-[color:var(--accent-positive)]' : 'text-[color:var(--text-muted)]'}`}>+{fmtMoney(remainderWithInterest)}</p>
                     </div>
                   </div>
                 </button>
@@ -703,10 +873,10 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
             {/* Juros sobre o restante */}
             <div className="rounded-2xl bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest flex items-center gap-1.5">
+                <span className="type-label text-[color:var(--text-faint)] flex items-center gap-1.5">
                   <TrendingUp size={12}/> Juros sobre o restante
                 </span>
-                <div className="flex rounded-lg overflow-hidden border border-[color:var(--border-subtle)] text-[10px] font-black uppercase">
+                <div className="flex rounded-lg overflow-hidden border border-[color:var(--border-subtle)] type-label uppercase">
                   <button type="button" onClick={() => { setUseInterest(false); setInterestPercent(''); }}
                     className={`px-3 py-1.5 transition-colors ${!useInterest ? 'bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)]' : 'text-[color:var(--text-faint)] hover:text-[color:var(--text-secondary)]'}`}>
                     Sem juros
@@ -734,11 +904,116 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
 
             <div className="flex gap-2">
               <button type="button" onClick={() => setPayStep(1)}
-                className="flex-1 rounded-xl bg-[color:var(--bg-soft)] py-3.5 text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-muted)] ring-1 ring-[color:var(--border-subtle)] flex items-center justify-center gap-1.5 transition-colors hover:bg-[color:var(--bg-elevated)]">
+                className="type-label flex-1 rounded-xl bg-[color:var(--bg-soft)] py-3.5 text-[color:var(--text-muted)] ring-1 ring-[color:var(--border-subtle)] flex items-center justify-center gap-1.5 transition-colors hover:bg-[color:var(--bg-elevated)]">
                 <ChevronLeft size={14}/> Voltar
               </button>
               <button type="submit" disabled={loading || (useInterest && !interestPercent)}
-                className="flex-[2] rounded-xl bg-[rgba(52,211,153,0.12)] py-3.5 text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--accent-positive)] ring-1 ring-[rgba(52,211,153,0.2)] active:scale-95 transition-all flex items-center justify-center gap-2">
+                className="type-label flex-[2] rounded-xl bg-[rgba(52,211,153,0.12)] py-3.5 text-[color:var(--accent-positive)] ring-1 ring-[rgba(52,211,153,0.2)] active:scale-95 transition-all flex items-center justify-center gap-2">
+                {loading ? <Loader2 className="animate-spin" size={16}/> : <CheckCircle2 size={16}/>}
+                {loading ? 'Processando...' : 'Confirmar tudo'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {action.type === 'pay' && payStep === 'surplus' && (
+          <form onSubmit={handlePaySurplusStep} className="space-y-4 pt-2">
+            {/* Resumo do excedente */}
+            <div className="flex items-center justify-between rounded-2xl bg-emerald-900/15 border border-emerald-800/30 px-4 py-3">
+              <div>
+                <p className="type-label text-emerald-400/80 mb-0.5">Excedente</p>
+                <p className="type-metric-md text-emerald-300">{fmtMoney(surplus)}</p>
+              </div>
+              <div className="text-right">
+                <p className="type-label text-[color:var(--text-faint)]">Parcela paga</p>
+                <p className="type-metric-sm text-[color:var(--accent-positive)]">{fmtMoney(outstanding)}</p>
+              </div>
+            </div>
+
+            <p className="type-label text-[color:var(--text-faint)] text-center">O que fazer com o valor excedente?</p>
+
+            <div className="space-y-2">
+              {([
+                {
+                  id: 'next' as const,
+                  icon: <ArrowRight size={15}/>,
+                  label: 'Próxima parcela',
+                  sublabel: context.nextInst
+                    ? `Parcela #${context.nextInst.number} · ${fmtMoney(context.nextInst.amount_total)} → ${fmtMoney(Math.max(0, context.nextInst.amount_total - surplus))}`
+                    : 'Descontar da parcela seguinte',
+                },
+                {
+                  id: 'last' as const,
+                  icon: <ArrowDownToLine size={15}/>,
+                  label: 'Última parcela',
+                  sublabel: context.lastInst
+                    ? `Parcela #${context.lastInst.number} · ${fmtMoney(context.lastInst.amount_total)} → ${fmtMoney(Math.max(0, context.lastInst.amount_total - surplus))}`
+                    : 'Descontar da última parcela do contrato',
+                },
+                {
+                  id: 'spread' as const,
+                  icon: <Layers size={15}/>,
+                  label: 'Diminuir contrato',
+                  sublabel: pendingInstallments.length > 0
+                    ? `${pendingInstallments.length} parcelas · desconto de ${fmtMoney(discountPerInstallment)} cada`
+                    : 'Distribuir entre parcelas restantes',
+                },
+              ] as const).map(opt => (
+                <div key={opt.id} className={`w-full rounded-2xl border transition-all ${surplusAction === opt.id ? 'border-[rgba(52,211,153,0.4)] bg-[rgba(52,211,153,0.08)] ring-1 ring-[rgba(52,211,153,0.15)]' : 'border-[color:var(--border-subtle)] bg-[color:var(--bg-soft)]'}`}>
+                  <button type="button" onClick={() => setSurplusAction(opt.id)} className="w-full p-3.5 text-left">
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${surplusAction === opt.id ? 'border-[color:var(--accent-positive)]' : 'border-[color:var(--border-strong)]'}`}>
+                        {surplusAction === opt.id && <div className="h-2 w-2 rounded-full bg-[color:var(--accent-positive)]"/>}
+                      </div>
+                      <span className={`shrink-0 mt-0.5 ${surplusAction === opt.id ? 'text-[color:var(--accent-positive)]' : 'text-[color:var(--text-muted)]'}`}>{opt.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold leading-tight ${surplusAction === opt.id ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)]'}`}>{opt.label}</p>
+                        <p className="type-caption text-[color:var(--text-faint)] mt-0.5 leading-tight">{opt.sublabel}</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className={`type-metric-sm ${surplusAction === opt.id ? 'text-emerald-300' : 'text-[color:var(--text-muted)]'}`}>−{fmtMoney(surplus)}</p>
+                      </div>
+                    </div>
+                  </button>
+                  {surplusAction === 'spread' && opt.id === 'spread' && (
+                    <div className="px-3.5 pb-3.5">
+                      <button type="button" onClick={() => setShowSpreadPreview(v => !v)}
+                        className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors mb-2">
+                        {showSpreadPreview ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
+                        {showSpreadPreview ? 'Ocultar detalhes' : 'Ver detalhes por parcela'}
+                      </button>
+                      {showSpreadPreview && (
+                        <div className="bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl p-3 space-y-1 text-xs">
+                          <div className="flex justify-between text-[color:var(--text-faint)] pb-1 border-b border-[color:var(--border-subtle)] font-semibold">
+                            <span>Parcela</span><span>Antes → Depois</span>
+                          </div>
+                          {pendingInstallments.map(inst => (
+                            <div key={inst.id} className="flex justify-between text-[color:var(--text-secondary)]">
+                              <span className="text-[color:var(--text-faint)]">#{inst.number}</span>
+                              <span className="font-mono">
+                                {fmtMoney(inst.amount_total)}
+                                <span className="text-[color:var(--text-faint)] mx-1">→</span>
+                                <span className="text-emerald-300">{fmtMoney(Math.max(0, inst.amount_total - discountPerInstallment))}</span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {errorBlock}
+
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setPayStep(1)}
+                className="type-label flex-1 rounded-xl bg-[color:var(--bg-soft)] py-3.5 text-[color:var(--text-muted)] ring-1 ring-[color:var(--border-subtle)] flex items-center justify-center gap-1.5 transition-colors hover:bg-[color:var(--bg-elevated)]">
+                <ChevronLeft size={14}/> Voltar
+              </button>
+              <button type="submit" disabled={loading}
+                className="type-label flex-[2] rounded-xl bg-[rgba(52,211,153,0.12)] py-3.5 text-[color:var(--accent-positive)] ring-1 ring-[rgba(52,211,153,0.2)] active:scale-95 transition-all flex items-center justify-center gap-2">
                 {loading ? <Loader2 className="animate-spin" size={16}/> : <CheckCircle2 size={16}/>}
                 {loading ? 'Processando...' : 'Confirmar tudo'}
               </button>
@@ -762,10 +1037,10 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
             {/* Juros por falta */}
             <div className="rounded-2xl bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest flex items-center gap-1.5">
+                <span className="type-label text-[color:var(--text-faint)] flex items-center gap-1.5">
                   <TrendingUp size={12}/> Houve cobrança de juros?
                 </span>
-                <div className="flex rounded-lg overflow-hidden border border-[color:var(--border-subtle)] text-[10px] font-black uppercase">
+                <div className="flex rounded-lg overflow-hidden border border-[color:var(--border-subtle)] type-label uppercase">
                   <button type="button" onClick={() => { setUseMissedInterest(false); setMissedInterestRate(''); }}
                     className={`px-3 py-1.5 transition-colors ${!useMissedInterest ? 'bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)]' : 'text-[color:var(--text-faint)] hover:text-[color:var(--text-secondary)]'}`}>
                     Sem juros
@@ -788,7 +1063,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
                 </div>
               )}
               {useMissedInterest && missedInterestRate && (
-                <p className="text-[10px] text-amber-400 font-bold">
+                <p className="type-caption text-amber-400 font-bold">
                   + {fmtMoney(Math.round(normalizeNum(installment.amount_total) * parseFloat(missedInterestRate) / 100 * 100) / 100)} de juros
                 </p>
               )}
@@ -797,13 +1072,13 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
             {/* Remover postergação */}
             {deferredInstallment && (
               <div className="rounded-2xl bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] p-4 space-y-3">
-                <p className="text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest">
+                <p className="type-label text-[color:var(--text-faint)]">
                   Valor postergado na Parcela #{deferredInstallment.number}
                 </p>
                 <p className="text-xs text-[color:var(--text-secondary)]">
                   O valor desta parcela foi acumulado na parcela #{deferredInstallment.number}. Deseja removê-lo?
                 </p>
-                <div className="flex rounded-lg overflow-hidden border border-[color:var(--border-subtle)] text-[10px] font-black uppercase">
+                <div className="flex rounded-lg overflow-hidden border border-[color:var(--border-subtle)] type-label uppercase">
                   <button type="button" onClick={() => setRemoveDeferral(false)}
                     className={`flex-1 px-3 py-1.5 transition-colors ${!removeDeferral ? 'bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)]' : 'text-[color:var(--text-faint)] hover:text-[color:var(--text-secondary)]'}`}>
                     Manter
@@ -819,11 +1094,11 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
             {errorBlock}
             <div className="flex gap-2">
               <button type="button" onClick={() => setPayStep(1)}
-                className="flex-1 rounded-xl bg-[color:var(--bg-soft)] py-3.5 text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-muted)] ring-1 ring-[color:var(--border-subtle)] flex items-center justify-center gap-1.5 transition-colors hover:bg-[color:var(--bg-elevated)]">
+                className="type-label flex-1 rounded-xl bg-[color:var(--bg-soft)] py-3.5 text-[color:var(--text-muted)] ring-1 ring-[color:var(--border-subtle)] flex items-center justify-center gap-1.5 transition-colors hover:bg-[color:var(--bg-elevated)]">
                 <ChevronLeft size={14}/> Voltar
               </button>
               <button type="submit" disabled={loading || (useMissedInterest && !missedInterestRate)}
-                className="flex-[2] rounded-xl bg-[rgba(52,211,153,0.12)] py-3.5 text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--accent-positive)] ring-1 ring-[rgba(52,211,153,0.2)] active:scale-95 transition-all flex items-center justify-center gap-2">
+                className="type-label flex-[2] rounded-xl bg-[rgba(52,211,153,0.12)] py-3.5 text-[color:var(--accent-positive)] ring-1 ring-[rgba(52,211,153,0.2)] active:scale-95 transition-all flex items-center justify-center gap-2">
                 {loading || loadingContext ? <Loader2 className="animate-spin" size={16}/> : <ArrowRight size={16}/>}
                 {loading || loadingContext ? 'Aguarde...' : isPartialPay ? 'Próximo →' : 'Confirmar Recebimento'}
               </button>
@@ -847,7 +1122,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
                 </div>
                 {errorBlock}
                 <button type="button" onClick={() => setMissStep(2)}
-                  className="w-full rounded-xl bg-[rgba(198,126,105,0.12)] py-4 text-xs font-extrabold uppercase tracking-widest text-[color:var(--accent-danger)] ring-1 ring-[rgba(198,126,105,0.3)] active:scale-95 transition-all flex items-center justify-center gap-2">
+                  className="type-label w-full rounded-xl bg-[rgba(198,126,105,0.12)] py-4 text-[color:var(--accent-danger)] ring-1 ring-[rgba(198,126,105,0.3)] active:scale-95 transition-all flex items-center justify-center gap-2">
                   <ArrowRight size={18} /> Continuar
                 </button>
               </>
@@ -855,7 +1130,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
 
             {missStep === 2 && (
               <>
-                <p className="text-[11px] text-[color:var(--text-faint)] font-bold uppercase tracking-widest text-center pt-1">O que fazer com esta parcela?</p>
+                <p className="type-label text-[color:var(--text-faint)] text-center pt-1">O que fazer com esta parcela?</p>
                 <div className="space-y-2">
                   {([
                     { id: 'postpone' as const, icon: <Calendar size={15}/>, label: 'Adiar 1 mês', sublabel: 'Vencimento avança 30 dias, parcela continua em aberto' },
@@ -871,7 +1146,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
                         <span className={`shrink-0 mt-0.5 ${missDeferAction === opt.id ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--text-muted)]'}`}>{opt.icon}</span>
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm font-bold leading-tight ${missDeferAction === opt.id ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)]'}`}>{opt.label}</p>
-                          <p className="text-[11px] text-[color:var(--text-faint)] mt-0.5 leading-tight">{opt.sublabel}</p>
+                          <p className="type-caption text-[color:var(--text-faint)] mt-0.5 leading-tight">{opt.sublabel}</p>
                         </div>
                       </div>
                     </button>
@@ -880,11 +1155,11 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
                 {errorBlock}
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setMissStep(1)}
-                    className="flex-1 rounded-xl bg-[color:var(--bg-soft)] py-3.5 text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--text-muted)] ring-1 ring-[color:var(--border-subtle)] flex items-center justify-center gap-1.5 transition-colors hover:bg-[color:var(--bg-elevated)]">
+                    className="type-label flex-1 rounded-xl bg-[color:var(--bg-soft)] py-3.5 text-[color:var(--text-muted)] ring-1 ring-[color:var(--border-subtle)] flex items-center justify-center gap-1.5 transition-colors hover:bg-[color:var(--bg-elevated)]">
                     <ChevronLeft size={14}/> Voltar
                   </button>
                   <button type="button" onClick={handleMiss} disabled={loading}
-                    className="flex-[2] rounded-xl bg-[rgba(198,126,105,0.12)] py-3.5 text-[10px] font-extrabold uppercase tracking-widest text-[color:var(--accent-danger)] ring-1 ring-[rgba(198,126,105,0.3)] active:scale-95 transition-all flex items-center justify-center gap-2">
+                    className="type-label flex-[2] rounded-xl bg-[rgba(198,126,105,0.12)] py-3.5 text-[color:var(--accent-danger)] ring-1 ring-[rgba(198,126,105,0.3)] active:scale-95 transition-all flex items-center justify-center gap-2">
                     {loading ? <Loader2 className="animate-spin" size={16}/> : <XCircle size={16}/>}
                     {loading ? 'Registrando...' : 'Registrar Falta'}
                   </button>
@@ -904,7 +1179,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
             </div>
             {errorBlock}
             <button onClick={handleUnpay} disabled={loading}
-              className="w-full rounded-xl bg-[rgba(198,126,105,0.12)] py-4 text-xs font-extrabold uppercase tracking-widest text-[color:var(--accent-danger)] ring-1 ring-[rgba(198,126,105,0.3)] active:scale-95 transition-all flex items-center justify-center gap-2">
+              className="type-label w-full rounded-xl bg-[rgba(198,126,105,0.12)] py-4 text-[color:var(--accent-danger)] ring-1 ring-[rgba(198,126,105,0.3)] active:scale-95 transition-all flex items-center justify-center gap-2">
               {loading ? <Loader2 className="animate-spin" size={18} /> : <XCircle size={18} />}
               {loading ? 'Revertendo...' : 'Confirmar — Marcar Não Pago'}
             </button>
@@ -920,7 +1195,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
               </p>
             </div>
             <div>
-              <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">Valor de Entrada (Pago Hoje)</label>
+              <label className="block type-label text-[color:var(--text-faint)] mb-2">Valor de Entrada (Pago Hoje)</label>
               <div className="relative">
                 <DollarSign size={16} className="absolute left-4 top-4 text-[color:var(--accent-steel)]" />
                 <input type="number" step="0.01" inputMode="decimal" required value={amount} onChange={e => setAmount(e.target.value)}
@@ -928,7 +1203,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
               </div>
             </div>
             <div>
-              <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">Nova Data de Vencimento</label>
+              <label className="block type-label text-[color:var(--text-faint)] mb-2">Nova Data de Vencimento</label>
               <div className="relative">
                 <Calendar size={16} className="absolute left-4 top-4 text-[color:var(--text-muted)]" />
                 <input type="date" required value={newDate} onChange={e => setNewDate(e.target.value)}
@@ -937,7 +1212,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
             </div>
             {errorBlock}
             <button type="submit" disabled={loading}
-              className="w-full rounded-xl bg-[rgba(148,180,255,0.10)] py-4 text-xs font-extrabold uppercase tracking-widest text-[color:var(--accent-steel)] ring-1 ring-[rgba(148,180,255,0.18)] active:scale-95 transition-all flex items-center justify-center gap-2">
+              className="type-label w-full rounded-xl bg-[rgba(148,180,255,0.10)] py-4 text-[color:var(--accent-steel)] ring-1 ring-[rgba(148,180,255,0.18)] active:scale-95 transition-all flex items-center justify-center gap-2">
               {loading ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
               {loading ? 'Calculando...' : 'Confirmar Renegociação'}
             </button>
@@ -953,7 +1228,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
               </p>
             </div>
             <div>
-              <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">Nova Data de Vencimento</label>
+              <label className="block type-label text-[color:var(--text-faint)] mb-2">Nova Data de Vencimento</label>
               <div className="relative">
                 <Calendar size={16} className="absolute left-4 top-4 text-[color:var(--text-muted)]" />
                 <input type="date" required value={dueDate} onChange={e => setDueDate(e.target.value)}
@@ -961,7 +1236,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
               </div>
             </div>
             <div>
-              <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">Novo Valor Total</label>
+              <label className="block type-label text-[color:var(--text-faint)] mb-2">Novo Valor Total</label>
               <div className="relative">
                 <DollarSign size={16} className="absolute left-4 top-4 text-[color:var(--text-muted)]" />
                 <input type="number" step="0.01" inputMode="decimal" required value={totalAmount} onChange={e => setTotalAmount(e.target.value)}
@@ -970,7 +1245,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
             </div>
             {errorBlock}
             <button type="submit" disabled={loading}
-              className="w-full rounded-xl bg-[color:var(--bg-soft)] py-4 text-xs font-extrabold uppercase tracking-widest text-[color:var(--text-muted)] ring-1 ring-[color:var(--border-subtle)] active:scale-95 transition-all flex items-center justify-center gap-2">
+              className="type-label w-full rounded-xl bg-[color:var(--bg-soft)] py-4 text-[color:var(--text-muted)] ring-1 ring-[color:var(--border-subtle)] active:scale-95 transition-all flex items-center justify-center gap-2">
               {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
               {loading ? 'Salvando...' : 'Salvar Alterações'}
             </button>
@@ -980,12 +1255,12 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         {action.type === 'interest' && (
           <form onSubmit={handleInterest} className="space-y-4 pt-2">
             <div className="panel-card rounded-2xl p-4">
-              <p className="text-[10px] text-[color:var(--accent-brass)]/80 font-black uppercase tracking-widest mb-1">Parcela Original</p>
-              <p className="text-2xl font-black text-[color:var(--text-primary)]">{fmtMoney(outstanding)}</p>
-              <p className="text-[10px] text-[color:var(--accent-brass)]/70 mt-1 font-bold uppercase">Ainda em aberto</p>
+              <p className="type-label text-[color:var(--accent-brass)]/80 mb-1">Parcela Original</p>
+              <p className="type-metric-xl text-[color:var(--text-primary)]">{fmtMoney(outstanding)}</p>
+              <p className="type-label text-[color:var(--accent-brass)]/70 mt-1">Ainda em aberto</p>
             </div>
             <div>
-              <label className="block text-[10px] font-black text-[color:var(--text-faint)] uppercase tracking-widest mb-2">Valor dos Juros (R$)</label>
+              <label className="block type-label text-[color:var(--text-faint)] mb-2">Valor dos Juros (R$)</label>
               <div className="relative">
                 <Percent size={16} className="absolute left-4 top-4 text-[color:var(--accent-brass)]" />
                 <input type="number" step="0.01" inputMode="decimal" required autoFocus placeholder="0,00"
@@ -995,13 +1270,13 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
             </div>
             <div className="p-3 rounded-xl bg-[rgba(202,176,122,0.08)] border border-[rgba(202,176,122,0.18)] flex gap-2.5 items-start">
               <AlertTriangle size={14} className="text-[color:var(--accent-brass)] shrink-0 mt-0.5" />
-              <p className="text-[10px] text-[color:var(--text-secondary)] leading-relaxed">
+              <p className="type-caption text-[color:var(--text-secondary)] leading-relaxed">
                 O valor da parcela <strong>não será descontado</strong>. Ela continua em aberto.
               </p>
             </div>
             {errorBlock}
             <button type="submit" disabled={loading}
-              className="w-full rounded-xl bg-[rgba(202,176,122,0.12)] py-4 text-xs font-extrabold uppercase tracking-widest text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)] active:scale-95 transition-all flex items-center justify-center gap-2">
+              className="type-label w-full rounded-xl bg-[rgba(202,176,122,0.12)] py-4 text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)] active:scale-95 transition-all flex items-center justify-center gap-2">
               {loading ? <Loader2 className="animate-spin" size={18} /> : <Percent size={18} />}
               {loading ? 'Registrando...' : 'Registrar Pagamento de Juros'}
             </button>

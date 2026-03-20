@@ -181,7 +181,7 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
         ) : <div className="w-8" />}
         <div className="flex-1 text-center">
           <p className="section-kicker">Agenda</p>
-          <h1 className="text-base font-black text-[color:var(--text-primary)] uppercase tracking-tighter leading-none">Cobrança Diária</h1>
+          <h1 className="type-subheading uppercase text-[color:var(--text-primary)]">Cobrança Diária</h1>
         </div>
         <button
           onClick={refetch}
@@ -220,12 +220,12 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
               </div>
               <div className="text-right">
                 <p className="section-kicker mb-1">Carteira</p>
-                <p className="text-sm font-extrabold text-[color:var(--accent-brass)]">{tenant?.name || 'RCRN'}</p>
+                <p className="text-sm font-semibold text-[color:var(--accent-brass)]">{tenant?.name || 'RCRN'}</p>
               </div>
             </div>
 
             {/* Total amount */}
-            <p className="text-3xl font-black tabular-nums mb-3 text-[color:var(--accent-positive)]">
+            <p className="type-metric-xl mb-3 text-[color:var(--accent-positive)]">
               {fmtMoney(grandTotal)}
             </p>
 
@@ -244,7 +244,7 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
               <div className="flex items-center gap-3 rounded-xl p-3 bg-[color:var(--bg-soft)]">
                 <Calendar size={22} className="text-[color:var(--accent-brass)]" />
                 <div>
-                  <p className="text-2xl font-black text-[color:var(--text-primary)]">{todayItems.length}</p>
+                  <p className="type-heading text-[color:var(--text-primary)]">{todayItems.length}</p>
                   <p className="text-[11px] font-medium text-[color:var(--text-secondary)]">Recebimento Hoje</p>
                 </div>
               </div>
@@ -255,7 +255,7 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
               >
                 <AlertCircle size={22} className="text-[color:var(--accent-danger)]" />
                 <div>
-                  <p className="text-2xl font-black text-[color:var(--text-primary)]">{overdueItems.length}</p>
+                  <p className="type-heading text-[color:var(--text-primary)]">{overdueItems.length}</p>
                   <p className="text-[11px] font-medium text-[color:var(--text-secondary)]">Recebimentos em Atraso</p>
                 </div>
               </button>
@@ -278,7 +278,7 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
                           <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{items.length} parcela{items.length !== 1 ? 's' : ''}</p>
                         </div>
                       </div>
-                      <p className="text-sm font-extrabold tabular-nums" style={{ color }}>
+                      <p className="type-metric-sm" style={{ color }}>
                         {items.length > 0 ? fmtMoney(total) : '—'}
                       </p>
                     </div>
@@ -327,13 +327,13 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
                     <AlertCircle size={20} style={{ color: 'var(--accent-danger, #f44336)' }} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--accent-danger, #f44336)' }}>Em Atraso</p>
-                    <p className="text-lg font-black tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmtMoney(totalOverdue)}</p>
+                    <p className="type-label" style={{ color: 'var(--accent-danger, #f44336)' }}>Em Atraso</p>
+                    <p className="type-metric-md" style={{ color: 'var(--text-primary)' }}>{fmtMoney(totalOverdue)}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-base font-black" style={{ color: 'var(--text-secondary)' }}>{filteredOverdue.length}</p>
-                  <p className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>parcela{filteredOverdue.length !== 1 ? 's' : ''}</p>
+                  <p className="type-metric-md" style={{ color: 'var(--text-secondary)' }}>{filteredOverdue.length}</p>
+                  <p className="type-micro" style={{ color: 'var(--text-muted)' }}>parcela{filteredOverdue.length !== 1 ? 's' : ''}</p>
                 </div>
               </div>
               <div className="border-t divide-y" style={{ borderColor: 'var(--border-subtle)' }}>
@@ -380,14 +380,14 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
                     <CheckCircle2 size={20} style={{ color: 'var(--accent-positive, #4CAF50)' }} />
                   </div>
                   <div className="text-left">
-                    <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--accent-positive, #4CAF50)' }}>Recebidos Hoje</p>
-                    <p className="text-2xl font-black tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmtMoney(totalPaidToday)}</p>
+                    <p className="type-label" style={{ color: 'var(--accent-positive, #4CAF50)' }}>Recebidos Hoje</p>
+                    <p className="type-metric-lg" style={{ color: 'var(--text-primary)' }}>{fmtMoney(totalPaidToday)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-right">
-                    <p className="text-base font-black" style={{ color: 'var(--text-secondary)' }}>{paidToday.length}</p>
-                    <p className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>parcela{paidToday.length !== 1 ? 's' : ''}</p>
+                    <p className="type-metric-md" style={{ color: 'var(--text-secondary)' }}>{paidToday.length}</p>
+                    <p className="type-micro" style={{ color: 'var(--text-muted)' }}>parcela{paidToday.length !== 1 ? 's' : ''}</p>
                   </div>
                   <ChevronDown size={16} className={`transition-transform duration-200 ${showPaidToday ? 'rotate-180' : ''}`} style={{ color: 'var(--text-muted)' }} />
                 </div>
@@ -405,14 +405,14 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
                         onClick={() => setSelectedInstallment(inst)}
                         className="w-full flex items-center gap-3 px-4 py-3 text-left hover:opacity-80 transition-opacity"
                       >
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-black" style={{ background: 'rgba(76, 175, 80, 0.12)', color: 'var(--accent-positive, #4CAF50)', border: '1px solid rgba(76, 175, 80, 0.2)' }}>
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-semibold" style={{ background: 'rgba(76, 175, 80, 0.12)', color: 'var(--accent-positive, #4CAF50)', border: '1px solid rgba(76, 175, 80, 0.2)' }}>
                           {initials}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[13px] font-bold truncate" style={{ color: 'var(--text-primary)' }}>{name}</p>
-                          <p className="text-[10px] uppercase tracking-wide truncate" style={{ color: 'var(--text-muted)' }}>{contractName} · Parcela #{inst.number}</p>
+                          <p className="type-caption uppercase truncate" style={{ color: 'var(--text-muted)' }}>{contractName} · Parcela #{inst.number}</p>
                         </div>
-                        <p className="text-sm font-extrabold tabular-nums shrink-0" style={{ color: 'var(--accent-positive, #4CAF50)' }}>
+                        <p className="type-metric-sm shrink-0" style={{ color: 'var(--accent-positive, #4CAF50)' }}>
                           {fmtMoney(Number(inst.amount_paid) || 0)}
                         </p>
                       </button>
@@ -468,12 +468,12 @@ const ClientCard: React.FC<{
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
           {isOverdue && !isPartial && (
-            <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(244, 67, 54, 0.12)', color: 'var(--accent-danger, #f44336)' }}>
+            <span className="type-micro px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(244, 67, 54, 0.12)', color: 'var(--accent-danger, #f44336)' }}>
               Atrasado
             </span>
           )}
           {isPartial && (
-            <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md"
+            <span className="type-micro px-1.5 py-0.5 rounded-md"
               style={{ background: 'rgba(66, 165, 245, 0.12)', color: '#42A5F5' }}>
               Parcial
             </span>

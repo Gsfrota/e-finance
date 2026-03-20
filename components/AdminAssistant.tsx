@@ -109,8 +109,8 @@ const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant }) => {
       {/* Page header */}
       <div className="border-b border-[color:var(--border-subtle)] pb-6 mb-8">
         <p className="section-kicker mb-2">Configuração</p>
-        <h2 className="font-display text-5xl leading-none text-[color:var(--text-primary)]">Assistente</h2>
-        <p className="text-[color:var(--text-muted)] text-xs font-bold uppercase tracking-[0.2em] mt-2">Automações, Conexões e Comportamento do Bot</p>
+        <h2 className="type-display text-[color:var(--text-primary)]">Assistente</h2>
+        <p className="type-label text-[color:var(--text-muted)] mt-2">Automações, Conexões e Comportamento do Bot</p>
       </div>
 
       {error && (
@@ -183,7 +183,7 @@ const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant }) => {
                         <table className="w-full text-sm min-w-[260px]">
                           <thead>
                             <tr className="border-b border-[color:var(--border-subtle)]">
-                              <th className="text-left text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] pb-2">Número</th>
+                              <th className="text-left type-label text-[color:var(--text-muted)] pb-2">Número</th>
                               <th className="w-10" />
                             </tr>
                           </thead>
@@ -215,7 +215,7 @@ const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant }) => {
                     {addingPhone ? (
                       <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl p-5 space-y-4">
                         <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2">
+                          <label className="block type-label text-[color:var(--text-muted)] mb-2">
                             Número de WhatsApp
                           </label>
                           <input
@@ -301,7 +301,7 @@ const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant }) => {
                   <>
                     {/* Horário */}
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-2 flex items-center gap-1.5">
+                      <label className="block type-label text-[color:var(--text-muted)] mb-2 flex items-center gap-1.5">
                         <Clock size={12} /> Horário (Brasília)
                       </label>
                       <input
@@ -314,7 +314,7 @@ const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant }) => {
 
                     {/* Destinatários */}
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] mb-3">
+                      <label className="block type-label text-[color:var(--text-muted)] mb-3">
                         Destinatários
                       </label>
                       <div className="flex gap-3">
@@ -377,7 +377,7 @@ const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant }) => {
 
                 {config.followup_enabled && (
                   <fieldset className="border border-[color:var(--border-subtle)] rounded-xl p-4 space-y-2">
-                    <legend className="text-[11px] font-bold uppercase tracking-[0.15em] text-[color:var(--text-muted)] px-1">Estilo das perguntas</legend>
+                    <legend className="type-label text-[color:var(--text-muted)] px-1">Estilo das perguntas</legend>
                     {[
                       { value: 'natural', label: 'Natural', example: '"Quer ver quem está atrasado hoje?"' },
                       { value: 'direto',  label: 'Direto',  example: '"Ver atrasados hoje?"' },

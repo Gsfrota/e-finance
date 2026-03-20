@@ -59,8 +59,8 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({ onResetSuccess }) => {
             <div className="inline-block p-4 bg-teal-600/10 rounded-2xl border border-teal-500/20 mb-4">
                 <Key className="text-teal-400" size={32} />
             </div>
-            <h2 className="text-3xl font-bold tracking-tight text-white">Redefinir Senha</h2>
-            <p className="text-slate-400 text-sm">Crie uma nova senha segura para sua conta.</p>
+            <h2 className="type-title text-[color:var(--text-primary)]">Redefinir Senha</h2>
+            <p className="type-body text-[color:var(--text-secondary)]">Crie uma nova senha segura para sua conta.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">

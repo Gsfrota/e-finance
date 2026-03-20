@@ -177,14 +177,14 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
               <CheckCircle2 size={22} />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--accent-positive)] mb-0.5">Recebidos Hoje</p>
-              <p className="text-3xl font-black text-[color:var(--text-primary)] tabular-nums leading-none">{fmtMoney(totalReceivedToday)}</p>
+              <p className="type-label text-[color:var(--accent-positive)] mb-0.5">Recebidos Hoje</p>
+              <p className="type-metric-xl text-[color:var(--text-primary)]">{fmtMoney(totalReceivedToday)}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <p className="text-lg font-black text-[color:var(--text-secondary)] tabular-nums">{paidToday.length}</p>
-              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text-faint)]">parcela{paidToday.length !== 1 ? 's' : ''}</p>
+              <p className="type-metric-md text-[color:var(--text-secondary)]">{paidToday.length}</p>
+              <p className="type-micro text-[color:var(--text-faint)]">parcela{paidToday.length !== 1 ? 's' : ''}</p>
             </div>
             <ChevronRight size={16} className={`text-[color:var(--text-faint)] transition-transform duration-200 ${showPaidToday ? 'rotate-90' : ''}`} />
           </div>
@@ -208,14 +208,14 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
                       onClick={(e) => { e.stopPropagation(); setSelectedInstallment(inst); }}
                       className="group w-full flex items-center gap-4 px-6 py-3.5 text-left hover:bg-white/[0.03] transition-colors"
                     >
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgba(143,179,157,0.12)] text-[color:var(--accent-positive)] border border-[rgba(143,179,157,0.2)] text-xs font-black">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgba(143,179,157,0.12)] text-[color:var(--accent-positive)] border border-[rgba(143,179,157,0.2)] text-xs font-semibold">
                         {initials}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[13px] font-bold text-[color:var(--text-primary)] truncate">{debtorName}</p>
-                        <p className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--text-faint)] truncate">{contractName} · Parcela #{inst.number}</p>
+                        <p className="type-micro text-[color:var(--text-faint)] truncate">{contractName} · Parcela #{inst.number}</p>
                       </div>
-                      <p className="text-sm font-extrabold text-[color:var(--accent-positive)] tabular-nums shrink-0">{fmtMoney(Number(inst.amount_paid) || 0)}</p>
+                      <p className="type-metric-sm text-[color:var(--accent-positive)] shrink-0">{fmtMoney(Number(inst.amount_paid) || 0)}</p>
                     </button>
                   );
                 })}
@@ -230,7 +230,7 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <p className="section-kicker mb-2">Cobrança</p>
-            <h3 className="font-display text-5xl leading-none text-[color:var(--text-primary)]">Central de cobrança</h3>
+            <h3 className="type-display text-[color:var(--text-primary)]">Central de cobrança</h3>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-[color:var(--text-secondary)]">
               Separe o que já venceu do que entra nos próximos dias e registre a baixa diretamente na fila de cobrança.
             </p>
@@ -242,7 +242,7 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
             </div>
             <div>
               <div className="text-sm font-semibold text-[color:var(--text-primary)]">Agenda do dia</div>
-              <div className="text-[0.72rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">{fmtDate(today)}</div>
+              <div className="type-caption text-[color:var(--text-faint)]">{fmtDate(today)}</div>
             </div>
           </div>
         </div>
@@ -262,11 +262,11 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
               >
                 <div className="mb-4 flex items-center justify-between">
                   <div>{meta.icon}</div>
-                  <div className="text-xs font-semibold tracking-[0.14em]">{count}</div>
+                  <div className="type-caption">{count}</div>
                 </div>
-                <div className="text-sm font-semibold uppercase tracking-[0.16em]">{meta.title}</div>
-                <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-[color:var(--text-faint)]">{meta.subtitle}</div>
-                <div className="mt-4 text-lg font-bold text-[color:var(--text-primary)]">
+                <div className="type-caption uppercase">{meta.title}</div>
+                <div className="mt-1 type-micro text-[color:var(--text-faint)]">{meta.subtitle}</div>
+                <div className="mt-4 type-metric-md text-[color:var(--text-primary)]">
                   {count > 0 ? fmtMoney(totals[bucketId]) : '—'}
                 </div>
               </button>
@@ -280,16 +280,16 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
         <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
           <div>
             <p className="section-kicker mb-1">Fila ativa</p>
-            <h4 className="font-display text-4xl leading-none text-[color:var(--text-primary)]">{bucketMeta[selectedBucket].title}</h4>
+            <h4 className="type-title text-[color:var(--text-primary)]">{bucketMeta[selectedBucket].title}</h4>
           </div>
           <div className="text-right">
             <div className="text-sm font-semibold text-[color:var(--text-primary)]">{fmtMoney(totals[selectedBucket])}</div>
-            <div className="text-[0.72rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">{selectedItems.length} título(s)</div>
+            <div className="type-caption text-[color:var(--text-faint)]">{selectedItems.length} título(s)</div>
           </div>
         </div>
 
         {selectedItems.length === 0 ? (
-          <div className="px-6 py-16 text-center text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--text-faint)]">
+          <div className="px-6 py-16 text-center type-label text-[color:var(--text-faint)]">
             Nenhum título neste recorte.
           </div>
         ) : (
@@ -343,7 +343,7 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
                           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                         />
                       ) : (
-                        <div className={`flex h-full w-full items-center justify-center text-xs font-black tracking-wide ${
+                        <div className={`flex h-full w-full items-center justify-center text-xs font-semibold ${
                           late ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--text-secondary)]'
                         }`}>
                           {initials}
@@ -355,15 +355,15 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         {installmentStatusBadge(installment.status)}
-                        <span className="text-[9px] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
+                        <span className="type-micro text-[color:var(--text-faint)]">
                           Parcela {installment.number}{totalInstallments ? `/${totalInstallments}` : ''}
                         </span>
                       </div>
-                      <p className="text-[15px] font-extrabold text-[color:var(--text-primary)] truncate leading-tight group-hover:text-white transition-colors duration-150">
+                      <p className="text-[15px] font-semibold text-[color:var(--text-primary)] truncate leading-tight group-hover:text-white transition-colors duration-150">
                         {debtorName}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <p className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--text-faint)] truncate">{contractName}</p>
+                        <p className="type-micro text-[color:var(--text-faint)] truncate">{contractName}</p>
                         {investorName && (
                           <>
                             <span className="text-[color:var(--text-faint)] opacity-40">·</span>
@@ -386,18 +386,18 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
                             ? 'border-[rgba(200,154,85,0.30)] bg-[rgba(200,154,85,0.08)] text-[color:var(--accent-warning)]'
                             : 'border-white/10 bg-white/[0.03] text-[color:var(--text-secondary)]'
                       }`}>
-                        <span className="text-[15px] font-black leading-none tabular-nums">{day}</span>
+                        <span className="type-metric-sm leading-none">{day}</span>
                         <span className="text-[8px] font-bold uppercase tracking-[0.16em] mt-0.5 opacity-80">{monthAbbr}</span>
                       </div>
 
                       {/* Amount */}
                       <div className="text-right">
-                        <p className={`text-sm font-extrabold tabular-nums tracking-tight ${
+                        <p className={`type-metric-sm ${
                           late ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--text-primary)]'
                         }`}>
                           {fmtMoney(owed)}
                         </p>
-                        <p className={`text-[9px] font-semibold uppercase tracking-[0.16em] mt-0.5 ${
+                        <p className={`type-micro mt-0.5 ${
                           late ? 'text-[color:var(--accent-danger)] opacity-70' : 'text-[color:var(--text-faint)]'
                         }`}>
                           {late ? 'Atrasado' : isToday ? 'Hoje' : 'Em aberto'}

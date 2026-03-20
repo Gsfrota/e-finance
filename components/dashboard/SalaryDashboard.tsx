@@ -148,7 +148,7 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
       {/* Header */}
       <div className="panel-card rounded-[2rem] px-6 py-5">
         <p className="section-kicker mb-1">Visão financeira</p>
-        <h2 className="font-display text-3xl leading-none" style={{ color: 'var(--text-primary)' }}>
+        <h2 className="type-title" style={{ color: 'var(--text-primary)' }}>
           Salário
         </h2>
         <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
@@ -186,13 +186,13 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
         {period === 'custom' && (
           <div className="flex gap-2 items-center">
             <div className="flex-1">
-              <label className="block text-[10px] uppercase tracking-widest mb-1" style={{ color: 'var(--text-faint)' }}>De</label>
+              <label className="block type-label mb-1" style={{ color: 'var(--text-faint)' }}>De</label>
               <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
                 className="w-full rounded-xl px-3 py-2 text-sm"
                 style={{ background: 'var(--bg-soft)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} />
             </div>
             <div className="flex-1">
-              <label className="block text-[10px] uppercase tracking-widest mb-1" style={{ color: 'var(--text-faint)' }}>Até</label>
+              <label className="block type-label mb-1" style={{ color: 'var(--text-faint)' }}>Até</label>
               <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
                 className="w-full rounded-xl px-3 py-2 text-sm"
                 style={{ background: 'var(--bg-soft)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)' }} />
@@ -208,8 +208,8 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
       >
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--text-faint)' }}>Lucro de Juros</p>
-            <p className="text-3xl font-black tabular-nums mt-0.5" style={{ color: 'var(--accent-positive)' }}>
+            <p className="type-label" style={{ color: 'var(--text-faint)' }}>Lucro de Juros</p>
+            <p className="type-metric-xl mt-0.5" style={{ color: 'var(--accent-positive)' }}>
               {fmt(lucroJuros)}
             </p>
           </div>
@@ -300,8 +300,8 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
       >
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--text-faint)' }}>Lucro Bruto Total</p>
-            <p className="text-3xl font-black tabular-nums mt-0.5" style={{ color: 'var(--accent-brass)' }}>
+            <p className="type-label" style={{ color: 'var(--text-faint)' }}>Lucro Bruto Total</p>
+            <p className="type-metric-xl mt-0.5" style={{ color: 'var(--accent-brass)' }}>
               {fmt(lucroBruto)}
             </p>
             <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
@@ -385,10 +385,10 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
 
       {/* Resumo do período */}
       <div className="panel-card rounded-[1.6rem] px-5 py-4">
-        <p className="text-[10px] uppercase tracking-widest font-bold mb-2" style={{ color: 'var(--text-faint)' }}>
+        <p className="type-label mb-2" style={{ color: 'var(--text-faint)' }}>
           Parcelas no período
         </p>
-        <p className="text-lg font-black tabular-nums" style={{ color: 'var(--text-primary)' }}>
+        <p className="type-metric-md" style={{ color: 'var(--text-primary)' }}>
           {(() => {
             const paidCount = filtered.filter(i => i.status === 'paid').length;
             const partialCount = filtered.filter(i => i.status === 'partial').length;

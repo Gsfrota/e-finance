@@ -53,7 +53,8 @@ interface CacheEntry {
 const llmRouterCache = new Map<string, CacheEntry>();
 
 const RULES: Rule[] = [
-  { intent: 'ajuda', pattern: /^(\/help|\/ajuda|ajuda|menu|comandos?|oi|olá|ola|bom dia|boa tarde|boa noite)$/i },
+  { intent: 'saudacao', pattern: /^(oi(?:[^a-zA-Z].*)?|ol[aá](?:[^a-zA-Z].*)?|bom dia(?:[^a-zA-Z].*)?|boa tarde(?:[^a-zA-Z].*)?|boa noite(?:[^a-zA-Z].*)?)$/i },
+  { intent: 'ajuda', pattern: /^(\/help|\/ajuda|ajuda|menu|comandos?)$/i },
   { intent: 'ver_dashboard', pattern: /^(\/dashboard|dashboard|resumo|status|como\s+t[aá]\s+o\s+m[eê]s|como\s+est[aá]\s+o\s+m[eê]s|1)$/i },
   { intent: 'listar_recebiveis', pattern: /^(\/recebiveis|\/recebíveis|recebiveis|recebíveis)$/i, entities: { filter: 'pending' } },
   { intent: 'listar_recebiveis', pattern: /^(2)$/i, entities: { filter: 'pending' } },
@@ -72,6 +73,10 @@ const RULES: Rule[] = [
   { intent: 'listar_recebiveis', pattern: /\b(?:parcelas?|vencimentos?)\s+(?:vencidas?|atrasadas?|em\s+aberto)/i, entities: { filter: 'late' } },
 
   { intent: 'criar_contrato', pattern: /(criar?\s+contrato|novo\s+contrato|registrar\s+contrato|cadastrar\s+contrato|empr[eé]stimo\s+para)/i },
+  { intent: 'criar_contrato', pattern: /(?:fazer|novo|criar|cadastrar)\s+empr[eé]stimo|empr[eé]stimo\s+(?:pro?|para|d[eo]|cliente)/i },
+  { intent: 'configurar_briefing', pattern: /todos?\s+(?:os\s+)?dias?\s+.*(?:diga|avise|mande|fale|conta|mostra)|quero\s+(?:receber|que\s+me\s+(?:diga|avise))\s+.*(?:di[aá]rio|todo\s+dia|todos\s+dias)/i },
+  { intent: 'ver_dashboard', pattern: /quantos?\s+(?:clientes?|devedores?)\s+(?:eu\s+)?tenho/i },
+  { intent: 'listar_recebiveis', pattern: /quanto\s+j[aá]\s+receb[ie]|total\s+(?:que\s+)?receb[ie]|j[aá]\s+receb[ie]i?\s+(?:esse\s+mes|hoje|esta\s+semana)/i, entities: { filter: 'all' } },
   { intent: 'marcar_pagamento', pattern: /(marcar\s+pagamento|dar\s+baixa|registrar\s+pagamento|parcela\s+paga|baixar\s+contrato|quitar\s+parcela|baixar\s+pagamento|pagamento\s+do\s+m[eê]s\s+de|parcela\s+do\s+m[eê]s\s+de)/i },
   { intent: 'gerar_relatorio', pattern: /(gerar\s+relat[oó]rio|relat[oó]rio\s+mensal|resumo\s+completo|me\s+d[aá]\s+um\s+relat[oó]rio|pedir\s+relat[oó]rio)/i },
   { intent: 'gerar_convite', pattern: /(gerar\s+convite|gera\s+um\s+convite|novo\s+c[oó]digo\s+de\s+convite|link\s+de\s+convite)/i },

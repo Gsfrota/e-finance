@@ -87,15 +87,15 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
       <div className="flex h-96 items-center justify-center">
         <div className="panel-card flex max-w-md flex-col items-center gap-4 rounded-[2rem] p-8 text-center">
           <AlertCircle size={32} className="text-[color:var(--accent-danger)]" />
-          <h3 className="font-display text-3xl text-[color:var(--text-primary)]">Erro ao carregar dados</h3>
-          <p className="text-sm leading-7 text-[color:var(--text-secondary)]">{error}</p>
+          <h3 className="type-title text-[color:var(--text-primary)]">Erro ao carregar dados</h3>
+          <p className="type-body text-[color:var(--text-secondary)]">{error}</p>
         </div>
       </div>
     );
   }
 
   const tabClass = (tab: typeof activeTab) =>
-    `w-full justify-center rounded-full px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.18em] transition-all flex items-center gap-2 cursor-pointer ${
+    `w-full justify-center rounded-full px-4 py-2.5 type-label transition-all flex items-center gap-2 cursor-pointer ${
       activeTab === tab
         ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)] shadow-[0_2px_14px_rgba(240,180,41,0.28)]'
         : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'
@@ -112,10 +112,10 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <p className="section-kicker mb-2">Dashboard executivo</p>
-            <h2 className="font-display gradient-underline text-3xl leading-none text-[color:var(--text-primary)] md:text-5xl">
+            <h2 className="type-display gradient-underline text-[color:var(--text-primary)]">
               Leitura da carteira
             </h2>
-            <p className="mt-5 max-w-2xl text-sm leading-7 text-[color:var(--text-secondary)]">
+            <p className="mt-5 max-w-2xl type-body text-[color:var(--text-secondary)]">
               Acompanhe capital ativo, performance do mês, agenda de cobrança e o comportamento das parcelas com a mesma base financeira usada nas consultas operacionais.
             </p>
           </div>
@@ -126,7 +126,7 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
             </div>
             <div>
               <div className="text-sm font-semibold text-[color:var(--text-primary)]">{tenant?.name || 'Operação'}</div>
-              <div className="flex items-center gap-1.5 text-[0.72rem] uppercase tracking-[0.14em] text-[color:var(--text-faint)]">
+              <div className="flex items-center gap-1.5 type-caption text-[color:var(--text-faint)]">
                 <Clock size={10} />
                 <span>{time}</span>
               </div>
@@ -160,7 +160,7 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
             <div>
               <div className="mb-4 pl-1">
                 <p className="section-kicker mb-1">Carteira</p>
-                <h3 className="font-display text-2xl leading-none text-[color:var(--text-primary)] md:text-4xl">Contratos recentes</h3>
+                <h3 className="type-title text-[color:var(--text-primary)]">Contratos recentes</h3>
               </div>
               <InvestmentsTable data={investments.slice(0, 5)} />
             </div>

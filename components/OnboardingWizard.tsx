@@ -192,7 +192,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
             {i > 0 && (
               <div className={`h-px flex-1 transition-all ${isDone ? 'bg-[color:var(--accent-brass)]' : 'bg-[color:var(--border-strong)]'}`} />
             )}
-            <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-black transition-all ${
+            <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold transition-all ${
               isActive
                 ? 'bg-[color:var(--accent-brass)] text-black'
                 : isDone
@@ -227,8 +227,8 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
         {progressBar}
         <div className="mb-8 space-y-3">
           <p className="section-kicker">Bem-vindo(a)</p>
-          <h2 className="font-display text-4xl leading-none text-[color:var(--text-primary)]">Configure sua conta</h2>
-          <p className="text-sm leading-7 text-[color:var(--text-secondary)]">
+          <h2 className="type-title text-[color:var(--text-primary)]">Configure sua conta</h2>
+          <p className="type-body text-[color:var(--text-secondary)]">
             Sua conta Google foi autenticada. Agora defina como você quer acessar a plataforma.
           </p>
         </div>
@@ -253,7 +253,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
 
         <form onSubmit={handleStep1} className="space-y-5">
           <div>
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Nome completo</label>
+            <label className="mb-2 block type-label text-[color:var(--text-faint)]">Nome completo</label>
             <input
               required
               type="text"
@@ -266,7 +266,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
 
           {inviteMode === 'company' && (
             <div>
-              <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Organização</label>
+              <label className="mb-2 block type-label text-[color:var(--text-faint)]">Organização</label>
               <input
                 required
                 type="text"
@@ -280,7 +280,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
 
           {inviteMode === 'invite' && (
             <div>
-              <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Código de convite</label>
+              <label className="mb-2 block type-label text-[color:var(--text-faint)]">Código de convite</label>
               <div className="relative">
                 <Key className="absolute left-4 top-4 text-[color:var(--text-faint)]" size={16} />
                 <input
@@ -325,15 +325,15 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
         {progressBar}
         <div className="mb-8 space-y-3">
           <p className="section-kicker">Recebimento</p>
-          <h2 className="font-display text-4xl leading-none text-[color:var(--text-primary)]">Configure o Pix</h2>
-          <p className="text-sm leading-7 text-[color:var(--text-secondary)]">
+          <h2 className="type-title text-[color:var(--text-primary)]">Configure o Pix</h2>
+          <p className="type-body text-[color:var(--text-secondary)]">
             Sua chave Pix será usada para gerar cobranças automáticas para os devedores.
           </p>
         </div>
 
         <div className="space-y-5">
           <div>
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Tipo de chave</label>
+            <label className="mb-2 block type-label text-[color:var(--text-faint)]">Tipo de chave</label>
             <select
               value={pixKeyType}
               onChange={(e) => setPixKeyType(e.target.value as any)}
@@ -348,7 +348,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
           </div>
 
           <div>
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Chave Pix</label>
+            <label className="mb-2 block type-label text-[color:var(--text-faint)]">Chave Pix</label>
             <input
               type="text"
               value={pixKey}
@@ -365,7 +365,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
           </div>
 
           <div>
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Nome do beneficiário</label>
+            <label className="mb-2 block type-label text-[color:var(--text-faint)]">Nome do beneficiário</label>
             <input
               type="text"
               value={pixName}
@@ -376,7 +376,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
           </div>
 
           <div>
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Cidade</label>
+            <label className="mb-2 block type-label text-[color:var(--text-faint)]">Cidade</label>
             <input
               type="text"
               value={pixCity}
@@ -419,8 +419,8 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
       {progressBar}
       <div className="mb-8 space-y-3">
         <p className="section-kicker">Atendimento</p>
-        <h2 className="font-display text-4xl leading-none text-[color:var(--text-primary)]">WhatsApp do negócio</h2>
-        <p className="text-sm leading-7 text-[color:var(--text-secondary)]">
+        <h2 className="type-title text-[color:var(--text-primary)]">WhatsApp do negócio</h2>
+        <p className="type-body text-[color:var(--text-secondary)]">
           Este número será usado pelo bot para envio de cobranças e atendimento aos clientes.
         </p>
       </div>
@@ -435,7 +435,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
             className={baseInputClass}
             placeholder="5585912345678"
           />
-          <p className="mt-2 text-[11px] text-[color:var(--text-faint)]">
+          <p className="mt-2 type-caption text-[color:var(--text-faint)]">
             Formato: código do país (55) + DDD + número. Ex: 5585912345678
           </p>
         </div>

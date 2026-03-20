@@ -22,7 +22,7 @@ const SqlSetup: React.FC<SqlSetupProps> = ({ onComplete }) => {
             <div className="p-3 bg-indigo-900/30 rounded-2xl text-indigo-400">
                 <Wrench size={24} />
             </div>
-            <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Reparo de Permissões (Erro 42501)</h2>
+            <h2 className="type-heading uppercase text-white">Reparo de Permissões (Erro 42501)</h2>
         </div>
         
         <p className="text-slate-300 mb-6 leading-relaxed text-sm">
@@ -41,7 +41,7 @@ const SqlSetup: React.FC<SqlSetupProps> = ({ onComplete }) => {
           <div className="absolute top-4 right-4 z-10">
             <button
               onClick={handleCopy}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-indigo-900/20 active:scale-95"
+              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-xl type-label transition-all shadow-lg hover:shadow-indigo-900/20 active:scale-95"
             >
               {copied ? <Check size={16} /> : <Clipboard size={16} />}
               {copied ? 'Copiado!' : 'Copiar Script de Reparo'}
@@ -53,10 +53,10 @@ const SqlSetup: React.FC<SqlSetupProps> = ({ onComplete }) => {
         </div>
 
         <div className="mt-8 flex justify-between items-center border-t border-slate-700 pt-6">
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Execute no SQL Editor do Supabase</p>
+            <p className="type-label text-[color:var(--text-muted)]">Execute no SQL Editor do Supabase</p>
             <button 
                 onClick={onComplete}
-                className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-3 rounded-xl transition-colors font-black text-xs uppercase tracking-widest"
+                className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-3 rounded-xl transition-colors type-label"
             >
                 Voltar para Login
             </button>

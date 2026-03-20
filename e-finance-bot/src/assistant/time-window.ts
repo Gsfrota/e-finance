@@ -129,8 +129,33 @@ export function inferTimeWindowFromText(text: string, now = new Date()): Resolve
     };
   }
 
+  if (/primeiro\s+semestre/i.test(normalized)) {
+    const year = now.getFullYear();
+    return {
+      mode: 'calendar_month',
+      amount: 6,
+      windowStart: 'today',
+      startDate: formatYmd(year, 1, 1),
+      endDate: formatYmd(year, 6, 30),
+      label: `primeiro semestre de ${year}`,
+    };
+  }
+
+  if (/segundo\s+semestre/i.test(normalized)) {
+    const year = now.getFullYear();
+    return {
+      mode: 'calendar_month',
+      amount: 6,
+      windowStart: 'today',
+      startDate: formatYmd(year, 7, 1),
+      endDate: formatYmd(year, 12, 31),
+      label: `segundo semestre de ${year}`,
+    };
+  }
+
   const daysMatch = normalized.match(/proxim(?:o|a|os|as)\s+(\d{1,2})\s+dias?/)
-    || normalized.match(/(\d{1,2})\s+dias?\s+(?:a frente|adiante|seguintes)/);
+    || normalized.match(/(\d{1,2})\s+dias?\s+(?:a frente|adiante|seguintes)/)
+    || normalized.match(/\bem\s+(\d{1,2})\s*dias?\b/);
   if (daysMatch?.[1]) {
     const amount = Math.max(1, Math.min(60, Number(daysMatch[1])));
     const window = buildDateWindow(amount, windowStart, now);

@@ -370,7 +370,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
           >
             <ArrowLeft size={20}/>
           </button>
-          <h3 className="text-xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter">Cadastrar Cliente</h3>
+          <h3 className="type-heading text-[color:var(--text-primary)] uppercase">Cadastrar Cliente</h3>
         </div>
         {/* Error */}
         {errorMessage && (
@@ -383,13 +383,13 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
           {clientCreated ? (
             <div className="flex flex-col items-center gap-5 py-8 text-center">
               <CheckCircle2 size={48} className="text-teal-400" />
-              <p className="font-black text-lg text-[color:var(--text-primary)]">Cliente cadastrado!</p>
-              <p className="text-sm text-[color:var(--text-muted)]">
+              <p className="type-subheading text-[color:var(--text-primary)]">Cliente cadastrado!</p>
+              <p className="type-body text-[color:var(--text-muted)]">
                 O perfil foi criado. Você pode gerar um link de acesso depois, se necessário.
               </p>
               <button
                 onClick={() => { setUsersSubView('list'); resetInviteModal(); }}
-                className="w-full py-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-black uppercase tracking-widest"
+                className="w-full py-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-white type-label"
               >
                 Fechar
               </button>
@@ -398,7 +398,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
             <form onSubmit={handleCreateClient} className="space-y-3 sm:space-y-5">
               {/* Seção 1 — Identificação */}
               <div className="space-y-3">
-                <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Identificação</p>
+                <p className="type-label text-[color:var(--text-muted)]">Identificação</p>
                 <div className="relative"><User className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><input required type="text" value={inviteForm.full_name} onChange={e => setInviteForm({...inviteForm, full_name: e.target.value})} placeholder="Nome Completo" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" /></div>
                 <div className="relative"><Mail className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><input type="email" value={inviteForm.email} onChange={e => setInviteForm({...inviteForm, email: e.target.value})} placeholder="E-mail (Opcional)" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" /></div>
                 <div className="relative"><Phone className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} /><input type="tel" value={inviteForm.phone_number} onChange={e => setInviteForm({...inviteForm, phone_number: e.target.value})} placeholder="Telefone (Opcional)" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" /></div>
@@ -406,7 +406,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
               </div>
               {/* Seção 2 — Documento */}
               <div className="space-y-2">
-                <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Documento</p>
+                <p className="type-label text-[color:var(--text-muted)]">Documento</p>
                 <div className="relative">
                   <Key className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
                   <input
@@ -425,7 +425,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
               </div>
               {/* Seção 3 — Endereço */}
               <div className="space-y-2">
-                <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Endereço <span className="text-[color:var(--text-faint)]">(Opcional)</span></p>
+                <p className="type-label text-[color:var(--text-muted)]">Endereço <span className="text-[color:var(--text-faint)]">(Opcional)</span></p>
                 <div className="relative">
                   <MapPin className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
                   <input
@@ -454,7 +454,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
               </div>
               {/* Seção 4 — Foto */}
               <div className="space-y-2">
-                <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Foto <span className="text-[color:var(--text-faint)]">(Opcional)</span></p>
+                <p className="type-label text-[color:var(--text-muted)]">Foto <span className="text-[color:var(--text-faint)]">(Opcional)</span></p>
                 <div className="flex items-center gap-3">
                   <label className="flex-1 cursor-pointer">
                     <div className="flex items-center gap-3 bg-[color:var(--bg-base)] p-4 rounded-2xl border border-dashed border-[color:var(--border-subtle)] hover:border-[color:var(--accent-brass)] transition-colors">
@@ -471,7 +471,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                 </div>
                 {uploadError && <p className="text-red-400 text-xs pl-1">{uploadError}</p>}
               </div>
-              <button type="submit" disabled={submitting} className="w-full bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] py-5 rounded-2xl font-black text-xs uppercase tracking-widest text-[color:var(--text-on-accent)] flex items-center justify-center gap-2 transition-colors">
+              <button type="submit" disabled={submitting} className="w-full bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] py-5 rounded-2xl type-label text-[color:var(--text-on-accent)] flex items-center justify-center gap-2 transition-colors">
                 {submitting ? <Activity className="animate-spin"/> : <><UserPlus size={18}/> Cadastrar Cliente</>}
               </button>
             </form>
@@ -496,13 +496,13 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
             {selectedUserForEdit.photo_url ? (
               <img src={selectedUserForEdit.photo_url} alt={selectedUserForEdit.fullName} className="w-9 h-9 rounded-xl object-cover border border-slate-600 shrink-0" />
             ) : (
-              <div className="w-9 h-9 rounded-xl bg-teal-900/40 text-teal-400 flex items-center justify-center font-black text-sm shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-teal-900/40 text-teal-400 flex items-center justify-center font-semibold text-sm shrink-0">
                 {selectedUserForEdit.fullName?.charAt(0).toUpperCase()}
               </div>
             )}
             <div className="min-w-0">
-              <h3 className="text-xl font-black text-[color:var(--text-primary)] uppercase tracking-tighter truncate">Editar Cliente</h3>
-              <p className="text-[10px] text-[color:var(--text-muted)] font-mono truncate">{selectedUserForEdit.email}</p>
+              <h3 className="type-heading text-[color:var(--text-primary)] uppercase truncate">Editar Cliente</h3>
+              <p className="type-caption text-[color:var(--text-muted)] font-mono truncate">{selectedUserForEdit.email}</p>
             </div>
           </div>
         </div>
@@ -517,7 +517,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
           <form onSubmit={handleUpdateUser} className="space-y-3 sm:space-y-5">
             {/* Seção 1 — Identificação */}
             <div className="space-y-3">
-              <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Identificação</p>
+              <p className="type-label text-[color:var(--text-muted)]">Identificação</p>
               <div className="relative">
                 <User className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
                 <input required type="text" value={editForm.full_name} onChange={e => setEditForm({...editForm, full_name: e.target.value})} placeholder="Nome Completo" className="w-full bg-[color:var(--bg-base)] p-4 pl-12 rounded-2xl text-[color:var(--text-primary)]" />
@@ -540,7 +540,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
             </div>
             {/* Seção 2 — Documento */}
             <div className="space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Documento</p>
+              <p className="type-label text-[color:var(--text-muted)]">Documento</p>
               <div className="relative">
                 <Key className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
                 <input
@@ -559,7 +559,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
             </div>
             {/* Seção 3 — Endereço */}
             <div className="space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Endereço <span className="text-[color:var(--text-faint)]">(Opcional)</span></p>
+              <p className="type-label text-[color:var(--text-muted)]">Endereço <span className="text-[color:var(--text-faint)]">(Opcional)</span></p>
               <div className="relative">
                 <MapPin className="absolute left-4 top-4 text-[color:var(--text-muted)]" size={18} />
                 <input
@@ -588,7 +588,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
             </div>
             {/* Seção 4 — Foto */}
             <div className="space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-widest text-[color:var(--text-muted)]">Foto <span className="text-[color:var(--text-faint)]">(Opcional)</span></p>
+              <p className="type-label text-[color:var(--text-muted)]">Foto <span className="text-[color:var(--text-faint)]">(Opcional)</span></p>
               <div className="flex items-center gap-3">
                 <label className="flex-1 cursor-pointer">
                   <div className="flex items-center gap-3 bg-[color:var(--bg-base)] p-4 rounded-2xl border border-dashed border-[color:var(--border-subtle)] hover:border-[color:var(--accent-brass)] transition-colors">
@@ -605,7 +605,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
               </div>
               {editUploadError && <p className="text-red-400 text-xs pl-1">{editUploadError}</p>}
             </div>
-            <button type="submit" disabled={submitting || editUploading} className="w-full bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] py-5 rounded-2xl font-black text-xs uppercase tracking-widest text-[color:var(--text-on-accent)] flex items-center justify-center gap-2 transition-colors">
+            <button type="submit" disabled={submitting || editUploading} className="w-full bg-[color:var(--accent-brass)] hover:bg-[color:var(--accent-brass-strong)] py-5 rounded-2xl type-label text-[color:var(--text-on-accent)] flex items-center justify-center gap-2 transition-colors">
               {submitting ? <Activity className="animate-spin"/> : <><Check size={18}/> Salvar Alterações</>}
             </button>
           </form>
@@ -618,8 +618,8 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
-            <h2 className="text-2xl font-bold text-[color:var(--text-primary)] uppercase tracking-tighter">Administração de Perfis</h2>
-            <p className="text-[color:var(--text-muted)] text-xs font-black uppercase tracking-widest mt-1">Colaboradores e Clientes (Modo Gestão)</p>
+            <h2 className="type-heading text-[color:var(--text-primary)] uppercase">Administração de Perfis</h2>
+            <p className="type-label text-[color:var(--text-muted)] mt-1">Colaboradores e Clientes (Modo Gestão)</p>
         </div>
         <div className="flex items-center gap-3 w-full lg:w-auto">
             <div className="relative flex-1 sm:flex-none sm:w-64">
@@ -643,10 +643,10 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
       )}
 
       <div className="flex gap-2 border-b border-[color:var(--border-subtle)] pb-px overflow-x-auto scrollbar-hide">
-        <button onClick={() => setActiveTab('all')} className={`px-4 py-3 text-xs font-black uppercase transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'all' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><Users size={16}/> Base Geral ({counts.all})</button>
-        <button onClick={() => setActiveTab('pending')} className={`px-4 py-3 text-xs font-black uppercase transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'pending' ? 'text-[color:var(--accent-caution)] border-[color:var(--accent-caution)]' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><Hourglass size={16}/> Pendentes ({counts.pending})</button>
-        <button onClick={() => setActiveTab('investor')} className={`px-4 py-3 text-xs font-black uppercase transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'investor' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><DollarSign size={16}/> Investidores ({counts.investor})</button>
-        <button onClick={() => setActiveTab('debtor')} className={`px-4 py-3 text-xs font-black uppercase transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'debtor' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><CreditCard size={16}/> Devedores ({counts.debtor})</button>
+        <button onClick={() => setActiveTab('all')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'all' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><Users size={16}/> Base Geral ({counts.all})</button>
+        <button onClick={() => setActiveTab('pending')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'pending' ? 'text-[color:var(--accent-caution)] border-[color:var(--accent-caution)]' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><Hourglass size={16}/> Pendentes ({counts.pending})</button>
+        <button onClick={() => setActiveTab('investor')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'investor' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><DollarSign size={16}/> Investidores ({counts.investor})</button>
+        <button onClick={() => setActiveTab('debtor')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'debtor' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><CreditCard size={16}/> Devedores ({counts.debtor})</button>
       </div>
 
        {loading && displayUsers.length === 0 ? (
@@ -654,8 +654,8 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
       ) : filteredUsers.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <FileSearch size={40} className="text-[color:var(--text-faint)] mb-4" />
-          <p className="text-[color:var(--text-secondary)] font-bold text-sm uppercase tracking-widest">Nenhum usuário encontrado</p>
-          {searchTerm && <p className="text-[color:var(--text-faint)] text-xs mt-2">Tente outro termo de busca</p>}
+          <p className="type-label text-[color:var(--text-secondary)]">Nenhum usuário encontrado</p>
+          {searchTerm && <p className="type-caption text-[color:var(--text-faint)] mt-2">Tente outro termo de busca</p>}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -699,7 +699,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
 
                         <div>
                             <div className="flex items-center gap-4 mb-4">
-                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg overflow-hidden ${
+                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-semibold text-lg overflow-hidden ${
                                     isPending ? 'bg-[color:var(--accent-caution-bg-strong)] text-[color:var(--accent-caution)] border border-[color:var(--accent-caution-border)]' :
                                     isOwner ? 'bg-purple-900/40 text-purple-400 border border-purple-500/30' :
                                     isAdmin ? 'bg-indigo-900/40 text-indigo-400' :
@@ -710,9 +710,9 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                                     ) : isPending ? <Hourglass size={20}/> : isOwner ? <Crown size={22}/> : isAdmin ? <Shield size={20}/> : user.fullName?.charAt(0).toUpperCase()}
                                 </div>
                                 <div className="min-w-0 pr-8">
-                                    <h3 className="text-[color:var(--text-primary)] font-bold truncate text-base">{user.fullName}</h3>
-                                    <p className="text-[color:var(--text-muted)] text-[10px] truncate font-mono">{user.email}</p>
-                                    <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${
+                                    <h3 className="type-body font-bold text-[color:var(--text-primary)] truncate">{user.fullName}</h3>
+                                    <p className="type-caption text-[color:var(--text-muted)] truncate font-mono">{user.email}</p>
+                                    <span className={`inline-block mt-1 px-2 py-0.5 rounded type-micro ${
                                         isPending ? 'bg-[color:var(--accent-caution-bg)] text-[color:var(--accent-caution)] border border-[color:var(--accent-caution-border)]' :
                                         isOwner ? 'bg-purple-900/30 text-purple-400 border border-purple-500/20' :
                                         isAdmin ? 'bg-indigo-900/30 text-indigo-400' :
@@ -726,12 +726,12 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
 
                         <div className="grid grid-cols-1 gap-3">
                             {isPending ? (
-                                <button onClick={() => handleSendLink(user.inviteCode!)} className="flex items-center justify-center gap-2 bg-[color:var(--bg-base)] hover:bg-[color:var(--accent-caution-bg-strong)] border border-[color:var(--border-subtle)] hover:border-[color:var(--accent-caution-border)] text-[color:var(--accent-caution)] text-[10px] font-black uppercase py-3 rounded-xl transition-colors tracking-widest">
+                                <button onClick={() => handleSendLink(user.inviteCode!)} className="flex items-center justify-center gap-2 bg-[color:var(--bg-base)] hover:bg-[color:var(--accent-caution-bg-strong)] border border-[color:var(--border-subtle)] hover:border-[color:var(--accent-caution-border)] text-[color:var(--accent-caution)] type-label py-3 rounded-xl transition-colors">
                                     {copiedInviteCode === user.inviteCode ? <Check size={14} /> : <Send size={14} />}
                                     {copiedInviteCode === user.inviteCode ? 'Copiado!' : 'Enviar Link'}
                                 </button>
                             ) : (
-                                <button onClick={() => onViewDashboard(user.id)} className="flex items-center justify-center gap-2 bg-[color:var(--bg-base)] hover:bg-[color:var(--bg-soft)] text-[color:var(--text-primary)] border border-[color:var(--border-subtle)] text-[10px] font-black uppercase py-3 rounded-xl transition-colors tracking-widest">
+                                <button onClick={() => onViewDashboard(user.id)} className="flex items-center justify-center gap-2 bg-[color:var(--bg-base)] hover:bg-[color:var(--bg-soft)] text-[color:var(--text-primary)] border border-[color:var(--border-subtle)] type-label py-3 rounded-xl transition-colors">
                                     <FileSearch size={14} /> Ver Perfil
                                 </button>
                             )}

@@ -170,13 +170,13 @@ export const ResumoGeral: React.FC<ResumoGeralProps> = ({ kpis }) => {
             <div className="shrink-0 rounded-xl p-2.5" style={{ background: bg, boxShadow: `0 0 0 1px ${ring}` }}>
               <Icon size={15} style={{ color }} />
             </div>
-            <p className="text-[10px] font-extrabold uppercase leading-tight tracking-[0.13em] text-[color:var(--text-faint)]">{label}</p>
+            <p className="type-label text-[color:var(--text-faint)]">{label}</p>
           </div>
           <div>
-            <p className="text-xl font-extrabold tracking-tight md:text-2xl" style={{ color }}>
+            <p className="type-metric-lg md:text-2xl" style={{ color }}>
               {value}
             </p>
-            <p className="mt-0.5 text-[10px] text-[color:var(--text-faint)] leading-snug">{desc}</p>
+            <p className="mt-0.5 type-caption text-[color:var(--text-faint)] leading-snug">{desc}</p>
           </div>
         </div>
       ))}
@@ -232,17 +232,17 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToCo
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)]">
             <Calendar size={16} />
           </div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">RECEBIMENTOS DO MÊS</p>
+          <p className="type-label text-[color:var(--text-faint)]">RECEBIMENTOS DO MÊS</p>
         </div>
         <div>
-          <p className="mb-0.5 text-[10px] uppercase tracking-[0.12em] font-bold text-[color:var(--text-faint)]">Total esperado</p>
+          <p className="mb-0.5 type-label text-[color:var(--text-faint)]">Total esperado</p>
           <p className="text-sm font-semibold text-[color:var(--text-secondary)]">{formatCurrency(kpis.expectedMonth)}</p>
         </div>
-        <div className="text-xl font-extrabold tracking-tight text-[color:var(--accent-positive)] md:text-[2.2rem]">
+        <div className="type-metric-lg text-[color:var(--accent-positive)] md:text-[2.2rem]">
           {formatCurrency(kpis.receivedByPaymentMonth)}
         </div>
         <div>
-          <div className="mb-2 flex justify-between text-[10px] font-bold uppercase tracking-[0.10em] text-[color:var(--text-faint)]">
+          <div className="mb-2 flex justify-between type-label text-[color:var(--text-faint)]">
             <span>{Math.min(100, pct)}% recebido{pct > 100 ? ` (real: ${pct}%)` : ''}</span>
             <span>{formatCurrency(Math.max(0, kpis.expectedMonth - kpis.receivedByPaymentMonth))} restante</span>
           </div>
@@ -261,20 +261,20 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToCo
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgba(248,113,113,0.12)] text-[color:var(--accent-danger)] ring-1 ring-[rgba(248,113,113,0.18)]">
             <AlertTriangle size={16} />
           </div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">EM ATRASO</p>
+          <p className="type-label text-[color:var(--text-faint)]">EM ATRASO</p>
         </div>
-        <div className="text-xl font-extrabold tracking-tight text-[color:var(--accent-danger)] md:text-[2.2rem]">
+        <div className="type-metric-lg text-[color:var(--accent-danger)] md:text-[2.2rem]">
           {formatCurrency(kpis.totalOverdue)}
         </div>
         {kpis.totalOverdue > 0 && (
-          <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-[color:var(--text-faint)]">
+          <p className="type-label text-[color:var(--text-faint)]">
             Atenção — cobranças pendentes
           </p>
         )}
         {kpis.totalOverdue === 0 && (
           <div className="flex items-center gap-2">
             <CheckCircle2 size={14} className="text-[color:var(--accent-positive)]" />
-            <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-[color:var(--accent-positive)]">
+            <p className="type-label text-[color:var(--accent-positive)]">
               Carteira em dia
             </p>
           </div>
@@ -288,7 +288,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToCo
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)]">
               <Zap size={16} />
             </div>
-            <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
+            <p className="type-label text-[color:var(--text-faint)]">
               A COBRAR
             </p>
           </div>
@@ -297,7 +297,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToCo
               <button
                 key={d}
                 onClick={() => setCobraDias(d)}
-                className={`cursor-pointer rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide transition-all ${
+                className={`type-label cursor-pointer rounded-full px-2.5 py-1 transition-all ${
                   cobraDias === d
                     ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)] shadow-[0_1px_8px_rgba(240,180,41,0.22)]'
                     : 'bg-white/[0.05] text-[color:var(--text-faint)] hover:bg-white/[0.1] hover:text-[color:var(--text-secondary)]'
@@ -312,11 +312,11 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToCo
           <button
             onClick={onGoToCollection}
             disabled={!onGoToCollection}
-            className="cursor-pointer text-left text-xl font-extrabold tracking-tight text-[color:var(--accent-brass)] transition-opacity hover:opacity-80 disabled:cursor-default disabled:hover:opacity-100 md:text-[2.2rem]"
+            className="type-metric-lg cursor-pointer text-left text-[color:var(--accent-brass)] transition-opacity hover:opacity-80 disabled:cursor-default disabled:hover:opacity-100 md:text-[2.2rem]"
           >
             {formatCurrency(aCobraValor)}
           </button>
-          <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.10em] text-[color:var(--text-faint)]">
+          <p className="mt-1 type-label text-[color:var(--text-faint)]">
             {cobraDias === 0 ? 'Vence hoje' : `Próximos ${cobraDias} dias`} · clique para cobrança
           </p>
         </div>
@@ -333,7 +333,7 @@ export const FiltersBar: React.FC<FiltersBarProps> = ({ onSearch }) => (
   <div className={`${panelClass} flex flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between`}>
     <div>
       <p className="section-kicker mb-1">Carteira</p>
-      <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Base de contratos</h3>
+      <h3 className="type-title text-[color:var(--text-primary)]">Base de contratos</h3>
     </div>
 
     <div className="relative w-full md:max-w-sm">
@@ -370,7 +370,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({ kpis, installmen
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <p className="section-kicker mb-1">Exposição</p>
-            <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Composição do capital</h3>
+            <h3 className="type-title text-[color:var(--text-primary)]">Composição do capital</h3>
           </div>
           <div className="rounded-2xl bg-[rgba(202,176,122,0.14)] p-3 text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]">
             <Coins size={18} />
@@ -398,7 +398,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({ kpis, installmen
               {compositionData.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center gap-2 text-[color:var(--text-faint)]">
                   <PieChart size={32} className="opacity-30" />
-                  <p className="text-xs font-bold uppercase tracking-widest">Sem dados ainda</p>
+                  <p className="type-label">Sem dados ainda</p>
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
@@ -474,7 +474,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({ kpis, installmen
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <span className="text-xs font-bold text-[color:var(--text-primary)]">{formatCurrency(item.value)}</span>
-                          <span className="text-[10px] font-black text-[color:var(--text-faint)] w-10 text-right">{pct}%</span>
+                          <span className="type-caption text-[color:var(--text-faint)] w-10 text-right">{pct}%</span>
                         </div>
                       </div>
                     );
@@ -494,7 +494,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({ kpis, installmen
               <div className="mb-6 flex items-start justify-between gap-4">
                 <div>
                   <p className="section-kicker mb-1">Cobrança</p>
-                  <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Inadimplência por prazo</h3>
+                  <h3 className="type-title text-[color:var(--text-primary)]">Inadimplência por prazo</h3>
                 </div>
                 <div className={`rounded-2xl p-3 ring-1 ${temAtraso ? 'bg-[rgba(198,126,105,0.14)] text-[color:var(--accent-danger)] ring-[rgba(198,126,105,0.18)]' : 'bg-[rgba(143,179,157,0.12)] text-[color:var(--accent-positive)] ring-[rgba(143,179,157,0.20)]'}`}>
                   {temAtraso ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />}
@@ -532,7 +532,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({ kpis, installmen
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[rgba(143,179,157,0.12)] ring-1 ring-[rgba(143,179,157,0.20)]">
                     <CheckCircle2 size={28} className="text-[color:var(--accent-positive)]" />
                   </div>
-                  <p className="text-base font-extrabold text-[color:var(--accent-positive)]">Carteira 100% saudável</p>
+                  <p className="text-base font-semibold text-[color:var(--accent-positive)]">Carteira 100% saudável</p>
                   <p className="text-xs text-[color:var(--text-faint)]">Nenhuma parcela em atraso</p>
                 </div>
               )}
@@ -549,7 +549,7 @@ export const InvestmentsTable: React.FC<{ data: Investment[] }> = ({ data }) => 
     <div className="overflow-x-auto">
       <table className="min-w-full text-left text-sm whitespace-nowrap">
         <thead className="border-b border-white/10 bg-black/10">
-          <tr className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
+          <tr className="type-label text-[color:var(--text-faint)]">
             <th className="px-6 py-4">Contrato</th>
             <th className="px-6 py-4">Investidor</th>
             <th className="px-6 py-4">Cliente</th>
@@ -705,7 +705,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <p className="section-kicker mb-1">Títulos</p>
-              <h3 className="font-display text-base sm:text-[2rem] leading-none text-[color:var(--text-primary)]">Gestão de parcelas</h3>
+              <h3 className="type-title text-[color:var(--text-primary)]">Gestão de parcelas</h3>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-[color:var(--text-secondary)]">
                 Filtre por mês ou período livre, acompanhe o status da parcela e registre baixa, refinanciamento ou edição sem sair da grade.
               </p>
@@ -715,7 +715,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
               <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] p-1">
                 <button
                   onClick={() => setDateMode('month')}
-                  className={`rounded-full px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.18em] transition-all ${
+                  className={`type-label rounded-full px-4 py-2 transition-all ${
                     dateMode === 'month'
                       ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)]'
                       : 'text-[color:var(--text-muted)]'
@@ -725,7 +725,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                 </button>
                 <button
                   onClick={() => setDateMode('range')}
-                  className={`rounded-full px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.18em] transition-all ${
+                  className={`type-label rounded-full px-4 py-2 transition-all ${
                     dateMode === 'range'
                       ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)]'
                       : 'text-[color:var(--text-muted)]'
@@ -759,7 +759,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                       <button
                         key={preset.label}
                         onClick={preset.action}
-                        className="rounded-full px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wide bg-white/[0.05] text-[color:var(--text-faint)] hover:bg-white/[0.1] transition-all"
+                        className="type-label rounded-full px-3 py-1.5 bg-white/[0.05] text-[color:var(--text-faint)] hover:bg-white/[0.1] transition-all"
                       >
                         {preset.label}
                       </button>
@@ -818,7 +818,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
         <div className={`${panelClass} overflow-hidden`}>
           <div className="hidden md:block -mx-0 overflow-x-auto">
             <table className="min-w-full text-left text-xs whitespace-nowrap md:text-sm">
-              <thead className="border-b border-white/10 bg-black/10 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
+              <thead className="border-b border-white/10 bg-black/10 type-label text-[color:var(--text-faint)]">
                 <tr>
                   <th className="px-6 py-4">Vencimento</th>
                   <th className="px-6 py-4">Contrato</th>
@@ -859,7 +859,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                       <td className="px-6 py-4 text-right">
                         <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusTone}`}>{statusLabel}</span>
                         {Number(installment.interest_payments_total) > 0 && (
-                          <div className="mt-1 text-[10px] font-bold text-[color:var(--accent-warning)]">
+                          <div className="mt-1 type-caption text-[color:var(--accent-warning)]">
                             Juros: {formatCurrency(Number(installment.interest_payments_total))}
                           </div>
                         )}
@@ -942,7 +942,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                   </div>
                   <div className="mb-3 text-xs text-[color:var(--text-faint)]">{installment.investment?.asset_name || installment.contract_name || '—'}</div>
                   <div className="mb-3 flex items-center justify-between">
-                    <span className="text-xl font-extrabold text-[color:var(--text-primary)]">{formatCurrency(outstanding)}</span>
+                    <span className="type-metric-lg text-[color:var(--text-primary)]">{formatCurrency(outstanding)}</span>
                     <div className="text-right">
                       <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusTone}`}>{statusLabel}</span>
                       {Number(installment.interest_payments_total) > 0 && (
@@ -1049,7 +1049,7 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({ onNavigate, 
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-[color:var(--text-muted)] transition-colors group-hover:bg-[rgba(202,176,122,0.14)] group-hover:text-[color:var(--accent-brass)]">
               <Icon size={18} />
             </div>
-            <span className="w-full truncate text-center text-[0.68rem] font-extrabold uppercase tracking-[0.06em] text-[color:var(--text-faint)] transition-colors group-hover:text-[color:var(--text-primary)]">
+            <span className="type-micro w-full truncate text-center text-[color:var(--text-faint)] transition-colors group-hover:text-[color:var(--text-primary)]">
               {label}
             </span>
           </button>
@@ -1112,10 +1112,10 @@ export const DailyAlerts: React.FC<DailyAlertsProps> = ({ kpis, installments }) 
             key={label}
             className="flex flex-col items-center gap-1 rounded-2xl border border-white/[0.06] bg-white/[0.03] px-3 py-4"
           >
-            <span className="text-3xl font-black tabular-nums leading-none" style={{ color }}>
+            <span className="type-metric-xl leading-none" style={{ color }}>
               {value}
             </span>
-            <span className="mt-1 text-center text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-[color:var(--text-faint)]">
+            <span className="mt-1 type-label text-center text-[color:var(--text-faint)]">
               {label}
             </span>
           </div>

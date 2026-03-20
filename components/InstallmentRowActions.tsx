@@ -75,7 +75,7 @@ const InstallmentRowActions: React.FC<InstallmentRowActionsProps> = ({
                     className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-emerald-900/10 group transition-colors border-b border-slate-700/50"
                 >
                     <CheckCircle2 size={14} className="text-emerald-500 group-hover:scale-110 transition-transform"/>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Baixar (Pagar)</span>
+                    <span className="type-label text-emerald-400">Baixar (Pagar)</span>
                 </button>
 
                 <button
@@ -83,7 +83,7 @@ const InstallmentRowActions: React.FC<InstallmentRowActionsProps> = ({
                     className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-purple-900/10 group transition-colors border-b border-slate-700/50"
                 >
                     <Banknote size={14} className="text-purple-400 group-hover:scale-110 transition-transform"/>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-purple-300">Refinanciar</span>
+                    <span className="type-label text-purple-300">Refinanciar</span>
                 </button>
 
                 {onInterestOnly && (
@@ -92,7 +92,7 @@ const InstallmentRowActions: React.FC<InstallmentRowActionsProps> = ({
                         className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-[color:var(--accent-caution-bg)] group transition-colors border-b border-slate-700/50"
                     >
                         <Percent size={14} className="text-[color:var(--accent-caution)] group-hover:scale-110 transition-transform"/>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-[color:var(--accent-caution)]">Pagar Só Juros</span>
+                        <span className="type-label text-[color:var(--accent-caution)]">Pagar Só Juros</span>
                     </button>
                 )}
             </>
@@ -105,7 +105,7 @@ const InstallmentRowActions: React.FC<InstallmentRowActionsProps> = ({
                 className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-white/5 group transition-colors border-b border-slate-700/50"
             >
                 <FileText size={14} className="text-white group-hover:scale-110 transition-transform"/>
-                <span className="text-[10px] font-black uppercase tracking-widest text-white">Ver Comprovante</span>
+                <span className="type-label text-white">Ver Comprovante</span>
             </button>
         )}
 
@@ -115,7 +115,7 @@ const InstallmentRowActions: React.FC<InstallmentRowActionsProps> = ({
             className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-sky-900/10 group transition-colors"
         >
             <Pencil size={14} className="text-sky-400 group-hover:scale-110 transition-transform"/>
-            <span className="text-[10px] font-black uppercase tracking-widest text-sky-300">Editar Dados</span>
+            <span className="type-label text-sky-300">Editar Dados</span>
         </button>
         </div>
     </div>

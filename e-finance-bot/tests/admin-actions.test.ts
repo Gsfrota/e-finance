@@ -1,12 +1,34 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildCanonicalInstallmentSchedule,
+  extractDebtorNameSimple,
   isValidCpf,
   normalizeCpf,
   parseContractTextDeterministic,
   summarizeDashboardRows,
   summarizeUserDebtContracts,
 } from '../src/actions/admin-actions';
+
+// BUG-3: extractDebtorNameSimple não deve retornar keywords de comando como nome
+describe('extractDebtorNameSimple', () => {
+  it('retorna null para "criar contrato" (sem nome real)', () => {
+    expect(extractDebtorNameSimple('criar contrato')).toBeNull();
+  });
+
+  it('retorna null para "contrato" isolado', () => {
+    expect(extractDebtorNameSimple('contrato')).toBeNull();
+  });
+
+  it('extrai nome real quando presente', () => {
+    const name = extractDebtorNameSimple('criar contrato para João Silva');
+    expect(name).toBe('João Silva');
+  });
+
+  it('extrai nome simples', () => {
+    const name = extractDebtorNameSimple('João');
+    expect(name).toBe('João');
+  });
+});
 
 describe('CPF helpers', () => {
   it('normaliza cpf com máscara', () => {

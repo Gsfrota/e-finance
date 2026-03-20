@@ -78,7 +78,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
         {/* Header */}
         <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-900/50">
           <div>
-              <h3 className="text-lg font-black text-white uppercase tracking-tighter flex items-center gap-2">
+              <h3 className="type-subheading uppercase text-[color:var(--text-primary)] flex items-center gap-2">
                  <ShieldCheck className="text-teal-500" size={20}/> Pagamento Seguro
               </h3>
               <p className="text-xs text-slate-400 font-bold">{installment.contract_name} - Parc. {installment.number}</p>
@@ -92,11 +92,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
             
             {/* Amount Display */}
             <div className="w-full">
-                <p className="text-xs text-slate-500 font-black uppercase tracking-widest mb-1">Valor Final</p>
+                <p className="type-label text-[color:var(--text-muted)] mb-1">Valor Final</p>
                 {loading ? (
                     <div className="h-10 w-32 bg-slate-700/50 rounded animate-pulse mx-auto mb-2"></div>
                 ) : (
-                    <div className="text-4xl font-black text-white">{formatCurrency(displayAmount)}</div>
+                    <div className="type-metric-xl text-[color:var(--text-primary)]">{formatCurrency(displayAmount)}</div>
                 )}
                 
                 <div className="mt-2 text-[10px] text-teal-400 font-bold uppercase flex items-center justify-center gap-1 animate-fade-in">
@@ -112,14 +112,14 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
                             <Building2 size={16} />
                         </div>
                         <div className="text-left">
-                            <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Beneficiário</p>
+                            <p className="type-micro text-[color:var(--text-muted)]">Beneficiário</p>
                             <p className="text-xs font-bold text-white uppercase truncate max-w-[140px]">{beneficiary.name}</p>
                         </div>
                     </div>
                     <div className="text-right">
                          <div className="flex items-center justify-end gap-1 text-slate-500">
                             <MapPin size={10} />
-                            <span className="text-[9px] font-bold uppercase">{beneficiary.city}</span>
+                            <span className="type-micro">{beneficiary.city}</span>
                          </div>
                     </div>
                 </div>
@@ -130,7 +130,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
                 <div className="py-10 flex flex-col items-center gap-4 text-teal-500">
                     <Loader2 size={48} className="animate-spin"/>
                     <div className="flex flex-col items-center gap-1">
-                        <p className="text-xs font-bold uppercase tracking-widest animate-pulse">Gerando Pix Dinâmico...</p>
+                        <p className="type-label animate-pulse">Gerando Pix Dinâmico...</p>
                         <p className="text-[9px] text-slate-500 font-medium">Conectando à Edge Function</p>
                     </div>
                 </div>
@@ -139,7 +139,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
                     <div className="bg-red-900/20 border border-red-900/50 p-4 rounded-2xl flex flex-col items-center gap-2 text-red-400">
                         <AlertTriangle size={24} />
                         <p className="text-xs font-bold text-center">{error}</p>
-                        <button onClick={() => generatePix(installment.id)} className="mt-2 text-[10px] font-black uppercase bg-red-900/40 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-red-900/60 transition-colors">
+                        <button onClick={() => generatePix(installment.id)} className="mt-2 type-label bg-red-900/40 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-red-900/60 transition-colors">
                             <RefreshCw size={10} /> Tentar Novamente
                         </button>
                     </div>
@@ -156,7 +156,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
 
                     {/* Pix Key Copy */}
                     <div className="w-full">
-                        <label className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-2 block text-left">Pix Copia e Cola</label>
+                        <label className="type-label text-[color:var(--text-muted)] mb-2 block text-left">Pix Copia e Cola</label>
                         <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-1 flex items-center gap-2">
                             <input 
                                 readOnly 

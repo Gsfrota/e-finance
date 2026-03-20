@@ -148,6 +148,33 @@ Retorne somente o texto final.`;
   }
 }
 
+export async function generateGreeting(
+  userName: string,
+  role: string,
+  userMessage: string,
+): Promise<ReplyResult> {
+  const empty: ReplyResult = { text: null, tokensIn: 0, tokensOut: 0 };
+  if (!config.llmResponse.enabled || !hasApiKey()) return empty;
+
+  const roleContext: Record<string, string> = {
+    admin: 'Você pode ajudar com dashboard, cobranças do dia, recebíveis, criar contratos ou marcar pagamentos.',
+    investor: 'Você pode mostrar o portfólio, recebíveis e contratos do investidor.',
+    debtor: 'Você pode mostrar as parcelas, saldo devedor e próximas datas de vencimento.',
+  };
+
+  const prompt = `Você é Salomão, assistente financeiro do Juros Certo. Responda em PT-BR coloquial, direto e amigável.
+O usuário ${truncate(userName, 40)} acabou de te mandar: "${truncate(userMessage, 60)}"
+Responda com uma saudação natural e curta (máximo 2 frases). NÃO liste comandos ou menus. Mencione de forma natural UMA coisa que você pode fazer por ele agora.
+Contexto do perfil: ${roleContext[role] || roleContext['admin']}
+Retorne apenas o texto da resposta.`;
+
+  try {
+    return await generateWithTimeout(prompt, 100, config.llmResponse.timeoutMs);
+  } catch {
+    return empty;
+  }
+}
+
 export async function generateAgentResponse(
   context: ResponseContext,
   userMessage: string,

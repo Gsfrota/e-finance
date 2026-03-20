@@ -21,7 +21,7 @@ import { estimateCostUsd } from '../observability/cost-estimator';
 import { config } from '../config';
 import type { LinkValidationResult, ContractOpenInstallment } from '../actions/admin-actions';
 import { detectPromptInjectionAttempt, sanitizeUserText } from '../security/prompt-guard';
-import { renderConversationalReply } from '../ai/response-generator';
+import { renderConversationalReply, generateGreeting } from '../ai/response-generator';
 import { getFollowupFromTenantConfig } from '../assistant/followup-question-generator';
 import { getBotTenantConfig, checkWhitelistBlock } from '../actions/bot-config-actions';
 import { understandCommand } from '../assistant/command-understanding';
@@ -1512,6 +1512,13 @@ async function dispatchIntent(
   originalText: string
 ): Promise<string> {
   switch (intent) {
+    case 'saudacao': {
+      const userName = session.profile?.name || 'você';
+      const greetRole = role || 'admin';
+      const greeting = await generateGreeting(userName, greetRole, originalText);
+      return greeting.text || `Oi, ${userName}! Como posso ajudar hoje?`;
+    }
+
     case 'ajuda':
       return getHelpText(role);
 
@@ -1792,7 +1799,7 @@ async function dispatchIntent(
     }
 
     default: {
-      return 'Nao entendi com seguranca. Me diz de novo em uma frase curta o que voce quer fazer.';
+      return 'Não entendi bem. Pode reformular? Posso ajudar com cobranças, recebíveis, dashboard, contratos ou pagamentos.';
     }
   }
 }
@@ -2200,9 +2207,28 @@ async function handlePendingAction(
         }
       }
 
+      // Detecta padrão "N parcelas de R$X" para back-calcular taxa quando não foi fornecida
+      let backCalculatedRate: number | null = null;
+      const installmentValueMatch = text.match(/(\d{1,3})\s*(?:x|parcelas?|vezes?)\s*de\s*(?:R\$\s*)?(\d+(?:[.,]\d+)?)/i);
+      if (installmentValueMatch?.[2]) {
+        const installmentValue = parseFloat(installmentValueMatch[2].replace(',', '.'));
+        const principal = Number(partialDraft.amount);
+        if (installmentValue > 0 && principal > 0 && installments > 1) {
+          const total = installmentValue * installments;
+          // Juros simples: total = principal * (1 + rate * n) → rate = (total/principal - 1) / n
+          const rate = ((total / principal) - 1) / installments * 100;
+          if (rate >= 0 && rate <= 100) backCalculatedRate = Math.round(rate * 100) / 100;
+        }
+      }
+
       // Extrai campos bônus do texto
       const bonusEntities14 = extractAllContractEntities(text);
       const merged14 = mergeContractEntities({ ...partialDraft, installments }, bonusEntities14);
+
+      // Aplica taxa back-calculada se a taxa ainda não foi definida
+      if (backCalculatedRate !== null && (merged14.rate === undefined || merged14.rate === null || merged14.rate === 0)) {
+        merged14.rate = backCalculatedRate;
+      }
 
       const draft: ContractDraft = {
         debtor_name: String(merged14.debtor_name),

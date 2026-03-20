@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { LoanInstallment, Tenant } from '../types';
 import { getSupabase } from '../services/supabase';
-import { X, CheckCircle2, Calendar, DollarSign, Loader2, AlertTriangle, RefreshCw, Pencil, Save, Printer, Percent, ArrowDownToLine, ArrowRight, Plus, ChevronLeft, TrendingUp } from 'lucide-react';
+import { X, CheckCircle2, Calendar, DollarSign, Loader2, AlertTriangle, RefreshCw, Pencil, Save, Printer, Percent, ArrowDownToLine, ArrowRight, Plus, ChevronLeft, TrendingUp, Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import { parseSupabaseError } from '../services/supabase';
 import ReceiptTemplate from './ReceiptTemplate';
 
@@ -59,8 +59,8 @@ const Header: React.FC<{ title: string, subtitle: string, icon: React.ReactNode,
         {icon}
       </div>
       <div>
-        <h3 className="text-lg font-black text-white uppercase tracking-tighter">{title}</h3>
-        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">{subtitle}</p>
+        <h3 className="type-heading uppercase text-[color:var(--text-primary)]">{title}</h3>
+        <p className="type-label text-[color:var(--text-secondary)]">{subtitle}</p>
       </div>
     </div>
     <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-slate-700 rounded-full">
@@ -72,6 +72,7 @@ const Header: React.FC<{ title: string, subtitle: string, icon: React.ReactNode,
 // --- 1. PAYMENT MODAL (Dar Baixa & Comprovante) ---
 
 type DeferAction = 'last' | 'next' | 'new';
+type SurplusAction = 'next' | 'last' | 'spread';
 
 interface InstallmentContext {
   nextInst: { id: string; number: number; amount_total: number } | null;
@@ -87,11 +88,16 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   const [paymentMethod, setPaymentMethod] = useState('PIX');
 
   // ── Step 2 state ────────────────────────────────────────────────────────────
+  const [step2Mode, setStep2Mode]         = useState<'partial' | 'surplus'>('partial');
   const [deferAction, setDeferAction]     = useState<DeferAction>('last');
   const [useInterest, setUseInterest]     = useState(false);
   const [interestPercent, setInterestPercent] = useState('');
   const [context, setContext]             = useState<InstallmentContext>({ nextInst: null, lastInst: null });
   const [loadingContext, setLoadingContext] = useState(false);
+  // ── Surplus state ────────────────────────────────────────────────────────────
+  const [surplusAction, setSurplusAction] = useState<SurplusAction>('next');
+  const [pendingInstallments, setPendingInstallments] = useState<Array<{id: string; number: number; amount_total: number}>>([]);
+  const [showSpreadPreview, setShowSpreadPreview] = useState(false);
 
   // ── Shared state ─────────────────────────────────────────────────────────────
   const [loading, setLoading]         = useState(false);
@@ -101,20 +107,27 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   const outstanding = calculateOutstanding(installment);
   const amountVal   = parseFloat(amount) || 0;
   const remainder   = Math.max(0, outstanding - amountVal);
+  const surplus     = Math.max(0, amountVal - outstanding);
   const isPartial   = amountVal > 0 && remainder > 0.01;
+  const hasExcedente = surplus > 0.01;
   const interestAmt = useInterest && interestPercent ? remainder * (parseFloat(interestPercent) || 0) / 100 : 0;
   const remainderWithInterest = remainder + interestAmt;
+  const discountPerInstallment = pendingInstallments.length > 0 ? surplus / pendingInstallments.length : 0;
 
   // ── Reset on open ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (isOpen && installment) {
       setStep(1);
+      setStep2Mode('partial');
       setError(null);
       setPaymentMethod('PIX');
       setDeferAction('last');
       setUseInterest(false);
       setInterestPercent('');
       setContext({ nextInst: null, lastInst: null });
+      setSurplusAction('next');
+      setPendingInstallments([]);
+      setShowSpreadPreview(false);
       setIsReceiptMode(installment.status === 'paid');
       if (installment.status !== 'paid') setAmount(outstanding.toFixed(2));
     }
@@ -151,6 +164,12 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         if (lastInst) setDeferAction('last');
         else if (nextInst) setDeferAction('next');
         else setDeferAction('new');
+        // Parcelas pendentes para surplus 'spread'
+        const pendingAfter = pending.filter(r => r.number > installment.number);
+        setPendingInstallments(pendingAfter.map(r => ({ id: r.id, number: r.number, amount_total: r.amount_total })));
+        // Default surplus action
+        if (nextInst) setSurplusAction('next');
+        else setSurplusAction('last');
       }
     } finally {
       setLoadingContext(false);
@@ -162,10 +181,14 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
     e.preventDefault();
     const val = parseFloat(amount);
     if (isNaN(val) || val <= 0) { setError('O valor deve ser maior que zero.'); return; }
-    if (val > outstanding + 0.01) { setError('Valor excede o saldo devedor.'); return; }
     setError(null);
-    if (isPartial) {
+    if (hasExcedente) {
       await loadContext();
+      setStep2Mode('surplus');
+      setStep(2);
+    } else if (isPartial) {
+      await loadContext();
+      setStep2Mode('partial');
       setStep(2);
     } else {
       await submitPayment(val, null, 0);
@@ -177,6 +200,47 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
     const val = parseFloat(amount);
     const rate = useInterest ? parseFloat(interestPercent) || 0 : 0;
     await submitPayment(val, deferAction, rate);
+  };
+
+  const handleStep2SurplusConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!installment) return;
+    setLoading(true);
+    setError(null);
+    const supabase = getSupabase();
+    if (!supabase) return;
+    try {
+      // 1. Paga apenas o saldo devedor da parcela atual
+      const { error: payErr } = await supabase.rpc('pay_installment', {
+        p_installment_id: installment.id,
+        p_amount_paid: outstanding,
+      });
+      if (payErr) throw payErr;
+
+      // 2. Aplica o excedente na ação escolhida
+      const { error: surplusErr } = await supabase.rpc('apply_surplus_action', {
+        p_installment_id: installment.id,
+        p_surplus_amount: surplus,
+        p_action: surplusAction,
+      });
+      if (surplusErr) throw surplusErr;
+
+      // 3. Persiste método de pagamento (non-critical)
+      await supabase
+        .from('loan_installments')
+        .update({ payment_method: paymentMethod })
+        .eq('id', installment.id);
+
+      onSuccess();
+      installment.amount_paid = (installment.amount_paid || 0) + outstanding;
+      installment.status = 'paid';
+      installment.paid_at = new Date().toISOString();
+      setIsReceiptMode(true);
+    } catch (err: any) {
+      setError(err.message || 'Erro ao processar pagamento.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const submitPayment = async (val: number, action: DeferAction | null, rate: number) => {
@@ -236,8 +300,8 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       <ModalBackdrop onClose={onClose}>
         <div className="p-8 text-center">
           <CheckCircle2 size={48} className="mx-auto text-emerald-500 mb-4"/>
-          <h3 className="text-white font-bold text-xl mb-2">Pagamento Confirmado!</h3>
-          <button onClick={onClose} className="bg-slate-700 text-white px-6 py-2 rounded-xl text-xs font-bold uppercase">Fechar</button>
+          <h3 className="type-heading text-[color:var(--text-primary)] mb-2">Pagamento Confirmado!</h3>
+          <button onClick={onClose} className="type-label bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)] px-6 py-2 rounded-xl">Fechar</button>
         </div>
       </ModalBackdrop>
     );
@@ -262,15 +326,15 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
           {active && <div className="h-2 w-2 rounded-full bg-emerald-400"/>}
         </div>
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className={`shrink-0 ${active ? 'text-emerald-400' : 'text-slate-500'}`}>{icon}</span>
+          <span className={`shrink-0 ${active ? 'text-emerald-400' : 'text-[color:var(--text-muted)]'}`}>{icon}</span>
           <div className="min-w-0">
-            <p className={`text-sm font-bold leading-tight ${active ? 'text-white' : 'text-slate-300'}`}>{label}</p>
-            <p className="text-[11px] text-slate-500 mt-0.5 leading-tight truncate">{sublabel}</p>
+            <p className={`text-sm font-bold leading-tight ${active ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)]'}`}>{label}</p>
+            <p className="type-caption text-[color:var(--text-muted)] mt-0.5 leading-tight truncate">{sublabel}</p>
           </div>
         </div>
         {/* Preview amount */}
         <div className="shrink-0 text-right">
-          <p className={`text-sm font-black tabular-nums ${active ? 'text-emerald-300' : 'text-slate-500'}`}>
+          <p className={`type-metric-sm ${active ? 'text-emerald-300' : 'text-[color:var(--text-muted)]'}`}>
             +{formatCurrency(remainderWithInterest)}
           </p>
         </div>
@@ -286,10 +350,10 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       <form onSubmit={handleStep1Next} className="p-6 space-y-5">
         {/* Saldo devedor breakdown */}
         <div className="bg-emerald-900/10 border border-emerald-900/30 p-4 rounded-2xl">
-          <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest mb-2 text-center">Saldo Devedor</p>
-          <p className="text-3xl font-black text-white text-center mb-3">{formatCurrency(outstanding)}</p>
+          <p className="type-label text-emerald-400 mb-2 text-center">Saldo Devedor</p>
+          <p className="type-metric-xl text-[color:var(--text-primary)] text-center mb-3">{formatCurrency(outstanding)}</p>
           <div className="space-y-1.5 text-xs border-t border-emerald-900/30 pt-3">
-            <div className="flex justify-between text-slate-400">
+            <div className="flex justify-between text-[color:var(--text-secondary)]">
               <span>Valor original</span>
               <span className="font-mono">{formatCurrency(normalizeNumber(installment.amount_total))}</span>
             </div>
@@ -311,7 +375,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         <div className="space-y-3">
           {/* Valor recebido */}
           <div>
-            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Valor Recebido (R$)</label>
+            <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">Valor Recebido (R$)</label>
             <div className="relative">
               <DollarSign size={16} className="absolute left-4 top-4 text-emerald-500"/>
               <input
@@ -325,24 +389,34 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
               <div className="mt-2 flex items-center justify-between bg-amber-900/20 border border-amber-800/40 rounded-xl px-4 py-2.5">
                 <div className="flex items-center gap-2 text-amber-300">
                   <AlertTriangle size={13} className="shrink-0"/>
-                  <span className="text-[11px] font-bold">Faltam</span>
+                  <span className="type-caption font-bold">Faltam</span>
                 </div>
-                <span className="text-amber-200 font-black text-sm tabular-nums">{formatCurrency(remainder)}</span>
+                <span className="text-amber-200 type-metric-sm">{formatCurrency(remainder)}</span>
+              </div>
+            )}
+            {/* Aviso excedente em tempo real */}
+            {hasExcedente && (
+              <div className="mt-2 flex items-center justify-between bg-emerald-900/20 border border-emerald-800/40 rounded-xl px-4 py-2.5">
+                <div className="flex items-center gap-2 text-emerald-300">
+                  <CheckCircle2 size={13} className="shrink-0"/>
+                  <span className="type-caption font-bold">Excedente</span>
+                </div>
+                <span className="text-emerald-200 type-metric-sm">{formatCurrency(surplus)}</span>
               </div>
             )}
           </div>
 
           {/* Data */}
-          <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-900/50 border border-slate-700/50 text-slate-400 text-xs">
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] text-[color:var(--text-muted)] text-xs">
             <Calendar size={14} className="shrink-0"/>
             <span>Data da baixa: <strong>Hoje ({new Date().toLocaleDateString('pt-BR')})</strong></span>
           </div>
 
           {/* Forma de pagamento */}
           <div>
-            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Forma de Pagamento</label>
+            <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">Forma de Pagamento</label>
             <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 text-white outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all text-sm">
+              className="w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3.5 text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all text-sm">
               <option value="PIX">PIX</option>
               <option value="Dinheiro">Dinheiro</option>
               <option value="Transferência Bancária">Transferência Bancária</option>
@@ -360,43 +434,214 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         </div>
 
         <button type="submit" disabled={loading || loadingContext}
-          className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]">
+          className="type-label w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]">
           {loading || loadingContext
             ? <Loader2 className="animate-spin" size={18}/>
-            : isPartial ? <ArrowRight size={18}/> : <CheckCircle2 size={18}/>}
+            : (isPartial || hasExcedente) ? <ArrowRight size={18}/> : <CheckCircle2 size={18}/>}
           {loading || loadingContext
             ? 'Aguarde...'
-            : isPartial ? `Próximo — destinar ${formatCurrency(remainder)}` : 'Confirmar Recebimento'}
+            : isPartial ? `Próximo — destinar ${formatCurrency(remainder)}`
+            : hasExcedente ? `Próximo — aplicar excedente ${formatCurrency(surplus)}`
+            : 'Confirmar Recebimento'}
         </button>
       </form>
     </ModalBackdrop>
   );
 
-  // ── Step 2 ───────────────────────────────────────────────────────────────────
+  // ── Step 2 — Surplus ─────────────────────────────────────────────────────────
+  if (step === 2 && step2Mode === 'surplus') {
+    const surplusNextInst = context.nextInst;
+    const surplusLastInst = context.lastInst;
+
+    const SurplusCard = ({
+      id, icon, label, sublabel, active, onClick, previewContent
+    }: { id: SurplusAction; icon: React.ReactNode; label: string; sublabel: string; active: boolean; onClick: () => void; previewContent?: React.ReactNode }) => (
+      <div className={`w-full rounded-2xl border text-left transition-all duration-150 ${
+        active
+          ? 'border-emerald-500/50 bg-emerald-900/20 ring-1 ring-emerald-500/20'
+          : 'border-slate-700 bg-slate-900/40'
+      }`}>
+        <button type="button" onClick={onClick} className="w-full p-4 text-left">
+          <div className="flex items-start gap-3">
+            <div className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${active ? 'border-emerald-400' : 'border-slate-600'}`}>
+              {active && <div className="h-2 w-2 rounded-full bg-emerald-400"/>}
+            </div>
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <span className={`shrink-0 ${active ? 'text-emerald-400' : 'text-[color:var(--text-muted)]'}`}>{icon}</span>
+              <div className="min-w-0">
+                <p className={`text-sm font-bold leading-tight ${active ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)]'}`}>{label}</p>
+                <p className="type-caption text-[color:var(--text-muted)] mt-0.5 leading-tight">{sublabel}</p>
+              </div>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className={`type-metric-sm ${active ? 'text-emerald-300' : 'text-[color:var(--text-muted)]'}`}>
+                −{formatCurrency(surplus)}
+              </p>
+            </div>
+          </div>
+        </button>
+        {active && previewContent && (
+          <div className="px-4 pb-4">{previewContent}</div>
+        )}
+      </div>
+    );
+
+    const spreadPreview = (
+      <div className="mt-1">
+        <button
+          type="button"
+          onClick={() => setShowSpreadPreview(v => !v)}
+          className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors mb-2"
+        >
+          {showSpreadPreview ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
+          {showSpreadPreview ? 'Ocultar detalhes' : 'Ver detalhes por parcela'}
+        </button>
+        {showSpreadPreview && (
+          <div className="bg-slate-900/60 border border-slate-700 rounded-xl p-3 space-y-1 text-xs">
+            <div className="flex justify-between text-slate-500 pb-1 border-b border-slate-700 font-semibold">
+              <span>Parcela</span>
+              <span>Antes → Depois</span>
+            </div>
+            {pendingInstallments.map(inst => (
+              <div key={inst.id} className="flex justify-between text-slate-300">
+                <span className="text-slate-400">#{inst.number}</span>
+                <span className="font-mono">
+                  {formatCurrency(inst.amount_total)}
+                  <span className="text-slate-500 mx-1">→</span>
+                  <span className="text-emerald-300">{formatCurrency(Math.max(0, inst.amount_total - discountPerInstallment))}</span>
+                </span>
+              </div>
+            ))}
+            {pendingInstallments.length === 0 && (
+              <p className="text-slate-500 text-center py-1">Nenhuma parcela pendente após a atual.</p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+
+    return (
+      <ModalBackdrop onClose={onClose}>
+        <div className="p-5 border-b border-[color:var(--border-subtle)] bg-[color:var(--bg-soft)] flex items-center gap-3">
+          <button onClick={() => setStep(1)} className="p-2 rounded-xl text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] transition-colors">
+            <ChevronLeft size={18}/>
+          </button>
+          <div className="flex-1">
+            <p className="type-label text-emerald-400 mb-0.5">Excedente</p>
+            <p className="type-metric-lg text-emerald-300 leading-none">{formatCurrency(surplus)}</p>
+          </div>
+          <div className="text-right">
+            <p className="type-label text-[color:var(--text-muted)]">Parcela paga</p>
+            <p className="type-metric-sm text-emerald-400">{formatCurrency(outstanding)}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] transition-colors ml-1">
+            <X size={18}/>
+          </button>
+        </div>
+
+        <form onSubmit={handleStep2SurplusConfirm} className="p-5 space-y-4 overflow-y-auto max-h-[70vh]">
+          <p className="type-label text-center text-[color:var(--text-secondary)]">O que fazer com o valor excedente?</p>
+
+          <div className="space-y-2">
+            <SurplusCard
+              id="next"
+              icon={<ArrowRight size={16}/>}
+              label="Próxima parcela"
+              sublabel={surplusNextInst
+                ? `Parcela #${surplusNextInst.number} · ${formatCurrency(surplusNextInst.amount_total)} → ${formatCurrency(Math.max(0, surplusNextInst.amount_total - surplus))}`
+                : 'Descontar da parcela seguinte'}
+              active={surplusAction === 'next'}
+              onClick={() => setSurplusAction('next')}
+            />
+            <SurplusCard
+              id="last"
+              icon={<ArrowDownToLine size={16}/>}
+              label="Última parcela"
+              sublabel={surplusLastInst
+                ? `Parcela #${surplusLastInst.number} · ${formatCurrency(surplusLastInst.amount_total)} → ${formatCurrency(Math.max(0, surplusLastInst.amount_total - surplus))}`
+                : 'Descontar da última parcela do contrato'}
+              active={surplusAction === 'last'}
+              onClick={() => setSurplusAction('last')}
+            />
+            <SurplusCard
+              id="spread"
+              icon={<Layers size={16}/>}
+              label="Diminuir contrato"
+              sublabel={pendingInstallments.length > 0
+                ? `${pendingInstallments.length} parcelas restantes · desconto de ${formatCurrency(discountPerInstallment)} cada`
+                : 'Distribuir proporcionalmente entre parcelas restantes'}
+              active={surplusAction === 'spread'}
+              onClick={() => { setSurplusAction('spread'); }}
+              previewContent={spreadPreview}
+            />
+          </div>
+
+          {error && (
+            <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+              <AlertTriangle size={14}/> {error}
+            </div>
+          )}
+
+          <div className="bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] rounded-2xl p-3 type-caption space-y-1.5">
+            <div className="flex justify-between text-[color:var(--text-secondary)]">
+              <span>Parcela paga</span>
+              <span className="font-mono text-emerald-400">{formatCurrency(outstanding)}</span>
+            </div>
+            <div className="flex justify-between text-[color:var(--text-secondary)]">
+              <span>Excedente aplicado</span>
+              <span className="font-mono text-emerald-300">−{formatCurrency(surplus)}</span>
+            </div>
+            <div className="flex justify-between text-[color:var(--text-secondary)] border-t border-[color:var(--border-subtle)] pt-1.5">
+              <span>Destino</span>
+              <span className="font-bold text-[color:var(--text-primary)]">
+                {surplusAction === 'next' && (surplusNextInst ? `Parcela #${surplusNextInst.number}` : 'Próxima')}
+                {surplusAction === 'last' && (surplusLastInst ? `Parcela #${surplusLastInst.number}` : 'Última')}
+                {surplusAction === 'spread' && `${pendingInstallments.length} parcelas`}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={() => setStep(1)}
+              className="flex-1 bg-[color:var(--bg-elevated)] hover:bg-[color:var(--bg-soft)] text-[color:var(--text-secondary)] py-3.5 rounded-xl type-label flex items-center justify-center gap-1.5 transition-colors">
+              <ChevronLeft size={14}/> Voltar
+            </button>
+            <button type="submit" disabled={loading}
+              className="flex-[2] bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3.5 rounded-xl type-label flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]">
+              {loading ? <Loader2 className="animate-spin" size={16}/> : <CheckCircle2 size={16}/>}
+              {loading ? 'Processando...' : 'Confirmar tudo'}
+            </button>
+          </div>
+        </form>
+      </ModalBackdrop>
+    );
+  }
+
+  // ── Step 2 — Partial ─────────────────────────────────────────────────────────
   const { nextInst, lastInst } = context;
 
   return (
     <ModalBackdrop onClose={onClose}>
       {/* Step 2 header custom */}
-      <div className="p-5 border-b border-slate-700 bg-slate-900/30 flex items-center gap-3">
-        <button onClick={() => setStep(1)} className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-slate-700 transition-colors">
+      <div className="p-5 border-b border-[color:var(--border-subtle)] bg-[color:var(--bg-soft)] flex items-center gap-3">
+        <button onClick={() => setStep(1)} className="p-2 rounded-xl text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] transition-colors">
           <ChevronLeft size={18}/>
         </button>
         <div className="flex-1">
-          <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-0.5">Faltam</p>
-          <p className="text-xl font-black text-white tabular-nums leading-none">{formatCurrency(remainder)}</p>
+          <p className="type-label text-amber-400 mb-0.5">Faltam</p>
+          <p className="type-metric-lg text-[color:var(--text-primary)] leading-none">{formatCurrency(remainder)}</p>
         </div>
         <div className="text-right">
-          <p className="text-[10px] text-slate-500 uppercase tracking-widest">Recebido</p>
-          <p className="text-sm font-black text-emerald-400 tabular-nums">{formatCurrency(amountVal)}</p>
+          <p className="type-label text-[color:var(--text-muted)]">Recebido</p>
+          <p className="type-metric-sm text-emerald-400">{formatCurrency(amountVal)}</p>
         </div>
-        <button onClick={onClose} className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-slate-700 transition-colors ml-1">
+        <button onClick={onClose} className="p-2 rounded-xl text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] transition-colors ml-1">
           <X size={18}/>
         </button>
       </div>
 
       <form onSubmit={handleStep2Confirm} className="p-5 space-y-4 overflow-y-auto max-h-[70vh]">
-        <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest text-center">Como tratar o saldo restante?</p>
+        <p className="type-label text-center text-[color:var(--text-secondary)]">Como tratar o saldo restante?</p>
 
         {/* Opções de destino */}
         <div className="space-y-2">
@@ -431,12 +676,12 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         </div>
 
         {/* Juros */}
-        <div className="bg-slate-900/50 border border-slate-700/50 rounded-2xl p-4 space-y-3">
+        <div className="bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] rounded-2xl p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+            <span className="type-label text-[color:var(--text-secondary)] flex items-center gap-1.5">
               <TrendingUp size={12}/> Juros sobre o restante
             </span>
-            <div className="flex rounded-lg overflow-hidden border border-slate-700 text-[10px] font-black uppercase">
+            <div className="flex rounded-lg overflow-hidden border border-[color:var(--border-subtle)] type-label uppercase">
               <button type="button" onClick={() => { setUseInterest(false); setInterestPercent(''); }}
                 className={`px-3 py-1.5 transition-colors ${!useInterest ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
                 Sem juros
@@ -466,7 +711,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
               {interestAmt > 0 && (
                 <div className="flex items-center justify-between bg-amber-900/20 border border-amber-800/30 rounded-xl px-3 py-2 text-xs">
                   <span className="text-slate-400">{formatCurrency(remainder)} + {interestPercent}%</span>
-                  <span className="text-amber-300 font-black">{formatCurrency(remainderWithInterest)}</span>
+                  <span className="text-amber-300 font-semibold">{formatCurrency(remainderWithInterest)}</span>
                 </div>
               )}
             </div>
@@ -480,18 +725,18 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         )}
 
         {/* Resumo final */}
-        <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-3 text-xs space-y-1.5">
-          <div className="flex justify-between text-slate-400">
+        <div className="bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] rounded-2xl p-3 type-caption space-y-1.5">
+          <div className="flex justify-between text-[color:var(--text-secondary)]">
             <span>Recebido agora</span>
             <span className="font-mono text-emerald-400">{formatCurrency(amountVal)}</span>
           </div>
-          <div className="flex justify-between text-slate-400">
+          <div className="flex justify-between text-[color:var(--text-secondary)]">
             <span>Saldo a destinar</span>
             <span className="font-mono text-amber-300">{formatCurrency(remainderWithInterest)}</span>
           </div>
-          <div className="flex justify-between text-slate-400 border-t border-slate-700/50 pt-1.5">
+          <div className="flex justify-between text-[color:var(--text-secondary)] border-t border-[color:var(--border-subtle)] pt-1.5">
             <span>Destino</span>
-            <span className="font-bold text-white capitalize">
+            <span className="font-bold text-[color:var(--text-primary)] capitalize">
               {deferAction === 'last' && (lastInst ? `Parcela #${lastInst.number}` : 'Última')}
               {deferAction === 'next' && (nextInst ? `Parcela #${nextInst.number}` : 'Próxima')}
               {deferAction === 'new' && 'Nova parcela extra'}
@@ -502,11 +747,11 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         {/* Botões */}
         <div className="flex gap-2 pt-1">
           <button type="button" onClick={() => setStep(1)}
-            className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-1.5 transition-colors">
+            className="flex-1 bg-[color:var(--bg-elevated)] hover:bg-[color:var(--bg-soft)] text-[color:var(--text-secondary)] py-3.5 rounded-xl type-label flex items-center justify-center gap-1.5 transition-colors">
             <ChevronLeft size={14}/> Voltar
           </button>
           <button type="submit" disabled={loading || (useInterest && !interestPercent)}
-            className="flex-[2] bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]">
+            className="flex-[2] bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3.5 rounded-xl type-label flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]">
             {loading ? <Loader2 className="animate-spin" size={16}/> : <CheckCircle2 size={16}/>}
             {loading ? 'Processando...' : 'Confirmar tudo'}
           </button>
@@ -594,7 +839,7 @@ export const RefinanceModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSu
 
         <div className="space-y-4">
           <div>
-            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+            <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">
               Valor de Entrada (Pago Hoje)
             </label>
             <div className="relative">
@@ -608,7 +853,7 @@ export const RefinanceModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSu
           </div>
           
           <div>
-            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+            <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">
               Nova Data de Vencimento
             </label>
             <div className="relative">
@@ -630,7 +875,7 @@ export const RefinanceModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSu
 
         <button 
           type="submit" disabled={loading}
-          className="w-full bg-purple-600 hover:bg-purple-500 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-purple-900/20 transition-all active:scale-[0.98]"
+          className="w-full bg-purple-600 hover:bg-purple-500 text-white py-4 rounded-xl type-label flex items-center justify-center gap-2 shadow-lg shadow-purple-900/20 transition-all active:scale-[0.98]"
         >
           {loading ? <Loader2 className="animate-spin" size={18}/> : <RefreshCw size={18}/>}
           {loading ? 'Calculando...' : 'Confirmar Refinanciamento'}
@@ -717,7 +962,7 @@ export const EditModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess
 
         <div className="space-y-4">
           <div>
-            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+            <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">
               Nova Data de Vencimento
             </label>
             <div className="relative">
@@ -731,7 +976,7 @@ export const EditModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess
           </div>
 
           <div>
-            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+            <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">
               Novo Valor Total (Principal + Juros)
             </label>
             <div className="relative">
@@ -753,7 +998,7 @@ export const EditModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess
 
         <button
           type="submit" disabled={loading}
-          className="w-full bg-sky-600 hover:bg-sky-500 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-sky-900/20 transition-all active:scale-[0.98]"
+          className="w-full bg-sky-600 hover:bg-sky-500 text-white py-4 rounded-xl type-label flex items-center justify-center gap-2 shadow-lg shadow-sky-900/20 transition-all active:scale-[0.98]"
         >
           {loading ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>}
           {loading ? 'Salvando...' : 'Salvar Alterações'}
@@ -817,20 +1062,20 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
 
       <form onSubmit={handleSubmit} className="p-8 space-y-5">
         <div className="bg-[color:var(--accent-caution-bg)] border border-[color:var(--accent-caution-border)] p-4 rounded-2xl">
-          <p className="text-[10px] text-[color:var(--accent-caution)] font-black uppercase tracking-widest mb-1 opacity-80">Parcela Original</p>
-          <p className="text-2xl font-black text-[color:var(--text-primary)]">{formatCurrency(outstanding)}</p>
-          <p className="text-[10px] text-[color:var(--accent-caution)] mt-1 font-bold uppercase opacity-70">Ainda em aberto</p>
+          <p className="type-label text-[color:var(--accent-caution)] mb-1 opacity-80">Parcela Original</p>
+          <p className="type-metric-xl text-[color:var(--text-primary)]">{formatCurrency(outstanding)}</p>
+          <p className="type-label text-[color:var(--accent-caution)] mt-1 opacity-70">Ainda em aberto</p>
         </div>
 
         {totalInterestPaid > 0 && (
           <div className="bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] p-3 rounded-xl flex justify-between items-center">
-            <span className="text-[10px] text-[color:var(--text-muted)] font-black uppercase tracking-widest">Juros já cobrados</span>
-            <span className="text-[color:var(--accent-caution)] font-black text-sm">{formatCurrency(totalInterestPaid)}</span>
+            <span className="type-label text-[color:var(--text-muted)]">Juros já cobrados</span>
+            <span className="text-[color:var(--accent-caution)] font-semibold text-sm">{formatCurrency(totalInterestPaid)}</span>
           </div>
         )}
 
         <div>
-          <label className="block text-[10px] font-black text-[color:var(--text-muted)] uppercase tracking-widest mb-2 ml-1">
+          <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">
             Valor dos Juros (R$)
           </label>
           <div className="relative">
@@ -846,7 +1091,7 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
 
         <div className="bg-[color:var(--accent-caution-bg)] border border-[color:var(--accent-caution-border)] p-3 rounded-xl flex gap-2.5 items-start">
           <AlertTriangle size={14} className="text-[color:var(--accent-caution)] shrink-0 mt-0.5"/>
-          <p className="text-[10px] text-[color:var(--text-secondary)] leading-relaxed font-medium">
+          <p className="type-caption text-[color:var(--text-secondary)] leading-relaxed font-medium">
             O valor da parcela <strong>não será descontado</strong>. A parcela continua em aberto após este registro.
           </p>
         </div>
@@ -859,7 +1104,7 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
 
         <button
           type="submit" disabled={loading}
-          className="w-full bg-[color:var(--accent-caution-btn)] hover:bg-[color:var(--accent-caution-btn-hover)] text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]"
+          className="w-full bg-[color:var(--accent-caution-btn)] hover:bg-[color:var(--accent-caution-btn-hover)] text-white py-4 rounded-xl type-label flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]"
         >
           {loading ? <Loader2 className="animate-spin" size={18}/> : <Percent size={18}/>}
           {loading ? 'Registrando...' : 'Registrar Pagamento de Juros'}

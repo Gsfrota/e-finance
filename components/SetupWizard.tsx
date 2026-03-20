@@ -37,8 +37,8 @@ const SetupWizard: React.FC = () => {
                 <Database size={32} />
             </div>
             <div>
-                <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Conexão Ativa</h1>
-                <p className="text-teal-500 text-xs font-black uppercase tracking-widest">Enterprise Database Bridge</p>
+                <h1 className="type-title uppercase text-white">Conexão Ativa</h1>
+                <p className="type-label text-teal-500">Enterprise Database Bridge</p>
             </div>
           </div>
 
@@ -54,7 +54,7 @@ const SetupWizard: React.FC = () => {
 
           <form onSubmit={handleSave} className="space-y-6">
             <div>
-              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Project URL</label>
+              <label className="block type-label text-slate-500 mb-2 ml-1">Project URL</label>
               <input 
                 required 
                 type="url" 
@@ -65,7 +65,7 @@ const SetupWizard: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">API Anon Key</label>
+              <label className="block type-label text-slate-500 mb-2 ml-1">API Anon Key</label>
               <textarea 
                 required 
                 rows={4}
@@ -82,13 +82,13 @@ const SetupWizard: React.FC = () => {
                 </div>
             )}
 
-            <button type="submit" className="w-full bg-teal-600 hover:bg-teal-500 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-xl shadow-teal-950/40 flex items-center justify-center gap-3">
+            <button type="submit" className="w-full bg-teal-600 hover:bg-teal-500 text-white py-5 rounded-2xl type-label transition-all shadow-xl shadow-teal-950/40 flex items-center justify-center gap-3">
                 Confirmar Credenciais <ArrowRight size={18} />
             </button>
           </form>
 
           <div className="mt-8 pt-8 border-t border-slate-700/50 flex flex-col items-center gap-4 text-center">
-            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+            <p className="type-label text-slate-500 flex items-center gap-2">
                 <ShieldCheck size={14} className="text-teal-600"/> Conexão Encriptada | SSL Ativo
             </p>
           </div>

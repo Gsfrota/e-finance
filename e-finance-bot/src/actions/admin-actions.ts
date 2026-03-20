@@ -932,6 +932,7 @@ function normalizeNameForCompare(name: string): string {
 
 export function extractDebtorNameSimple(text: string): string | null {
   const cleaned = text
+    .replace(/\b(?:criar?|novo?|contrato|cadastrar?|registrar?|adicionar?)\b/gi, '') // keywords de comando
     .replace(/\d{3}\.?\d{3}\.?\d{3}-?\d{2}/g, '')    // CPF
     .replace(/R?\$?\s*\d+[\d.,]*/g, '')                // valores
     .replace(/\d+\s*(?:parcelas?|x|vezes?|%)/gi, '')   // parcelas/taxa

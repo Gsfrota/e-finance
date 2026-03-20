@@ -141,4 +141,20 @@ describe('intent router', () => {
     expect(routed.fallbackReason).toBe('fast_mode_requires_full_route');
     expect(mocks.classifyIntentCompact).not.toHaveBeenCalled();
   });
+
+  // Saudações devem mapear para 'saudacao', não 'ajuda'
+  it.each([
+    ['oi', 'saudacao'],
+    ['oi bot', 'saudacao'],
+    ['oi, tudo bem?', 'saudacao'],
+    ['oi bot, teste pós-deploy', 'saudacao'],
+    ['olá pessoal', 'saudacao'],
+    ['bom dia, como vai?', 'saudacao'],
+    ['boa tarde amigo', 'saudacao'],
+  ])('saudação "%s" → intent saudacao', async (input, expectedIntent) => {
+    const routed = await routeIntent(input, []);
+    expect(routed.intent).toBe(expectedIntent);
+    expect(routed.source).toBe('rule');
+    expect(mocks.classifyIntentCompact).not.toHaveBeenCalled();
+  });
 });

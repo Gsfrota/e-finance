@@ -165,10 +165,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </div>
             <div>
               <p className="section-kicker mb-1">Plataforma Operacional</p>
-              <div className="font-display text-5xl leading-none tracking-tight text-[color:var(--text-primary)]">
+              <div className="type-display text-[color:var(--text-primary)]">
                 Juros Certo
               </div>
-              <p className="mt-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--accent-brass)]">
+              <p className="mt-1.5 type-caption text-[color:var(--accent-brass)]">
                 Gestão de crédito
               </p>
             </div>
@@ -176,10 +176,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
           <div className="relative z-10 max-w-2xl">
             <p className="section-kicker mb-4">Controle de crédito</p>
-            <h1 className="font-display max-w-xl text-6xl leading-[0.92] text-[color:var(--text-primary)]">
+            <h1 className="type-display max-w-xl text-[color:var(--text-primary)]">
               Crédito, cobrança e caixa em uma única operação.
             </h1>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-[color:var(--text-secondary)]">
+            <p className="mt-6 max-w-xl type-body text-[color:var(--text-secondary)]">
               Organize carteira, acompanhe parcelas, valide rentabilidade e mantenha o fluxo financeiro com leitura clara do que venceu, do que entrou e do que ainda está aberto.
             </p>
 
@@ -208,7 +208,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </div>
           </div>
 
-          <div className="relative z-10 flex items-center justify-between border-t border-white/10 pt-6 text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-[color:var(--text-faint)]">
+          <div className="relative z-10 flex items-center justify-between border-t border-white/10 pt-6 type-caption text-[color:var(--text-faint)]">
             <span>© 2026 Juros Certo</span>
             <span>Infraestrutura operacional</span>
           </div>
@@ -226,26 +226,26 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <div className="panel-card rounded-[2rem] p-8 sm:p-10" style={{ boxShadow: 'var(--shadow-float)' }}>
               <div className="mb-8 space-y-3">
                 <p className="section-kicker">Acesso seguro</p>
-                <h2 className="font-display gradient-underline text-5xl leading-none text-[color:var(--text-primary)]">{getTitle()}</h2>
-                <p className="mt-5 max-w-md text-sm leading-7 text-[color:var(--text-secondary)]">{getSubtitle()}</p>
+                <h2 className="type-display gradient-underline text-[color:var(--text-primary)]">{getTitle()}</h2>
+                <p className="mt-5 max-w-md type-body text-[color:var(--text-secondary)]">{getSubtitle()}</p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
                 {authMode === 'signUpAdmin' && (
                     <div className="animate-fade-in-down">
-                        <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Organização</label>
+                        <label className="mb-2 block type-label text-[color:var(--text-faint)]">Organização</label>
                         <input required type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={baseInputClass} placeholder="Nome da organização" />
                     </div>
                 )}
                 {(authMode === 'signUpAdmin' || authMode === 'signUpInvited') && (
                     <div>
-                      <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Nome completo</label>
+                      <label className="mb-2 block type-label text-[color:var(--text-faint)]">Nome completo</label>
                       <input required type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className={baseInputClass} placeholder="Seu nome" />
                     </div>
                 )}
                 {authMode === 'signUpInvited' && (
                      <div>
-                        <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Código de convite</label>
+                        <label className="mb-2 block type-label text-[color:var(--text-faint)]">Código de convite</label>
                         <div className="relative">
                           <Key className="absolute left-4 top-4 text-[color:var(--text-faint)]" size={16} />
                           <input required type="text" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} className={`${baseInputClass} pl-12 font-mono tracking-[0.2em]`} placeholder="CÓDIGO" />
@@ -254,12 +254,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 )}
 
                 <div>
-                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">E-mail</label>
+                  <label className="mb-2 block type-label text-[color:var(--text-faint)]">E-mail</label>
                   <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={baseInputClass} placeholder="seu@email.com" />
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Senha</label>
+                  <label className="mb-2 block type-label text-[color:var(--text-faint)]">Senha</label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-4 text-[color:var(--text-faint)]" size={16} />
                     <input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} className={`${baseInputClass} pl-12`} placeholder="Senha de acesso" />

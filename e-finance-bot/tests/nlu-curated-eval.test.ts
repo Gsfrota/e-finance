@@ -153,9 +153,11 @@ describe('NLU curated offline evaluation', () => {
 
       // --- SHARED: ajuda ---
       { text: 'ajuda', expected: 'ajuda' },
-      { text: 'bom dia', expected: 'ajuda' },
-      { text: 'oi', expected: 'ajuda' },
       { text: '/ajuda', expected: 'ajuda' },
+
+      // --- SHARED: saudacao ---
+      { text: 'bom dia', expected: 'saudacao' },
+      { text: 'oi', expected: 'saudacao' },
 
       // --- DEBTOR: ver_minhas_parcelas ---
       { text: 'minhas parcelas', expected: 'ver_minhas_parcelas' },
