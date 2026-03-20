@@ -128,7 +128,7 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
   const statusLabel = isPaid ? 'Pagamento efetivado'
     : isPartial ? 'Pagamento parcial'
     : isLate ? 'Pagamento em atraso'
-    : 'Pagamento agendado';
+    : 'Aguardando vencimento';
 
   // History sub-view
   if (showHistory && (installment as any).investment) {
@@ -230,7 +230,7 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
           {/* Detail rows */}
           <div className="space-y-3">
             {isPaid && activeInst.paid_at && (
-              <DetailRow label="Agendamento para pagamento" value={fmtDatetime(activeInst.paid_at)} />
+              <DetailRow label="Data do pagamento" value={fmtDatetime(activeInst.paid_at)} />
             )}
             <DetailRow label="Valor da parcela" value={fmtMoney(normalizeNum(activeInst.amount_total))} />
             {activeInst.amount_interest != null && normalizeNum(activeInst.amount_interest) > 0 && (
