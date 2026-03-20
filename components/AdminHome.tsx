@@ -97,11 +97,12 @@ const useHomeData = (tenantId?: string) => {
 
 // ─── Sub-página Pagamentos de Hoje ───────────────────────────────────────────
 interface PagaramHojePageProps {
-  clientesPageramHoje: Array<{ name: string; parcelas: any[] }>;
+  clientesPageramHoje: Array<{ id: string; name: string; parcelas: any[] }>;
   onBack: () => void;
+  onClientClick: (payerId: string) => void;
 }
 
-const PagaramHojePage: React.FC<PagaramHojePageProps> = ({ clientesPageramHoje, onBack }) => (
+const PagaramHojePage: React.FC<PagaramHojePageProps> = ({ clientesPageramHoje, onBack, onClientClick }) => (
   <div className="space-y-6 pb-12 animate-fade-in">
     <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
       <button
@@ -124,12 +125,16 @@ const PagaramHojePage: React.FC<PagaramHojePageProps> = ({ clientesPageramHoje, 
     ) : (
       <div className="space-y-3">
         {clientesPageramHoje.map(cliente => (
-          <div
-            key={cliente.name}
-            className="panel-card rounded-[1.6rem] px-5 py-4 border border-white/[0.06]"
+          <button
+            key={cliente.id}
+            onClick={() => onClientClick(cliente.id)}
+            className="w-full panel-card rounded-[1.6rem] px-5 py-4 border border-white/[0.06] text-left hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer"
           >
-            <div className="text-sm font-bold text-[color:var(--text-primary)] mb-2">
-              {cliente.name}
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-bold text-[color:var(--text-primary)]">
+                {cliente.name}
+              </div>
+              <ChevronRight size={16} className="text-[color:var(--text-faint)]" />
             </div>
             {cliente.parcelas.map((p: any) => (
               <div
@@ -144,7 +149,7 @@ const PagaramHojePage: React.FC<PagaramHojePageProps> = ({ clientesPageramHoje, 
                 </div>
               </div>
             ))}
-          </div>
+          </button>
         ))}
       </div>
     )}
@@ -202,12 +207,12 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
 
   // ─── Agrupar parcelas pagas por cliente ───────────────────────────────────
   const clientesPageramHoje = useMemo(() => {
-    const map = new Map<string, { name: string; parcelas: typeof parcelasPagasHoje }>();
+    const map = new Map<string, { id: string; name: string; parcelas: typeof parcelasPagasHoje }>();
     parcelasPagasHoje.forEach(p => {
       const payer = (p as any).investment?.payer;
       if (!payer?.id) return;
       if (!map.has(payer.id)) {
-        map.set(payer.id, { name: payer.full_name || 'Cliente', parcelas: [] });
+        map.set(payer.id, { id: payer.id, name: payer.full_name || 'Cliente', parcelas: [] });
       }
       map.get(payer.id)!.parcelas.push(p);
     });
@@ -255,6 +260,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
       <PagaramHojePage
         clientesPageramHoje={clientesPageramHoje}
         onBack={() => setSubView('home')}
+        onClientClick={() => onNavigate(AppView.CONTRACTS)}
       />
     );
   }
@@ -796,7 +802,11 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
               </button>
               <button
                 onClick={() => clientesQuePageramCount > 0 ? setSubView('pagaram-hoje') : undefined}
-                className="rounded-2xl p-4 text-left transition-all hover:shadow-md active:scale-[0.98]"
+                className={`rounded-2xl p-4 text-left transition-all ${
+                  clientesQuePageramCount > 0
+                    ? 'hover:shadow-md active:scale-[0.98] cursor-pointer'
+                    : 'opacity-50 cursor-default'
+                }`}
                 style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
               >
                 <Calendar size={24} style={{ color: 'var(--header-blue)' }} className="mb-2" />
