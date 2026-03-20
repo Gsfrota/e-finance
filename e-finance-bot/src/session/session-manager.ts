@@ -34,6 +34,7 @@ export interface SessionContext {
   pendingAction?: string;
   pendingStep?: number;
   pendingData?: Record<string, unknown>;
+  pendingActionAt?: string;
   lastIntent?: string;
   workingState?: ConversationWorkingState;
 }

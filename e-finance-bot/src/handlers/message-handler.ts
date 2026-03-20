@@ -1118,11 +1118,18 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
     }
 
     if (session.context.pendingAction) {
+      const pendingActionName = session.context.pendingAction;
       await saveMessageTimed(session.id, 'user', textToProcess, userMediaType);
       let pendingResponse = await handlePendingAction(session, textToProcess, tenantId, profileId, msg.messageId);
-      pendingResponse = prependAudioPreview(pendingResponse, audioTranscript?.text);
-      await saveMessageTimed(session.id, 'assistant', pendingResponse);
-      return finalize(pendingResponse, { action: `pending:${session.context.pendingAction}` });
+      if (pendingResponse === null) {
+        // Wizard escape: clear context already done inside handlePendingAction, fall through to normal pipeline
+        // Re-read updated session context (pendingAction cleared)
+        session.context.pendingAction = undefined;
+      } else {
+        pendingResponse = prependAudioPreview(pendingResponse, audioTranscript?.text);
+        await saveMessageTimed(session.id, 'assistant', pendingResponse);
+        return finalize(pendingResponse, { action: `pending:${pendingActionName}` });
+      }
     }
 
     const followupPlan = await timed('followupMs', async () => resolveFollowup(textToProcess, workingState));
@@ -1162,7 +1169,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
         }),
       }));
 
-      actionPlan = createActionPlan(understanding, textToProcess);
+      actionPlan = createActionPlan(understanding, textToProcess, role);
       telemetry.intent = understanding.intent;
       telemetry.confidence = understanding.confidence;
       telemetry.routeSource = understanding.source;
@@ -1381,6 +1388,7 @@ async function startPaymentByContractFlow(
 
     await updateSessionContext(session.id, {
       pendingAction: 'marcar_pagamento_contrato',
+      pendingActionAt: new Date().toISOString(),
       pendingStep: 2,
       pendingData: {
         contractId,
@@ -1398,6 +1406,7 @@ async function startPaymentByContractFlow(
 
   await updateSessionContext(session.id, {
     pendingAction: 'marcar_pagamento_contrato',
+    pendingActionAt: new Date().toISOString(),
     pendingStep: 1,
     pendingData: {
       contractId,
@@ -1458,6 +1467,7 @@ async function startPaymentByDebtorMonthFlow(
     );
     await updateSessionContext(session.id, {
       pendingAction: 'marcar_pagamento_por_mes',
+      pendingActionAt: new Date().toISOString(),
       pendingStep: 1,
       pendingData: {
         debtorName: result.debtorName,
@@ -1470,6 +1480,7 @@ async function startPaymentByDebtorMonthFlow(
   const selected = result.installments[0];
   await updateSessionContext(session.id, {
     pendingAction: 'marcar_pagamento_por_mes',
+    pendingActionAt: new Date().toISOString(),
     pendingStep: 2,
     pendingData: { selectedInstallment: selected } as unknown as Record<string, unknown>,
   });
@@ -1555,6 +1566,7 @@ async function dispatchIntent(
         if (!draft.debtor_cpf || !isValidCpf(draft.debtor_cpf)) {
           await updateSessionContext(session.id, {
             pendingAction: 'criar_contrato',
+            pendingActionAt: new Date().toISOString(),
             pendingStep: 11,
             pendingData: draft as unknown as Record<string, unknown>,
           });
@@ -1563,6 +1575,7 @@ async function dispatchIntent(
 
         await updateSessionContext(session.id, {
           pendingAction: 'criar_contrato',
+          pendingActionAt: new Date().toISOString(),
           pendingStep: 2,
           pendingData: draft as unknown as Record<string, unknown>,
         });
@@ -1586,6 +1599,7 @@ async function dispatchIntent(
         };
         await updateSessionContext(session.id, {
           pendingAction: 'criar_contrato',
+          pendingActionAt: new Date().toISOString(),
           pendingStep: 2,
           pendingData: draft as unknown as Record<string, unknown>,
         });
@@ -1594,6 +1608,7 @@ async function dispatchIntent(
 
       await updateSessionContext(session.id, {
         pendingAction: 'criar_contrato',
+        pendingActionAt: new Date().toISOString(),
         pendingStep: nextStep,
         pendingData: pendingData as Record<string, unknown>,
       });
@@ -1636,6 +1651,7 @@ async function dispatchIntent(
       if (installments.length === 0) return 'Nenhuma parcela pendente encontrada.';
       await updateSessionContext(session.id, {
         pendingAction: 'marcar_pagamento',
+        pendingActionAt: new Date().toISOString(),
         pendingStep: 1,
         pendingData: { installments: installments.slice(0, 5) as unknown as Record<string, unknown> },
       });
@@ -1660,6 +1676,7 @@ async function dispatchIntent(
       if (candidates.length > 1) {
         await updateSessionContext(session.id, {
           pendingAction: 'buscar_usuario_selecao',
+          pendingActionAt: new Date().toISOString(),
           pendingStep: 1,
           pendingData: {
             query,
@@ -1786,12 +1803,39 @@ async function handlePendingAction(
   tenantId: string,
   profileId: string,
   messageId: string
-): Promise<string> {
-  const { pendingAction, pendingStep, pendingData } = session.context;
+): Promise<string | null> {
+  const { pendingAction, pendingStep, pendingData, pendingActionAt } = session.context;
 
+  // Camada 3 — Timeout automático: wizard travado há mais de 30 minutos
+  if (pendingActionAt) {
+    const ageMs = Date.now() - new Date(pendingActionAt).getTime();
+    if (ageMs > 30 * 60 * 1000) {
+      await clearSessionContext(session.id);
+      return 'Sua ação anterior expirou. Pode começar de novo.';
+    }
+  }
+
+  // Camada 1a — Cancelamento explícito
   if (/^(não|nao|cancela|cancelar|para|sair)$/i.test(text.trim())) {
     await clearSessionContext(session.id);
     return 'Ação cancelada. Pode me pedir outra coisa.';
+  }
+
+  // Camada 1b — Saudações e comandos universais: limpa wizard e cai no pipeline normal
+  if (/^(oi(?:[^a-zA-Z].*)?|ol[aá](?:[^a-zA-Z].*)?|bom dia(?:[^a-zA-Z].*)?|boa tarde(?:[^a-zA-Z].*)?|boa noite(?:[^a-zA-Z].*)?|menu|ajuda|\/help|\/ajuda|\/start|\/dashboard|dashboard|resumo)$/i.test(text.trim())) {
+    await clearSessionContext(session.id);
+    return null; // cai no pipeline normal
+  }
+
+  // Camada 2 — Escape por intent alternativo para todos os wizards (exceto etapa de confirmação)
+  const isConfirmationStep = pendingAction === 'criar_contrato' && pendingStep === 2;
+  if (!isConfirmationStep) {
+    const trimmed = text.trim();
+    const isEscapeIntent = /cobrar\s+(?:hoje|amanhã|amanha)|quem\s+(?:devo\s+cobrar|me\s+deve|tenho\s+que\s+cobrar)|receb[ií]veis|quanto\s+(?:vou\s+)?receber|dashboard|resumo|ver\s+relat[oó]rio|quem\s+est[aá]\s+atrasad/i.test(trimmed);
+    if (isEscapeIntent) {
+      await clearSessionContext(session.id);
+      return null;
+    }
   }
 
   if (pendingAction === 'buscar_usuario_selecao') {
@@ -1929,6 +1973,7 @@ async function handlePendingAction(
             };
             await updateSessionContext(session.id, {
               pendingAction: 'criar_contrato',
+              pendingActionAt: new Date().toISOString(),
               pendingStep: 2,
               pendingData: draft as unknown as Record<string, unknown>,
             });
@@ -1936,6 +1981,7 @@ async function handlePendingAction(
           }
           await updateSessionContext(session.id, {
             pendingAction: 'criar_contrato',
+            pendingActionAt: new Date().toISOString(),
             pendingStep: nextStep,
             pendingData: merged as Record<string, unknown>,
           });
@@ -1950,6 +1996,7 @@ async function handlePendingAction(
       if (!normalizedCpf || !isValidCpf(normalizedCpf)) {
         await updateSessionContext(session.id, {
           pendingAction: 'criar_contrato',
+          pendingActionAt: new Date().toISOString(),
           pendingStep: 11,
           pendingData: draft as unknown as Record<string, unknown>,
         });
@@ -1963,6 +2010,7 @@ async function handlePendingAction(
 
       await updateSessionContext(session.id, {
         pendingAction: 'criar_contrato',
+        pendingActionAt: new Date().toISOString(),
         pendingStep: 2,
         pendingData: draft as unknown as Record<string, unknown>,
       });
@@ -1977,8 +2025,27 @@ async function handlePendingAction(
       }
 
       const extractedCpf = extractCpfFromText(text);
-      if (!extractedCpf) return 'CPF não reconhecido. Envie o CPF com 11 dígitos (com ou sem máscara).';
-      if (!isValidCpf(extractedCpf)) return 'CPF inválido. Verifique os dígitos e envie novamente.';
+      if (!extractedCpf || !isValidCpf(extractedCpf)) {
+        // No valid CPF — accumulate any other fields provided (amount, rate, installments)
+        // but protect debtor_name if already set (F7)
+        const otherEntities = extractAllContractEntities(text);
+        delete otherEntities.debtor_cpf; // don't store invalid CPF
+        if (partialDraft.debtor_name) delete otherEntities.debtor_name; // protect existing name
+        const mergedPartial = mergeContractEntities({ ...partialDraft }, otherEntities);
+        const acknowledgeMsg = Object.keys(otherEntities).length > 0
+          ? ` Anotei os outros dados fornecidos.`
+          : '';
+        await updateSessionContext(session.id, {
+          pendingAction: 'criar_contrato',
+          pendingActionAt: new Date().toISOString(),
+          pendingStep: 11,
+          pendingData: mergedPartial as Record<string, unknown>,
+        });
+        const cpfMsg = !extractedCpf
+          ? 'CPF não reconhecido. Envie o CPF com 11 dígitos (com ou sem máscara).'
+          : 'CPF inválido. Verifique os dígitos e envie novamente.';
+        return `${cpfMsg}${acknowledgeMsg}`;
+      }
 
       // Extrai campos bônus do texto
       const bonusEntities = extractAllContractEntities(text);
@@ -1999,6 +2066,7 @@ async function handlePendingAction(
         }
         await updateSessionContext(session.id, {
           pendingAction: 'criar_contrato',
+          pendingActionAt: new Date().toISOString(),
           pendingStep: 2,
           pendingData: draft as unknown as Record<string, unknown>,
         });
@@ -2007,6 +2075,7 @@ async function handlePendingAction(
 
       await updateSessionContext(session.id, {
         pendingAction: 'criar_contrato',
+        pendingActionAt: new Date().toISOString(),
         pendingStep: nextStep,
         pendingData: merged as Record<string, unknown>,
       });
@@ -2047,6 +2116,7 @@ async function handlePendingAction(
         };
         await updateSessionContext(session.id, {
           pendingAction: 'criar_contrato',
+          pendingActionAt: new Date().toISOString(),
           pendingStep: 2,
           pendingData: draft as unknown as Record<string, unknown>,
         });
@@ -2055,6 +2125,7 @@ async function handlePendingAction(
 
       await updateSessionContext(session.id, {
         pendingAction: 'criar_contrato',
+        pendingActionAt: new Date().toISOString(),
         pendingStep: nextStep12,
         pendingData: merged12 as Record<string, unknown>,
       });
@@ -2096,6 +2167,7 @@ async function handlePendingAction(
         };
         await updateSessionContext(session.id, {
           pendingAction: 'criar_contrato',
+          pendingActionAt: new Date().toISOString(),
           pendingStep: 2,
           pendingData: draft as unknown as Record<string, unknown>,
         });
@@ -2104,6 +2176,7 @@ async function handlePendingAction(
 
       await updateSessionContext(session.id, {
         pendingAction: 'criar_contrato',
+        pendingActionAt: new Date().toISOString(),
         pendingStep: nextStep13,
         pendingData: merged13 as Record<string, unknown>,
       });
@@ -2142,6 +2215,7 @@ async function handlePendingAction(
 
       await updateSessionContext(session.id, {
         pendingAction: 'criar_contrato',
+        pendingActionAt: new Date().toISOString(),
         pendingStep: 2,
         pendingData: draft as unknown as Record<string, unknown>,
       });
@@ -2170,6 +2244,7 @@ async function handlePendingAction(
         if (result.status === 'conflict_name') {
           await updateSessionContext(session.id, {
             pendingAction: 'resolver_nome_cpf',
+            pendingActionAt: new Date().toISOString(),
             pendingStep: 1,
             pendingData: {
               draft,
@@ -2219,6 +2294,7 @@ Responda com *1* ou *2*.`;
           if (isTransient && retryCount < 1) {
             await updateSessionContext(session.id, {
               pendingAction: 'criar_contrato',
+              pendingActionAt: new Date().toISOString(),
               pendingStep: 2,
               pendingData: {
                 ...draft,
@@ -2273,6 +2349,7 @@ Responda com *1* ou *2*.`;
 
         await updateSessionContext(session.id, {
           pendingAction: 'marcar_pagamento_contrato',
+          pendingActionAt: new Date().toISOString(),
           pendingStep: 1,
           pendingData: {
             contractId,
@@ -2312,6 +2389,7 @@ Responda com *1* ou *2*.`;
 
       await updateSessionContext(session.id, {
         pendingAction: 'marcar_pagamento_contrato',
+        pendingActionAt: new Date().toISOString(),
         pendingStep: 2,
         pendingData: {
           contractId,
@@ -2368,6 +2446,7 @@ Responda com *1* ou *2*.`;
       const selected = installments[num - 1];
       await updateSessionContext(session.id, {
         pendingAction: 'marcar_pagamento',
+        pendingActionAt: new Date().toISOString(),
         pendingStep: 2,
         pendingData: { selectedInstallment: selected } as unknown as Record<string, unknown>,
       });
@@ -2408,6 +2487,7 @@ Responda com *1* ou *2*.`;
       const selected = installments[num - 1];
       await updateSessionContext(session.id, {
         pendingAction: 'marcar_pagamento_por_mes',
+        pendingActionAt: new Date().toISOString(),
         pendingStep: 2,
         pendingData: { selectedInstallment: selected } as unknown as Record<string, unknown>,
       });
