@@ -356,17 +356,17 @@ const DetailRow: React.FC<{
   valueColor?: string;
   labelColor?: string;
 }> = ({ label, value, danger, valueColor, labelColor }) => (
-  <div className="flex items-center justify-between py-1.5" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-    <p className="text-sm font-semibold" style={{ color: labelColor || 'var(--text-primary)' }}>{label}</p>
-    <p className="text-sm font-bold tabular-nums" style={{ color: danger ? 'var(--accent-danger)' : valueColor || 'var(--text-primary)' }}>{value}</p>
+  <div className="flex items-start justify-between gap-3 py-1.5" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+    <p className="text-sm font-semibold shrink-0" style={{ color: labelColor || 'var(--text-primary)' }}>{label}</p>
+    <p className="text-sm font-bold tabular-nums text-right" style={{ color: danger ? 'var(--accent-danger)' : valueColor || 'var(--text-primary)' }}>{value}</p>
   </div>
 );
 
 // ── Summary row helper (tela de conclusão) ────────────────────────────────────
 const SummaryRow: React.FC<{ label: string; value: string; accent?: boolean; warn?: boolean }> = ({ label, value, accent, warn }) => (
-  <div className="flex items-center justify-between">
-    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{label}</p>
-    <p className="text-sm font-bold tabular-nums" style={{ color: warn ? 'var(--accent-brass)' : accent ? 'var(--accent-positive)' : 'var(--text-primary)' }}>{value}</p>
+  <div className="flex items-start justify-between gap-3">
+    <p className="text-sm shrink-0" style={{ color: 'var(--text-muted)' }}>{label}</p>
+    <p className="text-sm font-bold tabular-nums text-right" style={{ color: warn ? 'var(--accent-brass)' : accent ? 'var(--accent-positive)' : 'var(--text-primary)' }}>{value}</p>
   </div>
 );
 
