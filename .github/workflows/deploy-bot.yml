@@ -76,8 +76,8 @@ jobs:
             --min-instances=0 \
             --max-instances=3 \
             --timeout=60 \
-            --set-secrets="UAZAPI_INSTANCE_TOKEN=UAZAPI_INSTANCE_TOKEN:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY_EFINANCE:latest,GEMINI_API_KEY=GEMINI_API_KEY_EFINANCE:latest,SCHEDULER_SECRET=SCHEDULER_SECRET_BOT:latest" \
-            --set-env-vars="UAZAPI_SERVER_URL=https://processai.uazapi.com,SUPABASE_URL=https://SUPABASE_PROJECT_URL_REMOVED"
+            --set-secrets="UAZAPI_INSTANCE_TOKEN=UAZAPI_INSTANCE_TOKEN:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY_EFINANCE:latest,GEMINI_API_KEY=GEMINI_API_KEY_EFINANCE:latest,SCHEDULER_SECRET=SCHEDULER_SECRET:latest,SUPABASE_URL=SUPABASE_URL_EFINANCE:latest" \
+            --set-env-vars="UAZAPI_SERVER_URL=https://processai.uazapi.com"
 
       - name: Get service URL and configure webhooks
         run: |
