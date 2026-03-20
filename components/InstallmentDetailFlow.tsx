@@ -145,39 +145,90 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
     );
   }
 
+  // Avatar helper
+  const avatarUrl = (installment as any).investment?.payer?.photo_url;
+  const initials  = debtorName.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase();
+
   return (
     <div className="flex h-full flex-col" style={{ background: 'var(--bg-base)' }}>
 
-      {/* ── Blue Header ─────────────────────────────────────────────────── */}
-      <div className="shrink-0 px-4 py-4 flex items-center gap-3" style={{ background: 'var(--header-blue)' }}>
-        <div className="flex-1 min-w-0">
-          <h3 className="type-subheading text-[color:var(--text-primary)] truncate">{debtorName}</h3>
-          <p className="text-xs text-white/70">Contrato: {contractId}</p>
-        </div>
-        <button className="p-1.5 text-white/70 hover:text-white">
-          <AlertTriangle size={18} />
-        </button>
-        <button onClick={onBack} className="p-1.5 text-white/70 hover:text-white">
-          <XCircle size={20} />
-        </button>
-      </div>
+      {/* ── Hero card ────────────────────────────────────────────────────── */}
+      <div className="panel-card shrink-0 rounded-t-none rounded-b-[2rem] px-5 py-4">
 
-      {/* ── Progress bar (yellow/gold) ──────────────────────────────────── */}
-      <div className="h-1.5 w-full" style={{ background: 'var(--border-subtle)' }}>
-        <div className="h-full transition-all duration-700" style={{ width: `${Math.min(100, progressPct)}%`, background: '#FFC107' }} />
+        {/* Linha superior: voltar + badge status */}
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-sm font-bold active:scale-95 transition-all"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            <ChevronLeft size={18} />
+            Voltar
+          </button>
+          {installmentStatusBadge(activeInst.status)}
+        </div>
+
+        {/* Avatar + nome */}
+        <div className="flex items-center gap-4 mb-4">
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={debtorName}
+              className="w-14 h-14 rounded-full object-cover shrink-0"
+              style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.2)' }}
+            />
+          ) : (
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold text-white shrink-0"
+              style={{ background: 'var(--header-blue)' }}
+            >
+              {initials}
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="type-subheading truncate" style={{ color: 'var(--text-primary)' }}>{debtorName}</p>
+            <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{contractName}</p>
+          </div>
+        </div>
+
+        {/* Parcela X de Y + Vencimento */}
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="rounded-xl p-3" style={{ background: 'var(--bg-soft)', border: '1px solid var(--border-subtle)' }}>
+            <p className="section-kicker mb-1">Parcela</p>
+            <p className="type-metric-lg leading-none" style={{ color: 'var(--text-primary)' }}>
+              {activeInst.number}
+              {totalInstallments > 0 && (
+                <span className="text-sm font-medium ml-1" style={{ color: 'var(--text-muted)' }}>/ {totalInstallments}</span>
+              )}
+            </p>
+          </div>
+          <div className="rounded-xl p-3" style={{ background: 'var(--bg-soft)', border: '1px solid var(--border-subtle)' }}>
+            <p className="section-kicker mb-1">Vencimento</p>
+            <p className="type-metric-sm leading-none" style={{ color: isLate ? 'var(--accent-danger)' : 'var(--text-primary)' }}>
+              {fmtDate(activeInst.due_date)}
+            </p>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        {totalInstallments > 0 && (
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border-subtle)' }}>
+            <div
+              className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${Math.min(100, progressPct)}%`, background: 'var(--accent-brass)' }}
+            />
+          </div>
+        )}
       </div>
 
       {/* ── Body ────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto">
         <div className="mx-4 my-4 rounded-2xl p-5" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
 
-          {/* Contract title */}
-          <p className="text-base font-bold uppercase" style={{ color: 'var(--text-primary)' }}>{contractName}</p>
-          <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>{statusLabel}</p>
+          <p className="section-kicker mb-3">Detalhes da Parcela</p>
 
           {/* Detail rows */}
           <div className="space-y-3">
-            <DetailRow label="Vencimento" value={fmtDate(activeInst.due_date)} danger={isLate} />
             {isPaid && activeInst.paid_at && (
               <DetailRow label="Agendamento para pagamento" value={fmtDatetime(activeInst.paid_at)} />
             )}
@@ -185,7 +236,6 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
             {activeInst.amount_interest != null && normalizeNum(activeInst.amount_interest) > 0 && (
               <DetailRow label="Juros ganho" value={fmtMoney(normalizeNum(activeInst.amount_interest))} />
             )}
-            <DetailRow label="N° da Parcela" value={String(activeInst.number)} />
             <DetailRow label="ID" value={String(activeInst.id).slice(0, 4)} />
             <DetailRow label="Valor total do contrato" value={fmtMoney(contractTotal)} />
             <DetailRow label="Total de parcelas" value={String(totalInstallments)} />
@@ -194,6 +244,9 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
               <DetailRow label="Parcelas em atraso" value={String(lateCount)} valueColor="var(--accent-danger)" labelColor="var(--accent-danger)" />
             )}
             <DetailRow label="Quantidade restante" value={String(remainingCount)} />
+            {activeInst.notes && (
+              <DetailRow label="Observação" value={activeInst.notes} />
+            )}
           </div>
 
           {/* Resumo section */}
@@ -206,7 +259,7 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
                 style={{ background: 'linear-gradient(135deg, #7B1FA2, #9C27B0)' }}
               >
                 <Clock3 size={13} />
-                Historico
+                Histórico
               </button>
             </div>
             <div className="space-y-1">
@@ -241,52 +294,52 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
         </div>
       </div>
 
-      {/* ── 3 Action Buttons (fixed bottom) ─────────────────────────────── */}
-      <div className="shrink-0 flex items-center gap-2 px-4 py-3" style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border-subtle)' }}>
+      {/* ── Action Buttons (fixed bottom, ícone acima + texto abaixo) ────── */}
+      <div className="shrink-0 flex items-stretch gap-2 px-4 py-3" style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border-subtle)' }}>
         {!isPaid ? (
           <>
             <button
               onClick={() => onAction({ type: 'pay', installment: activeInst })}
-              className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white active:scale-95 transition-all"
+              className="flex-1 flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 font-bold text-white active:scale-95 transition-all"
               style={{ background: '#4CAF50' }}
             >
-              <CheckCircle2 size={18} />
-              Receber
+              <CheckCircle2 size={20} />
+              <span className="text-[0.65rem] font-bold text-center leading-tight">Receber</span>
             </button>
             <button
               onClick={() => onAction({ type: 'miss', installment: activeInst })}
-              className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white active:scale-95 transition-all"
+              className="flex-1 flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 font-bold text-white active:scale-95 transition-all"
               style={{ background: '#F44336' }}
             >
-              <XCircle size={18} />
-              Nao recebido
+              <XCircle size={20} />
+              <span className="text-[0.65rem] font-bold text-center leading-tight">Não Recebido</span>
             </button>
             <button
               onClick={() => onAction({ type: 'refinance', installment: activeInst })}
-              className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold active:scale-95 transition-all"
+              className="flex-1 flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 font-bold active:scale-95 transition-all"
               style={{ background: '#B0BEC5', color: '#37474F' }}
             >
               <Calendar size={18} />
-              Agendar
+              <span className="text-[0.65rem] font-bold text-center leading-tight">Agendar</span>
             </button>
           </>
         ) : (
           <>
             <button
               onClick={() => onAction({ type: 'unpay', installment: activeInst })}
-              className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white active:scale-95 transition-all"
+              className="flex-1 flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 font-bold text-white active:scale-95 transition-all"
               style={{ background: '#F44336' }}
             >
-              <XCircle size={18} />
-              Reverter
+              <XCircle size={20} />
+              <span className="text-[0.65rem] font-bold text-center leading-tight">Reverter</span>
             </button>
             <button
               onClick={() => onAction({ type: 'pay', installment: activeInst })}
-              className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold active:scale-95 transition-all"
+              className="flex-1 flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 font-bold active:scale-95 transition-all"
               style={{ background: 'var(--bg-soft)', color: 'var(--text-secondary)' }}
             >
-              <FileText size={18} />
-              Comprovante
+              <FileText size={20} />
+              <span className="text-[0.65rem] font-bold text-center leading-tight">Comprovante</span>
             </button>
           </>
         )}

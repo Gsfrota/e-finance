@@ -392,46 +392,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
 
         <main className="custom-scrollbar relative flex-1 overflow-y-auto bg-[color:var(--bg-base)]">
           <div className="app-noise pointer-events-none absolute inset-0 z-0"></div>
-          <div className="relative z-10 mx-auto w-full max-w-[1680px] px-4 py-6 pb-20 md:px-8 md:py-8 md:pb-8">
+          <div className="relative z-10 mx-auto w-full max-w-[1680px] px-4 py-6 md:px-8 md:py-8">
             {children}
           </div>
         </main>
       </div>
 
-      {/* Bottom Navigation — mobile only */}
-      <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden glass-border border-t" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        <div className="flex">
-          {(
-            [
-              { icon: LayoutDashboard, label: 'Dashboard', view: AppView.DASHBOARD },
-              { icon: BriefcaseBusiness, label: 'Contratos', view: AppView.CONTRACTS },
-              { icon: Bot, label: 'Assistente', view: AppView.ASSISTANT },
-              { icon: Settings, label: 'Ajustes', view: AppView.SETTINGS },
-            ] as const
-          ).map(({ icon: Icon, label, view }) => {
-            const isActive = activeView === view;
-            return (
-              <button
-                key={label}
-                onClick={() => handleViewChange(view)}
-                className={`relative flex flex-1 flex-col items-center gap-1 py-3 text-[10px] font-extrabold uppercase tracking-wide transition-all cursor-pointer ${
-                  isActive
-                    ? 'text-[color:var(--accent-brass)]'
-                    : 'text-[color:var(--text-faint)] hover:text-[color:var(--text-muted)]'
-                }`}
-              >
-                {isActive && (
-                  <span className="absolute top-0 inset-x-0 flex justify-center pointer-events-none">
-                    <span className="h-0.5 w-8 rounded-full bg-[color:var(--accent-brass)] shadow-[0_0_8px_rgba(240,180,41,0.65)]" />
-                  </span>
-                )}
-                <Icon size={20} className={isActive ? 'drop-shadow-[0_0_6px_rgba(240,180,41,0.5)]' : ''} />
-                {label}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
     </div>
   );
 };

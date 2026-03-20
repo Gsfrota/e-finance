@@ -215,9 +215,14 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
   }, [parcelasPagasHoje]);
 
   // ─── KPI data para avisos (declarado antes dos early returns) ───────────────
+  const in3Days = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 3);
+    return d.toISOString().split('T')[0];
+  }, []);
   const parcelasVencendo = useMemo(
-    () => installments.filter(i => i.due_date === today && i.status !== 'paid').length,
-    [installments, today],
+    () => installments.filter(i => i.due_date >= today && i.due_date <= in3Days && i.status !== 'paid').length,
+    [installments, today, in3Days],
   );
   const parcelasAtrasadas = useMemo(
     () => installments.filter(i => i.due_date < today && i.status !== 'paid').length,
@@ -228,8 +233,8 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
     [installments, today],
   );
   const parcelasVencendoList = useMemo(
-    () => installments.filter(i => i.due_date === today && i.status !== 'paid'),
-    [installments, today],
+    () => installments.filter(i => i.due_date >= today && i.due_date <= in3Days && i.status !== 'paid'),
+    [installments, today, in3Days],
   );
 
   const activeInvestments = useMemo(
@@ -476,7 +481,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
             <ArrowLeft size={16} />
             Voltar
           </button>
-          <p className="section-kicker mb-2">Vencem hoje</p>
+          <p className="section-kicker mb-2">Vencem em até 3 dias</p>
           <h2 className="type-title text-[color:var(--text-primary)] md:text-5xl">
             Parcelas Vencendo
           </h2>
@@ -484,7 +489,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
 
         {parcelasVencendoList.length === 0 ? (
           <div className="panel-card rounded-[2rem] px-6 py-10 text-center border border-white/[0.06]">
-            <p className="text-sm text-[color:var(--text-secondary)]">Nenhuma parcela vencendo hoje.</p>
+            <p className="text-sm text-[color:var(--text-secondary)]">Nenhuma parcela vencendo nos próximos 3 dias.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -742,7 +747,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                   onClick: () => setSubView('contratos-vigentes'),
                 },
                 {
-                  label: 'Vencendo',
+                  label: 'Vencendo (3d)',
                   value: parcelasVencendo,
                   color: '#FF9800',
                   onClick: () => setSubView('parcelas-vencendo'),
