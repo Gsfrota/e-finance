@@ -129,11 +129,23 @@ const buildKPIs = (
         const isOverdue = (inst.due_date < todayYMD) && !isPaid && (outstanding > 0.01);
 
         if (amountPaid > 0) {
-            const contractualTotal = amountPrincipal + amountInterest;
-            const principalRatio = contractualTotal > 0 ? amountPrincipal / contractualTotal : 0;
-            
-            const principalPartPaid = amountPaid * principalRatio;
-            const profitPartPaid = amountPaid * (1 - principalRatio);
+            // Usa amount_principal diretamente em vez de proporção calculada
+            // Para parcelas pagas integralmente, o principal pago é o amount_principal
+            // Para parcelas parciais, usa proporção do que foi pago
+            const isPaidFull = inst.status === 'paid';
+            let principalPartPaid: number;
+            let profitPartPaid: number;
+
+            if (isPaidFull) {
+                principalPartPaid = amountPrincipal;
+                profitPartPaid = amountPaid - amountPrincipal;
+            } else {
+                // Parcial: proporção baseada nos campos reais
+                const contractualTotal = amountPrincipal + amountInterest;
+                const principalRatio = contractualTotal > 0 ? amountPrincipal / contractualTotal : 0;
+                principalPartPaid = amountPaid * principalRatio;
+                profitPartPaid = amountPaid * (1 - principalRatio);
+            }
 
             kpis.totalPrincipalRepaid += principalPartPaid;
             kpis.totalProfitReceived += profitPartPaid;
@@ -288,21 +300,20 @@ export const useDashboardData = (tenantId?: string) => {
       const _now2 = new Date();
       const todayYMD = `${_now2.getFullYear()}-${String(_now2.getMonth() + 1).padStart(2, '0')}-${String(_now2.getDate()).padStart(2, '0')}`;
 
-      // 1. Investimentos
-      const investmentsPromise = withRetry(async () =>
-        await supabase
+      // 1. Investimentos (filtro explícito de tenant_id para defesa em profundidade)
+      const investmentsQuery = supabase
           .from('investments')
           .select(`
             *,
             investor:profiles!investments_user_id_fkey(id, full_name, email, role),
             payer:profiles!investments_payer_id_fkey(id, full_name, email, photo_url)
           `)
-          .order('created_at', { ascending: false })
-      );
+          .order('created_at', { ascending: false });
+      if (tenantId) investmentsQuery.eq('tenant_id', tenantId);
+      const investmentsPromise = withRetry(async () => await investmentsQuery);
 
-      // 2. Todas as Parcelas
-      const installmentsPromise = withRetry(async () =>
-        await supabase
+      // 2. Todas as Parcelas (filtro explícito de tenant_id)
+      const installmentsQuery = supabase
           .from('loan_installments')
           .select(`
             *,
@@ -319,8 +330,9 @@ export const useDashboardData = (tenantId?: string) => {
               payer:profiles!investments_payer_id_fkey (id, full_name, email, photo_url)
             )
           `)
-          .order('due_date', { ascending: true })
-      );
+          .order('due_date', { ascending: true });
+      if (tenantId) installmentsQuery.eq('tenant_id', tenantId);
+      const installmentsPromise = withRetry(async () => await installmentsQuery);
 
       const [invRes, instRes] = await Promise.all([investmentsPromise, installmentsPromise]);
 

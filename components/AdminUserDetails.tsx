@@ -243,7 +243,9 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
         if (wealthData) setBalanceView(wealthData);
       }
 
-      const { data: invs, error } = await supabase
+      // Filtro explícito de tenant_id para defesa em profundidade
+      const userTenantId = prof?.tenant_id;
+      const invQuery = supabase
         .from('investments')
         .select(`
           *,
@@ -251,6 +253,8 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
         `)
         .or(`user_id.eq.${userId},payer_id.eq.${userId}`)
         .order('created_at', { ascending: false });
+      if (userTenantId) invQuery.eq('tenant_id', userTenantId);
+      const { data: invs, error } = await invQuery;
 
       if (error) throw error;
       setContracts(invs || []);

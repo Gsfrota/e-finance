@@ -163,19 +163,21 @@ const InvestorDashboard: React.FC = () => {
           <p className="mt-3 type-body text-[color:var(--text-secondary)]">Parcela dos juros já realizada sobre o capital emprestado.</p>
         </div>
 
-        {/* Card 3 — Previsto no Mês */}
+        {/* Card 3 — Previsto no Período */}
         <div className="panel-card col-span-2 rounded-[1.8rem] p-4 md:p-6 xl:col-span-1">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker mb-1">A receber</p>
-              <h3 className="type-title font-display text-[color:var(--text-primary)]">Previsto no Mês</h3>
+              <h3 className="type-title font-display text-[color:var(--text-primary)]">
+                {filter.period === 'month' ? 'Previsto no Mês' : filter.period === 'last_month' ? 'Previsto no Mês Anterior' : filter.period === 'year' ? 'Previsto no Ano' : 'Previsto (Tudo)'}
+              </h3>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(144,160,189,0.14)] text-[color:var(--accent-steel)] ring-1 ring-[rgba(144,160,189,0.16)]">
               <ArrowUpRight size={18} />
             </div>
           </div>
           <div className="mt-8 type-metric-lg text-[color:var(--accent-steel)]">{formatCurrency(metrics.expectedThisMonth)}</div>
-          <p className="mt-3 type-body text-[color:var(--text-secondary)]">Parcelas pendentes e atrasadas com vencimento neste mês.</p>
+          <p className="mt-3 type-body text-[color:var(--text-secondary)]">Parcelas pendentes e atrasadas com vencimento no período selecionado.</p>
         </div>
 
         {/* Card 4 — Capital em Giro */}
@@ -195,7 +197,7 @@ const InvestorDashboard: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        {/* Gráfico — não filtrado, mostra fluxo completo */}
+        {/* Gráfico — filtrado pelo contrato selecionado (ou todos se nenhum selecionado) */}
         <div className="panel-card rounded-[1.8rem] p-4 md:p-6">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>

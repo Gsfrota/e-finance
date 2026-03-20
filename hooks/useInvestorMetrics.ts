@@ -90,7 +90,6 @@ function computeMetrics(
   filter: InvestorFilter
 ): { metrics: InvestorMetrics; investments: EnrichedInvestment[] } {
   const bounds = getPeriodBounds(filter.period);
-  const thisMonthBounds = getPeriodBounds('month');
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -124,14 +123,16 @@ function computeMetrics(
         hasLatePayment = true;
       }
 
-      // Chart data — usa todos os contratos (sem filtro de contrato), mostra fluxo completo
-      if (!chartMap.has(monthKey)) {
-        chartMap.set(monthKey, { projected: 0, received: 0, sortDate: sortKey });
-      }
-      const chartEntry = chartMap.get(monthKey)!;
-      chartEntry.projected += Number(inst.amount_total || 0);
-      if (inst.status === 'paid' || inst.status === 'partial') {
-        chartEntry.received += Number(inst.amount_paid || 0);
+      // Chart data — respeita filtro de contrato selecionado
+      if (matchesContract) {
+        if (!chartMap.has(monthKey)) {
+          chartMap.set(monthKey, { projected: 0, received: 0, sortDate: sortKey });
+        }
+        const chartEntry = chartMap.get(monthKey)!;
+        chartEntry.projected += Number(inst.amount_total || 0);
+        if (inst.status === 'paid' || inst.status === 'partial') {
+          chartEntry.received += Number(inst.amount_paid || 0);
+        }
       }
 
       // Métricas filtradas por contrato
@@ -152,8 +153,8 @@ function computeMetrics(
           interestProfit += (amountPaid / amountTotal) * amountInterest;
         }
 
-        // Previsto no Mês: sempre mês atual, ignora período do filtro
-        if ((inst.status === 'pending' || inst.status === 'late') && inPeriod(inst.due_date + 'T00:00:00', thisMonthBounds)) {
+        // Previsto no Período: respeita período selecionado pelo filtro
+        if ((inst.status === 'pending' || inst.status === 'late') && inPeriod(inst.due_date + 'T00:00:00', bounds)) {
           expectedThisMonth += Number(inst.amount_total || 0);
         }
 

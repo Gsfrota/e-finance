@@ -9,6 +9,8 @@ export interface DebtorInstallment {
   amount_total: number;
   status: 'pending' | 'paid' | 'late' | 'partial';
   amount_paid: number;
+  fine_amount: number;
+  interest_delay_amount: number;
   contract_name: string;
   tenant_id: string;
   is_late: boolean;
@@ -78,10 +80,11 @@ export const useDebtorFinance = () => {
               asset_name,
               current_value,
               loan_installments (
-                id, number, due_date, amount_total, status, amount_paid
+                id, number, due_date, amount_total, status, amount_paid, fine_amount, interest_delay_amount
               )
             `)
             .eq('payer_id', user.id)
+            .order('created_at', { ascending: false })
         );
 
         if (error) throw error;
@@ -129,8 +132,16 @@ export const useDebtorFinance = () => {
             // Ordena parcelas: Atrasadas primeiro, depois data
             insts.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
 
-            // Calcula Métricas do Contrato
-            const balance = Math.max(0, contractTotal - contractPaid);
+            // Calcula Métricas do Contrato (inclui multas e juros de atraso no saldo devedor)
+            const totalFines = insts.reduce((sum, i) => {
+                if (i.status !== 'paid') {
+                    sum += Number(i.fine_amount || 0) + Number(i.interest_delay_amount || 0);
+                }
+                return sum;
+            }, 0);
+            const balance = Math.max(0, contractTotal + totalFines - contractPaid);
+            // progress mede o contrato original (sem encargos): ex. 80% = pagou 80% do principal+juros contratados
+            // balance já inclui multas, por isso pode ser > 0 mesmo com progress alto
             const progress = contractTotal > 0 ? (contractPaid / contractTotal) * 100 : 0;
             
             // Status do Contrato
