@@ -319,7 +319,7 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
   }
 
   if (loading) return (
-    <div className="flex justify-center items-center h-full text-teal-500 animate-pulse">
+    <div className="flex justify-center items-center h-full text-[color:var(--accent-positive)] animate-pulse">
       <Clock size={32}/> <span className="ml-3 type-label">Carregando Auditoria...</span>
     </div>
   );
@@ -331,13 +331,13 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
       </button>
 
       {/* 1. HERO PROFILE */}
-      <div className="bg-slate-800 rounded-[2.5rem] border border-slate-700 p-8 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/5 rounded-full blur-3xl -mr-12 -mt-12 pointer-events-none"></div>
+      <div className="bg-[color:var(--bg-elevated)] rounded-[2.5rem] border border-[color:var(--border-subtle)] p-5 lg:p-8 shadow-[var(--shadow-panel)] relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[color:var(--accent-positive)]/5 rounded-full blur-3xl -mr-12 -mt-12 pointer-events-none"></div>
 
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 relative z-10">
-          <div className="flex items-center gap-6">
-            <div className="w-20 h-20 bg-slate-700 rounded-3xl flex items-center justify-center border-2 border-slate-600 shadow-lg">
-              <User size={32} className="text-slate-300"/>
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 lg:w-20 lg:h-20 bg-[color:var(--bg-soft)] rounded-3xl flex items-center justify-center border-2 border-[color:var(--border-strong)] shadow-lg flex-shrink-0">
+              <User size={28} className="text-[color:var(--text-secondary)]"/>
             </div>
             <div>
               <h1 className="type-heading text-[color:var(--text-primary)]">{profile?.full_name}</h1>
@@ -354,22 +354,22 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full lg:w-auto">
-            <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full lg:w-auto">
+            <div className="bg-[color:var(--bg-base)] p-3 lg:p-4 rounded-2xl border border-[color:var(--border-subtle)] min-w-0 overflow-hidden">
               <p className="type-label text-[color:var(--text-muted)] mb-1">Total Tomado</p>
-              <p className="type-metric-lg text-[color:var(--text-primary)]">{formatCurrency(stats.totalLoaned)}</p>
+              <p className="type-metric-md lg:type-metric-lg text-[color:var(--text-primary)] truncate">{formatCurrency(stats.totalLoaned)}</p>
             </div>
-            <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50">
+            <div className="bg-[color:var(--bg-base)] p-3 lg:p-4 rounded-2xl border border-[color:var(--border-subtle)] min-w-0 overflow-hidden">
               <p className="type-label text-[color:var(--text-muted)] mb-1">Pago</p>
-              <p className="type-metric-lg text-teal-400">{formatCurrency(stats.totalPaid)}</p>
+              <p className="type-metric-md lg:type-metric-lg text-[color:var(--accent-positive)] truncate">{formatCurrency(stats.totalPaid)}</p>
             </div>
-            <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50">
+            <div className="bg-[color:var(--bg-base)] p-3 lg:p-4 rounded-2xl border border-[color:var(--border-subtle)] min-w-0 overflow-hidden">
               <p className="type-label text-[color:var(--text-muted)] mb-1">Em Aberto</p>
-              <p className="type-metric-lg text-[color:var(--text-primary)]">{formatCurrency(stats.balance)}</p>
+              <p className="type-metric-md lg:type-metric-lg text-[color:var(--text-primary)] truncate">{formatCurrency(stats.balance)}</p>
             </div>
-            <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50">
+            <div className="bg-[color:var(--bg-base)] p-3 lg:p-4 rounded-2xl border border-[color:var(--border-subtle)] min-w-0 overflow-hidden">
               <p className="type-label text-[color:var(--text-muted)] mb-1">Inadimplência</p>
-              <p className={`type-metric-lg ${stats.defaultRate > 0 ? 'text-red-400' : 'text-green-400'}`}>{stats.defaultRate.toFixed(1)}%</p>
+              <p className={`type-metric-md lg:type-metric-lg ${stats.defaultRate > 0 ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--accent-positive)]'}`}>{stats.defaultRate.toFixed(1)}%</p>
             </div>
           </div>
         </div>
@@ -377,7 +377,7 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
 
       {/* 2. WEALTH SUMMARY (INVESTOR ONLY) */}
       {balanceView && (
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 rounded-[2.5rem] border border-slate-700 shadow-xl">
+        <div className="bg-[color:var(--bg-elevated)] p-6 rounded-[2.5rem] border border-[color:var(--border-subtle)] shadow-[var(--shadow-panel)]">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2 bg-emerald-900/30 rounded-xl text-emerald-400">
               <TrendingUp size={20}/>
@@ -389,17 +389,17 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-slate-950/50 rounded-2xl p-5 border border-slate-800 relative overflow-hidden group">
+            <div className="bg-[color:var(--bg-base)]/60 rounded-2xl p-5 border border-[color:var(--border-subtle)] relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <Briefcase size={40} className="text-slate-400"/>
+                <Briefcase size={40} className="text-[color:var(--text-muted)]"/>
               </div>
               <p className="type-label text-[color:var(--text-secondary)] mb-2">Total Aportado (Bolso)</p>
               <p className="type-metric-xl text-[color:var(--text-primary)]">{formatCurrency(balanceView.total_own_capital)}</p>
             </div>
 
-            <div className="bg-slate-950/50 rounded-2xl p-5 border border-slate-800 relative overflow-hidden group">
+            <div className="bg-[color:var(--bg-base)]/60 rounded-2xl p-5 border border-[color:var(--border-subtle)] relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <TrendingUp size={40} className="text-emerald-400"/>
+                <TrendingUp size={40} className="text-[color:var(--accent-positive)]"/>
               </div>
               <p className="type-label text-emerald-400/80 mb-2">Lucro Reinvestido</p>
               <p className="type-metric-xl text-emerald-400">{formatCurrency(balanceView.total_profit_reinvested)}</p>
@@ -425,7 +425,7 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
         </h2>
 
         {contracts.length === 0 ? (
-          <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 text-center text-slate-500 font-bold">
+          <div className="bg-[color:var(--bg-elevated)] p-8 rounded-3xl border border-[color:var(--border-subtle)] text-center text-[color:var(--text-muted)] font-bold">
             Nenhum contrato encontrado para este usuário.
           </div>
         ) : (
@@ -436,11 +436,11 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
             const openCount = installments.filter(i => i.status !== 'paid').length;
             const progressPct = installments.length > 0 ? (paidCount / installments.length) * 100 : 0;
             return (
-              <div key={contract.id} className="bg-slate-800 border border-slate-700 rounded-3xl overflow-hidden shadow-lg">
+              <div key={contract.id} className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-3xl overflow-hidden shadow-[var(--shadow-card)]">
                 {/* Accordion Header */}
                 <div
                   onClick={() => toggleContract(contract.id)}
-                  className="p-6 cursor-pointer hover:bg-slate-700/30 transition-colors"
+                  className="p-5 lg:p-6 cursor-pointer hover:bg-[color:var(--bg-soft)]/30 transition-colors"
                 >
                   <div className="flex justify-between items-center">
                     <div>
@@ -465,22 +465,22 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
                         <p className="type-label text-[color:var(--text-muted)]">Valor do Contrato</p>
                         <p className="type-metric-md text-[color:var(--text-primary)]">{formatCurrency(Number(contract.current_value))}</p>
                       </div>
-                      <div className={`p-2 rounded-full bg-slate-900 text-slate-400 transition-transform ${expandedContractId === contract.id ? 'rotate-180' : ''}`}>
+                      <div className={`p-2 rounded-full bg-[color:var(--bg-base)] text-[color:var(--text-muted)] transition-transform ${expandedContractId === contract.id ? 'rotate-180' : ''}`}>
                         <ChevronDown size={20}/>
                       </div>
                     </div>
                   </div>
                   {/* Progress bar */}
-                  <div className="mt-3 h-1 bg-slate-700 rounded-full overflow-hidden">
+                  <div className="mt-3 h-1 bg-[color:var(--bg-soft)] rounded-full overflow-hidden">
                     <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${progressPct}%` }}/>
                   </div>
                 </div>
 
                 {/* Installment cards — no horizontal scroll */}
                 {expandedContractId === contract.id && (
-                  <div className="border-t border-slate-700/50 bg-slate-900/30 p-4 space-y-2">
+                  <div className="border-t border-[color:var(--border-subtle)] bg-[color:var(--bg-base)]/30 p-4 space-y-2">
                     {installments.length === 0 ? (
-                      <p className="text-center text-slate-500 text-sm py-4">Nenhuma parcela encontrada.</p>
+                      <p className="text-center text-[color:var(--text-muted)] text-sm py-4">Nenhuma parcela encontrada.</p>
                     ) : (
                       installments.map(inst => (
                         <InstallmentCard
