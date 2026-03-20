@@ -440,8 +440,10 @@ const App: React.FC = () => {
   };
 
   const loadAppData = async (sessionUser: any, fromOnboarding = false) => {
+    console.log('[LoadAppData] Starting for user:', sessionUser.email);
     const supabase = getSupabase();
     if (!supabase) {
+        console.error('[LoadAppData] Supabase client not available');
         setAppError("Conexão com banco de dados indisponível.");
         setIsLoading(false);
         return;
@@ -456,6 +458,8 @@ const App: React.FC = () => {
             .maybeSingle();
 
         if (error) throw error;
+
+        console.log('[LoadAppData] Profile query result:', dbData ? 'found' : 'not found');
 
         if (dbData && dbData.tenants) {
             setProfile(dbData);
@@ -493,6 +497,7 @@ const App: React.FC = () => {
                 && sessionUser.app_metadata?.provider != null;
             if (isOAuth) {
                 // Usuário OAuth sem perfil — precisa de onboarding completo
+                console.log('[LoadAppData] OAuth user without profile, starting onboarding');
                 setWizardMode('full');
                 setOnboardingUser(sessionUser);
                 setNeedsOnboarding(true);
@@ -519,7 +524,9 @@ const App: React.FC = () => {
         profileLoadedRef.current = true;
         setIsLoading(false);
         setCurrentView(AppView.HOME);
+        console.log('[LoadAppData] Complete, redirecting to HOME');
     } catch (e: any) {
+        console.error('[LoadAppData] Error:', e);
         logError("LoadAppData", e);
         setAppError(`Erro ao carregar seu perfil: ${e.message}`);
         setIsLoading(false);
@@ -540,18 +547,22 @@ const App: React.FC = () => {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
         if (error) logError("GetSession", error);
         if (session) {
+            console.log('[GetSession] Found session, loading app data');
             loadAppData(session.user);
         } else {
+            console.log('[GetSession] No session found, showing login');
             setIsLoading(false);
             setCurrentView(AppView.LOGIN);
         }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        console.log('[Auth State Change]', event, session?.user?.email);
         if (event === 'PASSWORD_RECOVERY') {
             setCurrentView(AppView.RESET_PASSWORD);
             setIsLoading(false);
         } else if (event === 'SIGNED_IN' && session) {
+            console.log('[SIGNED_IN] Loading app data for:', session.user.email);
             if (!profileLoadedRef.current) loadAppData(session.user);
         } else if (event === 'SIGNED_OUT') {
             profileLoadedRef.current = false;
