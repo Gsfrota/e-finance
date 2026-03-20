@@ -261,6 +261,7 @@ interface PartialContractEntities {
   amount?: number;
   rate?: number;
   installments?: number;
+  implied_installment_value?: number;
 }
 
 function extractAllContractEntities(text: string): PartialContractEntities {
@@ -275,6 +276,16 @@ function extractAllContractEntities(text: string): PartialContractEntities {
   if (rate !== null) result.rate = rate;
   const inst = extractInstallments(text);
   if (inst !== null) result.installments = inst;
+  // Detecta "N de X" ou "N parcelas de X" → guarda installment_value implícito para back-calc de taxa
+  const impliedMatch = text.match(/(\d{1,3})\s*(?:x|parcelas?|vezes?)?\s*de\s*(?:R\$\s*)?(\d+(?:[.,]\d+)?)/i);
+  if (impliedMatch?.[1] && impliedMatch?.[2]) {
+    const n = parseInt(impliedMatch[1], 10);
+    const v = parseFloat(impliedMatch[2].replace(',', '.'));
+    if (Number.isFinite(n) && Number.isFinite(v) && n >= 1 && v > 0) {
+      if (!result.installments) result.installments = n;
+      result.implied_installment_value = v;
+    }
+  }
   return result;
 }
 
@@ -288,6 +299,17 @@ function mergeContractEntities(
       merged[key] = value;
     }
   }
+  // Back-calcula taxa a partir do valor implícito de parcela (ex: "10 de 200" → taxa com principal)
+  if (
+    merged.implied_installment_value &&
+    merged.amount &&
+    merged.installments &&
+    (merged.rate === undefined || merged.rate === null)
+  ) {
+    const total = (merged.implied_installment_value as number) * (merged.installments as number);
+    const rate = ((total / (merged.amount as number)) - 1) / (merged.installments as number) * 100;
+    if (rate >= 0 && rate <= 100) merged.rate = Math.round(rate * 100) / 100;
+  }
   return merged;
 }
 
@@ -297,6 +319,9 @@ function getNextMissingStep(draft: Record<string, unknown>): number {
   if (draft.amount === undefined || draft.amount === null) return 12;
   if (draft.rate === undefined || draft.rate === null) return 13;
   if (draft.installments === undefined || draft.installments === null) return 14;
+  if (!draft.frequency) return 15;
+  if (draft.frequency === 'monthly' && (draft.due_day === undefined || draft.due_day === null)) return 16;
+  if (draft.frequency === 'weekly' && (draft.weekday === undefined || draft.weekday === null)) return 16;
   return 2;
 }
 
@@ -309,6 +334,10 @@ function getStepPrompt(step: number, draft: Record<string, unknown>): string {
     case 12: return 'Qual é o *valor principal* emprestado? (Ex: *R$ 5.000* ou *20 mil*)';
     case 13: return 'Qual é a *taxa de juros mensal* (% a.m.)? Se não houver juros, responda *pular*.';
     case 14: return 'Quantas *parcelas mensais*? Se for uma parcela única, responda *pular*.';
+    case 15: return 'Qual a *modalidade de cobrança*?\n1️⃣ Mensal\n2️⃣ Semanal\n3️⃣ Diária';
+    case 16: return draft.frequency === 'weekly'
+      ? 'Qual o *dia da semana*?\n1️⃣ Seg  2️⃣ Ter  3️⃣ Qua  4️⃣ Qui  5️⃣ Sex  6️⃣ Sáb  7️⃣ Dom'
+      : 'Qual o *dia do mês* para cobrar? (1 a 31, ex: *5* ou *dia 10*)';
     default: return '';
   }
 }
@@ -1602,7 +1631,9 @@ async function dispatchIntent(
           amount: Number(pendingData.amount),
           rate: Number(pendingData.rate ?? 0),
           installments: Number(pendingData.installments ?? 1),
-          frequency: 'monthly',
+          frequency: String(pendingData.frequency || 'monthly'),
+          due_day: pendingData.due_day ? Number(pendingData.due_day) : undefined,
+          start_date: pendingData.start_date ? String(pendingData.start_date) : undefined,
         };
         await updateSessionContext(session.id, {
           pendingAction: 'criar_contrato',
@@ -1976,7 +2007,9 @@ async function handlePendingAction(
               amount: Number(merged.amount),
               rate: Number(merged.rate ?? 0),
               installments: Number(merged.installments ?? 1),
-              frequency: 'monthly',
+              frequency: String(merged.frequency || 'monthly'),
+              due_day: merged.due_day ? Number(merged.due_day) : undefined,
+              start_date: merged.start_date ? String(merged.start_date) : undefined,
             };
             await updateSessionContext(session.id, {
               pendingAction: 'criar_contrato',
@@ -2066,10 +2099,12 @@ async function handlePendingAction(
           amount: Number(merged.amount),
           rate: Number(merged.rate ?? 0),
           installments: Number(merged.installments ?? 1),
-          frequency: 'monthly',
+          frequency: String(merged.frequency || 'monthly'),
+          due_day: merged.due_day ? Number(merged.due_day) : undefined,
+          start_date: merged.start_date ? String(merged.start_date) : undefined,
         };
-        if ((merged as any).due_day && !draft.start_date) {
-          draft.start_date = suggestFirstInstallmentDate((merged as any).due_day);
+        if (draft.frequency === 'monthly' && draft.due_day && !draft.start_date) {
+          draft.start_date = suggestFirstInstallmentDate(draft.due_day);
         }
         await updateSessionContext(session.id, {
           pendingAction: 'criar_contrato',
@@ -2119,7 +2154,9 @@ async function handlePendingAction(
           amount: Number(merged12.amount),
           rate: Number(merged12.rate ?? 0),
           installments: Number(merged12.installments ?? 1),
-          frequency: 'monthly',
+          frequency: String(merged12.frequency || 'monthly'),
+          due_day: merged12.due_day ? Number(merged12.due_day) : undefined,
+          start_date: merged12.start_date ? String(merged12.start_date) : undefined,
         };
         await updateSessionContext(session.id, {
           pendingAction: 'criar_contrato',
@@ -2170,7 +2207,9 @@ async function handlePendingAction(
           amount: Number(merged13.amount),
           rate: Number(merged13.rate ?? 0),
           installments: Number(merged13.installments ?? 1),
-          frequency: 'monthly',
+          frequency: String(merged13.frequency || 'monthly'),
+          due_day: merged13.due_day ? Number(merged13.due_day) : undefined,
+          start_date: merged13.start_date ? String(merged13.start_date) : undefined,
         };
         await updateSessionContext(session.id, {
           pendingAction: 'criar_contrato',
@@ -2230,22 +2269,152 @@ async function handlePendingAction(
         merged14.rate = backCalculatedRate;
       }
 
-      const draft: ContractDraft = {
-        debtor_name: String(merged14.debtor_name),
-        debtor_cpf: String(merged14.debtor_cpf || ''),
-        amount: Number(merged14.amount),
-        rate: Number(merged14.rate ?? 0),
-        installments: Number(merged14.installments ?? 1),
-        frequency: 'monthly',
-      };
+      const nextStep14 = getNextMissingStep(merged14);
+      if (nextStep14 === 2) {
+        const draft: ContractDraft = {
+          debtor_name: String(merged14.debtor_name),
+          debtor_cpf: String(merged14.debtor_cpf || ''),
+          amount: Number(merged14.amount),
+          rate: Number(merged14.rate ?? 0),
+          installments: Number(merged14.installments ?? 1),
+          frequency: String(merged14.frequency || 'monthly'),
+          due_day: merged14.due_day ? Number(merged14.due_day) : undefined,
+          start_date: merged14.start_date ? String(merged14.start_date) : undefined,
+        };
+        await updateSessionContext(session.id, {
+          pendingAction: 'criar_contrato',
+          pendingActionAt: new Date().toISOString(),
+          pendingStep: 2,
+          pendingData: draft as unknown as Record<string, unknown>,
+        });
+        return formatContractConfirmationMessage(draft);
+      }
 
       await updateSessionContext(session.id, {
         pendingAction: 'criar_contrato',
         pendingActionAt: new Date().toISOString(),
-        pendingStep: 2,
-        pendingData: draft as unknown as Record<string, unknown>,
+        pendingStep: nextStep14,
+        pendingData: merged14 as Record<string, unknown>,
       });
-      return formatContractConfirmationMessage(draft);
+      return getStepPrompt(nextStep14, merged14);
+    }
+
+    if (pendingStep === 15) {
+      const partialDraft15 = (pendingData as any) || {};
+      if (Object.keys(partialDraft15).length === 0) {
+        await clearSessionContext(session.id);
+        return 'Contexto expirado. Pode começar de novo.';
+      }
+
+      const lower15 = text.trim().toLowerCase();
+      let frequency15: string | null = null;
+      if (/^(1|mensal|monthly|m[eê]s)/.test(lower15)) frequency15 = 'monthly';
+      else if (/^(2|semanal|weekly|semana)/.test(lower15)) frequency15 = 'weekly';
+      else if (/^(3|di[aá]ria|daily|dia)/.test(lower15)) frequency15 = 'daily';
+
+      if (!frequency15) {
+        return 'Não entendi. Responda *1* (Mensal), *2* (Semanal) ou *3* (Diária).';
+      }
+
+      const merged15: Record<string, unknown> = { ...partialDraft15, frequency: frequency15 };
+      if (frequency15 === 'daily') {
+        merged15.start_date = new Date().toISOString().split('T')[0];
+      }
+
+      const nextStep15 = getNextMissingStep(merged15);
+      if (nextStep15 === 2) {
+        const draft: ContractDraft = {
+          debtor_name: String(merged15.debtor_name),
+          debtor_cpf: String(merged15.debtor_cpf || ''),
+          amount: Number(merged15.amount),
+          rate: Number(merged15.rate ?? 0),
+          installments: Number(merged15.installments ?? 1),
+          frequency: frequency15,
+          due_day: merged15.due_day ? Number(merged15.due_day) : undefined,
+          start_date: merged15.start_date ? String(merged15.start_date) : undefined,
+        };
+        await updateSessionContext(session.id, {
+          pendingAction: 'criar_contrato',
+          pendingActionAt: new Date().toISOString(),
+          pendingStep: 2,
+          pendingData: draft as unknown as Record<string, unknown>,
+        });
+        return formatContractConfirmationMessage(draft);
+      }
+
+      await updateSessionContext(session.id, {
+        pendingAction: 'criar_contrato',
+        pendingActionAt: new Date().toISOString(),
+        pendingStep: nextStep15,
+        pendingData: merged15,
+      });
+      return getStepPrompt(nextStep15, merged15);
+    }
+
+    if (pendingStep === 16) {
+      const partialDraft16 = (pendingData as any) || {};
+      if (Object.keys(partialDraft16).length === 0) {
+        await clearSessionContext(session.id);
+        return 'Contexto expirado. Pode começar de novo.';
+      }
+
+      if (partialDraft16.frequency === 'monthly') {
+        const dayMatch16 = text.match(/\b(\d{1,2})\b/);
+        const day16 = dayMatch16 ? parseInt(dayMatch16[1], 10) : null;
+        if (!day16 || day16 < 1 || day16 > 31) return 'Informe um dia válido (1 a 31).';
+        const merged16: Record<string, unknown> = { ...partialDraft16, due_day: day16 };
+        const draft: ContractDraft = {
+          debtor_name: String(merged16.debtor_name),
+          debtor_cpf: String(merged16.debtor_cpf || ''),
+          amount: Number(merged16.amount),
+          rate: Number(merged16.rate ?? 0),
+          installments: Number(merged16.installments ?? 1),
+          frequency: 'monthly',
+          due_day: day16,
+          start_date: merged16.start_date ? String(merged16.start_date) : suggestFirstInstallmentDate(day16),
+        };
+        await updateSessionContext(session.id, {
+          pendingAction: 'criar_contrato',
+          pendingActionAt: new Date().toISOString(),
+          pendingStep: 2,
+          pendingData: draft as unknown as Record<string, unknown>,
+        });
+        return formatContractConfirmationMessage(draft);
+      }
+
+      if (partialDraft16.frequency === 'weekly') {
+        const weekdayMap16: Record<string, number> = {
+          domingo: 0, dom: 0, '0': 0, '7': 0,
+          segunda: 1, seg: 1, '1': 1,
+          terca: 2, ter: 2, '2': 2,
+          quarta: 3, qua: 3, '3': 3,
+          quinta: 4, qui: 4, '4': 4,
+          sexta: 5, sex: 5, '5': 5,
+          sabado: 6, sab: 6, '6': 6,
+        };
+        const normalized16 = text.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const weekday16 = weekdayMap16[normalized16] ?? null;
+        if (weekday16 === null) return 'Não entendi o dia. Responda com o nome (segunda, terça...) ou número (1–7).';
+        const merged16: Record<string, unknown> = { ...partialDraft16, weekday: weekday16, due_day: weekday16 };
+        const draft: ContractDraft = {
+          debtor_name: String(merged16.debtor_name),
+          debtor_cpf: String(merged16.debtor_cpf || ''),
+          amount: Number(merged16.amount),
+          rate: Number(merged16.rate ?? 0),
+          installments: Number(merged16.installments ?? 1),
+          frequency: 'weekly',
+          due_day: weekday16,
+        };
+        await updateSessionContext(session.id, {
+          pendingAction: 'criar_contrato',
+          pendingActionAt: new Date().toISOString(),
+          pendingStep: 2,
+          pendingData: draft as unknown as Record<string, unknown>,
+        });
+        return formatContractConfirmationMessage(draft);
+      }
+
+      return 'Contexto inválido. Pode começar de novo.';
     }
 
     if (pendingStep === 2) {

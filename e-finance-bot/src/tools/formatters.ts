@@ -167,7 +167,8 @@ function formatDateBR(d: Date): string {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-const FREQ_LABEL: Record<string, string> = { monthly: 'mensais', weekly: 'semanais', biweekly: 'quinzenais' };
+const FREQ_LABEL: Record<string, string> = { monthly: 'mensais', weekly: 'semanais', biweekly: 'quinzenais', daily: 'diárias' };
+const WEEKDAY_NAMES = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
 const ordinal = (n: number) => `${n}ª`;
 
 /**
@@ -193,6 +194,18 @@ export function formatContractConfirmationMessage(draft: ContractDraft): string 
 
   const cpfLine = draft.debtor_cpf ? `\n🪪 CPF: *${maskCpf(draft.debtor_cpf)}*` : '';
 
+  let modalidadeLine = '';
+  if (draft.frequency === 'monthly') {
+    modalidadeLine = draft.due_day ? `📆 Modalidade: *Mensal — dia ${draft.due_day}*` : `📆 Modalidade: *Mensal*`;
+  } else if (draft.frequency === 'weekly') {
+    const dayName = draft.due_day !== undefined ? (WEEKDAY_NAMES[draft.due_day % 7] ?? 'semanal') : 'semanal';
+    modalidadeLine = `📆 Modalidade: *Semanal — ${dayName}*`;
+  } else if (draft.frequency === 'daily') {
+    modalidadeLine = `📆 Modalidade: *Diária*`;
+  } else {
+    modalidadeLine = `📆 Modalidade: *${draft.frequency}*`;
+  }
+
   return [
     `📋 *Resumo do Contrato*`,
     sep,
@@ -202,6 +215,7 @@ export function formatContractConfirmationMessage(draft: ContractDraft): string 
     `💰 Principal: *${formatCurrency(draft.amount)}*`,
     `📈 Taxa: *${draft.rate}% a.m.*`,
     `📅 Parcelas: *${draft.installments}x ${freqLabel}*`,
+    modalidadeLine,
     `💵 Valor por parcela: *${formatCurrency(installmentValue)}*`,
     ``,
     `🧾 Total a pagar: *${formatCurrency(total)}*`,

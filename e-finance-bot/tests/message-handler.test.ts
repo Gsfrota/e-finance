@@ -351,6 +351,7 @@ describe('handleMessage', () => {
           rate: 2,
           installments: 6,
           frequency: 'monthly',
+          due_day: 10,
         },
       },
     }));
