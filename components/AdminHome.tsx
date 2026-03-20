@@ -107,10 +107,10 @@ const useHomeData = (tenantId?: string) => {
 interface PagaramHojePageProps {
   clientesPageramHoje: Array<{ id: string; name: string; parcelas: any[] }>;
   onBack: () => void;
-  onClientClick: (payerId: string) => void;
+  onInstallmentClick: (installment: any) => void;
 }
 
-const PagaramHojePage: React.FC<PagaramHojePageProps> = ({ clientesPageramHoje, onBack, onClientClick }) => (
+const PagaramHojePage: React.FC<PagaramHojePageProps> = ({ clientesPageramHoje, onBack, onInstallmentClick }) => (
   <div className="space-y-6 pb-12 animate-fade-in">
     <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
       <button
@@ -133,31 +133,33 @@ const PagaramHojePage: React.FC<PagaramHojePageProps> = ({ clientesPageramHoje, 
     ) : (
       <div className="space-y-3">
         {clientesPageramHoje.map(cliente => (
-          <button
+          <div
             key={cliente.id}
-            onClick={() => onClientClick(cliente.id)}
-            className="w-full panel-card rounded-[1.6rem] px-5 py-4 border border-white/[0.06] text-left hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer"
+            className="panel-card rounded-[1.6rem] px-5 py-4 border border-white/[0.06]"
           >
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-bold text-[color:var(--text-primary)]">
                 {cliente.name}
               </div>
-              <ChevronRight size={16} className="text-[color:var(--text-faint)]" />
             </div>
             {cliente.parcelas.map((p: any) => (
-              <div
+              <button
                 key={p.id}
-                className="flex items-center justify-between py-2 border-t border-white/[0.05]"
+                onClick={() => onInstallmentClick(p)}
+                className="w-full flex items-center justify-between py-2 border-t border-white/[0.05] hover:bg-white/[0.03] rounded-lg px-1 transition-colors cursor-pointer"
               >
                 <div className="text-[0.72rem] text-[color:var(--text-secondary)]">
                   Parcela {p.number} — {p.investment?.asset_name || 'Contrato'}
                 </div>
-                <div className="text-[0.72rem] font-semibold text-teal-400">
-                  {formatCurrency(p.amount_paid ?? p.amount ?? 0)}
+                <div className="flex items-center gap-2">
+                  <span className="text-[0.72rem] font-semibold text-teal-400">
+                    {formatCurrency(p.amount_paid ?? p.amount ?? 0)}
+                  </span>
+                  <ChevronRight size={14} className="text-[color:var(--text-faint)]" />
                 </div>
-              </div>
+              </button>
             ))}
-          </button>
+          </div>
         ))}
       </div>
     )}
@@ -264,11 +266,30 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
 
   // ─── Sub-página: Pagaram hoje ───────────────────────────────────────────────
   if (subView === 'pagaram-hoje') {
+    if (selectedInstallment && !installmentAction) {
+      return (
+        <InstallmentDetailScreen
+          installment={selectedInstallment}
+          onBack={() => setSelectedInstallment(null)}
+          onAction={action => setInstallmentAction(action)}
+        />
+      );
+    }
+    if (installmentAction) {
+      return (
+        <InstallmentFormScreen
+          action={installmentAction}
+          onBack={() => setInstallmentAction(null)}
+          onDone={() => { setInstallmentAction(null); setSelectedInstallment(null); refetch(); }}
+          tenant={tenant}
+        />
+      );
+    }
     return (
       <PagaramHojePage
         clientesPageramHoje={clientesPageramHoje}
         onBack={() => setSubView('home')}
-        onClientClick={() => onNavigate(AppView.CONTRACTS)}
+        onInstallmentClick={inst => setSelectedInstallment(inst)}
       />
     );
   }
