@@ -826,7 +826,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                 <ChevronRight size={16} style={{ color: 'var(--text-faint)' }} className="mt-2" />
               </button>
               <button
-                onClick={() => onNavigate(AppView.USERS)}
+                onClick={() => onNavigate(AppView.TOP_CLIENTES)}
                 className="rounded-2xl p-4 text-left transition-all hover:shadow-md active:scale-[0.98]"
                 style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
               >

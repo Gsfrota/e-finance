@@ -14,6 +14,7 @@ import AdminUserDetails from './components/AdminUserDetails';
 import ResetPassword from './components/ResetPassword';
 import DailyCollectionView from './components/DailyCollectionView';
 import LegacyContractPage from './components/LegacyContractPage';
+import TopClientes from './components/TopClientes';
 import { AppView, UserRole, Tenant, Profile } from './types';
 import { getSupabase, isProduction, logError } from './services/supabase';
 import {
@@ -38,6 +39,7 @@ import {
   Moon,
   Clock,
   PhoneCall,
+  Trophy,
 } from 'lucide-react';
 
 const isInTrial = (tenant: Tenant | null | undefined): boolean => {
@@ -103,6 +105,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
     [AppView.ASSISTANT]: 'Assistente',
     [AppView.COLLECTION]: 'Cobranças',
     [AppView.LEGACY_CONTRACT]: 'Contrato Antigo',
+    [AppView.TOP_CLIENTES]: 'Top Clientes',
     [AppView.RESET_PASSWORD]: 'Segurança',
   };
 
@@ -225,6 +228,20 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold">Cobranças</div>
                     <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Agenda do dia</div>
+                  </div>
+                )}
+              </button>
+
+              <button
+                onClick={() => handleViewChange(AppView.TOP_CLIENTES)}
+                title={collapsed ? 'Top Clientes' : undefined}
+                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.TOP_CLIENTES ? activeClass : inactiveClass}`}
+              >
+                <Trophy size={20} className="shrink-0" />
+                {!collapsed && (
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold">Top Clientes</div>
+                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Ranking de pagadores</div>
                   </div>
                 )}
               </button>
@@ -668,6 +685,13 @@ const App: React.FC = () => {
           )}
           {currentView === AppView.COLLECTION && profile?.role === 'admin' && (
             <DailyCollectionView tenant={tenant} />
+          )}
+          {currentView === AppView.TOP_CLIENTES && profile?.role === 'admin' && (
+            <TopClientes
+              tenant={tenant}
+              onNavigate={(view) => setCurrentView(view)}
+              onClientClick={(uid) => { setTargetUserId(uid); setCurrentView(AppView.USER_DETAILS); }}
+            />
           )}
           {currentView === AppView.USERS && profile?.role === 'admin' && (
               <AdminUsers onViewDashboard={(uid) => { setTargetUserId(uid); setCurrentView(AppView.USER_DETAILS); }} />
