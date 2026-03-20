@@ -114,6 +114,8 @@ CREATE TABLE IF NOT EXISTS public.loan_installments (
     interest_delay_amount NUMERIC DEFAULT 0,
     status TEXT DEFAULT 'pending', 
     paid_at TIMESTAMP WITH TIME ZONE,
+    payment_method TEXT DEFAULT NULL,
+    notes TEXT DEFAULT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );

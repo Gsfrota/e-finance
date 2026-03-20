@@ -10,7 +10,7 @@ import {
   Layers, ChevronDown, ChevronUp,
 } from 'lucide-react';
 
-type SurplusAction = 'next' | 'last' | 'spread';
+type SurplusAction = 'next' | 'last' | 'spread' | 'pay_late';
 import { LoanInstallment, Tenant } from '../types';
 
 interface ActionSummary {
@@ -25,6 +25,7 @@ interface ActionSummary {
   surplusDestNumber?: number;
   surplusSpreadCount?: number;
   discountPerInstallment?: number;
+  latePaidNumbers?: number[];
 }
 import { getSupabase, parseSupabaseError } from '../services/supabase';
 import ReceiptTemplate from './ReceiptTemplate';
@@ -353,6 +354,13 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
   const [pendingInstallments, setPendingInstallments] = useState<Array<{id: string; number: number; amount_total: number}>>([]);
   const [showSpreadPreview, setShowSpreadPreview]   = useState(false);
   const [actionSummary, setActionSummary]           = useState<ActionSummary | null>(null);
+  const [lateInstallments, setLateInstallments]     = useState<Array<{
+    id: string; number: number; amount_total: number;
+    amount_paid: number; fine_amount: number; interest_delay_amount: number;
+    outstanding: number;
+  }>>([]);
+  const [showLatePreview, setShowLatePreview]       = useState(false);
+  const [postLateSurplus, setPostLateSurplus]       = useState<number | null>(null);
 
   // Miss form state
   const [missStep, setMissStep]           = useState<1 | 2>(1);
@@ -374,10 +382,23 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
   const remainderWithInterest = remainder + interestAmt;
   const discountPerInstallment = pendingInstallments.length > 0 ? surplus / pendingInstallments.length : 0;
 
+  const activeSurplus = postLateSurplus !== null ? postLateSurplus : surplus;
+  const latePaymentPreview = React.useMemo(() => {
+    let remaining = surplus;
+    return lateInstallments.map(inst => {
+      const toPay = Math.min(remaining, inst.outstanding);
+      remaining = Math.max(0, remaining - toPay);
+      return { ...inst, willPay: toPay, willFullyPay: toPay >= inst.outstanding - 0.01 };
+    }).filter(p => p.willPay > 0);
+  }, [surplus, lateInstallments]);
+  const latePaymentTotal = latePaymentPreview.reduce((s, p) => s + p.willPay, 0);
+  const lateSurplusLeftover = Math.max(0, surplus - latePaymentTotal);
+
   useEffect(() => {
     setError(null); setIsReceiptMode(false); setActionSummary(null);
     setPayStep(1); setDeferAction('last'); setUseInterest(false); setInterestPercent(''); setContext({ nextInst: null, lastInst: null });
     setSurplusAction('next'); setPendingInstallments([]); setShowSpreadPreview(false);
+    setLateInstallments([]); setShowLatePreview(false); setPostLateSurplus(null);
     setMissStep(1); setMissDeferAction('postpone');
     setUseMissedInterest(false); setMissedInterestRate('');
     setDeferredInstallment(null); setRemoveDeferral(false);
@@ -405,7 +426,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     try {
       const { data } = await supabase
         .from('loan_installments')
-        .select('id, number, amount_total, due_date, status')
+        .select('id, number, amount_total, amount_paid, fine_amount, interest_delay_amount, due_date, status')
         .eq('investment_id', installment.investment_id)
         .neq('id', installment.id)
         .order('number', { ascending: true });
@@ -421,7 +442,18 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         // Parcelas pendentes após a atual para surplus spread
         const pendingAfter = pending.filter(r => r.number > installment.number);
         setPendingInstallments(pendingAfter.map(r => ({ id: r.id, number: r.number, amount_total: r.amount_total })));
-        if (nextInst) setSurplusAction('next');
+        // Parcelas atrasadas para surplus 'pay_late'
+        const lateRows = rows.filter(r => r.status === 'late');
+        const lateWithOutstanding = lateRows.map(r => {
+          const ost = Math.max(0,
+            (normalizeNum(r.amount_total) + normalizeNum(r.fine_amount || 0) + normalizeNum(r.interest_delay_amount || 0))
+            - normalizeNum(r.amount_paid || 0)
+          );
+          return { id: r.id, number: r.number, amount_total: r.amount_total, amount_paid: r.amount_paid || 0, fine_amount: r.fine_amount || 0, interest_delay_amount: r.interest_delay_amount || 0, outstanding: ost };
+        }).filter(r => r.outstanding > 0);
+        setLateInstallments(lateWithOutstanding);
+        if (lateWithOutstanding.length > 0) setSurplusAction('pay_late');
+        else if (nextInst) setSurplusAction('next');
         else setSurplusAction('last');
       }
     } finally {
@@ -466,31 +498,107 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     setLoading(true); setError(null);
     const supabase = getSupabase(); if (!supabase) return;
     try {
-      const { error: payErr } = await supabase.rpc('pay_installment', {
-        p_installment_id: installment.id,
-        p_amount_paid: outstanding,
-      });
-      if (payErr) throw payErr;
+      const effectiveSurplus = postLateSurplus !== null ? postLateSurplus : surplus;
+      const effectiveAction = surplusAction === 'pay_late' ? 'pay_late' : surplusAction;
+
+      if (effectiveAction === 'pay_late') {
+        // 1. Paga parcela atual
+        const { error: payErr } = await supabase.rpc('pay_installment', {
+          p_installment_id: installment.id,
+          p_amount_paid: outstanding,
+        });
+        if (payErr) throw payErr;
+
+        // 2. Iterar atrasadas em ordem
+        let remaining = surplus;
+        const paidNumbers: number[] = [];
+
+        for (const late of latePaymentPreview) {
+          if (remaining <= 0.01) break;
+          const toPay = Math.min(remaining, late.outstanding);
+
+          const { error: latePayErr } = await supabase.rpc('pay_installment', {
+            p_installment_id: late.id,
+            p_amount_paid: toPay,
+          });
+          if (latePayErr) throw latePayErr;
+
+          const noteText = toPay >= late.outstanding - 0.01
+            ? `Quitada com excedente da parcela #${installment.number}`
+            : `Pgto parcial (${fmtMoney(toPay)}) com excedente da parcela #${installment.number}`;
+
+          await supabase.from('loan_installments')
+            .update({ notes: noteText, payment_method: paymentMethod })
+            .eq('id', late.id);
+
+          paidNumbers.push(late.number);
+          remaining -= toPay;
+        }
+
+        // 3. Notes na parcela atual
+        await supabase.from('loan_installments')
+          .update({
+            notes: `Excedente de ${fmtMoney(surplus)} → parcelas atrasadas #${paidNumbers.join(', #')}`,
+            payment_method: paymentMethod,
+          })
+          .eq('id', installment.id);
+
+        // 4. Se sobrou excedente → perguntar destino
+        if (remaining > 0.01) {
+          setPostLateSurplus(remaining);
+          setLateInstallments([]);
+          setSurplusAction('next');
+          setLoading(false);
+          return;
+        }
+
+        // 5. Finalizar
+        setActionSummary({
+          type: 'surplus',
+          paidAmount: outstanding,
+          installmentNumber: installment.number,
+          surplusAmount: surplus,
+          surplusAction: 'pay_late',
+          latePaidNumbers: paidNumbers,
+        });
+        installment.amount_paid = (installment.amount_paid || 0) + outstanding;
+        installment.status = 'paid';
+        installment.paid_at = new Date().toISOString();
+        onSuccess(); setIsReceiptMode(true);
+        return;
+      }
+
+      // ── Fluxo original (next/last/spread) ──────────────────────────────────
+      if (postLateSurplus === null) {
+        const { error: payErr } = await supabase.rpc('pay_installment', {
+          p_installment_id: installment.id,
+          p_amount_paid: outstanding,
+        });
+        if (payErr) throw payErr;
+      }
+
       const { error: surplusErr } = await supabase.rpc('apply_surplus_action', {
         p_installment_id: installment.id,
-        p_surplus_amount: surplus,
-        p_action: surplusAction,
+        p_surplus_amount: effectiveSurplus,
+        p_action: surplusAction as 'next' | 'last' | 'spread',
       });
       if (surplusErr) throw surplusErr;
-      await supabase.from('loan_installments').update({ payment_method: paymentMethod }).eq('id', installment.id);
+
       // Nota e resumo da ação
       const surplusDestNum = surplusAction === 'next' ? context.nextInst?.number : surplusAction === 'last' ? context.lastInst?.number : undefined;
-      const surplusNotes = surplusAction === 'next'
-        ? `Pago com excedente de ${fmtMoney(surplus)} → descontado da parcela #${context.nextInst?.number}`
+      const surplusNotes = postLateSurplus !== null
+        ? `Sobra de ${fmtMoney(effectiveSurplus)} após quitar atrasadas → ${surplusAction === 'spread' ? `distribuído em ${pendingInstallments.length} parcelas` : `parcela #${surplusDestNum}`}`
+        : surplusAction === 'next'
+        ? `Pago com excedente de ${fmtMoney(effectiveSurplus)} → descontado da parcela #${context.nextInst?.number}`
         : surplusAction === 'last'
-        ? `Pago com excedente de ${fmtMoney(surplus)} → descontado da parcela #${context.lastInst?.number}`
-        : `Pago com excedente de ${fmtMoney(surplus)} → distribuído em ${pendingInstallments.length} parcelas`;
-      await supabase.from('loan_installments').update({ notes: surplusNotes }).eq('id', installment.id);
+        ? `Pago com excedente de ${fmtMoney(effectiveSurplus)} → descontado da parcela #${context.lastInst?.number}`
+        : `Pago com excedente de ${fmtMoney(effectiveSurplus)} → distribuído em ${pendingInstallments.length} parcelas`;
+      await supabase.from('loan_installments').update({ payment_method: paymentMethod, notes: surplusNotes }).eq('id', installment.id);
       setActionSummary({
         type: 'surplus',
         paidAmount: outstanding,
         installmentNumber: installment.number,
-        surplusAmount: surplus,
+        surplusAmount: effectiveSurplus,
         surplusAction,
         surplusDestNumber: surplusDestNum,
         surplusSpreadCount: pendingInstallments.length,
@@ -729,7 +837,9 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
                 <SummaryRow
                   label="Aplicado em"
                   value={
-                    sm.surplusAction === 'spread'
+                    sm.surplusAction === 'pay_late'
+                      ? `${sm.latePaidNumbers?.length} parcela(s) atrasada(s) (#${sm.latePaidNumbers?.join(', #')})`
+                      : sm.surplusAction === 'spread'
                       ? `${sm.surplusSpreadCount} parcelas (−${fmtMoney(sm.discountPerInstallment ?? 0)} cada)`
                       : `Parcela #${sm.surplusDestNumber}`
                   }
@@ -921,44 +1031,53 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
             {/* Resumo do excedente */}
             <div className="flex items-center justify-between rounded-2xl bg-emerald-900/15 border border-emerald-800/30 px-4 py-3">
               <div>
-                <p className="type-label text-emerald-400/80 mb-0.5">Excedente</p>
-                <p className="type-metric-md text-emerald-300">{fmtMoney(surplus)}</p>
+                <p className="type-label text-emerald-400/80 mb-0.5">{postLateSurplus !== null ? 'Sobra restante' : 'Excedente'}</p>
+                <p className="type-metric-md text-emerald-300">{fmtMoney(activeSurplus)}</p>
               </div>
               <div className="text-right">
-                <p className="type-label text-[color:var(--text-faint)]">Parcela paga</p>
-                <p className="type-metric-sm text-[color:var(--accent-positive)]">{fmtMoney(outstanding)}</p>
+                <p className="type-label text-[color:var(--text-faint)]">{postLateSurplus !== null ? 'Atrasadas pagas' : 'Parcela paga'}</p>
+                <p className="type-metric-sm text-[color:var(--accent-positive)]">{postLateSurplus !== null ? fmtMoney(surplus - postLateSurplus) : fmtMoney(outstanding)}</p>
               </div>
             </div>
 
-            <p className="type-label text-[color:var(--text-faint)] text-center">O que fazer com o valor excedente?</p>
+            <p className="type-label text-[color:var(--text-faint)] text-center">
+              {postLateSurplus !== null ? 'Para onde vai a sobra restante?' : 'O que fazer com o valor excedente?'}
+            </p>
 
             <div className="space-y-2">
               {([
                 {
-                  id: 'next' as const,
+                  id: 'next' as SurplusAction,
                   icon: <ArrowRight size={15}/>,
                   label: 'Próxima parcela',
                   sublabel: context.nextInst
-                    ? `Parcela #${context.nextInst.number} · ${fmtMoney(context.nextInst.amount_total)} → ${fmtMoney(Math.max(0, context.nextInst.amount_total - surplus))}`
+                    ? `Parcela #${context.nextInst.number} · ${fmtMoney(context.nextInst.amount_total)} → ${fmtMoney(Math.max(0, context.nextInst.amount_total - activeSurplus))}`
                     : 'Descontar da parcela seguinte',
                 },
                 {
-                  id: 'last' as const,
+                  id: 'last' as SurplusAction,
                   icon: <ArrowDownToLine size={15}/>,
                   label: 'Última parcela',
                   sublabel: context.lastInst
-                    ? `Parcela #${context.lastInst.number} · ${fmtMoney(context.lastInst.amount_total)} → ${fmtMoney(Math.max(0, context.lastInst.amount_total - surplus))}`
+                    ? `Parcela #${context.lastInst.number} · ${fmtMoney(context.lastInst.amount_total)} → ${fmtMoney(Math.max(0, context.lastInst.amount_total - activeSurplus))}`
                     : 'Descontar da última parcela do contrato',
                 },
                 {
-                  id: 'spread' as const,
+                  id: 'spread' as SurplusAction,
                   icon: <Layers size={15}/>,
                   label: 'Diminuir contrato',
                   sublabel: pendingInstallments.length > 0
                     ? `${pendingInstallments.length} parcelas · desconto de ${fmtMoney(discountPerInstallment)} cada`
                     : 'Distribuir entre parcelas restantes',
                 },
-              ] as const).map(opt => (
+                ...(lateInstallments.length > 0 && postLateSurplus === null ? [{
+                  id: 'pay_late' as SurplusAction,
+                  icon: <RefreshCw size={15}/>,
+                  label: 'Quitar parcelas atrasadas',
+                  sublabel: `${latePaymentPreview.length} ${latePaymentPreview.length === 1 ? 'parcela' : 'parcelas'} · total ${fmtMoney(latePaymentTotal)}`
+                    + (lateSurplusLeftover > 0.01 ? ` · sobra ${fmtMoney(lateSurplusLeftover)}` : ''),
+                }] : []),
+              ]).map(opt => (
                 <div key={opt.id} className={`w-full rounded-2xl border transition-all ${surplusAction === opt.id ? 'border-[rgba(52,211,153,0.4)] bg-[rgba(52,211,153,0.08)] ring-1 ring-[rgba(52,211,153,0.15)]' : 'border-[color:var(--border-subtle)] bg-[color:var(--bg-soft)]'}`}>
                   <button type="button" onClick={() => setSurplusAction(opt.id)} className="w-full p-3.5 text-left">
                     <div className="flex items-start gap-3">
@@ -971,7 +1090,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
                         <p className="type-caption text-[color:var(--text-faint)] mt-0.5 leading-tight">{opt.sublabel}</p>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className={`type-metric-sm ${surplusAction === opt.id ? 'text-emerald-300' : 'text-[color:var(--text-muted)]'}`}>−{fmtMoney(surplus)}</p>
+                        <p className={`type-metric-sm ${surplusAction === opt.id ? 'text-emerald-300' : 'text-[color:var(--text-muted)]'}`}>−{fmtMoney(activeSurplus)}</p>
                       </div>
                     </div>
                   </button>
@@ -1001,6 +1120,40 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
                       )}
                     </div>
                   )}
+                  {surplusAction === 'pay_late' && opt.id === 'pay_late' && (
+                    <div className="px-3.5 pb-3.5">
+                      <button type="button" onClick={() => setShowLatePreview(v => !v)}
+                        className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors mb-2">
+                        {showLatePreview ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
+                        {showLatePreview ? 'Ocultar detalhes' : 'Ver detalhes por parcela'}
+                      </button>
+                      {showLatePreview && (
+                        <div className="bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl p-3 space-y-1 text-xs">
+                          <div className="flex justify-between text-[color:var(--text-faint)] pb-1 border-b border-[color:var(--border-subtle)] font-semibold">
+                            <span>Parcela</span><span>Devendo → Pagamento</span>
+                          </div>
+                          {latePaymentPreview.map(inst => (
+                            <div key={inst.id} className="flex justify-between text-[color:var(--text-secondary)]">
+                              <span className="text-[color:var(--text-faint)]">#{inst.number}</span>
+                              <span className="font-mono">
+                                {fmtMoney(inst.outstanding)}
+                                <span className="text-[color:var(--text-faint)] mx-1">→</span>
+                                <span className={inst.willFullyPay ? 'text-emerald-300' : 'text-amber-300'}>
+                                  {inst.willFullyPay ? 'Quitada' : fmtMoney(inst.willPay) + ' (parcial)'}
+                                </span>
+                              </span>
+                            </div>
+                          ))}
+                          {lateSurplusLeftover > 0.01 && (
+                            <div className="flex justify-between text-amber-300 pt-1 border-t border-[color:var(--border-subtle)]">
+                              <span>Sobra</span>
+                              <span className="font-mono">{fmtMoney(lateSurplusLeftover)}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1008,9 +1161,9 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
             {errorBlock}
 
             <div className="flex gap-2">
-              <button type="button" onClick={() => setPayStep(1)}
+              <button type="button" onClick={() => { if (postLateSurplus !== null) { setPostLateSurplus(null); onSuccess(); setIsReceiptMode(true); } else { setPayStep(1); } }}
                 className="type-label flex-1 rounded-xl bg-[color:var(--bg-soft)] py-3.5 text-[color:var(--text-muted)] ring-1 ring-[color:var(--border-subtle)] flex items-center justify-center gap-1.5 transition-colors hover:bg-[color:var(--bg-elevated)]">
-                <ChevronLeft size={14}/> Voltar
+                <ChevronLeft size={14}/> {postLateSurplus !== null ? 'Pular' : 'Voltar'}
               </button>
               <button type="submit" disabled={loading}
                 className="type-label flex-[2] rounded-xl bg-[rgba(52,211,153,0.12)] py-3.5 text-[color:var(--accent-positive)] ring-1 ring-[rgba(52,211,153,0.2)] active:scale-95 transition-all flex items-center justify-center gap-2">

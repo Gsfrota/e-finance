@@ -80,6 +80,7 @@ export interface LoanInstallment {
   interest_payments_total?: number;
   missed_at?: string;          // Timestamp da falta registrada
   deferred_from_id?: string;   // ID da parcela de origem (quando postergada)
+  notes?: string;
   contract_name?: string; // Virtual for UI
   investment?: Investment; // Join
 }
