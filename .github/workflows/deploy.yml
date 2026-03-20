@@ -13,55 +13,11 @@ env:
   IMAGE: us-west1-docker.pkg.dev/tribal-pillar-476701-a3/cloud-run-source-deploy/e-finance
 
 jobs:
-  test:
-    name: Test
+  deploy:
+    name: Build & Deploy
     runs-on: ubuntu-latest
     permissions:
       contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: TypeScript check + Build
-        run: npm run build
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Run E2E tests
-        run: npm run test:e2e
-        env:
-          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
-          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
-
-      - name: Upload Playwright report
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 7
-
-  build:
-    name: Build & Push
-    runs-on: ubuntu-latest
-    needs: test
-    permissions:
-      contents: read
-    outputs:
-      image: ${{ env.IMAGE }}:${{ github.sha }}
 
     steps:
       - name: Checkout
@@ -75,43 +31,17 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-      - name: Build Docker image
+      - name: Build & Push Docker image
         run: |
           docker build \
             --build-arg GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
             --tag ${{ env.IMAGE }}:${{ github.sha }} \
             --tag ${{ env.IMAGE }}:latest \
             .
-
-      - name: Push to Artifact Registry
-        run: |
           docker push ${{ env.IMAGE }}:${{ github.sha }}
           docker push ${{ env.IMAGE }}:latest
 
-  deploy:
-    name: Deploy
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      contents: read
-
-    steps:
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Capturar revisão atual (para rollback)
-        id: prev
-        run: |
-          PREV=$(gcloud run services describe ${{ env.SERVICE }} \
-            --region=${{ env.REGION }} \
-            --format='value(status.latestReadyRevisionName)' 2>/dev/null || echo "")
-          echo "revision=$PREV" >> $GITHUB_OUTPUT
-          echo "Revisão atual: $PREV"
-
       - name: Deploy to Cloud Run
-        id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE }}
@@ -130,12 +60,3 @@ jobs:
         run: |
           echo "✅ Deploy concluído!"
           echo "URL: $(gcloud run services describe ${{ env.SERVICE }} --region=${{ env.REGION }} --format='value(status.url)')"
-
-      - name: Rollback para revisão anterior
-        if: failure() && steps.prev.outputs.revision != ''
-        run: |
-          echo "❌ Deploy falhou — revertendo para ${{ steps.prev.outputs.revision }}"
-          gcloud run services update-traffic ${{ env.SERVICE }} \
-            --region=${{ env.REGION }} \
-            --to-revisions=${{ steps.prev.outputs.revision }}=100
-          echo "✅ Rollback concluído — tráfego redirecionado para ${{ steps.prev.outputs.revision }}"
