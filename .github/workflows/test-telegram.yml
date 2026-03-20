@@ -1,0 +1,15 @@
+name: Test Telegram Notification
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send test message
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          RESPONSE=$(curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\":\"7354814208\",\"text\":\"Teste de notificacao GitHub Actions - por ${{ github.actor }}\",\"parse_mode\":\"Markdown\"}")
+          echo "Response: $RESPONSE"
