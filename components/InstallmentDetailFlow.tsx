@@ -617,7 +617,8 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     const val = parseFloat(amount);
     setError(null);
     if (isNaN(val) || val <= 0) { setError('O valor deve ser maior que zero.'); return; }
-    if (isPartialPay) { await loadContext(); setPayStep(2); }
+    if (hasExcedente) { await loadContext(); setPayStep('surplus'); }
+    else if (isPartialPay) { await loadContext(); setPayStep(2); }
     else { await submitPayment(val, null, 0); }
   };
 
