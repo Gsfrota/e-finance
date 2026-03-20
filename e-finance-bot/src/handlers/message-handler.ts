@@ -1128,7 +1128,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       } else {
         pendingResponse = prependAudioPreview(pendingResponse, audioTranscript?.text);
         await saveMessageTimed(session.id, 'assistant', pendingResponse);
-        return finalize(pendingResponse, { action: `pending:${pendingActionName}` });
+        return finalize(pendingResponse, { action: `pending:${pendingActionName}` }, { skipLlm: true });
       }
     }
 
