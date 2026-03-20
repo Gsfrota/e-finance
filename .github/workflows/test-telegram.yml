@@ -1,0 +1,25 @@
+name: Test Telegram Notification
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Send Test Message
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar mensagem de teste
+        run: |
+          MSG="🧪 *Teste de notificação*%0A%0ARepositório: \`${{ github.repository }}\`%0APor: ${{ github.actor }}%0AHora: $(date -u '+%H:%M UTC')"
+          RESPONSE=$(curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=7354814208&text=${MSG}&parse_mode=Markdown")
+          echo "Response: $RESPONSE"
+          echo "$RESPONSE" | python3 -c "
+import json,sys
+r=json.load(sys.stdin)
+if r.get('ok'):
+    print('✅ Mensagem enviada com sucesso!')
+else:
+    print(f'❌ Erro: {r.get(\"description\",\"desconhecido\")}')
+    exit(1)
+"
