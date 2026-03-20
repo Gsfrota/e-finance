@@ -27,6 +27,7 @@ import {
   BarChart3,
   AlertTriangle,
   Calendar,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface AdminHomeProps {
@@ -68,7 +69,14 @@ const useHomeData = (tenantId?: string) => {
   );
 
   const parcelasPagasHoje = useMemo(
-    () => installments.filter(i => i.status === 'paid' && i.paid_at?.startsWith(today)),
+    () => installments.filter(i => {
+      if (i.status !== 'paid' && i.status !== 'partial') return false;
+      if (Number(i.amount_paid) === 0) return false;
+      if (!i.paid_at) return false;
+      const p = new Date(i.paid_at);
+      const paidYMD = `${p.getFullYear()}-${String(p.getMonth() + 1).padStart(2, '0')}-${String(p.getDate()).padStart(2, '0')}`;
+      return paidYMD === today;
+    }),
     [installments, today]
   );
 
@@ -809,11 +817,17 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                 }`}
                 style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
               >
-                <Calendar size={24} style={{ color: 'var(--header-blue)' }} className="mb-2" />
-                <p className="type-body font-bold" style={{ color: 'var(--text-primary)' }}>Hoje</p>
-                <p className="type-metric-lg" style={{ color: 'var(--header-blue)' }}>{formatCurrency(totalRecebidoHoje)}</p>
-                <p className="type-caption" style={{ color: 'var(--text-muted)' }}>Recebimentos Hoje</p>
-                <ChevronRight size={16} style={{ color: 'var(--text-faint)' }} className="mt-1" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl mb-2"
+                  style={{ background: totalRecebidoHoje > 0 ? 'rgba(143,179,157,0.12)' : 'rgba(255,255,255,0.04)' }}>
+                  <CheckCircle2 size={20} style={{ color: totalRecebidoHoje > 0 ? 'var(--accent-positive)' : 'var(--text-faint)' }} />
+                </div>
+                <p className="type-label mb-1" style={{ color: 'var(--text-faint)' }}>RECEBIDOS HOJE</p>
+                <p className="type-metric-lg" style={{ color: totalRecebidoHoje > 0 ? 'var(--accent-positive)' : 'var(--text-faint)' }}>
+                  {formatCurrency(totalRecebidoHoje)}
+                </p>
+                <p className="type-caption mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  {clientesQuePageramCount} cliente{clientesQuePageramCount !== 1 ? 's' : ''}
+                </p>
               </button>
               <button
                 onClick={() => setActiveTab('receivables')}

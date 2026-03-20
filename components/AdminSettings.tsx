@@ -21,6 +21,17 @@ const NAV_ITEMS: { id: SettingsSection; label: string; icon: React.ReactNode }[]
     { id: 'assinatura',  label: 'Assinatura',    icon: <CreditCard size={16} /> },
 ];
 
+const TIMEZONE_OPTIONS = [
+    { value: 'America/Sao_Paulo',   label: 'Brasília (GMT-3)' },
+    { value: 'America/Manaus',      label: 'Manaus (GMT-4)' },
+    { value: 'America/Belem',       label: 'Belém (GMT-3)' },
+    { value: 'America/Cuiaba',      label: 'Cuiabá (GMT-4)' },
+    { value: 'America/Rio_Branco',  label: 'Rio Branco (GMT-5)' },
+    { value: 'America/Noronha',     label: 'Fernando de Noronha (GMT-2)' },
+    { value: 'America/New_York',    label: 'Nova York (GMT-5)' },
+    { value: 'Europe/Lisbon',       label: 'Lisboa (GMT+0)' },
+];
+
 const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile }) => {
     const [activeSection, setActiveSection] = useState<SettingsSection>('empresa');
 
@@ -40,6 +51,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
     const [pixName, setPixName] = useState(tenant.pix_name || '');
     const [pixCity, setPixCity] = useState(tenant.pix_city || '');
     const [whatsapp, setWhatsapp] = useState(tenant.support_whatsapp || '');
+    const [timezone, setTimezone] = useState(tenant.timezone || 'America/Sao_Paulo');
 
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
@@ -106,6 +118,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
                 pix_name: pixName.toUpperCase().trim(),
                 pix_city: pixCity.toUpperCase().trim(),
                 support_whatsapp: cleanWhatsapp,
+                timezone,
             };
 
             const { error: dbError } = await supabase.from('tenants')
@@ -199,6 +212,19 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ tenant, onUpdate, profile
                                             )}
                                         </div>
                                         {logoUploadError && <p className="text-red-400 text-xs mt-1.5">{logoUploadError}</p>}
+                                    </div>
+                                    <div>
+                                        <label className="block type-label text-[color:var(--text-muted)] mb-2">Fuso Horário</label>
+                                        <select
+                                            value={timezone}
+                                            onChange={e => setTimezone(e.target.value)}
+                                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-colors"
+                                        >
+                                            {TIMEZONE_OPTIONS.map(tz => (
+                                                <option key={tz.value} value={tz.value}>{tz.label}</option>
+                                            ))}
+                                        </select>
+                                        <p className="text-[color:var(--text-muted)] text-xs mt-1.5">Define o fuso horário usado nos relatórios e dashboards.</p>
                                     </div>
                                 </div>
                                 <SaveButton loading={loading} success={success} />

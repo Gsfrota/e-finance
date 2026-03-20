@@ -3,6 +3,17 @@ import { AlertCircle, ArrowRight, Loader2, Key } from 'lucide-react';
 import { getSupabase, cleanNumbers, isValidCPF } from '../services/supabase';
 import { Tenant } from '../types';
 
+const TIMEZONE_OPTIONS = [
+  { value: 'America/Sao_Paulo',   label: 'Brasília (GMT-3)' },
+  { value: 'America/Manaus',      label: 'Manaus (GMT-4)' },
+  { value: 'America/Belem',       label: 'Belém (GMT-3)' },
+  { value: 'America/Cuiaba',      label: 'Cuiabá (GMT-4)' },
+  { value: 'America/Rio_Branco',  label: 'Rio Branco (GMT-5)' },
+  { value: 'America/Noronha',     label: 'Fernando de Noronha (GMT-2)' },
+  { value: 'America/New_York',    label: 'Nova York (GMT-5)' },
+  { value: 'Europe/Lisbon',       label: 'Lisboa (GMT+0)' },
+];
+
 interface OnboardingWizardProps {
   sessionUser: any;
   tenant: Tenant | null;
@@ -35,6 +46,11 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   const [pixKey, setPixKey] = useState(tenant?.pix_key || '');
   const [pixName, setPixName] = useState(tenant?.pix_name || '');
   const [pixCity, setPixCity] = useState(tenant?.pix_city || '');
+
+  // Timezone
+  const [timezone, setTimezone] = useState(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo'
+  );
 
   // WhatsApp
   const [whatsapp, setWhatsapp] = useState(tenant?.support_whatsapp || '');
@@ -79,7 +95,12 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
 
       // Busca tenant_id via RPC SECURITY DEFINER (ignora RLS, funciona mesmo antes do JWT atualizar)
       const { data: tid } = await supabase.rpc('get_my_tenant_id');
-      if (tid) setResolvedTenantId(tid);
+      if (tid) {
+        setResolvedTenantId(tid);
+        if (inviteMode === 'company') {
+          await supabase.from('tenants').update({ timezone }).eq('id', tid);
+        }
+      }
 
       // Se entrou via convite, não precisa configurar PIX do tenant novo — vai direto pro app
       if (inviteMode === 'invite') {
@@ -265,6 +286,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
           </div>
 
           {inviteMode === 'company' && (
+            <>
             <div>
               <label className="mb-2 block type-label text-[color:var(--text-faint)]">Organização</label>
               <input
@@ -276,6 +298,19 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
                 placeholder="Nome da organização"
               />
             </div>
+            <div>
+              <label className="mb-2 block type-label text-[color:var(--text-faint)]">Fuso Horário</label>
+              <select
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                className={baseInputClass}
+              >
+                {TIMEZONE_OPTIONS.map(tz => (
+                  <option key={tz.value} value={tz.value}>{tz.label}</option>
+                ))}
+              </select>
+            </div>
+            </>
           )}
 
           {inviteMode === 'invite' && (

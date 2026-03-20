@@ -20,6 +20,7 @@ export interface Tenant {
   pix_city?: string;
   // Support
   support_whatsapp?: string;
+  timezone?: string;  // IANA timezone (ex: 'America/Sao_Paulo')
 
   // Subscription (Stripe)
   plan?: 'free' | 'caderneta' | 'empresarial';
