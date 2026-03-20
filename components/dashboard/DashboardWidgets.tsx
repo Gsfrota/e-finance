@@ -24,6 +24,7 @@ import {
   TrendingUp,
   Users,
   Wallet,
+  X,
   Zap,
 } from 'lucide-react';
 import {
@@ -1069,15 +1070,21 @@ interface DailyAlertsProps {
 export const DailyAlerts: React.FC<DailyAlertsProps> = ({ kpis, installments }) => {
   const today = new Date().toISOString().split('T')[0];
   const todayFormatted = today.split('-').reverse().join('/');
+  const [showVencendo, setShowVencendo] = useState(false);
 
   const vigentes = kpis?.activeContractsCount ?? 0;
   const contratosMorosos = kpis?.overdueContractsCount ?? 0;
-  const vencendoHoje = installments.filter(
-    (i) => i.due_date === today && i.status !== 'paid'
-  ).length;
+
+  const in3Days = new Date();
+  in3Days.setDate(in3Days.getDate() + 3);
+  const d3 = in3Days.toISOString().split('T')[0];
+  const vencendo3d = installments.filter(
+    (i) => i.due_date >= today && i.due_date <= d3 && i.status !== 'paid'
+  );
+
   const atrasadas = installments.filter((i) => i.status === 'late').length;
 
-  const metrics = [
+  const otherMetrics = [
     {
       label: 'Contratos Vigentes',
       value: vigentes,
@@ -1089,11 +1096,6 @@ export const DailyAlerts: React.FC<DailyAlertsProps> = ({ kpis, installments }) 
       color: contratosMorosos > 0 ? 'var(--accent-danger)' : 'var(--text-muted)',
     },
     {
-      label: 'Parcelas Vencendo',
-      value: vencendoHoje,
-      color: vencendoHoje > 0 ? '#f59e0b' : 'var(--text-muted)',
-    },
-    {
       label: 'Parcelas Atrasadas',
       value: atrasadas,
       color: atrasadas > 0 ? 'var(--accent-danger)' : 'var(--text-muted)',
@@ -1101,26 +1103,75 @@ export const DailyAlerts: React.FC<DailyAlertsProps> = ({ kpis, installments }) 
   ];
 
   return (
-    <div className={`${panelClass} px-4 py-5 md:px-6`}>
-      <div className="mb-4 flex items-center justify-between">
-        <p className="section-kicker">Avisos do dia!</p>
-        <span className="text-xs font-semibold tabular-nums text-[color:var(--text-faint)]">{todayFormatted}</span>
-      </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {metrics.map(({ label, value, color }) => (
+    <>
+      <div className={`${panelClass} px-4 py-5 md:px-6`}>
+        <div className="mb-4 flex items-center justify-between">
+          <p className="section-kicker">Avisos do dia!</p>
+          <span className="text-xs font-semibold tabular-nums text-[color:var(--text-faint)]">{todayFormatted}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {/* Card clicável: Vencendo (3d) */}
           <div
-            key={label}
-            className="flex flex-col items-center gap-1 rounded-2xl border border-white/[0.06] bg-white/[0.03] px-3 py-4"
+            className="flex flex-col items-center gap-1 rounded-2xl border border-white/[0.06] bg-white/[0.03] px-3 py-4 cursor-pointer hover:bg-white/[0.07] transition-colors"
+            onClick={() => setShowVencendo(true)}
           >
-            <span className="type-metric-xl leading-none" style={{ color }}>
-              {value}
+            <span className="type-metric-xl leading-none" style={{ color: vencendo3d.length > 0 ? '#f59e0b' : 'var(--text-muted)' }}>
+              {vencendo3d.length}
             </span>
             <span className="mt-1 type-label text-center text-[color:var(--text-faint)]">
-              {label}
+              Vencendo (3d)
             </span>
           </div>
-        ))}
+          {/* Demais métricas */}
+          {otherMetrics.map(({ label, value, color }) => (
+            <div
+              key={label}
+              className="flex flex-col items-center gap-1 rounded-2xl border border-white/[0.06] bg-white/[0.03] px-3 py-4"
+            >
+              <span className="type-metric-xl leading-none" style={{ color }}>
+                {value}
+              </span>
+              <span className="mt-1 type-label text-center text-[color:var(--text-faint)]">
+                {label}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+
+      {showVencendo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className={`${panelClass} w-full max-w-lg max-h-[80vh] flex flex-col`}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+              <h3 className="type-label font-semibold text-[color:var(--text-primary)]">
+                Vencendo em até 3 dias
+              </h3>
+              <button onClick={() => setShowVencendo(false)} className="text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="overflow-y-auto px-5 py-3 flex flex-col gap-2">
+              {vencendo3d.length === 0 ? (
+                <p className="type-label text-[color:var(--text-muted)] py-4 text-center">Nenhuma parcela vencendo nos próximos 3 dias.</p>
+              ) : vencendo3d.map((inst) => (
+                <div key={inst.id} className="flex items-center justify-between rounded-xl bg-white/[0.04] px-4 py-3">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="type-label font-medium text-[color:var(--text-primary)]">
+                      {inst.investment?.payer?.full_name ?? inst.contract_name ?? '—'}
+                    </span>
+                    <span className="text-xs text-[color:var(--text-muted)]">
+                      Venc. {inst.due_date.split('-').reverse().join('/')}
+                    </span>
+                  </div>
+                  <span className="type-label font-semibold tabular-nums" style={{ color: '#f59e0b' }}>
+                    {formatCurrency(inst.amount_total - inst.amount_paid)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
