@@ -888,3 +888,37 @@ BEGIN
 END;
 $$;
 ```
+
+## Migração V26 — Corrigir fluxo OAuth onboarding (4 bugs)
+
+```sql
+-- V26: Corrigir fluxo de cadastro OAuth para novos usuários
+-- BUG 1: Criar RPC get_my_tenant_id (usada pelo OnboardingWizard)
+CREATE OR REPLACE FUNCTION public.get_my_tenant_id()
+RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE tid UUID;
+BEGIN
+  SELECT (current_setting('request.jwt.claims', true)::jsonb -> 'app_metadata' ->> 'tenant_id')::uuid INTO tid;
+  IF tid IS NULL THEN
+    SELECT tenant_id INTO tid FROM public.profiles WHERE id = auth.uid();
+  END IF;
+  IF tid IS NULL THEN
+    SELECT tenant_id INTO tid FROM public.profiles WHERE auth_user_id = auth.uid();
+  END IF;
+  RETURN tid;
+END; $$;
+GRANT EXECUTE ON FUNCTION public.get_my_tenant_id() TO authenticated;
+
+-- BUG 2: Adicionar coluna timezone em tenants
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS timezone TEXT DEFAULT 'America/Sao_Paulo';
+
+-- BUG 3: complete_oauth_onboarding agora inclui auth_user_id nos INSERTs de profiles
+-- (ver função completa na V22 — única mudança: auth_user_id = auth.uid() adicionado)
+
+-- BUG 4: handle_new_user trigger agora inclui auth_user_id nos INSERTs de profiles
+-- (ver função completa na V22 — única mudança: auth_user_id = new.id adicionado)
+
+-- Backfill: preencher auth_user_id para profiles existentes
+UPDATE public.profiles SET auth_user_id = id
+WHERE auth_user_id IS NULL AND EXISTS (SELECT 1 FROM auth.users WHERE id = profiles.id);
+```

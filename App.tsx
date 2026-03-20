@@ -141,18 +141,17 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="section-kicker">Juros Certo</p>
+                <p className="text-base font-semibold truncate text-[color:var(--text-primary)]">
+                  {tenant?.name || 'Workspace'}
+                </p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-[0.72rem] font-medium text-[color:var(--text-muted)]">
+                    {userRole === 'admin' ? 'Administrador' : userRole === 'investor' ? 'Investidor' : userRole === 'debtor' ? 'Devedor' : 'Workspace'}
+                  </p>
                   {isProduction() && (
                     <span className="chip chip-active" style={{ fontSize: '0.55rem', padding: '0.15rem 0.5rem' }}>● LIVE</span>
                   )}
                 </div>
-                <h2 className="font-display truncate text-[1.9rem] leading-none text-[color:var(--text-primary)]">
-                  {tenant?.name || 'Workspace'}
-                </h2>
-                <p className="mt-1 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
-                  {isProduction() ? 'Ambiente Operacional' : 'Ambiente de Desenvolvimento'}
-                </p>
               </div>
             </div>
           )}
@@ -575,10 +574,11 @@ const App: React.FC = () => {
             setCurrentView(AppView.RESET_PASSWORD);
             setIsLoading(false);
         } else if (event === 'SIGNED_IN' && session) {
+            if (profileLoadedRef.current) return;
             console.log('[SIGNED_IN] Loading app data for:', session.user.email);
             setLoadingPhase('auth');
             setIsLoading(true);
-            if (!profileLoadedRef.current) loadAppData(session.user);
+            loadAppData(session.user);
         } else if (event === 'SIGNED_OUT') {
             profileLoadedRef.current = false;
             setProfile(null);
