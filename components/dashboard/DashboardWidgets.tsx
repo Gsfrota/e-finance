@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { AdminDashboardStats, AppView, DashboardKPIs, Investment, LoanInstallment, Tenant } from '../../types';
 import { PaymentModal, RefinanceModal, EditModal, InterestOnlyModal } from '../InstallmentModals';
+import { getInstallmentModInfo, ModBadge } from '../InstallmentDetailFlow';
 import {
   AlertTriangle,
   Bot,
@@ -858,6 +859,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                       <td className="px-6 py-4 text-right font-semibold text-[color:var(--accent-positive)]">{formatCurrency(normalizeNumber(installment.amount_paid))}</td>
                       <td className="px-6 py-4 text-right font-semibold text-[color:var(--text-primary)]">{formatCurrency(outstanding)}</td>
                       <td className="px-6 py-4 text-right">
+                        {(() => { const mi = getInstallmentModInfo(installment); return mi ? <ModBadge info={mi} /> : null; })()}
                         <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusTone}`}>{statusLabel}</span>
                         {Number(installment.interest_payments_total) > 0 && (
                           <div className="mt-1 type-caption text-[color:var(--accent-warning)]">

@@ -1,7 +1,7 @@
 import React from 'react';
 import { AlertTriangle, ArrowLeft, CheckCircle, Clock, Share2, User } from 'lucide-react';
 import { Investment, LoanInstallment } from '../types';
-import { fmtMoney, fmtDate, calcOutstanding, normalizeNum } from './InstallmentDetailFlow';
+import { fmtMoney, fmtDate, calcOutstanding, normalizeNum, getInstallmentModInfo } from './InstallmentDetailFlow';
 
 interface InstallmentHistoryProps {
   investment: Investment;
@@ -86,10 +86,15 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
               partial: { label: 'Parcial',   color: '#42A5F5' },
             };
             let st = statusMap[inst.status] ?? statusMap.pending;
-            if ((inst as any).missed_at && inst.status !== 'paid') {
+            const modInfo = getInstallmentModInfo(inst);
+            if (modInfo) {
+              const modColorMap: Record<string, string> = {
+                absorbed: '#9E9E9E', surplus_zeroed: '#EF5350', surplus_paid: '#CE93D8',
+                surplus_reduced: '#CE93D8', deferred_target: '#FFB74D',
+              };
+              st = { label: modInfo.label, color: modColorMap[modInfo.type] || st.color };
+            } else if ((inst as any).missed_at && inst.status !== 'paid') {
               st = { label: 'Falta', color: 'var(--accent-danger)' };
-            } else if ((inst as any).missed_at && inst.status === 'paid' && normalizeNum(inst.amount_total) === 0) {
-              st = { label: 'Absorvida', color: '#757575' };
             }
 
             return (
@@ -116,19 +121,21 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                   </span>
                 </button>
 
-                {(isPaid || isPartial) && inst.paid_at && (
+                {((isPaid || isPartial) && inst.paid_at) || (modInfo && (inst as any).notes) ? (
                   <div className="px-4 py-1" style={{ background: 'var(--bg-soft)' }}>
-                    <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                      Recebido em {fmtDate(inst.paid_at)}
-                      {(inst as any).payment_method ? ` · ${(inst as any).payment_method}` : ''}
-                    </p>
+                    {(isPaid || isPartial) && inst.paid_at && (
+                      <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                        Recebido em {fmtDate(inst.paid_at)}
+                        {(inst as any).payment_method ? ` · ${(inst as any).payment_method}` : ''}
+                      </p>
+                    )}
                     {(inst as any).notes && (
-                      <p className="text-[10px] italic mt-0.5" style={{ color: 'var(--text-faint)' }}>
+                      <p className="text-[10px] italic mt-0.5" style={{ color: modInfo ? modInfo.chipClass.includes('anomaly') ? '#EF5350' : '#CE93D8' : 'var(--text-faint)' }}>
                         {(inst as any).notes}
                       </p>
                     )}
                   </div>
-                )}
+                ) : null}
                 {(inst as any).missed_at && (
                   <div className="px-4 py-1" style={{ background: 'rgba(198,126,105,0.07)', borderBottom: '1px solid var(--border-subtle)' }}>
                     <p className="text-[10px] font-semibold" style={{ color: 'var(--accent-danger)' }}>
