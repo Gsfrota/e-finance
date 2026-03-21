@@ -22,7 +22,7 @@ import {
   Loader2,
   Save
 } from 'lucide-react';
-import { InstallmentFormScreen } from './InstallmentDetailFlow';
+import { InstallmentFormScreen, getInstallmentModInfo, ModBadge } from './InstallmentDetailFlow';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -79,18 +79,20 @@ const InstallmentCard: React.FC<InstallmentCardProps> = ({
   const hasFine   = (normalizeNumber(installment.fine_amount) + normalizeNumber(installment.interest_delay_amount)) > 0;
   const outstanding = calculateOutstanding(installment);
 
-  const chipClass = isPaid
-    ? 'chip chip-paid'
-    : isLate
-      ? 'chip chip-late'
-      : isPartial
-        ? 'chip chip-partial'
-        : 'chip chip-pending';
+  const modInfo = getInstallmentModInfo(installment);
 
-  const chipLabel = isPaid ? 'Pago' : isLate ? 'Atrasado' : isPartial ? 'Parcial' : 'A Vencer';
+  const chipClass = modInfo ? modInfo.chipClass
+    : isPaid ? 'chip chip-paid'
+    : isLate ? 'chip chip-late'
+    : isPartial ? 'chip chip-partial'
+    : 'chip chip-pending';
+
+  const chipLabel = modInfo ? modInfo.label
+    : isPaid ? 'Pago' : isLate ? 'Atrasado' : isPartial ? 'Parcial' : 'A Vencer';
 
   return (
-    <div className={`panel-card rounded-2xl p-4 ${isLate ? 'ring-1 ring-[color:var(--accent-danger)]/20' : ''}`}>
+    <div className={`panel-card rounded-2xl p-4 ${modInfo?.type === 'surplus_zeroed' ? 'ring-1 ring-[#EF5350]/20' : isLate ? 'ring-1 ring-[color:var(--accent-danger)]/20' : ''}`}
+      title={modInfo?.tooltip || undefined}>
       {/* Topo: número + status */}
       <div className="flex items-center justify-between mb-3">
         <span className="type-label text-[color:var(--text-faint)]">

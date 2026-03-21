@@ -8,6 +8,8 @@ import {
   calcOutstanding,
   fmtDate,
   fmtMoney,
+  getInstallmentModInfo,
+  ModBadge,
 } from './InstallmentDetailFlow';
 import {
   AlertCircle,
@@ -442,6 +444,8 @@ const ClientCard: React.FC<{
   const initials = debtorName.split(' ').slice(0, 2).map((n: string) => n[0] || '').join('').toUpperCase();
   const outstanding = calcOutstanding(inst);
   const isPartial = inst.status === 'partial';
+  const modInfo = getInstallmentModInfo(inst);
+  const isAnomaly = modInfo?.type === 'surplus_zeroed';
 
   return (
     <button
@@ -449,30 +453,32 @@ const ClientCard: React.FC<{
       className="group w-full flex items-center gap-3 rounded-2xl p-4 text-left transition-all hover:shadow-md active:scale-[0.98]"
       style={{
         background: 'var(--bg-elevated)',
-        border: isPartial ? '1.5px solid #42A5F5'
+        border: isAnomaly ? '1.5px solid #EF5350'
+              : isPartial ? '1.5px solid #42A5F5'
               : isOverdue ? '1.5px solid var(--accent-danger, #f44336)'
               : '1.5px solid #26a69a',
       }}
     >
       {/* Avatar */}
       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full overflow-hidden"
-        style={{ background: isPartial ? 'rgba(66, 165, 245, 0.1)' : isOverdue ? 'rgba(244, 67, 54, 0.1)' : 'rgba(38, 166, 154, 0.1)' }}>
+        style={{ background: isAnomaly ? 'rgba(244, 67, 54, 0.1)' : isPartial ? 'rgba(66, 165, 245, 0.1)' : isOverdue ? 'rgba(244, 67, 54, 0.1)' : 'rgba(38, 166, 154, 0.1)' }}>
         {photoUrl ? (
           <img src={photoUrl} alt={debtorName} className="h-full w-full object-cover" />
         ) : (
-          <User size={24} style={{ color: isPartial ? '#42A5F5' : isOverdue ? 'var(--accent-danger, #f44336)' : '#26a69a' }} />
+          <User size={24} style={{ color: isAnomaly ? '#EF5350' : isPartial ? '#42A5F5' : isOverdue ? 'var(--accent-danger, #f44336)' : '#26a69a' }} />
         )}
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          {isOverdue && !isPartial && (
+          {modInfo && <ModBadge info={modInfo} />}
+          {!modInfo && isOverdue && !isPartial && (
             <span className="type-micro px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(244, 67, 54, 0.12)', color: 'var(--accent-danger, #f44336)' }}>
               Atrasado
             </span>
           )}
-          {isPartial && (
+          {!modInfo && isPartial && (
             <span className="type-micro px-1.5 py-0.5 rounded-md"
               style={{ background: 'rgba(66, 165, 245, 0.12)', color: '#42A5F5' }}>
               Parcial

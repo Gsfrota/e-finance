@@ -73,6 +73,50 @@ export const calcOutstanding = (inst: LoanInstallment): number => {
   return Math.max(0, (total + fine + delay) - paid);
 };
 
+// ── Modification detection ──────────────────────────────────────────────────
+
+export type InstallmentModType =
+  | 'surplus_zeroed'
+  | 'surplus_paid'
+  | 'surplus_reduced'
+  | 'absorbed'
+  | 'deferred_target';
+
+export interface InstallmentModInfo {
+  type: InstallmentModType;
+  label: string;
+  tooltip: string;
+  chipClass: string;
+}
+
+export function getInstallmentModInfo(inst: LoanInstallment): InstallmentModInfo | null {
+  const total = normalizeNum(inst.amount_total);
+  const notes = (inst as any).notes as string | undefined;
+  const missedAt = (inst as any).missed_at as string | undefined;
+  const deferredFromId = (inst as any).deferred_from_id as string | undefined;
+
+  if (missedAt && inst.status === 'paid' && total === 0)
+    return { type: 'absorbed', label: 'Absorvida', tooltip: notes || 'Valor acumulado em outra parcela', chipClass: 'chip chip-absorbed' };
+
+  if (total === 0 && inst.status !== 'paid' && !missedAt)
+    return { type: 'surplus_zeroed', label: 'Zerada', tooltip: notes || 'Valor zerado por excedente', chipClass: 'chip chip-anomaly' };
+
+  if (inst.status === 'paid' && notes?.toLowerCase().includes('excedente'))
+    return { type: 'surplus_paid', label: 'Quitada (exc.)', tooltip: notes, chipClass: 'chip chip-surplus' };
+
+  if (deferredFromId)
+    return { type: 'deferred_target', label: 'Acumulada', tooltip: notes || 'Recebeu valor de outra parcela', chipClass: 'chip chip-deferred' };
+
+  if (notes?.toLowerCase().includes('excedente') && inst.status !== 'paid')
+    return { type: 'surplus_reduced', label: 'Reduzida', tooltip: notes, chipClass: 'chip chip-surplus' };
+
+  return null;
+}
+
+export const ModBadge: React.FC<{ info: InstallmentModInfo }> = ({ info }) => (
+  <span className={`${info.chipClass} text-[0.6rem]`} title={info.tooltip}>{info.label}</span>
+);
+
 export const installmentStatusBadge = (status: LoanInstallment['status']) => {
   const map = {
     paid:    { label: 'Pago',     cls: 'chip chip-paid' },

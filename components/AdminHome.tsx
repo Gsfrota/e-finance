@@ -353,15 +353,15 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                     onClick={() => setSelectedContractId(isExpanded ? null : inv.id)}
                     className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer"
                   >
-                    <div className="text-left">
-                      <div className="text-sm font-bold text-[color:var(--text-primary)]">
+                    <div className="flex-1 min-w-0 text-left">
+                      <div className="text-sm font-bold text-[color:var(--text-primary)] truncate">
                         {inv.asset_name || 'Contrato'}
                       </div>
-                      <div className="text-[0.7rem] text-[color:var(--text-faint)] mt-0.5">
+                      <div className="text-[0.7rem] text-[color:var(--text-faint)] mt-0.5 truncate">
                         {(inv as any).payer?.full_name || '—'}
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 shrink-0">
                       <span className="text-sm font-bold" style={{ color: 'var(--accent-brass)' }}>
                         {formatCurrency(inv.amount_invested ?? 0)}
                       </span>
@@ -383,19 +383,19 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                             onClick={() => setSelectedInstallment(inst)}
                             className="w-full flex items-center justify-between py-2.5 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.03] rounded-lg px-2 transition-colors cursor-pointer"
                           >
-                            <div className="text-left">
-                              <div className="text-xs font-semibold text-[color:var(--text-primary)]">
+                            <div className="flex-1 min-w-0 text-left">
+                              <div className="text-xs font-semibold text-[color:var(--text-primary)] truncate">
                                 Parcela {inst.number}
                               </div>
-                              <div className="text-[0.65rem] text-[color:var(--text-faint)]">
+                              <div className="text-xs text-[color:var(--text-faint)]">
                                 Vence {inst.due_date ? inst.due_date.split('-').reverse().join('/') : '—'}
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 shrink-0">
                               <span className="text-xs font-bold text-[color:var(--text-primary)]">
                                 {formatCurrency(Number(inst.amount_total) || 0)}
                               </span>
-                              <span className={`chip text-[0.6rem] ${inst.status === 'paid' ? 'chip-paid' : inst.status === 'late' ? 'chip-late' : inst.status === 'partial' ? 'chip-partial' : 'chip-pending'}`}>
+                              <span className={`chip text-[0.65rem] ${inst.status === 'paid' ? 'chip-paid' : inst.status === 'late' ? 'chip-late' : inst.status === 'partial' ? 'chip-partial' : 'chip-pending'}`}>
                                 {inst.status === 'paid' ? 'Pago' : inst.status === 'late' ? 'Atrasado' : inst.status === 'partial' ? 'Parcial' : 'Pendente'}
                               </span>
                             </div>
@@ -456,20 +456,20 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                   onClick={() => setSelectedContractId(inv.id)}
                   className="w-full panel-card rounded-[1.6rem] border border-white/[0.06] flex items-center justify-between px-5 py-4 hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer text-left"
                 >
-                  <div>
-                    <div className="text-sm font-bold text-[color:var(--text-primary)]">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-[color:var(--text-primary)] truncate">
                       {payer?.full_name || '—'}
                     </div>
-                    <div className="text-[0.7rem] text-[color:var(--text-faint)] mt-0.5">
+                    <div className="text-xs text-[color:var(--text-faint)] mt-0.5 truncate">
                       {inv.asset_name || 'Contrato'} · {invInstallments.filter(i => i.status !== 'paid').length}/{invInstallments.length} sem pagamento
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right">
                       <div className="text-sm font-bold" style={{ color: 'var(--accent-brass)' }}>
                         {formatCurrency(Number(inv.amount_invested) || 0)}
                       </div>
-                      <div className="text-[0.65rem] text-[color:var(--text-faint)]">
+                      <div className="text-xs text-[color:var(--text-faint)]">
                         Total: {formatCurrency(Number((inv as any).current_value) || 0)}
                       </div>
                     </div>
@@ -537,20 +537,20 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                   onClick={() => setSelectedInstallment(inst)}
                   className="w-full panel-card rounded-[1.6rem] border border-white/[0.06] flex items-center justify-between px-5 py-4 hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer text-left"
                 >
-                  <div>
-                    <div className="text-sm font-bold text-[color:var(--text-primary)]">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-[color:var(--text-primary)] truncate">
                       {payer?.full_name || '—'}
                     </div>
-                    <div className="text-[0.7rem] text-[color:var(--text-faint)] mt-0.5">
+                    <div className="text-xs text-[color:var(--text-faint)] mt-0.5 truncate">
                       {assetName} · Parcela {inst.number}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right">
                       <div className="text-sm font-bold" style={{ color: 'var(--accent-brass)' }}>
                         {formatCurrency(Number(inst.amount_total) || 0)}
                       </div>
-                      <span className={`chip text-[0.6rem] ${inst.status === 'partial' ? 'chip-partial' : 'chip-pending'}`}>
+                      <span className={`chip text-[0.65rem] ${inst.status === 'partial' ? 'chip-partial' : 'chip-pending'}`}>
                         {inst.status === 'partial' ? 'Parcial' : 'Pendente'}
                       </span>
                     </div>
@@ -638,20 +638,20 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                   className="w-full panel-card rounded-[1.6rem] border border-white/[0.06] flex items-center justify-between px-5 py-4 hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer text-left"
                   style={{ borderColor: 'rgba(198,126,105,0.15)' }}
                 >
-                  <div>
-                    <div className="text-sm font-bold text-[color:var(--text-primary)]">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-[color:var(--text-primary)] truncate">
                       {payer?.full_name || '—'}
                     </div>
-                    <div className="text-[0.7rem] text-[color:var(--text-faint)] mt-0.5">
+                    <div className="text-xs text-[color:var(--text-faint)] mt-0.5 truncate">
                       {assetName} · Parcela {inst.number} · {diasAtraso}d atraso
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right">
                       <div className="text-sm font-bold" style={{ color: 'var(--accent-danger)' }}>
                         {formatCurrency(outstanding)}
                       </div>
-                      <span className="chip chip-late text-[0.6rem]">Atrasado</span>
+                      <span className="chip chip-late text-[0.65rem]">Atrasado</span>
                     </div>
                     <ChevronRight size={16} className="text-[color:var(--text-faint)]" />
                   </div>
@@ -739,19 +739,19 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
         <div className="space-y-6">
 
           {/* ── Grid Menu 4x2 ─────────────────────────────────────────────── */}
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-4 gap-2">
             {menuItems.map(item => (
               <button
                 key={item.label}
                 onClick={item.onClick}
-                className="flex flex-col items-center justify-start gap-2 rounded-2xl px-2 pt-5 pb-3 min-h-[88px] transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer shadow-sm hover:shadow-md"
+                className="flex flex-col items-center justify-start gap-2 rounded-2xl px-2 pt-5 pb-3 min-h-[88px] overflow-hidden transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer shadow-sm hover:shadow-md"
                 style={item.variant === 'danger'
                   ? { background: 'rgba(198,126,105,0.12)', border: '1px solid rgba(198,126,105,0.28)', color: 'var(--accent-danger)' }
                   : { background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }
                 }
               >
                 <item.icon size={24} style={item.variant === 'danger' ? { color: 'var(--accent-danger)' } : { color: 'var(--text-primary)' }} />
-                <span className="type-label text-center w-full"
+                <span className="type-label text-center w-full truncate"
                   style={{ color: item.variant === 'danger' ? 'var(--accent-danger)' : 'var(--text-primary)' }}>
                   {item.label}
                 </span>
@@ -797,10 +797,10 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                 <button
                   key={stat.label}
                   onClick={stat.onClick}
-                  className="rounded-xl p-3 text-center transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer"
+                  className="rounded-xl p-3 text-center overflow-hidden transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer"
                   style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
                 >
-                  <p className="type-label w-full mb-1" style={{ color: 'var(--text-muted)' }}>
+                  <p className="type-label w-full mb-1 truncate" style={{ color: 'var(--text-muted)' }}>
                     {stat.label}
                   </p>
                   {loading ? (
