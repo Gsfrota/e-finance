@@ -751,8 +751,8 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                 }
               >
                 <item.icon size={24} style={item.variant === 'danger' ? { color: 'var(--accent-danger)' } : { color: 'var(--text-primary)' }} />
-                <span className="type-label text-center w-full leading-tight"
-                  style={{ color: item.variant === 'danger' ? 'var(--accent-danger)' : 'var(--text-primary)', letterSpacing: 0, fontSize: '0.5rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span className="type-label text-center w-full"
+                  style={{ color: item.variant === 'danger' ? 'var(--accent-danger)' : 'var(--text-primary)' }}>
                   {item.label}
                 </span>
               </button>
@@ -800,7 +800,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                   className="rounded-xl p-3 text-center transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer"
                   style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
                 >
-                  <p className="type-label w-full leading-tight mb-1" style={{ color: 'var(--text-muted)', letterSpacing: 0, fontSize: '0.5rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <p className="type-label w-full mb-1" style={{ color: 'var(--text-muted)' }}>
                     {stat.label}
                   </p>
                   {loading ? (
