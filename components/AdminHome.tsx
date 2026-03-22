@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { AppView, Tenant, Profile, LoanInstallment } from '../types';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { getSupabase } from '../services/supabase';
+import { useCompanyContext } from '../services/companyScope';
 import { InstallmentsTable } from './dashboard/DashboardWidgets';
 import { CollectionDashboard } from './dashboard/CollectionDashboard';
 import { SalaryDashboard } from './dashboard/SalaryDashboard';
@@ -37,8 +38,8 @@ interface AdminHomeProps {
   onNewContract: () => void;
 }
 
-const useHomeData = (tenantId?: string) => {
-  const { investments, installments, loading, refetch } = useDashboardData(tenantId);
+const useHomeData = (tenantId?: string, companyId?: string | null) => {
+  const { investments, installments, loading, refetch } = useDashboardData(tenantId, companyId);
   const [clientCount, setClientCount] = useState(0);
   const [profiles, setProfiles] = useState<Profile[]>([]);
 
@@ -47,18 +48,20 @@ const useHomeData = (tenantId?: string) => {
     const sb = getSupabase();
     if (!sb) return;
 
-    sb.from('profiles')
+    let countQuery = sb.from('profiles')
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
-      .eq('role', 'debtor')
-      .then(({ count }) => setClientCount(count ?? 0));
+      .eq('role', 'debtor');
+    if (companyId) countQuery = countQuery.eq('company_id', companyId);
+    countQuery.then(({ count }) => setClientCount(count ?? 0));
 
-    sb.from('profiles')
+    let profilesQuery = sb.from('profiles')
       .select('*')
       .eq('tenant_id', tenantId)
-      .order('full_name')
-      .then(({ data }) => setProfiles((data as Profile[]) ?? []));
-  }, [tenantId]);
+      .order('full_name');
+    if (companyId) profilesQuery = profilesQuery.eq('company_id', companyId);
+    profilesQuery.then(({ data }) => setProfiles((data as Profile[]) ?? []));
+  }, [tenantId, companyId]);
 
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -186,6 +189,7 @@ const todayLabel = () =>
 
 
 const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNewContract }) => {
+  const { activeCompanyId } = useCompanyContext();
   const {
     investments,
     installments,
@@ -196,7 +200,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
     contratosHoje,
     parcelasPagasHoje,
     clientesQuePageramCount,
-  } = useHomeData(tenant?.id);
+  } = useHomeData(tenant?.id, activeCompanyId);
 
   const today = useMemo(() => {
     const n = new Date();
@@ -739,7 +743,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
         <div className="space-y-6">
 
           {/* ── Grid Menu 4x2 ─────────────────────────────────────────────── */}
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {menuItems.map(item => (
               <button
                 key={item.label}
@@ -767,7 +771,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                 {new Date().toLocaleDateString('pt-BR')}
               </span>
             </div>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {[
                 {
                   label: 'Renovados',

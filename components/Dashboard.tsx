@@ -15,6 +15,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { AppView, UserRole, Tenant } from '../types';
+import { useCompanyContext } from '../services/companyScope';
 import InvestorDashboard from './InvestorDashboard';
 import DebtorDashboard from './DebtorDashboard';
 import { CollectionDashboard } from './dashboard/CollectionDashboard';
@@ -60,7 +61,8 @@ const DashboardSkeleton: React.FC = () => (
 
 // Sub-component for Admin View
 const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultTab?: 'overview' | 'receivables' | 'collection'; onNavigate?: (view: AppView) => void }> = ({ tenant, defaultTab = 'overview', onNavigate }) => {
-  const { stats, detailedKPIs, investments, installments, loading, isStale, error, refetch } = useDashboardData(tenant?.id);
+  const { activeCompanyId } = useCompanyContext();
+  const { stats, detailedKPIs, investments, installments, loading, isStale, error, refetch } = useDashboardData(tenant?.id, activeCompanyId);
   const [activeTab, setActiveTab] = useState<'overview' | 'receivables' | 'collection'>(defaultTab);
 
   // Relógio em tempo real

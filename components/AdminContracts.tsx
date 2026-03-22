@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { fetchProfileByAuthUserId, getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { Investment, Tenant, Profile, AppView } from '../types';
+import { useCompanyContext } from '../services/companyScope';
 import QuickContractInput from './QuickContractInput';
 import ContractDetail from './ContractDetail';
 import ContractRenewalModal from './ContractRenewalModal';
@@ -261,6 +262,7 @@ type EditableContractInstallment = {
 
 interface AdminContractsProps { autoOpenCreate?: boolean; onNavigate?: (view: AppView) => void; }
 const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false, onNavigate }) => {
+  const { activeCompanyId } = useCompanyContext();
   const [contracts, setContracts] = useState<Investment[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
@@ -370,18 +372,22 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
         setCurrentUserId(profile.id);
         setCurrentTenant(profile.tenants as any);
 
-        const { data: profData } = await supabase.from('profiles').select('*').eq('tenant_id', profile.tenant_id).order('full_name');
-        
+        let profQuery = supabase.from('profiles').select('*').eq('tenant_id', profile.tenant_id).order('full_name');
+        if (activeCompanyId) profQuery = profQuery.eq('company_id', activeCompanyId);
+        const { data: profData } = await profQuery;
+
         let allProfiles = profData || [];
         if (profile && !allProfiles.find(p => p.id === profile.id)) {
             allProfiles = [profile, ...allProfiles];
         }
         setProfiles(allProfiles);
 
-        const { data: invData } = await supabase.from('investments')
+        let invQuery = supabase.from('investments')
             .select(`*, investor:profiles!investments_user_id_fkey(full_name, email), payer:profiles!investments_payer_id_fkey(full_name, email)`)
             .eq('tenant_id', profile.tenant_id)
             .order('created_at', { ascending: false });
+        if (activeCompanyId) invQuery = invQuery.eq('company_id', activeCompanyId);
+        const { data: invData } = await invQuery;
 
         setContracts((invData || []).map(i => ({
             ...i,
@@ -392,7 +398,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [activeCompanyId]);
 
   // Effect: Fetch Profit Balance when Investor changes
   useEffect(() => {
