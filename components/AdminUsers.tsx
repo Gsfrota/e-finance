@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchProfileByAuthUserId, getSupabase, logError, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { Profile, UserRole, Tenant, Invite } from '../types';
+import { useCompanyContext } from '../services/companyScope';
 import { User, PlusCircle, Search, X, DollarSign, Activity, Users, CreditCard, Pencil, AlertTriangle, FileSearch, RefreshCw, Crown, Shield, Clipboard, Check, Key, Mail, Phone, Briefcase, Send, Trash2, Hourglass, UserPlus, MapPin, Upload, CheckCircle2, ArrowLeft } from 'lucide-react';
 
 // View Model para unificar a exibição
@@ -37,6 +38,7 @@ interface AdminUsersProps {
 }
 
 const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
+  const { activeCompanyId } = useCompanyContext();
   const [displayUsers, setDisplayUsers] = useState<DisplayUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -95,10 +97,13 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
         setCurrentTenant(adminProfile.tenants as any);
         const tenantId = adminProfile.tenant_id;
 
-        const [profilesRes, invitesRes] = await Promise.all([
-            supabase.from('profiles').select('*').eq('tenant_id', tenantId),
-            supabase.from('invites').select('*').eq('tenant_id', tenantId).eq('status', 'pending')
-        ]);
+        let profQuery = supabase.from('profiles').select('*').eq('tenant_id', tenantId);
+        if (activeCompanyId) profQuery = profQuery.eq('company_id', activeCompanyId);
+
+        let invQuery = supabase.from('invites').select('*').eq('tenant_id', tenantId).eq('status', 'pending');
+        if (activeCompanyId) invQuery = invQuery.eq('company_id', activeCompanyId);
+
+        const [profilesRes, invitesRes] = await Promise.all([profQuery, invQuery]);
 
         if (profilesRes.error) throw profilesRes.error;
         if (invitesRes.error) throw invitesRes.error;
@@ -147,7 +152,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
     }
   };
 
-  useEffect(() => { fetchUsersAndInvites(); }, []);
+  useEffect(() => { fetchUsersAndInvites(); }, [activeCompanyId]);
 
   const handleCepLookup = async (digits: string) => {
     if (digits.length !== 8) return;

@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Tenant, AppView } from '../types';
 import { useTopClientes } from '../hooks/useTopClientes';
+import { useCompanyContext } from '../services/companyScope';
 import { fmtMoney } from './InstallmentDetailFlow';
 import {
   ArrowLeft,
@@ -36,7 +37,8 @@ const scoreBadge = (score: number) => {
 };
 
 const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientClick }) => {
-  const { clientes, loading, error, kpis } = useTopClientes(tenant?.id);
+  const { activeCompanyId } = useCompanyContext();
+  const { clientes, loading, error, kpis } = useTopClientes(tenant?.id, activeCompanyId);
   const [sortBy, setSortBy] = useState<SortKey>('score');
 
   const sorted = [...clientes].sort((a, b) => {

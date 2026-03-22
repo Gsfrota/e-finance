@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Tenant, LoanInstallment } from '../types';
 import { useDashboardData } from '../hooks/useDashboardData';
+import { useCompanyContext } from '../services/companyScope';
 import {
   InstallmentAction,
   InstallmentDetailScreen,
@@ -31,7 +32,8 @@ interface DailyCollectionViewProps {
 }
 
 const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBack }) => {
-  const { installments, loading, error, refetch } = useDashboardData(tenant?.id);
+  const { activeCompanyId } = useCompanyContext();
+  const { installments, loading, error, refetch } = useDashboardData(tenant?.id, activeCompanyId);
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
   const [installmentAction, setInstallmentAction] = useState<InstallmentAction>(null);
   const [search, setSearch] = useState('');

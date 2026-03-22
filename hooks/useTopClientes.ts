@@ -32,7 +32,7 @@ export interface TopClientesState {
   kpis: TopClientesKPIs;
 }
 
-export function useTopClientes(tenantId: string | undefined): TopClientesState {
+export function useTopClientes(tenantId: string | undefined, companyId?: string | null): TopClientesState {
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [installments, setInstallments] = useState<LoanInstallment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,16 +48,19 @@ export function useTopClientes(tenantId: string | undefined): TopClientesState {
       try {
         const supabase = getSupabase();
 
-        const [invRes, instRes] = await Promise.all([
-          supabase
+        let invQuery = supabase
             .from('investments')
             .select('id, payer_id, amount_invested, tenant_id, payer:profiles!investments_payer_id_fkey(id, full_name, cpf)')
-            .eq('tenant_id', tenantId),
-          supabase
+            .eq('tenant_id', tenantId);
+        if (companyId) invQuery = invQuery.eq('company_id', companyId);
+
+        let instQuery = supabase
             .from('loan_installments')
             .select('id, investment_id, due_date, status, paid_at, tenant_id')
-            .eq('tenant_id', tenantId),
-        ]);
+            .eq('tenant_id', tenantId);
+        if (companyId) instQuery = instQuery.eq('company_id', companyId);
+
+        const [invRes, instRes] = await Promise.all([invQuery, instQuery]);
 
         if (invRes.error) throw invRes.error;
         if (instRes.error) throw instRes.error;
@@ -75,7 +78,7 @@ export function useTopClientes(tenantId: string | undefined): TopClientesState {
 
     fetchData();
     return () => { cancelled = true; };
-  }, [tenantId]);
+  }, [tenantId, companyId]);
 
   const clientes = useMemo(() => {
     if (!investments.length) return [];

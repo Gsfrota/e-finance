@@ -260,9 +260,9 @@ interface CachedDashboard {
   monthRange: { start: string; end: string };
 }
 
-export const useDashboardData = (tenantId?: string) => {
+export const useDashboardData = (tenantId?: string, companyId?: string | null) => {
   const [data, setData] = useState<DashboardDataState>(() => {
-    const cacheKey = `dashboard_${tenantId ?? 'default'}`;
+    const cacheKey = `dashboard_${tenantId ?? 'default'}_${companyId ?? 'all'}`;
     const cached = getCached<CachedDashboard>(cacheKey);
     if (cached) {
       return {
@@ -310,6 +310,7 @@ export const useDashboardData = (tenantId?: string) => {
           `)
           .order('created_at', { ascending: false });
       if (tenantId) investmentsQuery.eq('tenant_id', tenantId);
+      if (companyId) investmentsQuery.eq('company_id', companyId);
       const investmentsPromise = withRetry(async () => await investmentsQuery);
 
       // 2. Todas as Parcelas (filtro explícito de tenant_id)
@@ -332,6 +333,7 @@ export const useDashboardData = (tenantId?: string) => {
           `)
           .order('due_date', { ascending: true });
       if (tenantId) installmentsQuery.eq('tenant_id', tenantId);
+      if (companyId) installmentsQuery.eq('company_id', companyId);
       const installmentsPromise = withRetry(async () => await installmentsQuery);
 
       const [invRes, instRes] = await Promise.all([investmentsPromise, installmentsPromise]);
@@ -417,7 +419,7 @@ export const useDashboardData = (tenantId?: string) => {
         monthRange: { start: monthRange.startYMD, end: monthRange.endYMD }
       };
 
-      setCached(`dashboard_${tenantId ?? 'default'}`, newData);
+      setCached(`dashboard_${tenantId ?? 'default'}_${companyId ?? 'all'}`, newData);
 
       setData({
         ...newData,
@@ -435,7 +437,7 @@ export const useDashboardData = (tenantId?: string) => {
         error: err.message
       }));
     }
-  }, [tenantId]);
+  }, [tenantId, companyId]);
 
   useEffect(() => {
     setData(prev => ({ ...prev, refetch: fetchData }));
