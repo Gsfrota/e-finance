@@ -490,6 +490,9 @@ const ClientCard: React.FC<{
         <p className="text-[15px] font-bold truncate" style={{ color: 'var(--text-primary)' }}>{debtorName}</p>
         <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
           Contrato: {contractId}
+          {(inst as any).investment?.calculation_mode === 'interest_only' && (
+            <span className="ml-1.5 inline-flex items-center px-1.5 py-0 rounded text-[9px] font-bold uppercase" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}>Bullet</span>
+          )}
         </p>
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
           Parcela: {inst.number}   Venc.: {fmtDate(inst.due_date)}

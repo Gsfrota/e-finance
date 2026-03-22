@@ -447,6 +447,11 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
               <div className="min-w-0">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   {statusBadge(data.investment.status)}
+                  {data.investment.calculation_mode === 'interest_only' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-400 text-[10px] font-bold uppercase tracking-wider">
+                      Bullet
+                    </span>
+                  )}
                   {data.parent && (
                     <span className="chip chip-pending">
                       <GitBranch size={10} /> Renovação de #{data.parent.id}
@@ -597,7 +602,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                 {[
                   { label: 'Principal',  value: fmt(data.investment.amount_invested) },
                   { label: 'Taxa',       value: `${Number(data.investment.interest_rate).toFixed(2)}% a.m.` },
-                  { label: 'Parcela',    value: fmt(data.investment.installment_value) },
+                  { label: data.investment.calculation_mode === 'interest_only' ? 'Juros/mês' : 'Parcela', value: fmt(data.investment.installment_value) },
                 ].map(({ label, value }) => (
                   <div key={label} className="rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-elevated)] px-3 py-3 text-center">
                     <p className="type-label text-[color:var(--text-faint)]">{label}</p>
@@ -605,6 +610,15 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                   </div>
                 ))}
               </div>
+
+              {data.investment.calculation_mode === 'interest_only' && (
+                <div className="mt-3 rounded-2xl border border-amber-500/20 bg-amber-900/10 px-4 py-3">
+                  <p className="type-label text-amber-400 mb-1">Contrato Bullet — Juros Apenas</p>
+                  <p className="type-caption text-[color:var(--text-secondary)]">
+                    Principal de {fmt(data.investment.amount_invested)} devolvido {data.investment.bullet_principal_mode === 'separate' ? 'em parcela separada ao final' : 'junto na última parcela'}.
+                  </p>
+                </div>
+              )}
             </section>
 
             {/* Parcelas */}
