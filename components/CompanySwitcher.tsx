@@ -46,7 +46,6 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
   const sheetOpen = isControlled ? Boolean(isOpen) : internalOpen;
   const sheetSummaryLabel = scopeDescriptorLabel || 'Empresa ativa';
   const sheetSummaryValue = scopeLabel || tenantName || 'Empresa ativa';
-  const triggerPrimaryLabel = triggerTitle || sheetSummaryValue;
   const allCompaniesLabel = tenantName ? `Todas as empresas de ${tenantName}` : 'Todas as empresas';
 
   const setSheetOpen = (open: boolean) => {
@@ -138,25 +137,24 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
   if (isMobileSheet) {
     return (
       <>
-        <div className="min-w-0 flex-1">
-          <button
-            type="button"
-            onClick={() => setSheetOpen(true)}
-            className="group flex min-h-[44px] w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-left transition-colors hover:border-white/20 hover:bg-white/[0.05]"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="font-display truncate text-lg text-[color:var(--text-primary)]">
-                {triggerPrimaryLabel || 'Operação'}
-              </div>
-              <div className="truncate text-[0.62rem] font-bold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
-                {sheetSummaryLabel}: {sheetSummaryValue}
-              </div>
-            </div>
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-[color:var(--accent-brass)]">
-              {isLocked ? <Lock size={14} /> : <ChevronDown size={16} />}
-            </div>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setSheetOpen(true)}
+          className="group mt-1 flex min-h-[36px] w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-left transition-colors hover:border-white/20 hover:bg-white/[0.05]"
+        >
+          <Building2 size={13} className="shrink-0 text-[color:var(--accent-brass)]" />
+          <div className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden">
+            <span className="shrink-0 text-[0.58rem] font-bold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
+              {sheetSummaryLabel}
+            </span>
+            <span className="truncate text-[0.8rem] font-semibold text-[color:var(--text-primary)]">
+              {sheetSummaryValue}
+            </span>
+          </div>
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-[color:var(--accent-brass)]">
+            {isLocked ? <Lock size={13} /> : <ChevronDown size={14} />}
+          </div>
+        </button>
 
         {shouldRenderSheet && (
           <div className="fixed inset-0 z-[70] md:hidden">
@@ -294,11 +292,11 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
 
   if (isLocked) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
         <button
           type="button"
           onClick={handleUpgrade}
-          className="group flex min-w-[220px] items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-left transition-colors hover:border-[rgba(202,176,122,0.24)] hover:bg-[rgba(202,176,122,0.08)]"
+          className="group flex min-w-0 max-w-[260px] items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-left transition-colors hover:border-[rgba(202,176,122,0.24)] hover:bg-[rgba(202,176,122,0.08)]"
         >
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)]">
             <Building2 size={15} />
@@ -317,7 +315,7 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
         <button
           type="button"
           onClick={handleUpgrade}
-          className="flex items-center gap-2 rounded-full border border-[rgba(202,176,122,0.24)] bg-[rgba(202,176,122,0.1)] px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-[color:var(--accent-brass)] transition-colors hover:bg-[rgba(202,176,122,0.16)]"
+          className="shrink-0 whitespace-nowrap rounded-full border border-[rgba(202,176,122,0.24)] bg-[rgba(202,176,122,0.1)] px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-[color:var(--accent-brass)] transition-colors hover:bg-[rgba(202,176,122,0.16)]"
         >
           <Crown size={12} />
           Upgrade
@@ -327,8 +325,8 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="relative min-w-[220px]">
+    <div className="flex min-w-0 items-center gap-2">
+      <div className="relative w-full min-w-[180px] max-w-[280px]">
         <Building2 size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--accent-brass)]" />
         <select
           value={normalizedScope}
@@ -349,7 +347,7 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
         <button
           type="button"
           onClick={handleCreateCompany}
-          className="flex items-center gap-2 rounded-full border border-[rgba(202,176,122,0.2)] bg-[rgba(202,176,122,0.1)] px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-[color:var(--accent-brass)] transition-colors hover:bg-[rgba(202,176,122,0.16)]"
+          className="shrink-0 whitespace-nowrap rounded-full border border-[rgba(202,176,122,0.2)] bg-[rgba(202,176,122,0.1)] px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-[color:var(--accent-brass)] transition-colors hover:bg-[rgba(202,176,122,0.16)]"
         >
           <Plus size={12} />
           Nova empresa
