@@ -34,3 +34,20 @@ export function clearCache(key: string): void {
     // silencia erros
   }
 }
+
+export function clearCachePrefix(prefix = PREFIX): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(prefix)) keys.push(key);
+    }
+    keys.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    // silencia erros
+  }
+}
+
+export function clearAllCache(): void {
+  clearCachePrefix(PREFIX);
+}

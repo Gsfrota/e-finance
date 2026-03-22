@@ -76,15 +76,23 @@ jobs:
             --min-instances=0 \
             --max-instances=3 \
             --timeout=60 \
-            --set-secrets="UAZAPI_INSTANCE_TOKEN=UAZAPI_INSTANCE_TOKEN:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY_EFINANCE:latest,GEMINI_API_KEY=GEMINI_API_KEY_EFINANCE:latest,SCHEDULER_SECRET=SCHEDULER_SECRET:latest,SUPABASE_URL=SUPABASE_URL_EFINANCE:latest" \
+            --set-secrets="UAZAPI_INSTANCE_TOKEN=UAZAPI_INSTANCE_TOKEN:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,SETUP_SECRET=SETUP_SECRET:latest,TELEGRAM_WEBHOOK_SECRET_TOKEN=TELEGRAM_WEBHOOK_SECRET_TOKEN:latest,UAZAPI_WEBHOOK_SECRET=UAZAPI_WEBHOOK_SECRET:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY_EFINANCE:latest,GEMINI_API_KEY=GEMINI_API_KEY_EFINANCE:latest,SCHEDULER_SECRET=SCHEDULER_SECRET:latest,SUPABASE_URL=SUPABASE_URL_EFINANCE:latest" \
             --set-env-vars="UAZAPI_SERVER_URL=https://processai.uazapi.com"
 
       - name: Get service URL and configure webhooks
         run: |
           URL=$(gcloud run services describe ${{ env.SERVICE }} \
+            --project=${{ env.PROJECT_ID }} \
             --region=${{ env.REGION }} \
             --format='value(status.url)')
           echo "Bot URL: $URL"
-          curl -s -X POST "$URL/setup" \
+          SETUP_SECRET_VALUE=$(gcloud secrets versions access latest --secret=SETUP_SECRET --project=${{ env.PROJECT_ID }})
+          gcloud run services update ${{ env.SERVICE }} \
+            --project=${{ env.PROJECT_ID }} \
+            --region=${{ env.REGION }} \
+            --update-env-vars="BOT_BASE_URL=${URL}" \
+            --quiet
+          curl -fsS -X POST "$URL/setup" \
             -H "Content-Type: application/json" \
-            -d "{\"webhookBaseUrl\": \"$URL\"}"
+            -H "x-setup-secret: ${SETUP_SECRET_VALUE}" \
+            -d '{}' | grep -q '"status":"done"'

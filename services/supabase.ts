@@ -1,16 +1,42 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import type { Profile } from '../types';
 
 const STORAGE_KEYS = {
   URL: 'EF_EXTERNAL_SUPABASE_URL',
-  KEY: 'EF_EXTERNAL_SUPABASE_KEY'
+  ANON_KEY: 'EF_EXTERNAL_SUPABASE_ANON_KEY',
+  LEGACY_KEY: 'EF_EXTERNAL_SUPABASE_KEY',
 };
 
-// Configure via localStorage: EF_EXTERNAL_SUPABASE_URL e EF_EXTERNAL_SUPABASE_KEY
 const SYSTEM_DEFAULTS = {
-    URL: '',
-    KEY: ''
+  URL: '',
+  KEY: '',
 };
+
+type RuntimeEnv = Record<string, string | undefined>;
+type ProfileLookupMatch = 'auth_user_id' | 'id' | null;
+
+interface ProfileLookupResult<T> {
+  data: T | null;
+  error: any;
+  matchedBy: ProfileLookupMatch;
+}
+
+const getBrowserRuntimeEnv = (): RuntimeEnv => {
+  if (typeof window === 'undefined') return {};
+  return ((window as any)._env_ || {}) as RuntimeEnv;
+};
+
+const getViteEnv = (): RuntimeEnv => {
+  try {
+    const meta = import.meta as any;
+    return (meta?.env || {}) as RuntimeEnv;
+  } catch {
+    return {};
+  }
+};
+
+const canUseLocalStorage = (): boolean => typeof window !== 'undefined' && typeof localStorage !== 'undefined';
 
 /**
  * Valida CPF (Algoritmo de dígitos verificadores)
@@ -37,6 +63,7 @@ export const isValidCPF = (cpf: string): boolean => {
 export const cleanNumbers = (val: string) => val.replace(/\D/g, '');
 
 export const isProduction = () => {
+  if (typeof window === 'undefined') return true;
   return window.location.hostname !== 'localhost' && 
          window.location.hostname !== '127.0.0.1' && 
          !window.location.hostname.includes('.preview.app');
@@ -66,18 +93,52 @@ export const logError = (context: string, error: any) => {
 };
 
 const getSupabaseConfig = () => {
-  // 1. localStorage (manual override pelo usuário)
-  const localUrl = localStorage.getItem(STORAGE_KEYS.URL);
-  const localKey = localStorage.getItem(STORAGE_KEYS.KEY);
-  // 2. window._env_ (injetado pelo docker-entrypoint.sh com secrets do Cloud Run)
-  const envConfig = (window as any)._env_ || {};
-  const runtimeUrl = envConfig.SUPABASE_URL;
-  const runtimeKey = envConfig.SUPABASE_KEY;
-  // 3. build-time (Vite define) → fallback
-  const finalUrl = localUrl || runtimeUrl || process.env.SUPABASE_URL || SYSTEM_DEFAULTS.URL;
-  const finalKey = localKey || runtimeKey || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || SYSTEM_DEFAULTS.KEY;
+  const allowLocalOverrides = !isProduction();
+  const localUrl = allowLocalOverrides && canUseLocalStorage() ? localStorage.getItem(STORAGE_KEYS.URL) : null;
+  const localKey = allowLocalOverrides && canUseLocalStorage()
+    ? localStorage.getItem(STORAGE_KEYS.ANON_KEY) || localStorage.getItem(STORAGE_KEYS.LEGACY_KEY)
+    : null;
+  const runtimeEnv = getBrowserRuntimeEnv();
+  const viteEnv = getViteEnv();
+  const finalUrl = localUrl
+    || runtimeEnv.SUPABASE_URL
+    || viteEnv.VITE_SUPABASE_URL
+    || viteEnv.SUPABASE_URL
+    || SYSTEM_DEFAULTS.URL;
+  const finalKey = localKey
+    || runtimeEnv.SUPABASE_ANON_KEY
+    || runtimeEnv.SUPABASE_KEY
+    || viteEnv.VITE_SUPABASE_ANON_KEY
+    || viteEnv.VITE_SUPABASE_KEY
+    || SYSTEM_DEFAULTS.KEY;
   return { url: finalUrl, key: finalKey };
 };
+
+export async function fetchProfileByAuthUserId<T extends Record<string, any> = Profile>(
+  supabase: SupabaseClient,
+  authUserId: string,
+  select = '*, tenants!profiles_tenant_id_fkey (*)'
+): Promise<ProfileLookupResult<T>> {
+  if (!authUserId) return { data: null, error: null, matchedBy: null };
+  let lastError: any = null;
+
+  for (const matchedBy of ['auth_user_id', 'id'] as const) {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(select)
+        .eq(matchedBy, authUserId)
+        .maybeSingle();
+
+      if (error) lastError = error;
+      if (data) return { data: data as unknown as T, error: null, matchedBy };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  return { data: null, error: lastError, matchedBy: null };
+}
 
 let supabase: SupabaseClient | null = null;
 const config = getSupabaseConfig();
@@ -108,14 +169,22 @@ export const getStatelessSupabase = () => {
 };
 
 export const saveExternalConfig = (url: string, key: string) => {
+    if (isProduction()) {
+      console.warn('[E-FINANCE] External Supabase overrides are disabled in production.');
+      return;
+    }
+    if (!canUseLocalStorage()) return;
     localStorage.setItem(STORAGE_KEYS.URL, url.trim());
-    localStorage.setItem(STORAGE_KEYS.KEY, key.trim());
+    localStorage.setItem(STORAGE_KEYS.ANON_KEY, key.trim());
+    localStorage.removeItem(STORAGE_KEYS.LEGACY_KEY);
     window.location.reload();
 };
 
 export const clearExternalConfig = () => {
+    if (!canUseLocalStorage()) return;
     localStorage.removeItem(STORAGE_KEYS.URL);
-    localStorage.removeItem(STORAGE_KEYS.KEY);
+    localStorage.removeItem(STORAGE_KEYS.ANON_KEY);
+    localStorage.removeItem(STORAGE_KEYS.LEGACY_KEY);
     window.location.reload();
 };
 

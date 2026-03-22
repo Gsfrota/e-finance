@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { getSupabase, logError, parseSupabaseError, isValidCPF } from '../services/supabase';
+import { fetchProfileByAuthUserId, getSupabase, logError, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { Profile, UserRole, Tenant, Invite } from '../types';
 import { User, PlusCircle, Search, X, DollarSign, Activity, Users, CreditCard, Pencil, AlertTriangle, FileSearch, RefreshCw, Crown, Shield, Clipboard, Check, Key, Mail, Phone, Briefcase, Send, Trash2, Hourglass, UserPlus, MapPin, Upload, CheckCircle2, ArrowLeft } from 'lucide-react';
 
@@ -82,14 +82,16 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
         if (!supabase) throw new Error("Instância Supabase ausente.");
 
         const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser?.id) throw new Error('Usuário autenticado não encontrado.');
 
-        const { data: adminProfile, error: profError } = await supabase
-            .from('profiles')
-            .select(`*, tenants!profiles_tenant_id_fkey (*)`)
-            .eq('auth_user_id', authUser?.id)
-            .single();
+        const { data: adminProfile, error: profError } = await fetchProfileByAuthUserId<Profile & { tenants?: Tenant }>(
+            supabase,
+            authUser.id,
+            `*, tenants!profiles_tenant_id_fkey (*)`
+        );
 
         if (profError) throw profError;
+        if (!adminProfile?.tenant_id) throw new Error('Perfil administrativo não encontrado.');
         setCurrentTenant(adminProfile.tenants as any);
         const tenantId = adminProfile.tenant_id;
 

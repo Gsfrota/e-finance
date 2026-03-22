@@ -16,7 +16,8 @@ import DailyCollectionView from './components/DailyCollectionView';
 import LegacyContractPage from './components/LegacyContractPage';
 import TopClientes from './components/TopClientes';
 import { AppView, UserRole, Tenant, Profile } from './types';
-import { getSupabase, isProduction, logError } from './services/supabase';
+import { clearAllCache } from './services/cache';
+import { fetchProfileByAuthUserId, getSupabase, isProduction, logError } from './services/supabase';
 import {
   LayoutDashboard,
   Home,
@@ -50,6 +51,13 @@ const isInTrial = (tenant: Tenant | null | undefined): boolean => {
 const getTrialDaysLeft = (trial_ends_at: string): number => {
   const diff = new Date(trial_ends_at).getTime() - Date.now();
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+};
+
+const APP_STORAGE_KEYS = ['EF_SIDEBAR_COLLAPSED', 'EF_THEME'] as const;
+
+const clearAppStorageKeys = () => {
+  if (typeof window === 'undefined') return;
+  APP_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
 };
 
 // ─── Layout ────────────────────────────────────────────────────────────────────
@@ -438,6 +446,21 @@ const App: React.FC = () => {
   const [wizardMode, setWizardMode] = useState<'full' | 'setup'>('full');
   const profileLoadedRef = useRef(false);
 
+  const resetSessionState = () => {
+    profileLoadedRef.current = false;
+    setTargetUserId(undefined);
+    setContractAutoNew(false);
+    setProfile(null);
+    setTenant(null);
+    setNeedsOnboarding(false);
+    setOnboardingUser(null);
+    setWizardMode('full');
+    setLoadingPhase('init');
+    setAppError(null);
+    setCurrentView(AppView.LOGIN);
+    setIsLoading(false);
+  };
+
   const refreshTenant = async (tenantId: string) => {
     const supabase = getSupabase();
     if (!supabase) return;
@@ -457,12 +480,11 @@ const App: React.FC = () => {
     }
 
     try {
-        const { data: dbData, error } = await supabase
-            .from('profiles')
-            // FIX: Explicit relationship hint to resolve ambiguity between 'profiles' and 'tenants'
-            .select(`*, tenants!profiles_tenant_id_fkey (*)`)
-            .eq('id', sessionUser.id)
-            .maybeSingle();
+        const { data: dbData, error } = await fetchProfileByAuthUserId<Profile>(
+          supabase,
+          sessionUser.id,
+          `*, tenants!profiles_tenant_id_fkey (*)`
+        );
 
         if (error) throw error;
 
@@ -515,6 +537,7 @@ const App: React.FC = () => {
             const meta = sessionUser.user_metadata || {};
             setProfile({
                 id: sessionUser.id,
+                auth_user_id: sessionUser.id,
                 email: sessionUser.email,
                 full_name: meta.full_name || 'Novo Usuário',
                 role: (meta.role as UserRole) || 'investor',
@@ -580,11 +603,9 @@ const App: React.FC = () => {
             setIsLoading(true);
             loadAppData(session.user);
         } else if (event === 'SIGNED_OUT') {
-            profileLoadedRef.current = false;
-            setProfile(null);
-            setTenant(null);
-            setCurrentView(AppView.LOGIN);
-            setIsLoading(false);
+            clearAllCache();
+            clearAppStorageKeys();
+            resetSessionState();
         }
     });
 
@@ -592,6 +613,9 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogout = async () => {
+    clearAllCache();
+    clearAppStorageKeys();
+    resetSessionState();
     const supabase = getSupabase();
     if (supabase) await supabase.auth.signOut();
   };
@@ -645,12 +669,7 @@ const App: React.FC = () => {
             else { setIsLoading(false); setCurrentView(AppView.LOGIN); }
           });
         }}
-        onLogout={() => {
-          const supabase = getSupabase();
-          if (supabase) supabase.auth.signOut();
-          setNeedsOnboarding(false);
-          setOnboardingUser(null);
-        }}
+        onLogout={handleLogout}
       />
     );
   }

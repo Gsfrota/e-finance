@@ -44,9 +44,9 @@ Permitir operação natural por chat para funções de gestão financeira (dashb
 
 - `GET /` — status do serviço
 - `GET /health` — healthcheck
-- `POST /webhook/whatsapp` — entrada UazAPI
+- `POST /webhook/whatsapp/:secret?` — entrada UazAPI
 - `POST /webhook/telegram` — entrada Telegram
-- `POST /setup` — configuração de webhooks dos canais
+- `POST /setup` — configuração de webhooks dos canais, protegido por `x-setup-secret`
 
 ## Requisitos de ambiente
 
@@ -56,6 +56,10 @@ Variáveis obrigatórias:
 - `UAZAPI_SERVER_URL` (default `https://processai.uazapi.com`)
 - `UAZAPI_INSTANCE_TOKEN`
 - `TELEGRAM_BOT_TOKEN`
+- `SETUP_SECRET`
+- `TELEGRAM_WEBHOOK_SECRET_TOKEN`
+- `UAZAPI_WEBHOOK_SECRET`
+- `BOT_BASE_URL` (obrigatório em produção para `/setup`)
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `GEMINI_API_KEY`
@@ -117,18 +121,21 @@ gcloud run deploy "${SERVICE}" \
   --min-instances=0 \
   --max-instances=3 \
   --timeout=60 \
-  --set-secrets="UAZAPI_INSTANCE_TOKEN=UAZAPI_INSTANCE_TOKEN:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY_EFINANCE:latest,GEMINI_API_KEY=GEMINI_API_KEY_EFINANCE:latest" \
+  --set-secrets="UAZAPI_INSTANCE_TOKEN=UAZAPI_INSTANCE_TOKEN:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,SETUP_SECRET=SETUP_SECRET:latest,TELEGRAM_WEBHOOK_SECRET_TOKEN=TELEGRAM_WEBHOOK_SECRET_TOKEN:latest,UAZAPI_WEBHOOK_SECRET=UAZAPI_WEBHOOK_SECRET:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY_EFINANCE:latest,GEMINI_API_KEY=GEMINI_API_KEY_EFINANCE:latest" \
   --set-env-vars="UAZAPI_SERVER_URL=https://processai.uazapi.com,SUPABASE_URL=https://SUPABASE_PROJECT_URL_REMOVED"
 ```
 
 ### 5) Configurar webhooks
 
 ```bash
-URL="$(gcloud run services describe "${SERVICE}" --region="${REGION}" --format='value(status.url)')"
+URL="$(gcloud run services describe "${SERVICE}" --project="${PROJECT_ID}" --region="${REGION}" --format='value(status.url)')"
+gcloud run services update "${SERVICE}" --project="${PROJECT_ID}" --region="${REGION}" --update-env-vars="BOT_BASE_URL=${URL}"
+SETUP_SECRET_VALUE="$(gcloud secrets versions access latest --secret=SETUP_SECRET --project="${PROJECT_ID}")"
 
 curl -s -X POST "${URL}/setup" \
   -H "Content-Type: application/json" \
-  -d "{\"webhookBaseUrl\":\"${URL}\"}"
+  -H "x-setup-secret: ${SETUP_SECRET_VALUE}" \
+  -d '{}'
 ```
 
 ### 6) Smoke test pós-deploy
@@ -188,11 +195,13 @@ Campos esperados:
 
 - Recebe `message.text`, `voice`, `audio`, `photo`.
 - Envia resposta em `parse_mode=HTML` com escape seguro.
+- O webhook valida `x-telegram-bot-api-secret-token`.
 
 ### WhatsApp (UazAPI)
 
 - Recebe `text`, `audioMessage`, `pttMessage`, `imageMessage`.
 - `pttMessage` é aceito no gate inicial.
+- O webhook usa `POST /webhook/whatsapp/:secret?` e valida `x-uazapi-webhook-secret` quando disponível.
 
 ## Workflow de CI/CD
 
@@ -216,6 +225,7 @@ Causa comum: teste sintético com `chat_id` inválido. Em produção, use chat r
 
 Validar:
 
+- segredo de setup correto em `x-setup-secret`
 - segredo do canal no Secret Manager
 - token vigente
 - conectividade externa da API do canal

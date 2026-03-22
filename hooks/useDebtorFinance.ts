@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getSupabase, withRetry } from '../services/supabase';
+import { fetchProfileByAuthUserId, getSupabase, withRetry } from '../services/supabase';
 import { getCached, setCached } from '../services/cache';
 
 export interface DebtorInstallment {
@@ -67,8 +67,9 @@ export const useDebtorFinance = () => {
 
         // 1. Busca Perfil
         const { data: profile } = await withRetry(async () =>
-          await supabase.from('profiles').select('full_name').eq('id', user.id).single()
+          await fetchProfileByAuthUserId<{ id: string; full_name?: string }>(supabase, user.id, 'id, full_name')
         );
+        const debtorProfileId = profile?.id || user.id;
 
         // 2. Busca Contratos e Parcelas
         const { data: investments, error } = await withRetry(async () =>
@@ -83,7 +84,7 @@ export const useDebtorFinance = () => {
                 id, number, due_date, amount_total, status, amount_paid, fine_amount, interest_delay_amount
               )
             `)
-            .eq('payer_id', user.id)
+            .eq('payer_id', debtorProfileId)
             .order('created_at', { ascending: false })
         );
 

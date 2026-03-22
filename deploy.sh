@@ -64,7 +64,8 @@ gcloud run deploy "${SERVICE}" \
   --memory=512Mi \
   --cpu=1 \
   --port=8080 \
-  --update-secrets="SUPABASE_KEY=SUPABASE_KEY_EFINANCE:1,SUPABASE_URL=SUPABASE_URL_EFINANCE:1" \
+  --remove-env-vars="API_KEY,GEMINI_API_KEY,SUPABASE_SERVICE_ROLE_KEY_EFINANCE" \
+  --update-secrets="SUPABASE_ANON_KEY=SUPABASE_ANON_KEY_EFINANCE:latest,SUPABASE_URL=SUPABASE_URL_EFINANCE:latest" \
   --quiet
 
 # ── Resultado ─────────────────────────────────────────────────

@@ -1,7 +1,10 @@
 import axios from 'axios';
 import { config } from '../config';
 
-const api = axios.create({ baseURL: config.telegram.apiBase });
+const api = axios.create({
+  baseURL: config.telegram.apiBase,
+  timeout: config.http.timeoutMs,
+});
 
 export interface TgMessage {
   message_id: number;
@@ -39,7 +42,12 @@ export async function downloadFileBuffer(fileId: string): Promise<Buffer | null>
     const filePath = res.data?.result?.file_path;
     if (!filePath) return null;
     const fileUrl = `https://api.telegram.org/file/bot${config.telegram.botToken}/${filePath}`;
-    const fileRes = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+    const fileRes = await axios.get(fileUrl, {
+      responseType: 'arraybuffer',
+      timeout: config.http.downloadTimeoutMs,
+      maxContentLength: config.media.maxAudioBytes,
+      maxBodyLength: config.media.maxAudioBytes,
+    });
     return Buffer.from(fileRes.data);
   } catch {
     return null;
@@ -51,6 +59,7 @@ export async function setWebhook(webhookUrl: string): Promise<void> {
     url: webhookUrl,
     allowed_updates: ['message'],
     drop_pending_updates: true,
+    secret_token: config.security.telegramWebhookSecretToken,
   });
 }
 

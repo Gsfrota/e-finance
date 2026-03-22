@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AlertCircle, ArrowRight, Loader2, Key } from 'lucide-react';
-import { getSupabase, cleanNumbers, isValidCPF } from '../services/supabase';
+import { cleanNumbers, fetchProfileByAuthUserId, getSupabase, isValidCPF } from '../services/supabase';
 import { Tenant } from '../types';
 
 const TIMEZONE_OPTIONS = [
@@ -140,11 +140,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
     // Resolve tenant_id se ainda não foi obtido (ex: recuperação de onboarding interrompido)
     let tenantId = resolvedTenantId;
     if (!tenantId && sessionUser?.id) {
-      const { data: p } = await supabase
-        .from('profiles')
-        .select('tenant_id')
-        .eq('id', sessionUser.id)
-        .maybeSingle();
+      const { data: p } = await fetchProfileByAuthUserId<{ tenant_id?: string }>(supabase, sessionUser.id, 'tenant_id');
       if (p?.tenant_id) { tenantId = p.tenant_id; setResolvedTenantId(p.tenant_id); }
     }
     if (!tenantId) { setError('Tenant não encontrado. Tente sair e entrar novamente.'); setLoading(false); return; }
@@ -183,8 +179,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
 
     let tenantId = resolvedTenantId;
     if (!tenantId && supabase && sessionUser?.id) {
-      const { data: p } = await supabase
-        .from('profiles').select('tenant_id').eq('id', sessionUser.id).maybeSingle();
+      const { data: p } = await fetchProfileByAuthUserId<{ tenant_id?: string }>(supabase, sessionUser.id, 'tenant_id');
       if (p?.tenant_id) { tenantId = p.tenant_id; setResolvedTenantId(p.tenant_id); }
     }
 

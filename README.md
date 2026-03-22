@@ -6,6 +6,16 @@ Plataforma SaaS multi-tenant para gestão de contratos de crédito entre investi
 
 O E-Finance resolve um problema real de gestores de carteiras de crédito: controlar múltiplos contratos, parcelas, pagamentos e inadimplências em um único lugar — acessível tanto pelo painel web quanto pelo WhatsApp, via linguagem natural.
 
+## Mudanças recentes
+
+O sistema passou por uma transição operacional importante:
+
+- O frontend agora resolve perfil por `auth_user_id` com fallback legado para `id`.
+- O bot exige segredos próprios para `/setup`, Telegram e WhatsApp.
+- A configuração pública do browser migra para `SUPABASE_ANON_KEY`, mas ainda aceita `SUPABASE_KEY` como compatibilidade temporária.
+
+Para o impacto prático e o rollout seguro, veja [docs/guides/operational-differences.md](docs/guides/operational-differences.md).
+
 **Módulos:**
 
 - **Painel Web** — React 19 + TypeScript + Supabase, multi-tenant com roles (admin, investidor, devedor)
@@ -116,9 +126,17 @@ cd e-finance-bot
 npm install
 # Configurar .env com SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 #   GEMINI_API_KEY, UAZAPI_SERVER_URL, UAZAPI_INSTANCE_TOKEN,
-#   TELEGRAM_BOT_TOKEN
+#   TELEGRAM_BOT_TOKEN, SETUP_SECRET, TELEGRAM_WEBHOOK_SECRET_TOKEN,
+#   UAZAPI_WEBHOOK_SECRET, BOT_BASE_URL
 npm run dev
 ```
+
+### Como usar o app
+
+- `admin`: cria e revisa contratos, acompanha cobrança e administra usuários do tenant.
+- `investor`: acompanha carteira, retornos e próximas parcelas recebíveis.
+- `devedor`: vê saldo, parcelas e pagamentos pendentes.
+- `bot`: recebe mensagens por WhatsApp/Telegram e só executa mutações após validação e confirmação explícita.
 
 ## Deploy
 
@@ -130,6 +148,8 @@ cd e-finance-bot && ./deploy-bot.sh   # bot
 ```
 
 Secrets gerenciados pelo Google Secret Manager. Nenhuma credencial no código.
+
+Para operação e rollback seguros, use [docs/devops/deploy-runbook.md](docs/devops/deploy-runbook.md).
 
 ## Estrutura do projeto
 

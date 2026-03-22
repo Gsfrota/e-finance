@@ -4,6 +4,7 @@ import { config } from '../config';
 const api = axios.create({
   baseURL: config.uazapi.serverUrl,
   headers: { token: config.uazapi.instanceToken },
+  timeout: config.http.timeoutMs,
 });
 
 export interface WaMessage {
@@ -63,7 +64,9 @@ export async function setInstancePresence(presence: WaPresence): Promise<void> {
 
 export async function downloadMedia(messageid: string, chatid: string): Promise<Buffer | null> {
   try {
-    const res = await api.post('/message/download', { messageid, chatid });
+    const res = await api.post('/message/download', { messageid, chatid }, {
+      timeout: config.http.downloadTimeoutMs,
+    });
     if (res.data?.base64) {
       return Buffer.from(res.data.base64, 'base64');
     }

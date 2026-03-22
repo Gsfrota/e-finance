@@ -1,6 +1,28 @@
 export const config = {
   port: parseInt(process.env.PORT || '8080', 10),
 
+  runtime: {
+    nodeEnv: (process.env.NODE_ENV || 'development').trim(),
+    get isProduction() {
+      return this.nodeEnv === 'production';
+    },
+  },
+
+  bot: {
+    baseUrl: (process.env.BOT_BASE_URL || '').trim(),
+  },
+
+  security: {
+    setupSecret: (process.env.SETUP_SECRET || '').trim(),
+    telegramWebhookSecretToken: (process.env.TELEGRAM_WEBHOOK_SECRET_TOKEN || '').trim(),
+    whatsappWebhookSecret: (process.env.UAZAPI_WEBHOOK_SECRET || '').trim(),
+  },
+
+  http: {
+    timeoutMs: parseInt(process.env.HTTP_TIMEOUT_MS || '10000', 10),
+    downloadTimeoutMs: parseInt(process.env.HTTP_DOWNLOAD_TIMEOUT_MS || '15000', 10),
+  },
+
   // WhatsApp - UazAPI
   uazapi: {
     serverUrl: process.env.UAZAPI_SERVER_URL || 'https://processai.uazapi.com',

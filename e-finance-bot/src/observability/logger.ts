@@ -77,10 +77,48 @@ export interface MessageLogPayload {
   [key: string]: unknown;
 }
 
+const SENSITIVE_TEXT_FIELDS = new Set([
+  'inputText',
+  'responseText',
+  'extractedArgs',
+  'error',
+  'reason',
+  'fallbackReason',
+  'contractParseFailedReason',
+  'policyResult',
+  'actionCapability',
+  'confirmationState',
+]);
+
+function sanitizeLogText(value: string): string {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  const sanitized = normalized
+    .replace(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g, '[redacted-cpf]')
+    .replace(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/g, '[redacted-cnpj]')
+    .replace(/R\$\s*[\d.,]+/gi, '[redacted-value]')
+    .replace(/\$\s*[\d.,]+/g, '[redacted-value]')
+    .replace(/\b\d{4,}\b/g, '[redacted-number]');
+
+  return sanitized.length > 180 ? `${sanitized.slice(0, 177)}...` : sanitized;
+}
+
+function sanitizePayload(payload: MessageLogPayload): MessageLogPayload {
+  const sanitized: MessageLogPayload = { ...payload };
+
+  for (const key of SENSITIVE_TEXT_FIELDS) {
+    const value = sanitized[key];
+    if (typeof value === 'string' && value.trim()) {
+      sanitized[key] = sanitizeLogText(value);
+    }
+  }
+
+  return sanitized;
+}
+
 export function logStructuredMessage(event: string, payload: MessageLogPayload): void {
   console.log(JSON.stringify({
     ts: new Date().toISOString(),
     event,
-    ...payload,
+    ...sanitizePayload(payload),
   }));
 }

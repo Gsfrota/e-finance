@@ -1,11 +1,15 @@
 #!/bin/sh
 # Gera env-config.js com as credenciais do Cloud Run em runtime
-# As variáveis SUPABASE_URL e SUPABASE_KEY vêm dos secrets do Cloud Run.
+# O caminho oficial é SUPABASE_URL + SUPABASE_ANON_KEY.
+# Durante a transição, SUPABASE_KEY continua aceito como fallback legado.
+
+RUNTIME_SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-${SUPABASE_KEY:-}}"
 
 cat > /usr/share/nginx/html/env-config.js << EOF
 window._env_ = {
   SUPABASE_URL: "${SUPABASE_URL}",
-  SUPABASE_KEY: "${SUPABASE_KEY}"
+  SUPABASE_ANON_KEY: "${RUNTIME_SUPABASE_ANON_KEY}",
+  SUPABASE_KEY: "${RUNTIME_SUPABASE_ANON_KEY}"
 };
 EOF
 

@@ -10,6 +10,17 @@
 
 ---
 
+## Compatibilidade atual
+
+O app já foi adaptado para o modelo novo, mas a operação ainda convive com nomes legados em alguns pontos:
+
+- Frontend: `SUPABASE_ANON_KEY` é o nome oficial no browser.
+- Frontend legado: `SUPABASE_KEY` ainda funciona como fallback enquanto a migração não termina.
+- Bot: `SETUP_SECRET`, `TELEGRAM_WEBHOOK_SECRET_TOKEN` e `UAZAPI_WEBHOOK_SECRET` passaram a ser obrigatórios no serviço.
+- Banco: perfis migrados podem ter `auth_user_id` diferente de `id`, então a validação de fluxo precisa considerar os dois campos.
+
+Se houver dúvida sobre o que é novo versus legado, use `docs/guides/operational-differences.md` como referência.
+
 ## Variáveis de ambiente locais (setar no início)
 
 ```bash
@@ -267,6 +278,8 @@ gcloud run deploy "${SERVICE}" \
   --quiet
 ```
 
+> Observação operacional: este comando ainda carrega o nome legado `SUPABASE_KEY` porque os scripts da base estão em transição. O código do frontend já entende `SUPABASE_ANON_KEY` no runtime; a migração de nomes deve ser tratada como mudança separada do deploy.
+
 ### 5b. Capturar NEW_REVISION e SERVICE_URL
 
 ```bash
@@ -326,6 +339,8 @@ fi
 > `SUPABASE_URL` e `SUPABASE_KEY` em runtime. Se o entrypoint falhou silenciosamente,
 > nginx serve HTTP 200 mas com credenciais vazias — a app abre mas não carrega dados.
 > Este gate detecta essa falha silenciosa que `deploy.sh` não detectava.
+
+> Para a fase atual da migração, considerar também o nome novo `SUPABASE_ANON_KEY` ao revisar configs ou templates de runtime.
 
 **🔴 BLOQUEANTE se `HEALTH_FAIL` OU `ENV_CONFIG_FAIL` → Fase 7 (Rollback).**
 
@@ -446,3 +461,4 @@ echo "Tag criada: deploy-${TAG}"
 | `.dockerignore` | Entradas validadas na Fase 1b |
 | `.github/workflows/deploy.yml` | Referência para `GEMINI_API_KEY` como build-arg |
 | `e-finance-bot/docs/CONFIGURACAO.md` | Runbook do bot (deploy separado via `deploy-bot.sh`) |
+| `docs/guides/operational-differences.md` | Diferença entre legado e comportamento atual |
