@@ -421,18 +421,36 @@ const Layout: React.FC<LayoutProps> = ({
       <div className="flex h-screen flex-1 flex-col overflow-hidden">
         <header className="glass-border z-20 flex h-16 items-center justify-between border-b px-4 md:h-20 md:px-8">
 
-          <div className="flex items-center gap-3 md:hidden">
+          <div className="flex min-w-0 flex-1 items-center gap-3 md:hidden">
             <button onClick={() => setMobileMenuOpen(true)} className="flex min-h-[44px] min-w-[44px] items-center justify-center text-[color:var(--text-secondary)] hover:text-white">
               <Menu size={24} />
             </button>
-            <div className="min-w-0">
-              <div className="font-display truncate text-lg text-[color:var(--text-primary)] max-w-[140px]">
-                {operationLabel || '...'}
+
+            {showCompanySwitcher ? (
+              <CompanySwitcher
+                variant="mobile-sheet"
+                tenantName={tenant?.name ?? null}
+                companies={companies}
+                activeCompanyId={activeCompany?.id ?? null}
+                activeCompanyScope={activeCompanyScope}
+                accessMode={companyAccessMode}
+                triggerTitle={operationLabel}
+                scopeDescriptorLabel={companyScopeDescriptorLabel}
+                scopeLabel={companyScopeLabel}
+                onSelectScope={onSelectCompanyScope}
+                onCreateCompany={companyAccessMode === 'enabled' ? () => onOpenCompanySettings('empresas') : undefined}
+                onUpgrade={onOpenSubscriptionSettings}
+              />
+            ) : (
+              <div className="min-w-0">
+                <div className="font-display truncate text-lg text-[color:var(--text-primary)] max-w-[140px]">
+                  {operationLabel || '...'}
+                </div>
+                <div className="truncate text-[0.62rem] font-bold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
+                  {companyScopeDescriptorLabel}: {companyScopeLabel}
+                </div>
               </div>
-              <div className="truncate text-[0.62rem] font-bold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
-                {companyScopeDescriptorLabel}: {companyScopeLabel}
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="hidden md:flex md:items-center md:gap-6">
@@ -456,6 +474,7 @@ const Layout: React.FC<LayoutProps> = ({
                   activeCompanyId={activeCompany?.id ?? null}
                   activeCompanyScope={activeCompanyScope}
                   accessMode={companyAccessMode}
+                  scopeDescriptorLabel={companyScopeDescriptorLabel}
                   scopeLabel={companyScopeLabel}
                   onSelectScope={onSelectCompanyScope}
                   onCreateCompany={companyAccessMode === 'enabled' ? () => onOpenCompanySettings('empresas') : undefined}
