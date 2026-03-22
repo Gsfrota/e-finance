@@ -425,48 +425,48 @@ const Layout: React.FC<LayoutProps> = ({
             <button onClick={() => setMobileMenuOpen(true)} className="flex min-h-[44px] min-w-[44px] items-center justify-center text-[color:var(--text-secondary)] hover:text-white">
               <Menu size={24} />
             </button>
+            <div className="min-w-0 flex-1">
+              <div className="font-display truncate text-lg text-[color:var(--text-primary)]">
+                {operationLabel || '...'}
+              </div>
 
-            {showCompanySwitcher ? (
-              <CompanySwitcher
-                variant="mobile-sheet"
-                tenantName={tenant?.name ?? null}
-                companies={companies}
-                activeCompanyId={activeCompany?.id ?? null}
-                activeCompanyScope={activeCompanyScope}
-                accessMode={companyAccessMode}
-                triggerTitle={operationLabel}
-                scopeDescriptorLabel={companyScopeDescriptorLabel}
-                scopeLabel={companyScopeLabel}
-                onSelectScope={onSelectCompanyScope}
-                onCreateCompany={companyAccessMode === 'enabled' ? () => onOpenCompanySettings('empresas') : undefined}
-                onUpgrade={onOpenSubscriptionSettings}
-              />
-            ) : (
-              <div className="min-w-0">
-                <div className="font-display truncate text-lg text-[color:var(--text-primary)] max-w-[140px]">
-                  {operationLabel || '...'}
-                </div>
+              {showCompanySwitcher ? (
+                <CompanySwitcher
+                  variant="mobile-sheet"
+                  tenantName={tenant?.name ?? null}
+                  companies={companies}
+                  activeCompanyId={activeCompany?.id ?? null}
+                  activeCompanyScope={activeCompanyScope}
+                  accessMode={companyAccessMode}
+                  triggerTitle={operationLabel}
+                  scopeDescriptorLabel={companyScopeDescriptorLabel}
+                  scopeLabel={companyScopeLabel}
+                  onSelectScope={onSelectCompanyScope}
+                  onCreateCompany={companyAccessMode === 'enabled' ? () => onOpenCompanySettings('empresas') : undefined}
+                  onUpgrade={onOpenSubscriptionSettings}
+                />
+              ) : (
                 <div className="truncate text-[0.62rem] font-bold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
                   {companyScopeDescriptorLabel}: {companyScopeLabel}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
-          <div className="hidden md:flex md:items-center md:gap-6">
-            <div>
+          <div className="hidden min-w-0 flex-1 items-center justify-between gap-6 md:flex">
+            <div className="min-w-0 flex-1">
               <div className="section-kicker mb-1">Painel</div>
-              <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--text-secondary)]">
-                <span>{currentSectionLabel[activeView]}</span>
+              <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-[color:var(--text-secondary)]">
+                <span className="shrink-0">{currentSectionLabel[activeView]}</span>
                 <ChevronRight size={14} className="text-[color:var(--text-faint)]" />
-                <span className="text-[color:var(--text-primary)]">{operationLabel}</span>
+                <span className="truncate text-[color:var(--text-primary)]">{operationLabel}</span>
               </div>
-              <div className="mt-1 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
+              <div className="mt-1 truncate text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
                 {companyScopeDescriptorLabel}: {companyScopeLabel}
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="ml-6 flex min-w-0 shrink-0 items-center gap-3">
               {showCompanySwitcher && (
                 <CompanySwitcher
                   tenantName={tenant?.name ?? null}
@@ -482,12 +482,12 @@ const Layout: React.FC<LayoutProps> = ({
                 />
               )}
 
-              <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2">
+              <div className="flex min-w-0 max-w-[300px] items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)]">
                   <UserRound size={18} />
                 </div>
-                <div className="text-right">
-                    <p className="text-sm font-semibold text-[color:var(--text-primary)]">{profile?.full_name || 'Usuário'}</p>
+                <div className="min-w-0 text-right">
+                    <p className="truncate text-sm font-semibold text-[color:var(--text-primary)]">{profile?.full_name || 'Usuário'}</p>
                     <p className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
                       {userRole === 'admin' ? 'Administrador' : userRole || '---'}
                     </p>
