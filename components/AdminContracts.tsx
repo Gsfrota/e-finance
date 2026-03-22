@@ -163,30 +163,30 @@ const UserSelectionCard: React.FC<{
     if (selectedProfile) {
         return (
             <div className={`p-5 rounded-3xl border flex items-center justify-between animate-fade-in transition-all relative overflow-hidden group ${
-                role === 'investor' 
-                    ? 'bg-teal-950/30 border-teal-500/30 shadow-lg shadow-teal-900/10' 
-                    : 'bg-indigo-950/30 border-indigo-500/30 shadow-lg shadow-indigo-900/10'
+                role === 'investor'
+                    ? 'bg-[color:var(--accent-positive-subtle)] border-[color:var(--accent-positive-border)] shadow-lg'
+                    : 'bg-[color:var(--accent-steel-subtle)] border-[color:var(--accent-steel-border)] shadow-lg'
             }`}>
                 {isDefault && (
-                    <div className="absolute top-0 right-0 bg-teal-600 type-micro text-white px-3 py-1 rounded-bl-xl shadow-md z-20">
+                    <div className="absolute top-0 right-0 bg-[color:var(--accent-positive)] type-micro text-white px-3 py-1 rounded-bl-xl shadow-md z-20">
                         Padrão
                     </div>
                 )}
                 <div className="flex items-center gap-4 relative z-10">
                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xl border shadow-inner ${
-                        role === 'investor' ? 'bg-teal-900/50 text-teal-400 border-teal-500/20' : 'bg-indigo-900/50 text-indigo-400 border-indigo-500/20'
+                        role === 'investor' ? 'bg-[color:var(--accent-positive-subtle)] text-[color:var(--accent-positive)] border-[color:var(--accent-positive-border)]' : 'bg-[color:var(--accent-steel-subtle)] text-[color:var(--accent-steel)] border-[color:var(--accent-steel-border)]'
                     }`}>
                         {selectedProfile.full_name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                        <p className={`type-label mb-1 ${role === 'investor' ? 'text-teal-400' : 'text-indigo-400'}`}>
+                        <p className={`type-label mb-1 ${role === 'investor' ? 'text-[color:var(--accent-positive)]' : 'text-[color:var(--accent-steel)]'}`}>
                             {label}
                         </p>
                         <div className="flex items-center gap-2">
                             <p className="text-[color:var(--text-primary)] font-bold text-lg leading-none">{selectedProfile.full_name}</p>
                             {selectedProfile.role === 'admin' && (
                                 <div className="bg-[color:var(--bg-elevated)] p-1 rounded-md border border-[color:var(--border-subtle)]" title="Administrador">
-                                    <ShieldCheck size={12} className="text-teal-400"/>
+                                    <ShieldCheck size={12} className="text-[color:var(--accent-positive)]"/>
                                 </div>
                             )}
                         </div>
@@ -203,15 +203,15 @@ const UserSelectionCard: React.FC<{
     return (
         <div className="space-y-3">
             <div className="flex justify-between items-end px-1">
-                <label className={`type-label ${role === 'investor' ? 'text-teal-500' : 'text-indigo-500'}`}>{label}</label>
+                <label className={`type-label ${role === 'investor' ? 'text-[color:var(--accent-positive)]' : 'text-[color:var(--accent-steel)]'}`}>{label}</label>
                 {onCreateNew && (
-                    <button onClick={onCreateNew} className="text-[10px] font-bold text-teal-400 hover:text-teal-300 flex items-center gap-1.5 transition-colors bg-teal-950/50 px-3 py-1.5 rounded-lg border border-teal-900/50 hover:border-teal-500/50">
+                    <button onClick={onCreateNew} className="text-[10px] font-bold text-[color:var(--accent-positive)] flex items-center gap-1.5 transition-colors bg-[color:var(--accent-positive-subtle)] px-3 py-1.5 rounded-lg border border-[color:var(--accent-positive-border)] hover:opacity-80">
                         <PlusCircle size={12}/> Novo Cadastro
                     </button>
                 )}
             </div>
             <div className="relative group">
-                <Search className="absolute left-4 top-4 text-[color:var(--text-muted)] group-focus-within:text-teal-500 transition-colors" size={20} />
+                <Search className="absolute left-4 top-4 text-[color:var(--text-muted)] group-focus-within:text-[color:var(--accent-positive)] transition-colors" size={20} />
                 <input
                     type="text"
                     placeholder={role === 'investor' ? "Selecione o credor..." : "Busque ou selecione o cliente..."}
@@ -221,7 +221,7 @@ const UserSelectionCard: React.FC<{
                     onFocus={() => setShowDropdown(true)}
                     onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
                 />
-                <ChevronDown size={20} className={`absolute right-4 top-4 text-[color:var(--text-muted)] transition-transform duration-300 pointer-events-none ${showDropdown ? 'rotate-180 text-teal-500' : ''}`} />
+                <ChevronDown size={20} className={`absolute right-4 top-4 text-[color:var(--text-muted)] transition-transform duration-300 pointer-events-none ${showDropdown ? 'rotate-180 text-[color:var(--accent-positive)]' : ''}`} />
             </div>
             {showDropdown && (
                 <div className="mt-2 bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-2xl shadow-2xl overflow-hidden">
@@ -238,11 +238,11 @@ const UserSelectionCard: React.FC<{
                                             {p.full_name.charAt(0).toUpperCase()}
                                         </div>
                                         <div>
-                                            <p className="text-[color:var(--text-primary)] font-bold text-sm group-hover/item:text-teal-400 transition-colors">{p.full_name}</p>
+                                            <p className="text-[color:var(--text-primary)] font-bold text-sm group-hover/item:text-[color:var(--accent-positive)] transition-colors">{p.full_name}</p>
                                             <p className="text-[color:var(--text-muted)] text-[10px]">{p.email}</p>
                                         </div>
                                     </div>
-                                    {p.role === 'admin' && <span className="type-micro bg-teal-950 text-teal-400 px-2 py-1 rounded border border-teal-900">Admin</span>}
+                                    {p.role === 'admin' && <span className="type-micro bg-[color:var(--accent-positive-subtle)] text-[color:var(--accent-positive)] px-2 py-1 rounded border border-[color:var(--accent-positive-border)]">Admin</span>}
                                 </button>
                             ))}
                         </div>
@@ -869,7 +869,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                 </h3>
                 <div className="flex gap-1.5 mt-2">
                     {[1, 2, 3].map(i => (
-                        <div key={i} className={`h-1.5 w-8 rounded-full transition-all duration-300 ${step >= i ? 'bg-teal-500' : 'bg-[color:var(--border-subtle)]'}`}></div>
+                        <div key={i} className={`h-1.5 w-8 rounded-full transition-all duration-300 ${step >= i ? 'bg-[color:var(--accent-positive)]' : 'bg-[color:var(--border-subtle)]'}`}></div>
                     ))}
                 </div>
             </div>
@@ -924,7 +924,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                             <label className="type-label text-[color:var(--text-muted)] ml-1 mb-1 block">Nome do Ativo</label>
                             <input
                                 type="text"
-                                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold focus:border-teal-500 outline-none transition-all"
+                                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold focus:border-[color:var(--accent-positive)] outline-none transition-all"
                                 placeholder={`Ex: Empréstimo ${selectedPayer?.full_name.split(' ')[0]}`}
                                 value={formData.asset_name}
                                 onChange={e => setFormData({...formData, asset_name: e.target.value})}
@@ -935,10 +935,10 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                             <div>
                                 <label className="type-label text-[color:var(--text-muted)] ml-1 mb-1 block">Valor Principal (Aporte)</label>
                                 <div className="relative group">
-                                    <span className="absolute left-4 top-4 text-teal-500 font-bold group-focus-within:text-teal-400 transition-colors">R$</span>
+                                    <span className="absolute left-4 top-4 text-[color:var(--accent-positive)] font-bold transition-colors">R$</span>
                                     <input
                                         type="number" inputMode="decimal" step="0.01"
-                                        className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl pl-12 pr-4 py-4 text-2xl font-semibold text-[color:var(--text-primary)] outline-none focus:border-teal-500 transition-all"
+                                        className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl pl-12 pr-4 py-4 text-2xl font-semibold text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-positive)] transition-all"
                                         value={formData.amount_invested || ''}
                                         onChange={e => updateFormState({ amount_invested: parseFloat(e.target.value) })}
                                         placeholder="0.00"
@@ -950,19 +950,19 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 <div className="absolute -right-4 -top-4 bg-emerald-500/10 w-24 h-24 rounded-full blur-2xl pointer-events-none"></div>
 
                                 <div className="flex justify-between items-center mb-4 relative z-10">
-                                    <h4 className="type-label text-emerald-400 flex items-center gap-1.5">
+                                    <h4 className="type-label text-[color:var(--accent-positive)] flex items-center gap-1.5">
                                         <Coins size={12}/> Fonte de Recursos
                                     </h4>
                                     <div className="text-[9px] text-[color:var(--text-muted)] font-bold bg-[color:var(--bg-base)] px-2 py-1 rounded border border-[color:var(--border-subtle)]">
-                                        Caixa Livre: <span className="text-emerald-400">{formatCurrency(availableProfit)}</span>
+                                        Caixa Livre: <span className="text-[color:var(--accent-positive)]">{formatCurrency(availableProfit)}</span>
                                     </div>
                                 </div>
 
                                 <div className="space-y-4 relative z-10">
                                     <div>
                                         <div className="flex justify-between items-center text-xs mb-2">
-                                            <span className="text-emerald-400 font-bold">Usar Lucro Acumulado</span>
-                                            <span className="text-white type-micro bg-emerald-900/30 px-2 py-0.5 rounded">{formatCurrency(formData.source_profit_amount)}</span>
+                                            <span className="text-[color:var(--accent-positive)] font-bold">Usar Lucro Acumulado</span>
+                                            <span className="text-[color:var(--text-primary)] type-micro bg-[color:var(--accent-positive-subtle)] px-2 py-0.5 rounded">{formatCurrency(formData.source_profit_amount)}</span>
                                         </div>
                                         <input
                                             type="range"
@@ -971,7 +971,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                             step={0.01}
                                             value={formData.source_profit_amount}
                                             onChange={(e) => updateFormState({ source_profit_amount: Number(e.target.value) })}
-                                            className="w-full h-2 bg-[color:var(--bg-elevated)] rounded-lg appearance-none cursor-pointer accent-emerald-500 hover:accent-emerald-400 transition-all"
+                                            className="w-full h-2 bg-[color:var(--bg-elevated)] rounded-lg appearance-none cursor-pointer transition-all"
+                                            style={{ accentColor: 'var(--accent-positive)' }}
                                             disabled={availableProfit <= 0 || formData.amount_invested <= 0}
                                         />
                                     </div>
@@ -1014,7 +1015,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     onClick={() => updateFormState({ frequency: opt.id as any })}
                                     className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all gap-1.5 ${
                                         formData.frequency === opt.id
-                                        ? 'bg-teal-600 border-teal-500 text-white shadow-lg'
+                                        ? 'bg-[color:var(--accent-positive)] border-[color:var(--accent-positive)] text-white shadow-lg'
                                         : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
                                     }`}
                                 >
@@ -1061,11 +1062,11 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 onClick={() => updateFormState({ skip_saturday: !formData.skip_saturday })}
                                 className={`flex items-center gap-3 flex-1 p-3 rounded-2xl border transition-all ${
                                     formData.skip_saturday
-                                        ? 'bg-teal-950/40 border-teal-500/40 text-teal-300'
+                                        ? 'bg-[color:var(--accent-positive-subtle)] border-[color:var(--accent-positive-border)] text-[color:var(--accent-positive)]'
                                         : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)]'
                                 }`}
                             >
-                                <div className={`w-9 h-5 rounded-full relative transition-all flex-shrink-0 ${formData.skip_saturday ? 'bg-teal-600' : 'bg-[color:var(--bg-elevated)]'}`}>
+                                <div className={`w-9 h-5 rounded-full relative transition-all flex-shrink-0 ${formData.skip_saturday ? 'bg-[color:var(--accent-positive)]' : 'bg-[color:var(--bg-elevated)]'}`}>
                                     <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${formData.skip_saturday ? 'left-4' : 'left-0.5'}`} />
                                 </div>
                                 <span className="type-label">Pular Sábado</span>
@@ -1074,11 +1075,11 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 onClick={() => updateFormState({ skip_sunday: !formData.skip_sunday })}
                                 className={`flex items-center gap-3 flex-1 p-3 rounded-2xl border transition-all ${
                                     formData.skip_sunday
-                                        ? 'bg-teal-950/40 border-teal-500/40 text-teal-300'
+                                        ? 'bg-[color:var(--accent-positive-subtle)] border-[color:var(--accent-positive-border)] text-[color:var(--accent-positive)]'
                                         : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)]'
                                 }`}
                             >
-                                <div className={`w-9 h-5 rounded-full relative transition-all flex-shrink-0 ${formData.skip_sunday ? 'bg-teal-600' : 'bg-[color:var(--bg-elevated)]'}`}>
+                                <div className={`w-9 h-5 rounded-full relative transition-all flex-shrink-0 ${formData.skip_sunday ? 'bg-[color:var(--accent-positive)]' : 'bg-[color:var(--bg-elevated)]'}`}>
                                     <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${formData.skip_sunday ? 'left-4' : 'left-0.5'}`} />
                                 </div>
                                 <span className="type-label">Pular Domingo</span>
@@ -1103,7 +1104,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                             onClick={() => updateFormState({ start_date: val })}
                                             className={`type-label flex-1 py-3 rounded-2xl border transition-all ${
                                                 formData.start_date === val
-                                                    ? 'bg-teal-600 border-teal-500 text-white shadow-lg'
+                                                    ? 'bg-[color:var(--accent-positive)] border-[color:var(--accent-positive)] text-white shadow-lg'
                                                     : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
                                             }`}
                                         >
@@ -1138,7 +1139,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                             }}
                                             className={`type-label px-4 py-2 rounded-xl border transition-all ${
                                                 freelancerInterval === opt.days
-                                                    ? 'bg-teal-600 border-teal-500 text-white'
+                                                    ? 'bg-[color:var(--accent-positive)] border-[color:var(--accent-positive)] text-white'
                                                     : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-soft)]'
                                             }`}
                                         >
@@ -1150,7 +1151,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                         <input
                                             type="number"
                                             min={1}
-                                            className="w-14 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-2 py-1.5 text-sm text-center font-bold text-[color:var(--text-primary)] outline-none focus:border-teal-500"
+                                            className="w-14 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-2 py-1.5 text-sm text-center font-bold text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-positive)]"
                                             value={freelancerInterval}
                                             onChange={e => setFreelancerInterval(Math.max(1, parseInt(e.target.value) || 1))}
                                         />
@@ -1162,7 +1163,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                                     setFreelancerDates(newDates);
                                                 }
                                             }}
-                                            className="type-label px-3 py-1.5 bg-teal-700 hover:bg-teal-600 text-white rounded-xl transition-all"
+                                            className="type-label px-3 py-1.5 bg-[color:var(--accent-positive)] hover:opacity-90 text-white rounded-xl transition-all"
                                         >
                                             Aplicar
                                         </button>
@@ -1187,7 +1188,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                             </span>
                                             <input
                                                 type="date"
-                                                className="flex-1 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-1.5 text-sm font-bold text-[color:var(--text-primary)] outline-none focus:border-teal-500 transition-all"
+                                                className="flex-1 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-1.5 text-sm font-bold text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-positive)] transition-all"
                                                 value={dateStr}
                                                 onChange={e => {
                                                     const updated = [...freelancerDates];
@@ -1255,8 +1256,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
 
                     {formData.calculation_mode === 'interest_only' && (
                         <div className="space-y-4 animate-fade-in">
-                            <div className="bg-amber-900/10 border border-amber-500/20 rounded-2xl p-4">
-                                <p className="type-label text-amber-400 mb-2">Juros Apenas (Bullet)</p>
+                            <div className="bg-[color:var(--accent-caution-bg)] border border-[color:var(--accent-caution-border)] rounded-2xl p-4">
+                                <p className="type-label text-[color:var(--accent-caution)] mb-2">Juros Apenas (Bullet)</p>
                                 <p className="text-[11px] text-[color:var(--text-secondary)] leading-relaxed">
                                     O devedor paga somente juros mensais (simples, fixos sobre o principal original). O principal permanece intacto até o vencimento.
                                 </p>
@@ -1266,14 +1267,14 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 <div className="relative">
                                     <input
                                         type="number" inputMode="decimal" step="0.1"
-                                        className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-amber-500 transition-all text-center"
+                                        className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-[color:var(--accent-caution)] transition-all text-center"
                                         value={formData.interest_rate}
                                         onChange={e => updateFormState({ interest_rate: e.target.value === '' ? '' : parseFloat(e.target.value) })}
                                     />
                                     <span className="absolute right-6 top-5 text-[color:var(--text-muted)] font-bold">% a.m.</span>
                                 </div>
                                 <div className="text-center text-xs text-[color:var(--text-secondary)]">
-                                    Juros mensal: <strong className="text-amber-400">{formatCurrency(formData.installment_value)}</strong>
+                                    Juros mensal: <strong className="text-[color:var(--accent-caution)]">{formatCurrency(formData.installment_value)}</strong>
                                 </div>
                             </div>
 
@@ -1284,7 +1285,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                         onClick={() => updateFormState({ bullet_principal_mode: 'together' })}
                                         className={`p-3 rounded-2xl border transition-all text-left ${
                                             formData.bullet_principal_mode === 'together'
-                                                ? 'bg-amber-900/20 border-amber-500/40 text-amber-300'
+                                                ? 'bg-[color:var(--accent-caution-bg-strong)] border-[color:var(--accent-caution-border)] text-[color:var(--accent-caution)]'
                                                 : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
                                         }`}
                                     >
@@ -1295,7 +1296,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                         onClick={() => updateFormState({ bullet_principal_mode: 'separate' })}
                                         className={`p-3 rounded-2xl border transition-all text-left ${
                                             formData.bullet_principal_mode === 'separate'
-                                                ? 'bg-amber-900/20 border-amber-500/40 text-amber-300'
+                                                ? 'bg-[color:var(--accent-caution-bg-strong)] border-[color:var(--accent-caution-border)] text-[color:var(--accent-caution)]'
                                                 : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
                                         }`}
                                     >
@@ -1312,7 +1313,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                             <div className="relative">
                                 <input
                                     type="number" inputMode="decimal" step="0.1"
-                                    className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-teal-500 transition-all text-center"
+                                    className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-[color:var(--accent-positive)] transition-all text-center"
                                     value={formData.interest_rate}
                                     onChange={e => updateFormState({ interest_rate: e.target.value === '' ? '' : parseFloat(e.target.value) })}
                                 />
@@ -1359,7 +1360,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 <p className="type-title text-[color:var(--text-primary)] truncate">{formatCurrency(formData.current_value)}</p>
                             </div>
                             <div className="text-right">
-                                <div className="bg-teal-900/30 border border-teal-500/20 text-teal-400 px-3 py-1 rounded-lg text-xs font-bold inline-block mb-1">
+                                <div className="bg-[color:var(--accent-positive-subtle)] border border-[color:var(--accent-positive-border)] text-[color:var(--accent-positive)] px-3 py-1 rounded-lg text-xs font-bold inline-block mb-1">
                                     +{formatCurrency(formData.current_value - formData.amount_invested)} Lucro
                                 </div>
                             </div>
@@ -1391,39 +1392,39 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
 
                         <div className="bg-[color:var(--bg-base)]/50 p-4 rounded-xl border border-[color:var(--border-subtle)] mt-4">
                             <div className="type-micro text-[color:var(--text-muted)] mb-3 flex items-center gap-2">
-                                <Sparkles size={10} className="text-teal-500"/> Composição do Aporte
+                                <Sparkles size={10} className="text-[color:var(--accent-positive)]"/> Composição do Aporte
                             </div>
                             <div className="flex gap-4">
                                 <div className="flex-1 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] p-3 rounded-xl text-center">
                                     <p className="text-[9px] text-[color:var(--text-secondary)] font-bold uppercase mb-1">Novo</p>
                                     <p className="text-sm font-semibold text-[color:var(--text-primary)]">{formatCurrency(formData.amount_invested - formData.source_profit_amount)}</p>
                                 </div>
-                                <div className="flex-1 bg-emerald-900/20 border border-emerald-900/40 p-3 rounded-xl text-center">
-                                    <p className="text-[9px] text-emerald-500 font-bold uppercase mb-1">Reinvestido</p>
-                                    <p className="text-sm font-semibold text-emerald-400">{formatCurrency(formData.source_profit_amount)}</p>
+                                <div className="flex-1 bg-[color:var(--accent-positive-subtle)] border border-[color:var(--accent-positive-border)] p-3 rounded-xl text-center">
+                                    <p className="text-[9px] text-[color:var(--accent-positive)] font-bold uppercase mb-1">Reinvestido</p>
+                                    <p className="text-sm font-semibold text-[color:var(--accent-positive)]">{formatCurrency(formData.source_profit_amount)}</p>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     {formData.calculation_mode === 'interest_only' && (
-                        <div className="bg-amber-900/10 border border-amber-500/20 rounded-2xl p-4 animate-fade-in">
+                        <div className="bg-[color:var(--accent-caution-bg)] border border-[color:var(--accent-caution-border)] rounded-2xl p-4 animate-fade-in">
                             <div className="flex items-center gap-2 mb-2">
-                                <Activity size={14} className="text-amber-400"/>
-                                <span className="type-label text-amber-400 font-bold">Contrato Bullet (Juros Apenas)</span>
+                                <Activity size={14} className="text-[color:var(--accent-caution)]"/>
+                                <span className="type-label text-[color:var(--accent-caution)] font-bold">Contrato Bullet (Juros Apenas)</span>
                             </div>
                             <div className="text-[11px] text-[color:var(--text-secondary)] space-y-1">
-                                <p>Juros mensal: <strong className="text-amber-300">{formatCurrency(formData.installment_value)}</strong> ({formData.interest_rate}% a.m. sobre {formatCurrency(formData.amount_invested)})</p>
+                                <p>Juros mensal: <strong className="text-[color:var(--accent-caution)]">{formatCurrency(formData.installment_value)}</strong> ({formData.interest_rate}% a.m. sobre {formatCurrency(formData.amount_invested)})</p>
                                 <p>Principal devolvido: <strong className="text-[color:var(--text-primary)]">{formData.bullet_principal_mode === 'together' ? 'Junto na última parcela' : 'Parcela extra separada'}</strong></p>
                                 {formData.bullet_principal_mode === 'separate' && (
-                                    <p className="text-amber-400/70">Total de parcelas: {formData.total_installments} juros + 1 principal = {formData.total_installments + 1}</p>
+                                    <p className="text-[color:var(--accent-caution)] opacity-70">Total de parcelas: {formData.total_installments} juros + 1 principal = {formData.total_installments + 1}</p>
                                 )}
                             </div>
                         </div>
                     )}
 
                     <div className="flex items-center justify-center gap-2 text-xs text-[color:var(--text-muted)] font-medium">
-                        <ShieldCheck size={14} className="text-teal-500"/> Contrato Validado pelo Banco
+                        <ShieldCheck size={14} className="text-[color:var(--accent-positive)]"/> Contrato Validado pelo Banco
                     </div>
                 </div>
             )}
@@ -1437,11 +1438,11 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
             )}
 
             {step < 3 ? (
-                <button onClick={() => setStep(s => s + 1)} disabled={(step === 1 && (!selectedInvestor || !selectedPayer)) || (step === 2 && formData.amount_invested <= 0)} className="flex-[2] bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-2xl type-label flex items-center justify-center gap-2 transition-all shadow-lg shadow-teal-900/30">
+                <button onClick={() => setStep(s => s + 1)} disabled={(step === 1 && (!selectedInvestor || !selectedPayer)) || (step === 2 && formData.amount_invested <= 0)} className="flex-[2] bg-[color:var(--accent-positive)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-2xl type-label flex items-center justify-center gap-2 transition-all shadow-lg shadow-[0_4px_16px_var(--accent-positive-subtle)]">
                     Próximo <ChevronRight size={16}/>
                 </button>
             ) : (
-                <button onClick={handleCreateContract} disabled={wizardLoading} className="flex-[2] bg-green-600 hover:bg-green-500 text-white py-4 rounded-2xl type-label flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-900/30">
+                <button onClick={handleCreateContract} disabled={wizardLoading} className="flex-[2] bg-[color:var(--accent-positive)] hover:opacity-90 disabled:opacity-50 text-white py-4 rounded-2xl type-label flex items-center justify-center gap-2 transition-all shadow-lg shadow-[0_4px_16px_var(--accent-positive-subtle)]">
                     {wizardLoading ? <RefreshCw className="animate-spin" size={18}/> : <CheckCircle2 size={18}/>} Criar Contrato
                 </button>
             )}
@@ -1471,21 +1472,21 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                     <label className="type-label text-[color:var(--text-muted)] block mb-1">Nome Completo *</label>
                     <div className="relative">
                         <UserPlus size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
-                        <input required type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.full_name} onChange={e => setNewDebtorData({...newDebtorData, full_name: e.target.value})} placeholder="Nome completo" />
+                        <input required type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.full_name} onChange={e => setNewDebtorData({...newDebtorData, full_name: e.target.value})} placeholder="Nome completo" />
                     </div>
                 </div>
                 <div>
                     <label className="type-label text-[color:var(--text-muted)] block mb-1">E-mail</label>
                     <div className="relative">
                         <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
-                        <input type="email" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.email} onChange={e => setNewDebtorData({...newDebtorData, email: e.target.value})} placeholder="email@exemplo.com (opcional)" />
+                        <input type="email" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.email} onChange={e => setNewDebtorData({...newDebtorData, email: e.target.value})} placeholder="email@exemplo.com (opcional)" />
                     </div>
                 </div>
                 <div>
                     <label className="type-label text-[color:var(--text-muted)] block mb-1">Telefone</label>
                     <div className="relative">
                         <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
-                        <input type="tel" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.phone_number} onChange={e => setNewDebtorData({...newDebtorData, phone_number: e.target.value})} placeholder="(11) 99999-9999 (opcional)" />
+                        <input type="tel" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.phone_number} onChange={e => setNewDebtorData({...newDebtorData, phone_number: e.target.value})} placeholder="(11) 99999-9999 (opcional)" />
                     </div>
                 </div>
             </div>
@@ -1496,7 +1497,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                     <label className="type-label text-[color:var(--text-muted)] block mb-1">CPF</label>
                     <div className="relative">
                         <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
-                        <input type="text" maxLength={14} className={`w-full bg-[color:var(--bg-elevated)] border rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)] ${quickCreateCpfError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'}`} value={newDebtorData.cpf} onChange={e => { setQuickCreateCpfError(''); setNewDebtorData({...newDebtorData, cpf: maskCPFAdmin(e.target.value)}); }} placeholder="000.000.000-00 (opcional)" />
+                        <input type="text" maxLength={14} className={`w-full bg-[color:var(--bg-elevated)] border rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)] ${quickCreateCpfError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'}`} value={newDebtorData.cpf} onChange={e => { setQuickCreateCpfError(''); setNewDebtorData({...newDebtorData, cpf: maskCPFAdmin(e.target.value)}); }} placeholder="000.000.000-00 (opcional)" />
                     </div>
                     {quickCreateCpfError && <p className="text-red-400 text-[10px] mt-1 font-bold">{quickCreateCpfError}</p>}
                 </div>
@@ -1508,7 +1509,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                     <label className="type-label text-[color:var(--text-muted)] block mb-1">CEP</label>
                     <div className="relative">
                         <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
-                        <input type="text" maxLength={9} className={`w-full bg-[color:var(--bg-elevated)] border rounded-xl pl-9 pr-9 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)] ${quickCreateCepError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'}`}
+                        <input type="text" maxLength={9} className={`w-full bg-[color:var(--bg-elevated)] border rounded-xl pl-9 pr-9 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)] ${quickCreateCepError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'}`}
                             value={newDebtorData.cep}
                             onChange={e => {
                                 const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
@@ -1518,32 +1519,32 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 if (digits.length === 8) handleQuickCepLookup(digits);
                             }}
                             placeholder="00000-000 (opcional)" />
-                        {quickCreateCepLoading && <Activity size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-teal-500 animate-spin" />}
+                        {quickCreateCepLoading && <Activity size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--accent-positive)] animate-spin" />}
                     </div>
                     {quickCreateCepError && <p className="text-red-400 text-[10px] mt-1 font-bold">{quickCreateCepError}</p>}
                 </div>
                 <div>
                     <label className="type-label text-[color:var(--text-muted)] block mb-1">Logradouro</label>
-                    <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.logradouro} onChange={e => setNewDebtorData(p => ({ ...p, logradouro: e.target.value }))} placeholder="Rua, Av..." />
+                    <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.logradouro} onChange={e => setNewDebtorData(p => ({ ...p, logradouro: e.target.value }))} placeholder="Rua, Av..." />
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                     <div>
                         <label className="type-label text-[color:var(--text-muted)] block mb-1">Número</label>
-                        <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.numero} onChange={e => setNewDebtorData(p => ({ ...p, numero: e.target.value }))} placeholder="Nº" />
+                        <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.numero} onChange={e => setNewDebtorData(p => ({ ...p, numero: e.target.value }))} placeholder="Nº" />
                     </div>
                     <div className="col-span-2">
                         <label className="type-label text-[color:var(--text-muted)] block mb-1">Bairro</label>
-                        <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.bairro} onChange={e => setNewDebtorData(p => ({ ...p, bairro: e.target.value }))} placeholder="Bairro" />
+                        <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.bairro} onChange={e => setNewDebtorData(p => ({ ...p, bairro: e.target.value }))} placeholder="Bairro" />
                     </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                     <div className="col-span-2">
                         <label className="type-label text-[color:var(--text-muted)] block mb-1">Cidade</label>
-                        <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.cidade} onChange={e => setNewDebtorData(p => ({ ...p, cidade: e.target.value }))} placeholder="Cidade" />
+                        <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.cidade} onChange={e => setNewDebtorData(p => ({ ...p, cidade: e.target.value }))} placeholder="Cidade" />
                     </div>
                     <div>
                         <label className="type-label text-[color:var(--text-muted)] block mb-1">UF</label>
-                        <input type="text" maxLength={2} className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)] uppercase" value={newDebtorData.uf} onChange={e => setNewDebtorData(p => ({ ...p, uf: e.target.value.toUpperCase() }))} placeholder="SP" />
+                        <input type="text" maxLength={2} className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)] uppercase" value={newDebtorData.uf} onChange={e => setNewDebtorData(p => ({ ...p, uf: e.target.value.toUpperCase() }))} placeholder="SP" />
                     </div>
                 </div>
             </div>
@@ -1551,7 +1552,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
         </div>
         {/* Footer fixo */}
         <div className="shrink-0 border-t border-[color:var(--border-subtle)] bg-[color:var(--bg-elevated)]/90 px-6 pt-4 pb-[max(calc(env(safe-area-inset-bottom,0px)+5.5rem),5.5rem)] md:pb-5 backdrop-blur">
-            <button type="submit" form="quick-create-debtor-form" disabled={quickCreateLoading} className="w-full bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white py-4 rounded-2xl type-label flex items-center justify-center gap-2 transition-all shadow-lg shadow-teal-900/30">
+            <button type="submit" form="quick-create-debtor-form" disabled={quickCreateLoading} className="w-full bg-[color:var(--accent-positive)] hover:opacity-90 disabled:opacity-50 text-white py-4 rounded-2xl type-label flex items-center justify-center gap-2 transition-all shadow-lg shadow-[0_4px_16px_var(--accent-positive-subtle)]">
                 {quickCreateLoading ? <Loader2 className="animate-spin" size={18}/> : <UserPlus size={18}/>} Cadastrar Rápido
             </button>
         </div>
@@ -1719,7 +1720,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               <button onClick={() => setContractsSubView('list')} className="flex-1 bg-[color:var(--bg-soft)] hover:bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)] py-4 rounded-2xl type-label transition-all">
                   Cancelar
               </button>
-              <button onClick={handleEditContractSave} disabled={editContractLoading || !editContractName.trim()} className="flex-1 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white py-4 rounded-2xl type-label flex items-center justify-center gap-2 transition-all">
+              <button onClick={handleEditContractSave} disabled={editContractLoading || !editContractName.trim()} className="flex-1 bg-[color:var(--accent-positive)] hover:opacity-90 disabled:opacity-50 text-white py-4 rounded-2xl type-label flex items-center justify-center gap-2 transition-all">
                   {editContractLoading ? <Loader2 className="animate-spin" size={16}/> : <CheckCircle2 size={16}/>}
                   {editContractLoading ? 'Salvando...' : 'Salvar'}
               </button>
@@ -1740,7 +1741,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
         </div>
         <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
             <button onClick={() => onNavigate ? onNavigate(AppView.LEGACY_CONTRACT) : setIsNLContractOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-6 py-3 text-sm font-semibold text-[color:var(--text-primary)] transition-all hover:bg-white/[0.08]">
-                <History size={16} className="text-amber-400"/> Contrato Antigo
+                <History size={16} className="text-[color:var(--accent-caution)]"/> Contrato Antigo
             </button>
 <button onClick={handleOpenWizard} className="inline-flex items-center justify-center gap-2 rounded-full bg-[color:var(--accent-brass)] px-6 py-3 text-sm font-semibold text-[color:var(--text-on-accent)] transition-all hover:bg-[color:var(--accent-brass-strong)]">
                 <PlusCircle size={16} /> Novo Contrato
@@ -1775,7 +1776,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                         <div className="flex items-center gap-2 mb-2">
                             <span className="section-kicker">Contrato #{contract.id}</span>
                             {contract.calculation_mode === 'interest_only' && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-400 text-[10px] font-bold uppercase tracking-wider">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[color:var(--accent-caution-bg)] text-[color:var(--accent-caution)] text-[10px] font-bold uppercase tracking-wider">
                                     <Activity size={10}/> Bullet
                                 </span>
                             )}
