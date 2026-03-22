@@ -133,7 +133,8 @@ export interface Investment {
   due_day?: number | null; // Null se for semanal/diário
   weekday?: number | null; // 0=Dom, 1=Seg... Null se for mensal
   start_date?: string | null; // Null se for mensal/semanal (dependendo da lógica)
-  calculation_mode?: 'auto' | 'manual';
+  calculation_mode?: 'auto' | 'manual' | 'interest_only';
+  bullet_principal_mode?: 'together' | 'separate' | null;
 
   // Rastreamento de Origem de Capital (Wealth Management)
   source_capital?: number; // Aporte do Bolso
