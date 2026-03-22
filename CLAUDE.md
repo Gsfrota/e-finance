@@ -14,7 +14,7 @@ No test runner is configured.
 
 ## Environment
 
-Supabase credentials are read from `localStorage` at runtime (keys `EF_EXTERNAL_SUPABASE_URL` / `EF_EXTERNAL_SUPABASE_KEY`), falling back to hardcoded defaults in `services/supabase.ts`.
+Supabase credentials are read from `window._env_` first, then from Vite env vars (`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`). In local development only, `localStorage` overrides (`EF_EXTERNAL_SUPABASE_URL` / `EF_EXTERNAL_SUPABASE_KEY`) are still accepted for manual testing.
 
 **Database setup**: Run the SQL script in `context/database_schema.md` (currently v16) via the Supabase SQL Editor when setting up a new environment or migrating.
 

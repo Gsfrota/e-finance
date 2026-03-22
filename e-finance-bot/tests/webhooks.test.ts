@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   handleMessage: vi.fn(),
@@ -60,8 +60,23 @@ let createApp: () => any;
 let resetMessageDedupeCache: () => void;
 
 beforeAll(async () => {
+  vi.stubEnv('NODE_ENV', 'test');
+  vi.stubEnv('BOT_BASE_URL', 'https://bot.example.com');
+  vi.stubEnv('SETUP_SECRET', 'setup-secret');
+  vi.stubEnv('TELEGRAM_WEBHOOK_SECRET_TOKEN', 'telegram-webhook-secret');
+  vi.stubEnv('UAZAPI_WEBHOOK_SECRET', 'whatsapp-webhook-secret');
+  vi.stubEnv('UAZAPI_INSTANCE_TOKEN', 'uazapi-token');
+  vi.stubEnv('TELEGRAM_BOT_TOKEN', 'telegram-bot-token');
+  vi.stubEnv('SUPABASE_URL', 'https://supabase.example.com');
+  vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'supabase-service-role-key');
+  vi.stubEnv('GEMINI_API_KEY', 'gemini-api-key');
+
   ({ createApp } = await import('../src/index'));
   ({ resetMessageDedupeCache } = await import('../src/utils/message-dedupe'));
+});
+
+afterAll(() => {
+  vi.unstubAllEnvs();
 });
 
 beforeEach(() => {
@@ -92,11 +107,45 @@ beforeEach(() => {
 });
 
 describe('webhooks', () => {
+  it('nega /setup sem x-setup-secret', async () => {
+    const app = createApp();
+
+    await request(app)
+      .post('/setup')
+      .send({ webhookBaseUrl: 'https://evil.example' })
+      .expect(401);
+  });
+
+  it('usa BOT_BASE_URL e segredos ao configurar webhooks em produção', async () => {
+    const app = createApp();
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+
+    try {
+      await request(app)
+        .post('/setup')
+        .set('x-setup-secret', 'setup-secret')
+        .send({ webhookBaseUrl: 'https://evil.example' })
+        .expect(200);
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
+
+    expect(mocks.waConfigureWebhook).toHaveBeenCalledWith(
+      'https://bot.example.com/webhook/whatsapp/whatsapp-webhook-secret'
+    );
+    expect(mocks.tgSetWebhook).toHaveBeenCalledWith(
+      'https://bot.example.com/webhook/telegram'
+    );
+    expect(mocks.tgSetCommands).toHaveBeenCalled();
+  });
+
   it('processa pttMessage no WhatsApp', async () => {
     const app = createApp();
 
     await request(app)
-      .post('/webhook/whatsapp')
+      .post('/webhook/whatsapp/whatsapp-webhook-secret')
+      .set('x-uazapi-webhook-secret', 'whatsapp-webhook-secret')
       .send({
         chatid: '558599999999@s.whatsapp.net',
         text: '',
@@ -128,6 +177,7 @@ describe('webhooks', () => {
 
     await request(app)
       .post('/webhook/whatsapp')
+      .set('x-uazapi-webhook-secret', 'whatsapp-webhook-secret')
       .send({
         chatid: '558588888888@s.whatsapp.net',
         text: '',
@@ -157,12 +207,26 @@ describe('webhooks', () => {
     }));
   });
 
+  it('rejeita webhook do WhatsApp com secret inválido antes do parse', async () => {
+    const app = createApp();
+
+    await request(app)
+      .post('/webhook/whatsapp')
+      .set('x-uazapi-webhook-secret', 'wrong-secret')
+      .set('Content-Type', 'application/json')
+      .send('{"chatid":"558599999999@s.whatsapp.net"')
+      .expect(401);
+
+    expect(mocks.handleMessage).not.toHaveBeenCalled();
+  });
+
   it('escapa HTML no Telegram e mantem *bold*', async () => {
     const app = createApp();
     mocks.handleMessage.mockResolvedValue({ text: 'Use <script> *ok* & fim' });
 
     await request(app)
       .post('/webhook/telegram')
+      .set('x-telegram-bot-api-secret-token', 'telegram-webhook-secret')
       .send({
         update_id: 321,
         message: {
@@ -189,6 +253,7 @@ describe('webhooks', () => {
 
     await request(app)
       .post('/webhook/telegram')
+      .set('x-telegram-bot-api-secret-token', 'telegram-webhook-secret')
       .send({
         update_id: 322,
         message: {
@@ -220,6 +285,7 @@ describe('webhooks', () => {
 
     await request(app)
       .post('/webhook/telegram')
+      .set('x-telegram-bot-api-secret-token', 'telegram-webhook-secret')
       .send({
         update_id: 323,
         message: {
@@ -252,6 +318,7 @@ describe('webhooks', () => {
 
     await request(app)
       .post('/webhook/telegram')
+      .set('x-telegram-bot-api-secret-token', 'telegram-webhook-secret')
       .send({
         update_id: 990,
         message: {
@@ -287,11 +354,29 @@ describe('webhooks', () => {
       },
     };
 
-    await request(app).post('/webhook/telegram').send(payload).expect(200);
-    await request(app).post('/webhook/telegram').send(payload).expect(200);
+    await request(app)
+      .post('/webhook/telegram')
+      .set('x-telegram-bot-api-secret-token', 'telegram-webhook-secret')
+      .send(payload)
+      .expect(200);
+    await request(app)
+      .post('/webhook/telegram')
+      .set('x-telegram-bot-api-secret-token', 'telegram-webhook-secret')
+      .send(payload)
+      .expect(200);
 
     await new Promise(resolve => setTimeout(resolve, 20));
 
     expect(mocks.handleMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejeita webhook do Telegram sem secret antes do parse', async () => {
+    const app = createApp();
+
+    await request(app)
+      .post('/webhook/telegram')
+      .set('Content-Type', 'application/json')
+      .send('{"update_id": 1')
+      .expect(401);
   });
 });

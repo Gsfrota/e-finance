@@ -8,8 +8,8 @@ Fluxo oficial de deploy do `e-finance-bot` para o Google Cloud Run.
 
 | Instância | Número | Token | Papel |
 |-----------|--------|-------|-------|
-| **Salomão** (bot produtivo) | `558520284195` | `360088d2-12bf-420b-a4fa-121210dd03c1` | Alvo dos testes — recebe e responde |
-| **Guilherme** (instância de teste) | `558591318582` | `9f7f852a-c679-44f6-9e78-3db03a59c1f4` | Arma de teste — envia mensagens reais ao Salomão |
+| **Salomão** (bot produtivo) | `558520284195` | `<SECRET>` | Alvo dos testes — recebe e responde |
+| **Guilherme** (instância de teste) | `558591318582` | `<SECRET>` | Arma de teste — envia mensagens reais ao Salomão |
 
 > A instância Guilherme é a **arma**: dispara mensagens reais via WhatsApp para o Salomão. Use-a nos testes pós-deploy para validar o bot em produção com tráfego real.
 
@@ -79,8 +79,9 @@ O script faz automaticamente:
 3. `npm run build` — TypeScript check
 4. Docker build + push para Artifact Registry
 5. Cloud Run deploy (`e-finance-bot`, região `us-west1`)
-6. Registra webhook via `/setup` endpoint
-7. Atualiza Cloud Scheduler job `morning-briefing`
+6. Atualiza `BOT_BASE_URL` no serviço
+7. Registra webhook via `/setup` com `x-setup-secret`
+8. Atualiza Cloud Scheduler job `morning-briefing`
 
 Para pular os testes (quando já rodou nas fases 0-1):
 ```bash
@@ -109,7 +110,7 @@ O `/setup` do bot registra a URL mas às vezes sem os eventos explícitos. Verif
 
 ```bash
 curl -s https://processai.uazapi.com/webhook \
-  -H "token: 360088d2-12bf-420b-a4fa-121210dd03c1"
+  -H "token: <UAZAPI_INSTANCE_TOKEN>"
 ```
 
 Se o campo `events` estiver vazio (`[]`), registrar manualmente:
@@ -117,9 +118,9 @@ Se o campo `events` estiver vazio (`[]`), registrar manualmente:
 ```bash
 curl -s -X POST https://processai.uazapi.com/webhook \
   -H "Content-Type: application/json" \
-  -H "token: 360088d2-12bf-420b-a4fa-121210dd03c1" \
+  -H "token: <UAZAPI_INSTANCE_TOKEN>" \
   -d '{
-    "url": "'"$URL"'/webhook/whatsapp",
+    "url": "'"$URL"'/webhook/whatsapp/<UAZAPI_WEBHOOK_SECRET>",
     "enabled": true,
     "addUrlEvents": false,
     "addUrlTypesMessages": false,

@@ -4,7 +4,7 @@ import {
   ArrowLeft, CheckCircle2, Loader2, AlertTriangle,
   User, UserPlus, Search, X, Key, Mail, Phone, History,
 } from 'lucide-react';
-import { getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
+import { fetchProfileByAuthUserId, getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { Profile, Tenant } from '../types';
 
 interface LegacyContractPageProps {
@@ -73,13 +73,15 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
-        setCurrentUserId(user.id);
+        const { data: profileData } = await fetchProfileByAuthUserId<Profile & { tenants?: Tenant }>(
+          supabase,
+          user.id,
+          '*, tenants!profiles_tenant_id_fkey(*)'
+        );
 
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*, tenants!profiles_tenant_id_fkey(*)')
-          .eq('id', user.id)
-          .maybeSingle();
+        if (profileData) {
+          setCurrentUserId(profileData.id);
+        }
 
         if (profileData?.tenants) {
           const tenant = profileData.tenants as unknown as Tenant;

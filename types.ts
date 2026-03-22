@@ -33,6 +33,7 @@ export interface Tenant {
 
 export interface Profile {
   id: string;
+  auth_user_id?: string;
   email: string;
   full_name: string;
   role: UserRole;

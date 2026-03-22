@@ -13,7 +13,7 @@ Cloud Scheduler (*/5 min)
     └── POST /scheduler/morning-briefing
 
 WhatsApp (UazAPI)          Telegram (Bot API)
-    └── POST /webhook/whatsapp    └── POST /webhook/telegram
+    └── POST /webhook/whatsapp/:secret?    └── POST /webhook/telegram
             │                               │
             └──────────────┬────────────────┘
                            │
@@ -37,10 +37,14 @@ Todos os secrets são armazenados no **Google Secret Manager** e injetados pelo 
 |----------|---------------|-----------|
 | `UAZAPI_INSTANCE_TOKEN` | `UAZAPI_INSTANCE_TOKEN` | Token da instância WA na UazAPI |
 | `TELEGRAM_BOT_TOKEN` | `TELEGRAM_BOT_TOKEN` | Token do bot Telegram |
+| `SETUP_SECRET` | `SETUP_SECRET` | Secret do endpoint `/setup` |
+| `TELEGRAM_WEBHOOK_SECRET_TOKEN` | `TELEGRAM_WEBHOOK_SECRET_TOKEN` | Secret do webhook Telegram |
+| `UAZAPI_WEBHOOK_SECRET` | `UAZAPI_WEBHOOK_SECRET` | Secret embutido na URL do webhook WhatsApp |
 | `SUPABASE_URL` | `SUPABASE_URL_EFINANCE` | URL do projeto Supabase |
 | `SUPABASE_SERVICE_ROLE_KEY` | `SUPABASE_SERVICE_ROLE_KEY_EFINANCE` | Chave service role Supabase |
 | `GEMINI_API_KEY` | `GEMINI_API_KEY_EFINANCE` | Chave API Google Gemini |
 | `SCHEDULER_SECRET` | `SCHEDULER_SECRET` | Secret de autenticação do Cloud Scheduler |
+| `BOT_BASE_URL` | Cloud Run URL | Obrigatório em produção para o `/setup` |
 
 ### Variáveis plain text
 
@@ -139,6 +143,9 @@ Após cada deploy, o script executa `POST /setup` para registrar os webhooks. O 
 
 **Problema conhecido:** A UazAPI pode registrar o webhook sem `events` explícitos, o que faz o servidor não disparar nada. O deploy-bot.sh cuida disso, mas se mensagens pararem de chegar, verificar manualmente:
 
+- `x-setup-secret` no `POST /setup`
+- `BOT_BASE_URL` presente no ambiente de produção
+
 ```bash
 # Verificar events na UazAPI
 curl -s https://processai.uazapi.com/webhook \
@@ -149,7 +156,7 @@ curl -X POST https://processai.uazapi.com/webhook \
   -H "Content-Type: application/json" \
   -H "token: <UAZAPI_INSTANCE_TOKEN>" \
   -d '{
-    "url": "https://e-finance-bot-485911123531.us-west1.run.app/webhook/whatsapp",
+    "url": "https://e-finance-bot-485911123531.us-west1.run.app/webhook/whatsapp/<UAZAPI_WEBHOOK_SECRET>",
     "enabled": true,
     "addUrlEvents": false,
     "addUrlTypesMessages": false,

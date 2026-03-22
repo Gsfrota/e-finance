@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getSupabase, withRetry } from '../services/supabase';
+import { fetchProfileByAuthUserId, getSupabase, withRetry } from '../services/supabase';
 import { getCached, setCached } from '../services/cache';
 import { Investment } from '../types';
 
@@ -254,8 +254,9 @@ export const useInvestorMetrics = (filter: InvestorFilter = defaultFilter) => {
 
         // Busca perfil
         const { data: profile } = await withRetry(async () =>
-          await supabase.from('profiles').select('full_name').eq('id', user.id).single()
+          await fetchProfileByAuthUserId<{ id: string; full_name?: string }>(supabase, user.id, 'id, full_name')
         );
+        const investmentOwnerId = profile?.id || user.id;
 
         // Busca investimentos com parcelas
         const { data: invData, error } = await withRetry(async () =>
@@ -274,7 +275,7 @@ export const useInvestorMetrics = (filter: InvestorFilter = defaultFilter) => {
                 interest_delay_amount
               )
             `)
-            .eq('user_id', user.id)
+            .eq('user_id', investmentOwnerId)
             .order('created_at', { ascending: false })
         );
 

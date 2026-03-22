@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
+import { fetchProfileByAuthUserId, getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { Investment, Tenant, Profile, AppView } from '../types';
 import QuickContractInput from './QuickContractInput';
 import ContractDetail from './ContractDetail';
@@ -359,14 +359,15 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
         
         setCurrentUserId(user.id);
         
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('*, tenants!profiles_tenant_id_fkey(*)')
-            .eq('id', user.id)
-            .single();
+        const { data: profile } = await fetchProfileByAuthUserId<Profile & { tenants?: Tenant }>(
+            supabase,
+            user.id,
+            '*, tenants!profiles_tenant_id_fkey(*)'
+        );
             
         if (!profile?.tenant_id) return;
         
+        setCurrentUserId(profile.id);
         setCurrentTenant(profile.tenants as any);
 
         const { data: profData } = await supabase.from('profiles').select('*').eq('tenant_id', profile.tenant_id).order('full_name');

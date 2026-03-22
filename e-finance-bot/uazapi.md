@@ -1013,7 +1013,7 @@ Server URL:
 https://processai.uazapi.com
 
 Instance Token:  
-360088d2-12bf-420b-a4fa-121210dd03c1
+<UAZAPI_INSTANCE_TOKEN>
 
 Número conectado:
 558520284195
@@ -1022,17 +1022,17 @@ Status:
 connected
 
 connected
-360088d2-12bf-420b-a4fa-121210dd03c1
+<UAZAPI_INSTANCE_TOKEN>
 
 Webhooks
 Habilitado
 id: rd5ab150926a95d
 POST
 URL
-https://e-finance-bot-485911123531.us-west1.run.app/webhook/whatsapp
+https://e-finance-bot-485911123531.us-west1.run.app/webhook/whatsapp/<UAZAPI_WEBHOOK_SECRET>
 addUrlEvents
 addUrlTypesMessages
 URL final
-https://e-finance-bot-485911123531.us-west1.run.app/webhook/whatsapp
+https://e-finance-bot-485911123531.us-west1.run.app/webhook/whatsapp/<UAZAPI_WEBHOOK_SECRET>
 Escutar eventos
 qrcodehistoryconnectionmessagesmessages_updatecallcontactspresencegroupslabelschatschat_labelsblocksleadssender

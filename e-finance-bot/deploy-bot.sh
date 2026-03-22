@@ -89,7 +89,7 @@ gcloud run deploy "${SERVICE}" \
   --max-instances=3 \
   --timeout=60 \
   --set-env-vars="UAZAPI_SERVER_URL=${UAZAPI_SERVER_URL}" \
-  --set-secrets="UAZAPI_INSTANCE_TOKEN=UAZAPI_INSTANCE_TOKEN:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,SUPABASE_URL=SUPABASE_URL_EFINANCE:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY_EFINANCE:latest,GEMINI_API_KEY=GEMINI_API_KEY_EFINANCE:latest,SCHEDULER_SECRET=SCHEDULER_SECRET:latest" \
+  --set-secrets="UAZAPI_INSTANCE_TOKEN=UAZAPI_INSTANCE_TOKEN:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,SETUP_SECRET=SETUP_SECRET:latest,TELEGRAM_WEBHOOK_SECRET_TOKEN=TELEGRAM_WEBHOOK_SECRET_TOKEN:latest,UAZAPI_WEBHOOK_SECRET=UAZAPI_WEBHOOK_SECRET:latest,SUPABASE_URL=SUPABASE_URL_EFINANCE:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY_EFINANCE:latest,GEMINI_API_KEY=GEMINI_API_KEY_EFINANCE:latest,SCHEDULER_SECRET=SCHEDULER_SECRET:latest" \
   --quiet
 
 # ── Configurar webhooks ───────────────────────────────────
@@ -98,12 +98,22 @@ URL=$(gcloud run services describe "${SERVICE}" \
   --region="${REGION}" \
   --project="${PROJECT}" \
   --format="value(status.url)")
+SETUP_SECRET_VALUE=$(gcloud secrets versions access latest --secret=SETUP_SECRET --project="${PROJECT}")
 
-curl -s -X POST "${URL}/setup" \
+gcloud run services update "${SERVICE}" \
+  --region="${REGION}" \
+  --project="${PROJECT}" \
+  --update-env-vars="BOT_BASE_URL=${URL}" \
+  --quiet
+
+if curl -fsS -X POST "${URL}/setup" \
   -H "Content-Type: application/json" \
-  -d "{\"webhookBaseUrl\": \"${URL}\"}" | grep -q '"status":"done"' \
-  && ok "Webhooks configurados" \
-  || echo -e "${YELLOW}⚠ Webhook setup retornou resposta inesperada (verifique manualmente)${NC}"
+  -H "x-setup-secret: ${SETUP_SECRET_VALUE}" \
+  -d '{}' | grep -q '"status":"done"'; then
+  ok "Webhooks configurados"
+else
+  fail "Webhook setup retornou resposta inesperada"
+fi
 
 # ── Cloud Scheduler (morning-briefing) ───────────────────
 step "Configurando Cloud Scheduler (morning-briefing)..."

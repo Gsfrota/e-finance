@@ -1,7 +1,15 @@
 node_modules
 .git
 .aios-core
+.claude
+.codex
+.cursor
+.vscode
 dist
+test-results
+coverage
+backup_banco_completo_*.json
+*.log
 *.md
 .env*
 e-finance-bot

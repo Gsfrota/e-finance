@@ -15,9 +15,10 @@ set -euo pipefail
 # ── Configurações ──────────────────────────────────────────────────────────────
 BOT_URL="${BOT_URL:-https://e-finance-bot-oh6s7bvufq-uw.a.run.app}"
 UAZAPI_URL="${UAZAPI_SERVER_URL:-https://processai.uazapi.com}"
+WHATSAPP_WEBHOOK_SECRET="${UAZAPI_WEBHOOK_SECRET:-}"
+GUILHERME_TOKEN="${GUILHERME_TOKEN:-}"
 
 # Instância Guilherme (arma de teste) — token para disparar mensagens
-GUILHERME_TOKEN="9f7f852a-c679-44f6-9e78-3db03a59c1f4"
 GUILHERME_NUMBER="558591318582"
 
 # Instância Salomão (alvo) — número que recebe as mensagens
@@ -44,8 +45,9 @@ wait_bot() { echo "  ⏳ Aguardando ${WAIT_BETWEEN}s..."; sleep $WAIT_BETWEEN; }
 send_synthetic() {
   local MSG="$1"
   local MSG_ID="SMOKE-$(date +%s%N | cut -c1-13)"
-  curl -s -o /dev/null -w "%{http_code}" -X POST "$BOT_URL/webhook/whatsapp" \
+  curl -s -o /dev/null -w "%{http_code}" -X POST "$BOT_URL/webhook/whatsapp/${WHATSAPP_WEBHOOK_SECRET}" \
     -H "Content-Type: application/json" \
+    -H "x-uazapi-webhook-secret: ${WHATSAPP_WEBHOOK_SECRET}" \
     -d "{
       \"chatid\": \"$SYNTHETIC_SENDER\",
       \"text\": \"$MSG\",
@@ -98,6 +100,16 @@ if [[ "$MODE" != "--pre-deploy" && "$MODE" != "--post-deploy" ]]; then
   echo ""
   echo "  --pre-deploy   Payload sintético direto no webhook (sem UazAPI)"
   echo "  --post-deploy  Mensagem real via Guilherme → Salomão (UazAPI)"
+  exit 1
+fi
+
+if [[ "$MODE" == "--pre-deploy" && -z "$WHATSAPP_WEBHOOK_SECRET" ]]; then
+  echo -e "${RED}Falta UAZAPI_WEBHOOK_SECRET no ambiente para validar o webhook${NC}"
+  exit 1
+fi
+
+if [[ "$MODE" == "--post-deploy" && -z "$GUILHERME_TOKEN" ]]; then
+  echo -e "${RED}Falta GUILHERME_TOKEN (ou UAZAPI_INSTANCE_TOKEN) no ambiente para o teste real${NC}"
   exit 1
 fi
 

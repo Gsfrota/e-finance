@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Smartphone, Send, CheckCircle2, X } from 'lucide-react';
-import { getSupabase } from '../services/supabase';
+import { fetchProfileByAuthUserId, getSupabase } from '../services/supabase';
 
 interface ConnectionStatus {
   whatsapp: boolean;
@@ -31,11 +31,11 @@ export function BotConnectionWidget() {
     if (!supabase) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data } = await supabase
-      .from('profiles')
-      .select('whatsapp_phone, telegram_chat_id')
-      .eq('id', user.id)
-      .single();
+    const { data } = await fetchProfileByAuthUserId<{ whatsapp_phone?: string; telegram_chat_id?: string }>(
+      supabase,
+      user.id,
+      'whatsapp_phone, telegram_chat_id'
+    );
     if (data) {
       setStatus({
         whatsapp: !!data.whatsapp_phone,
@@ -53,6 +53,8 @@ export function BotConnectionWidget() {
       if (!supabase) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      const { data: profile } = await fetchProfileByAuthUserId<{ id: string }>(supabase, user.id, 'id');
+      if (!profile) return;
 
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
@@ -60,12 +62,12 @@ export function BotConnectionWidget() {
       await supabase
         .from('bot_link_codes')
         .delete()
-        .eq('profile_id', user.id)
+        .eq('profile_id', profile.id)
         .eq('channel', channel)
         .is('used_at', null);
 
       const { error: insertError } = await supabase.from('bot_link_codes').insert({
-        profile_id: user.id,
+        profile_id: profile.id,
         code,
         channel,
         expires_at: expiresAt,
@@ -90,8 +92,10 @@ export function BotConnectionWidget() {
     if (!supabase) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+    const { data: profile } = await fetchProfileByAuthUserId<{ id: string }>(supabase, user.id, 'id');
+    if (!profile) return;
     const field = channel === 'whatsapp' ? 'whatsapp_phone' : 'telegram_chat_id';
-    await supabase.from('profiles').update({ [field]: null }).eq('id', user.id);
+    await supabase.from('profiles').update({ [field]: null }).eq('id', profile.id);
     await loadStatus();
   }
 

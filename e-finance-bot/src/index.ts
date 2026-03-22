@@ -1,4 +1,4 @@
-import express, { Express } from 'express';
+import express, { Express, NextFunction, Request, Response } from 'express';
 import dns from 'node:dns';
 import { config } from './config';
 import { handleMessage, IncomingMessage } from './handlers/message-handler';
@@ -19,7 +19,16 @@ logStructuredMessage('runtime_network_config', {
 });
 
 // --- Validação de env vars no startup ---
-const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'GEMINI_API_KEY'] as const;
+const REQUIRED_ENV = [
+  'SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'GEMINI_API_KEY',
+  'UAZAPI_INSTANCE_TOKEN',
+  'TELEGRAM_BOT_TOKEN',
+  'SETUP_SECRET',
+  'TELEGRAM_WEBHOOK_SECRET_TOKEN',
+  'UAZAPI_WEBHOOK_SECRET',
+] as const;
 
 function validateEnv(): void {
   const missing = REQUIRED_ENV.filter(k => !process.env[k]);
@@ -70,6 +79,60 @@ function toOptionalPositiveNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+function normalizeBaseUrl(value?: string | null): string {
+  return (value || '').trim().replace(/\/+$/, '');
+}
+
+function isProductionRuntime(): boolean {
+  return process.env.NODE_ENV === 'production' || !!process.env.K_SERVICE || !!process.env.K_REVISION;
+}
+
+function resolveWebhookBaseUrl(webhookBaseUrl?: string): string {
+  if (isProductionRuntime()) {
+    return normalizeBaseUrl(config.bot.baseUrl);
+  }
+
+  return normalizeBaseUrl(webhookBaseUrl || config.bot.baseUrl);
+}
+
+function buildWhatsAppWebhookUrl(baseUrl: string): string {
+  const secret = encodeURIComponent(config.security.whatsappWebhookSecret);
+  return `${baseUrl}/webhook/whatsapp/${secret}`;
+}
+
+function requireSetupSecret(req: Request, res: Response, next: NextFunction): void {
+  const provided = (req.get('x-setup-secret') || '').trim();
+  if (!provided || provided !== config.security.setupSecret) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  next();
+}
+
+function requireTelegramWebhookSecret(req: Request, res: Response, next: NextFunction): void {
+  const provided = (req.get('x-telegram-bot-api-secret-token') || '').trim();
+  if (!provided || provided !== config.security.telegramWebhookSecretToken) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  next();
+}
+
+function requireWhatsAppWebhookSecret(req: Request, res: Response, next: NextFunction): void {
+  const providedHeader = (req.get('x-uazapi-webhook-secret') || req.get('x-webhook-secret') || '').trim();
+  const providedPath = (req.params.secret || '').trim();
+  const expected = config.security.whatsappWebhookSecret;
+
+  if ((providedHeader && providedHeader === expected) || (providedPath && providedPath === expected)) {
+    next();
+    return;
+  }
+
+  res.status(401).json({ error: 'Unauthorized' });
+}
+
 function shouldBypassInboundBuffer(text?: string): boolean {
   const normalized = (text || '').trim();
   if (!normalized) return true;
@@ -99,7 +162,8 @@ async function processWithPresence(message: IncomingMessage, sendReply: (text: s
 
 export function createApp(): Express {
   const app = express();
-  app.use(express.json({ limit: '10mb' }));
+  const webhookJson = express.json({ limit: '10mb' });
+  const setupJson = express.json({ limit: '256kb' });
 
   const inboundBuffer = createInboundBuffer();
 
@@ -113,7 +177,11 @@ export function createApp(): Express {
 
   app.use('/scheduler', schedulerRouter);
 
-  app.post('/webhook/whatsapp', async (req, res) => {
+  app.post('/webhook/whatsapp/:secret?', requireWhatsAppWebhookSecret, webhookJson, async (req, res) => {
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({ error: 'Payload inválido' });
+    }
+
     res.sendStatus(200);
 
     try {
@@ -266,7 +334,11 @@ export function createApp(): Express {
     }
   });
 
-  app.post('/webhook/telegram', async (req, res) => {
+  app.post('/webhook/telegram', requireTelegramWebhookSecret, webhookJson, async (req, res) => {
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({ error: 'Payload inválido' });
+    }
+
     res.sendStatus(200);
 
     try {
@@ -386,18 +458,18 @@ export function createApp(): Express {
     }
   });
 
-  app.post('/setup', async (req, res) => {
+  app.post('/setup', requireSetupSecret, setupJson, async (req, res) => {
     const { webhookBaseUrl } = req.body as { webhookBaseUrl?: string };
-    const baseUrl = webhookBaseUrl || process.env.BOT_BASE_URL || '';
+    const baseUrl = resolveWebhookBaseUrl(webhookBaseUrl);
 
     if (!baseUrl) {
-      return res.status(400).json({ error: 'webhookBaseUrl obrigatório' });
+      return res.status(400).json({ error: 'BOT_BASE_URL obrigatório' });
     }
 
     const results: Record<string, string> = {};
 
     try {
-      await wa.configureWebhook(`${baseUrl}/webhook/whatsapp`);
+      await wa.configureWebhook(buildWhatsAppWebhookUrl(baseUrl));
       results.whatsapp = 'ok';
     } catch (e) {
       results.whatsapp = `error: ${e}`;
@@ -409,6 +481,11 @@ export function createApp(): Express {
       results.telegram = 'ok';
     } catch (e) {
       results.telegram = `error: ${e}`;
+    }
+
+    const hasErrors = Object.values(results).some(value => value !== 'ok');
+    if (hasErrors) {
+      return res.status(502).json({ status: 'error', results });
     }
 
     res.json({ status: 'done', results });
@@ -423,7 +500,7 @@ if (require.main === module) {
   app.listen(config.port, () => {
     console.log(`e-finance-bot rodando na porta ${config.port}`);
     console.log('Endpoints:');
-    console.log('  POST /webhook/whatsapp');
+    console.log('  POST /webhook/whatsapp/:secret?');
     console.log('  POST /webhook/telegram');
     console.log('  POST /setup  (configurar webhooks)');
   });
