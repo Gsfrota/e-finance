@@ -1,6 +1,6 @@
 # QA Checklist — Enterprise Multiempresa
 
-Checklist de regressão e aceite para a feature multiempresa no plano `empresarial`.
+Checklist de regressão e aceite para a feature multiempresa no trial e no plano `empresarial`.
 
 ## Banco
 
@@ -15,10 +15,18 @@ Checklist de regressão e aceite para a feature multiempresa no plano `empresari
 
 ## Login e contexto
 
-- admin enterprise entra no app sem erro.
-- switcher aparece no topo.
+- admin com trial ativo ou `empresarial` ativo entra no app sem erro.
+- switcher aparece no topo apenas para admin.
 - valor padrão do switcher é `Todas as empresas`.
 - logout limpa o escopo da company e não reaproveita contexto antigo.
+
+## Upsell e bloqueio
+
+- admin sem trial e sem `empresarial` vê switcher bloqueado.
+- o CTA do switcher bloqueado leva para `Configurações > Assinatura`.
+- investor e debtor não veem switcher.
+- após o fim do trial sem upgrade, a company primária continua acessível.
+- após o fim do trial sem upgrade, companies extras continuam salvas, mas bloqueadas.
 
 ## Visão consolidada
 
@@ -54,7 +62,7 @@ Checklist de regressão e aceite para a feature multiempresa no plano `empresari
 
 ## Smoke mínimo recomendado
 
-1. login com admin enterprise;
+1. login com admin em trial ou enterprise;
 2. validar `Todas as empresas`;
 3. trocar para a company A;
 4. abrir `USERS`;

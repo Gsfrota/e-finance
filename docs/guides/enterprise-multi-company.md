@@ -7,23 +7,26 @@
 - `Todas as empresas`: visão consolidada para leitura executiva.
 
 No v1:
-- admins enterprise podem alternar entre todas as companies do mesmo tenant;
+- o switcher aparece apenas para `admin`;
+- admin com trial ativo ou com `empresarial` ativo pode alternar entre todas as companies do mesmo tenant;
+- admin sem trial e sem `empresarial` vê o switcher bloqueado com upsell;
 - investor e debtor continuam presos à própria company;
 - bot e `bot_tenant_config` continuam tenant-wide.
 
 ## Onde trocar de empresa
 
 - O switcher fica no topo do app, ao lado do card do usuário.
-- Ele mostra:
+- Quando multiempresa está liberado, ele mostra:
   - `Todas as empresas`
   - lista das companies do tenant
   - ação `Nova empresa`
+- Quando multiempresa está bloqueado, ele continua visível para admin e leva para `Configurações > Assinatura`.
 
 ## Como o admin usa
 
 ### 1. Entrar no tenant
 
-Depois do login, o admin enterprise cai por padrão em `Todas as empresas`.
+Depois do login, o admin com multiempresa habilitado cai por padrão em `Todas as empresas`.
 
 ### 2. Ler o consolidado
 
@@ -113,7 +116,14 @@ Durante o rollout:
 - tenants legados recebem uma company primária no backfill;
 - só depois de validar o tráfego novo é que `company_id` vira obrigatório.
 
-## Checklist rápido do admin enterprise
+## Fim do trial sem upgrade
+
+- a company primária continua acessível;
+- companies extras permanecem armazenadas;
+- `Todas as empresas` e troca para companies extras ficam bloqueadas com upsell;
+- nenhum dado é apagado automaticamente.
+
+## Checklist rápido do admin
 
 1. Entrar no app.
 2. Conferir o switcher no topo.

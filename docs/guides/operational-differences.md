@@ -1,55 +1,72 @@
-# Diferenças Recentes e Operação Segura
+# Diferenças Operacionais e Rollout Seguro
 
-## O Que Mudou
+Este documento resume o que mudou no app e o que ainda está em fase de compatibilidade.
 
-Esta base está em transição entre o modelo antigo e o modelo atual.
+## Mudanças relevantes
 
-- O frontend deixa de assumir que `profiles.id === auth.users.id` e agora procura `auth_user_id` primeiro.
-- O bot não aceita mais setup/webhook sem autenticação própria.
-- A configuração pública do browser passou a preferir `SUPABASE_ANON_KEY`.
-- O logout limpa cache financeiro e preferências locais de UI, mas não faz rotação de credenciais.
+- lookup de perfil agora prioriza `auth_user_id`, com fallback legado por `profiles.id`;
+- bot exige autenticação própria em `/setup` e nos webhooks;
+- config pública do browser prefere `SUPABASE_ANON_KEY`;
+- logout limpa cache financeiro, preferências de UI e escopo ativo de company;
+- o modelo multiempresa agora pode ficar ativo por trial ou por plano `empresarial` ativo.
 
-## O Que Isso Significa Para Admins
+## O que muda para admin
 
-Os fluxos de `admin` e `contracts` continuam funcionando quando o banco está consistente. O ganho dessa mudança é evitar quebra silenciosa em tenants migrados, onde o perfil existe com `auth_user_id` diferente de `id`.
+### Antes
 
-Na prática:
+- quase toda a operação era tenant-wide;
+- dashboards, usuários e contratos liam o tenant inteiro.
 
-- `Admin Users` continua lendo o tenant do perfil autenticado.
-- `Admin Contracts` continua usando `tenant_id` para listar e editar contratos.
-- O comportamento antigo ainda existe como fallback, então tenants legados não precisam migrar de uma vez.
+### Agora
 
-## O Que Isso Significa Para Investidor E Devedor
+- o switcher aparece só para admin;
+- admin com trial ativo ou `empresarial` ativo pode operar em `Todas as empresas` ou em uma company específica;
+- admin sem trial e sem `empresarial` continua vendo o switcher, mas em modo bloqueado com upsell;
+- `HOME`, `DASHBOARD` e `TOP_CLIENTES` podem agregar;
+- `USERS`, `USER_DETAILS`, `CONTRACTS` e `LEGACY_CONTRACT` exigem company ativa.
 
-Os dashboards financeiros agora usam o `profile.id` resolvido pelo helper central, e não o `auth user id` cru.
+## O que muda para investor e debtor
 
-Isso corrige casos em que:
+- continuam sem switcher;
+- enxergam só a própria company;
+- o conserto de `auth_user_id` evita dashboards vazios para perfis migrados.
 
-- o usuário autentica normalmente,
-- o perfil existe,
-- mas a consulta financeira anterior retornava vazio porque usava a chave errada.
+## Compatibilidade temporária
 
-## Como Usar O App
+Ainda existe fallback para não quebrar tenants antigos:
+- branding/Pix/WhatsApp/timezone podem cair no `tenant` se a company ainda não estiver materializada;
+- `SUPABASE_KEY` continua aceito no frontend como legado;
+- a migration `v28` é aditiva e deixa o endurecimento de `NOT NULL` para a fase 2.
+- companies extras não são apagadas quando o trial expira; o bloqueio é de acesso, não de dados.
 
-- `admin`: entrar, abrir `Admin Users` ou `Admin Contracts` e operar dentro do tenant carregado no perfil.
-- `investor`: abrir o dashboard e acompanhar carteira, retorno e próximas parcelas.
-- `devedor`: abrir o dashboard e conferir saldo, parcelas e atrasos.
-- `bot`: usar WhatsApp ou Telegram para consultas e comandos; ações sensíveis exigem confirmação explícita.
+## Rollout seguro
 
-## Rollout Seguro
+1. Aplicar `context/migration_v28_multi_company.sql`.
+2. Validar backfill de company primária por tenant.
+3. Publicar o app novo.
+4. Fazer smoke em `Todas as empresas` e em uma company específica.
+5. Confirmar que novas mutações gravam `company_id`.
+6. Só então endurecer `NOT NULL` e remover fallback de `tenant`.
 
-1. Criar e validar os secrets novos do bot antes de qualquer deploy.
-2. Manter o fallback legado do frontend até todas as variáveis públicas estarem padronizadas.
-3. Fazer smoke test dos fluxos `admin`, `investor` e `devedor` após o deploy.
-4. Confirmar que os webhooks chegaram com autenticação válida antes de considerar o rollout concluído.
-5. Rotacionar credenciais expostas fora do repositório como tarefa separada do deploy.
+## Sinais de problema
 
-## Sinais De Problema
+- admin com trial/enterprise ativo entra em `Todas as empresas`, mas o switcher não aparece;
+- admin sem entitlement consegue trocar para company extra sem upgrade;
+- `USERS` ou `CONTRACTS` aparecem vazios em uma company conhecida;
+- uma criação nova entra sem `company_id`;
+- totais do consolidado não batem com a soma das companies;
+- branding/Pix de uma company reaproveita dados errados do tenant mesmo após salvar a company.
 
-- Admin abre, mas contratos aparecem vazios para um tenant conhecido.
-- O bot sobe, mas não recebe mensagens após o `/setup`.
-- O frontend carrega, mas não encontra Supabase porque o runtime não injeta `SUPABASE_URL` e `SUPABASE_ANON_KEY`.
+## Guardião do banco
 
-## Regra De Ouro
+- schema do Supabase não deve ser aplicado diretamente sem revisão do Claude;
+- o Claude deve concordar explicitamente antes do apply;
+- pós-apply, o Claude valida backfill, RLS, view e RPCs críticas.
 
-Não remover o legado antes de confirmar que o novo caminho foi aplicado em todos os ambientes que usam o app.
+## Regra de ouro
+
+Não remover o legado antes de confirmar:
+- backfill completo;
+- app em dual-read/dual-write;
+- smoke com tenant real enterprise;
+- zero registros operacionais novos sem `company_id`.
