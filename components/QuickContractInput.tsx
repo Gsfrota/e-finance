@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Zap, X, Loader2, CheckCircle2, AlertTriangle, User, UserPlus, ArrowLeft, Pencil, Mail, Phone, Key, History, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
+import { useCompanyContext } from '../services/companyScope';
 
 interface ParsedContract {
   debtor_name: string;
@@ -68,6 +69,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
   currentUserId,
   initialMode = 'ai',
 }) => {
+  const { activeCompanyId } = useCompanyContext();
   const [step, setStep] = useState<Step>('confirm');
   const [editable, setEditable] = useState<EditableContract | null>(null);
   const [matchedDebtor, setMatchedDebtor] = useState<Profile | null>(null);
@@ -193,6 +195,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
         p_paid_count:         legacyPaidCount,
         p_calculation_mode:   'manual',
         p_original_code:      legacyCode.trim() || null,
+        p_company_id:         activeCompanyId || null,
       }));
     } else {
       ({ data: investmentId, error } = await supabase.rpc('create_investment_validated', {
@@ -212,6 +215,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
         p_weekday:            parsed.frequency === 'weekly' ? 1 : null,
         p_start_date:         parsed.frequency === 'daily' ? new Date().toISOString().split('T')[0] : null,
         p_calculation_mode:   'manual',
+        p_company_id:         activeCompanyId || null,
       }));
     }
       if (error) throw error;
@@ -247,6 +251,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
         p_phone_number: newDebtor.phone_number.trim() || null,
         p_cpf:          cpfDigits || null,
         p_photo_url:    null,
+        p_company_id:   activeCompanyId || null,
       });
 
       if (error) throw error;

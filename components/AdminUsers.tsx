@@ -226,6 +226,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
         p_bairro:       toNull(inviteForm.bairro),
         p_cidade:       toNull(inviteForm.cidade),
         p_uf:           toNull(inviteForm.uf),
+        p_company_id:   activeCompanyId || null,
       });
       if (error) throw error;
       setClientCreated(true);

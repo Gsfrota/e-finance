@@ -562,7 +562,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               p_calculation_mode: formData.calculation_mode,
               p_skip_saturday: formData.frequency === 'daily' ? formData.skip_saturday : false,
               p_skip_sunday:   formData.frequency === 'daily' ? formData.skip_sunday   : false,
-              p_custom_dates:  formData.frequency === 'freelancer' ? freelancerDates : null
+              p_custom_dates:  formData.frequency === 'freelancer' ? freelancerDates : null,
+              p_company_id:    activeCompanyId || null
           });
 
           if (rpcError) throw rpcError;
@@ -619,6 +620,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               p_phone_number: newDebtorData.phone_number.trim() || null,
               p_cpf:          cpfDigits || null,
               p_photo_url:    null,
+              p_company_id:   activeCompanyId || null,
           });
 
           if (error) throw error;
