@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { fetchProfileByAuthUserId, getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { Profile, Tenant } from '../types';
+import { useCompanyContext } from '../services/companyScope';
 
 interface LegacyContractPageProps {
   onBack: () => void;
@@ -24,6 +25,7 @@ const labelCls = "type-micro text-[color:var(--text-muted)] block mb-1";
 const sectionCls = "bg-slate-800 rounded-2xl p-4 md:p-6 border border-slate-700 space-y-3 overflow-hidden";
 
 const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSuccess }) => {
+  const { activeCompanyId } = useCompanyContext();
   // Data
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
@@ -157,6 +159,7 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
         p_paid_count:         legacyPaidCount,
         p_calculation_mode:   'manual',
         p_original_code:      legacyCode.trim() || null,
+        p_company_id:         activeCompanyId || null,
       });
       if (error) throw error;
       setDone(true);
@@ -190,6 +193,7 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
         p_phone_number: newDebtor.phone_number.trim() || null,
         p_cpf:          cpfDigits || null,
         p_photo_url:    null,
+        p_company_id:   activeCompanyId || null,
       });
       if (error) throw error;
       await handleConfirm(data as string);

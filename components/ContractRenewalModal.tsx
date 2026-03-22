@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Loader2, CheckCircle2, RotateCcw, AlertCircle } from 'lucide-react';
 import { getSupabase, parseSupabaseError } from '../services/supabase';
 import { Investment } from '../types';
+import { useCompanyContext } from '../services/companyScope';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -71,6 +72,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
   onBack,
   onSuccess,
 }) => {
+  const { activeCompanyId } = useCompanyContext();
   const [form, setForm] = useState<RenewalForm>({
     asset_name: '',
     amount_invested: 0,
@@ -154,6 +156,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
         .from('investments')
         .insert({
           tenant_id: sourceContract.tenant_id,
+          company_id: activeCompanyId || sourceContract.company_id || null,
           user_id: sourceContract.user_id,
           payer_id: sourceContract.payer_id,
           asset_name: form.asset_name,
@@ -183,6 +186,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
       const installments = dates.map((date, idx) => ({
         investment_id: newContract.id,
         tenant_id: sourceContract.tenant_id,
+        company_id: activeCompanyId || sourceContract.company_id || null,
         number: idx + 1,
         due_date: date,
         amount_principal: principals[idx],
