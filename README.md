@@ -13,6 +13,7 @@ O sistema passou por uma transição operacional importante:
 - O frontend agora resolve perfil por `auth_user_id` com fallback legado para `id`.
 - O bot exige segredos próprios para `/setup`, Telegram e WhatsApp.
 - A configuração pública do browser migra para `SUPABASE_ANON_KEY`, mas ainda aceita `SUPABASE_KEY` como compatibilidade temporária.
+- Trial ativo agora libera a experiência multiempresa para admin; sem trial e sem `empresarial`, o switcher continua visível, mas bloqueado com upsell.
 
 Para o impacto prático e o rollout seguro, veja [docs/guides/operational-differences.md](docs/guides/operational-differences.md).
 
@@ -68,14 +69,35 @@ Webhook → dedup → rate-limit → inbound-buffer (3.5s debounce)
 ## Modelo de dados
 
 ```
-Tenant ──┬── Profile (admin | investor | debtor)
-         ├── Investment (contrato: investidor → devedor)
-         │     └── LoanInstallment (parcelas: pending | paid | late | partial)
-         ├── BotSession (histórico de conversa, working state)
-         └── Invite (onboarding por código)
+Tenant ──┬── Company
+         │     ├── Profile (admin | investor | debtor)
+         │     ├── Investment (contrato: investidor → devedor)
+         │     │     └── LoanInstallment (parcelas: pending | paid | late | partial)
+         │     ├── Invite (onboarding por código)
+         │     ├── ContractRenegotiation
+         │     └── AvulsoPayment
+         └── BotSession / BotConfig (tenant-wide no v1)
 ```
 
-Row Level Security no Supabase garante isolamento total entre tenants.
+Row Level Security no Supabase garante isolamento entre tenants e, no modelo multiempresa, também entre empresas do mesmo tenant.
+
+## Multiempresa enterprise
+
+- `tenant` continua sendo o grupo principal, billing e segurança macro.
+- `company` vira a unidade operacional isolada para dashboard, avisos, contratos, usuários, Pix e branding.
+- O switcher aparece apenas para `admin`.
+- Com trial ativo ou `empresarial` ativo, o admin pode usar `Todas as empresas`, trocar de empresa e criar novas empresas.
+- Sem trial e sem `empresarial`, o admin vê o switcher bloqueado com CTA para `Configurações > Assinatura`.
+- Se o trial expirar sem upgrade, a empresa primária continua operável e as extras permanecem salvas, porém bloqueadas.
+- `HOME`, `DASHBOARD` e `TOP_CLIENTES` podem operar de forma consolidada.
+- `USERS`, `USER_DETAILS`, `CONTRACTS` e `LEGACY_CONTRACT` exigem empresa específica.
+
+Guias principais:
+
+- [docs/guides/enterprise-multi-company.md](docs/guides/enterprise-multi-company.md)
+- [docs/qa/enterprise-multi-company-checklist.md](docs/qa/enterprise-multi-company-checklist.md)
+- [context/migration_v28_multi_company.sql](context/migration_v28_multi_company.sql)
+- [context/database_schema.md](context/database_schema.md)
 
 ## Funcionalidades principais
 
@@ -86,6 +108,8 @@ Row Level Security no Supabase garante isolamento total entre tenants.
 - Dashboard de inadimplência e cobrança
 - Renovação e renegociação de contratos
 - Wizard de onboarding para novos tenants
+- Switcher multiempresa para admin com trial ativo ou plano `empresarial` ativo
+- Visão consolidada `Todas as empresas` com breakdown por empresa
 
 **Bot (WhatsApp e Telegram):**
 - Consultas em linguagem natural: *"quem vence hoje?"*, *"extrato do CPF 123"*
@@ -133,7 +157,7 @@ npm run dev
 
 ### Como usar o app
 
-- `admin`: cria e revisa contratos, acompanha cobrança e administra usuários do tenant.
+- `admin`: cria e revisa contratos, acompanha cobrança e administra usuários do tenant. Com trial ativo ou `empresarial` ativo, alterna entre empresas pelo switcher do topo.
 - `investor`: acompanha carteira, retornos e próximas parcelas recebíveis.
 - `devedor`: vê saldo, parcelas e pagamentos pendentes.
 - `bot`: recebe mensagens por WhatsApp/Telegram e só executa mutações após validação e confirmação explícita.

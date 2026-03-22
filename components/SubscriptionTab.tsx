@@ -87,7 +87,7 @@ const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ tenant, adminEmail })
               </span>
             </div>
             <p className="type-body text-[color:var(--accent-premium-faint)] mb-4">
-              Você está aproveitando acesso completo ao Juros Certo, incluindo o Assistente IA. Assine antes do período encerrar para não perder o acesso.
+              Você está aproveitando acesso completo ao Juros Certo, incluindo o Assistente IA e a experiência multiempresa. Assine antes do período encerrar para não perder o acesso.
             </p>
             <div className="w-full bg-[color:var(--accent-premium-bg-strong)] rounded-full h-2">
               <div

@@ -18,8 +18,53 @@ O app já foi adaptado para o modelo novo, mas a operação ainda convive com no
 - Frontend legado: `SUPABASE_KEY` ainda funciona como fallback enquanto a migração não termina.
 - Bot: `SETUP_SECRET`, `TELEGRAM_WEBHOOK_SECRET_TOKEN` e `UAZAPI_WEBHOOK_SECRET` passaram a ser obrigatórios no serviço.
 - Banco: perfis migrados podem ter `auth_user_id` diferente de `id`, então a validação de fluxo precisa considerar os dois campos.
+- Banco enterprise: o app novo assume `company_id` nas tabelas operacionais quando a migração V28 já foi aplicada e o backfill foi validado.
 
 Se houver dúvida sobre o que é novo versus legado, use `docs/guides/operational-differences.md` como referência.
+
+## Rollout V28 — Multiempresa Enterprise
+
+Execute esta trilha antes do deploy do app quando o rollout envolver trial multiempresa ou tenant `empresarial`.
+
+1. Pedir ao Claude guardião para inspecionar o schema real e comparar com [context/migration_v28_multi_company.sql](../../context/migration_v28_multi_company.sql).
+2. Só aplicar a migration se o Claude concordar explicitamente que não há blockers.
+3. Aplicar a migration via Claude/MCP.
+4. Validar backfill:
+
+```sql
+select tenant_id, count(*) filter (where company_id is null) as profiles_sem_company
+from public.profiles
+group by tenant_id;
+
+select tenant_id, count(*) filter (where company_id is null) as investments_sem_company
+from public.investments
+group by tenant_id;
+
+select tenant_id, count(*) filter (where company_id is null) as installments_sem_company
+from public.loan_installments
+group by tenant_id;
+```
+
+5. Confirmar que cada tenant tem uma empresa primária:
+
+```sql
+select tenant_id, count(*) filter (where is_primary) as primarias
+from public.companies
+group by tenant_id;
+```
+
+6. Fazer smoke com um admin em trial ativo ou enterprise ativo:
+   - login
+   - `Todas as empresas`
+   - trocar empresa no switcher
+   - `Users`
+   - `Contracts`
+   - `Top Clientes`
+7. Fazer smoke com um admin sem entitlement:
+   - switcher visível e bloqueado
+   - CTA para `Assinatura`
+   - company primária continua operável
+8. Só depois considerar endurecer `NOT NULL` em `company_id`.
 
 ## Variáveis de ambiente locais (setar no início)
 
@@ -177,6 +222,34 @@ fi
 ```
 
 **🟡 WARN se skip:** documentar que E2E não foi executado no Post-Deploy Summary.
+
+### 2e. Gate multiempresa enterprise
+
+Executar quando o rollout envolver um tenant `empresarial`.
+
+```sql
+select tenant_id, count(*) filter (where company_id is null) as profiles_sem_company
+from public.profiles
+group by tenant_id;
+
+select tenant_id, count(*) filter (where company_id is null) as investments_sem_company
+from public.investments
+group by tenant_id;
+
+select tenant_id, count(*) filter (where company_id is null) as installments_sem_company
+from public.loan_installments
+group by tenant_id;
+```
+
+**🔴 BLOQUEANTE:** qualquer registro operacional ainda sem `company_id`.
+
+Smoke mínimo:
+- login com admin enterprise;
+- validar switcher no topo;
+- `Todas as empresas` em `HOME`;
+- troca para uma company específica;
+- abrir `USERS`, `CONTRACTS` e `SETTINGS > Empresa`;
+- confirmar que o consolidado bate com a soma das companies relevantes.
 
 ---
 

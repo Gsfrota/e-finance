@@ -7,7 +7,7 @@ Fonte canônica do modelo de dados atual do E-Finance. Este documento descreve o
 - `tenant`: workspace principal, assinatura, billing, trial e segurança macro.
 - `company`: empresa operacional dentro do mesmo tenant.
 - `company_id`: partição operacional para contratos, usuários operacionais, convites, cobranças, branding e dashboards.
-- `Todas as empresas`: visão agregada disponível apenas para admin de tenant `empresarial`.
+- `Todas as empresas`: visão agregada disponível para admin com trial ativo ou tenant `empresarial` ativo.
 
 ```text
 tenant
@@ -83,9 +83,19 @@ Campos:
 
 Regras:
 - exatamente 1 `is_primary = true` por tenant;
-- admin enterprise pode criar várias companies;
+- admin com entitlement multiempresa pode criar várias companies;
 - investor/debtor pertencem a exatamente 1 company no v1;
 - o bot permanece tenant-wide no v1.
+
+## Entitlement multiempresa
+
+- O switcher aparece apenas para `admin`.
+- O acesso multiempresa fica `enabled` quando:
+  - `trial_ends_at` ainda está ativo; ou
+  - `plan = 'empresarial'` e `plan_status = 'active'`.
+- Fora desses casos, o switcher continua visível para admin, mas em modo `upsell_locked`.
+- Sem entitlement, o app deve operar somente na company primária do tenant.
+- Companies extras nunca são apagadas automaticamente quando o trial expira ou o plano deixa de ser `empresarial`.
 
 ### `public.profiles`
 
@@ -304,6 +314,8 @@ Regras práticas:
 
 ### Agregado (`Todas as empresas`)
 
+Disponível apenas para admin com entitlement multiempresa ativo.
+
 Permitido:
 - `HOME`
 - `DASHBOARD`
@@ -350,6 +362,20 @@ Para cada tenant legado:
 4. preencher `loan_installments`, `contract_renegotiations` e `avulso_payments` a partir do contrato pai;
 5. validar que nenhum registro operacional ficou sem `company_id`;
 6. só então endurecer `NOT NULL`.
+
+## Aplicação do schema no Supabase
+
+- O Claude é o guardião do banco para este rollout.
+- Antes de qualquer apply, o schema real do projeto deve ser inspecionado via MCP e comparado com a migration.
+- A migration só pode ser aplicada se o Claude concordar explicitamente que:
+  - não há blockers;
+  - as RPCs reais estão cobertas;
+  - `view_investor_balances` e RLS ficaram compatíveis com o app.
+- O apply precisa ser seguido de validação pós-migration confirmando:
+  - `companies` criada;
+  - `company_id` presente e preenchido nas tabelas operacionais;
+  - backfill concluído;
+  - nenhuma linha operacional com `company_id is null`.
 
 ## Rollout
 

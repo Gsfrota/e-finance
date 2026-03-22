@@ -5,7 +5,6 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import AdminUsers from './components/AdminUsers';
 import AdminContracts from './components/AdminContracts';
-import AdminSettings from './components/AdminSettings';
 import AdminAssistant from './components/AdminAssistant';
 import AdminHome from './components/AdminHome';
 import OnboardingWizard from './components/OnboardingWizard';
@@ -15,9 +14,25 @@ import ResetPassword from './components/ResetPassword';
 import DailyCollectionView from './components/DailyCollectionView';
 import LegacyContractPage from './components/LegacyContractPage';
 import TopClientes from './components/TopClientes';
-import { AppView, UserRole, Tenant, Profile } from './types';
+import CompanySwitcher from './components/CompanySwitcher';
+import CompanyScopeGate from './components/CompanyScopeGate';
+import AdminSettings, { type SettingsSection } from './components/AdminSettings';
+import { AppView, UserRole, Tenant, Profile, Company, CompanyAccessMode, CompanyScope } from './types';
 import { clearAllCache } from './services/cache';
 import { fetchProfileByAuthUserId, getSupabase, isProduction, logError } from './services/supabase';
+import {
+  CompanyContextProvider,
+  canUseAggregateScope as canUseAggregateCompanyScope,
+  createFallbackCompany,
+  getCompanyAccessMode,
+  getCompanyScopeStorageKey,
+  getOperationLabel,
+  getScopeSummary,
+  getScopedCompanyId,
+  isAggregateCompanyScope,
+  isEnterpriseTenant as isEnterprisePlan,
+  isTrialActive,
+} from './services/companyScope';
 import {
   LayoutDashboard,
   Home,
@@ -33,7 +48,6 @@ import {
   X,
   ChevronRight,
   Bot,
-  Settings,
   ChevronsLeft,
   ChevronsRight,
   Sun,
@@ -43,21 +57,20 @@ import {
   Trophy,
 } from 'lucide-react';
 
-const isInTrial = (tenant: Tenant | null | undefined): boolean => {
-  if (!tenant?.trial_ends_at) return false;
-  return new Date(tenant.trial_ends_at) > new Date();
-};
-
 const getTrialDaysLeft = (trial_ends_at: string): number => {
   const diff = new Date(trial_ends_at).getTime() - Date.now();
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
 };
 
 const APP_STORAGE_KEYS = ['EF_SIDEBAR_COLLAPSED', 'EF_THEME'] as const;
+const COMPANY_SCOPE_STORAGE_PREFIX = 'EF_ACTIVE_COMPANY_SCOPE_';
 
 const clearAppStorageKeys = () => {
   if (typeof window === 'undefined') return;
   APP_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+  Object.keys(localStorage)
+    .filter((key) => key.startsWith(COMPANY_SCOPE_STORAGE_PREFIX))
+    .forEach((key) => localStorage.removeItem(key));
 };
 
 // ─── Layout ────────────────────────────────────────────────────────────────────
@@ -69,9 +82,37 @@ interface LayoutProps {
   userRole?: UserRole;
   tenant?: Tenant | null;
   profile?: Profile | null;
+  companies?: Company[];
+  activeCompany?: Company | null;
+  activeCompanyScope?: CompanyScope;
+  companyScopeLabel: string;
+  companyScopeDescriptorLabel: string;
+  isEnterpriseTenant?: boolean;
+  companyAccessMode?: CompanyAccessMode | null;
+  onSelectCompanyScope: (scope: CompanyScope) => void;
+  onOpenCompanySettings: (section?: SettingsSection) => void;
+  onOpenSubscriptionSettings: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onLogout, userRole, tenant, profile }) => {
+const Layout: React.FC<LayoutProps> = ({
+  children,
+  activeView,
+  onChangeView,
+  onLogout,
+  userRole,
+  tenant,
+  profile,
+  companies = [],
+  activeCompany = null,
+  activeCompanyScope = null,
+  companyScopeLabel,
+  companyScopeDescriptorLabel,
+  isEnterpriseTenant = false,
+  companyAccessMode = null,
+  onSelectCompanyScope,
+  onOpenCompanySettings,
+  onOpenSubscriptionSettings,
+}) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     const stored = localStorage.getItem('EF_SIDEBAR_COLLAPSED');
@@ -116,6 +157,9 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
     [AppView.TOP_CLIENTES]: 'Top Clientes',
     [AppView.RESET_PASSWORD]: 'Segurança',
   };
+
+  const operationLabel = getOperationLabel(tenant, activeCompany, activeCompanyScope);
+  const showCompanySwitcher = userRole === 'admin' && (companies.length > 0 || companyAccessMode === 'upsell_locked');
 
   const handleViewChange = (view: AppView) => {
     onChangeView(view);
@@ -316,10 +360,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
           )}
 
           {/* Banner de trial */}
-          {tenant && isInTrial(tenant) && (
+          {tenant && isTrialActive(tenant) && (
             collapsed ? (
-              <button
-                onClick={() => handleViewChange(AppView.SETTINGS)}
+            <button
+                onClick={onOpenSubscriptionSettings}
                 title={`${getTrialDaysLeft(tenant.trial_ends_at!)}d de trial`}
                 className={`${btnBase} ${btnCollapsed} text-[color:var(--accent-premium)] hover:bg-[color:var(--accent-premium-bg)]`}
               >
@@ -327,7 +371,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
               </button>
             ) : (
               <button
-                onClick={() => handleViewChange(AppView.SETTINGS)}
+                onClick={onOpenSubscriptionSettings}
                 className="w-full rounded-2xl bg-[color:var(--accent-premium-bg)] border border-[color:var(--accent-premium-border)] px-4 py-3 text-left transition-all hover:bg-[color:var(--accent-premium-bg-strong)]"
               >
                 <div className="flex items-center gap-2 mb-1">
@@ -381,8 +425,13 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
             <button onClick={() => setMobileMenuOpen(true)} className="flex min-h-[44px] min-w-[44px] items-center justify-center text-[color:var(--text-secondary)] hover:text-white">
               <Menu size={24} />
             </button>
-            <div className="font-display truncate text-lg text-[color:var(--text-primary)] max-w-[140px]">
-              {tenant?.name || '...'}
+            <div className="min-w-0">
+              <div className="font-display truncate text-lg text-[color:var(--text-primary)] max-w-[140px]">
+                {operationLabel || '...'}
+              </div>
+              <div className="truncate text-[0.62rem] font-bold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
+                {companyScopeDescriptorLabel}: {companyScopeLabel}
+              </div>
             </div>
           </div>
 
@@ -392,19 +441,38 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeView, onL
               <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--text-secondary)]">
                 <span>{currentSectionLabel[activeView]}</span>
                 <ChevronRight size={14} className="text-[color:var(--text-faint)]" />
-                <span className="text-[color:var(--text-primary)]">{tenant?.name || 'Operação'}</span>
+                <span className="text-[color:var(--text-primary)]">{operationLabel}</span>
+              </div>
+              <div className="mt-1 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
+                {companyScopeDescriptorLabel}: {companyScopeLabel}
               </div>
             </div>
 
-            <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)]">
-                <UserRound size={18} />
-              </div>
-              <div className="text-right">
-                  <p className="text-sm font-semibold text-[color:var(--text-primary)]">{profile?.full_name || 'Usuário'}</p>
-                  <p className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
-                    {userRole === 'admin' ? 'Administrador' : userRole || '---'}
-                  </p>
+            <div className="flex items-center gap-3">
+              {showCompanySwitcher && (
+                <CompanySwitcher
+                  tenantName={tenant?.name ?? null}
+                  companies={companies}
+                  activeCompanyId={activeCompany?.id ?? null}
+                  activeCompanyScope={activeCompanyScope}
+                  accessMode={companyAccessMode}
+                  scopeLabel={companyScopeLabel}
+                  onSelectScope={onSelectCompanyScope}
+                  onCreateCompany={companyAccessMode === 'enabled' ? () => onOpenCompanySettings('empresas') : undefined}
+                  onUpgrade={onOpenSubscriptionSettings}
+                />
+              )}
+
+              <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)]">
+                  <UserRound size={18} />
+                </div>
+                <div className="text-right">
+                    <p className="text-sm font-semibold text-[color:var(--text-primary)]">{profile?.full_name || 'Usuário'}</p>
+                    <p className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
+                      {userRole === 'admin' ? 'Administrador' : userRole || '---'}
+                    </p>
+                </div>
               </div>
             </div>
           </div>
@@ -436,6 +504,9 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.LOGIN);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [activeCompanyScope, setActiveCompanyScope] = useState<CompanyScope>(null);
+  const [settingsInitialSection, setSettingsInitialSection] = useState<SettingsSection | undefined>(undefined);
   const [targetUserId, setTargetUserId] = useState<string | undefined>(undefined);
   const [contractAutoNew, setContractAutoNew] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -446,12 +517,93 @@ const App: React.FC = () => {
   const [wizardMode, setWizardMode] = useState<'full' | 'setup'>('full');
   const profileLoadedRef = useRef(false);
 
+  const isTrialTenant = isTrialActive(tenant);
+  const companyAccessMode = getCompanyAccessMode(tenant, profile);
+  const canAggregateCompanies = canUseAggregateCompanyScope(tenant, profile);
+  const activeCompanyId = getScopedCompanyId(activeCompanyScope);
+  const activeCompany =
+    companies.find((company) => company.id === activeCompanyId)
+    ?? companies.find((company) => company.is_primary)
+    ?? companies[0]
+    ?? null;
+  const companyScopeSummary = getScopeSummary(tenant, activeCompany, activeCompanyScope);
+  const companyScopeLabel = companyScopeSummary.value;
+
+  const hydrateCompanyScope = (
+    nextTenant: Tenant | null,
+    nextProfile: Profile | null,
+    availableCompanies: Company[]
+  ): CompanyScope => {
+    if (!nextTenant || !nextProfile) return null;
+
+    const storageKey = getCompanyScopeStorageKey(nextTenant.id);
+    const storedScope = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
+    const validStoredScope =
+      storedScope === 'all' || availableCompanies.some((company) => company.id === storedScope)
+        ? storedScope
+        : null;
+    const primaryCompanyId =
+      availableCompanies.find((company) => company.is_primary)?.id
+      ?? nextProfile.company_id
+      ?? availableCompanies[0]?.id
+      ?? null;
+
+    if (canUseAggregateCompanyScope(nextTenant, nextProfile)) {
+      return validStoredScope ?? 'all';
+    }
+
+    return primaryCompanyId;
+  };
+
+  const refreshCompanies = async (nextTenant = tenant, nextProfile = profile) => {
+    if (!nextTenant || !nextProfile) {
+      setCompanies([]);
+      setActiveCompanyScope(null);
+      return;
+    }
+
+    if (nextProfile.role !== 'admin') {
+      setCompanies([]);
+      setActiveCompanyScope(nextProfile.company_id ?? null);
+      return;
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('*')
+        .eq('tenant_id', nextTenant.id)
+        .order('is_primary', { ascending: false })
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+
+      const availableCompanies = (data as Company[] | null)?.length
+        ? (data as Company[])
+        : [createFallbackCompany(nextTenant)];
+
+      setCompanies(availableCompanies);
+      setActiveCompanyScope(hydrateCompanyScope(nextTenant, nextProfile, availableCompanies));
+    } catch (error) {
+      logError('RefreshCompanies', error);
+      const fallbackCompanies = [createFallbackCompany(nextTenant)];
+      setCompanies(fallbackCompanies);
+      setActiveCompanyScope(hydrateCompanyScope(nextTenant, nextProfile, fallbackCompanies));
+    }
+  };
+
   const resetSessionState = () => {
     profileLoadedRef.current = false;
     setTargetUserId(undefined);
     setContractAutoNew(false);
     setProfile(null);
     setTenant(null);
+    setCompanies([]);
+    setActiveCompanyScope(null);
+    setSettingsInitialSection(undefined);
     setNeedsOnboarding(false);
     setOnboardingUser(null);
     setWizardMode('full');
@@ -465,7 +617,11 @@ const App: React.FC = () => {
     const supabase = getSupabase();
     if (!supabase) return;
     const { data } = await supabase.from('tenants').select('*').eq('id', tenantId).maybeSingle();
-    if (data) setTenant(data as Tenant);
+    if (data) {
+      const nextTenant = data as Tenant;
+      setTenant(nextTenant);
+      await refreshCompanies(nextTenant, profile);
+    }
   };
 
   const loadAppData = async (sessionUser: any, fromOnboarding = false) => {
@@ -494,6 +650,7 @@ const App: React.FC = () => {
             setProfile(dbData);
             const tenantData = dbData.tenants as unknown as Tenant;
             setTenant(tenantData);
+            await refreshCompanies(tenantData, dbData);
 
             // Detecta retorno do Stripe Checkout e agenda re-fetch do tenant
             const params = new URLSearchParams(window.location.search);
@@ -513,6 +670,7 @@ const App: React.FC = () => {
             if (tenantData) {
                 const t = tenantData as Tenant;
                 setTenant(t);
+                await refreshCompanies(t, dbData);
             } else {
                 // Tenant realmente não existe — onboarding parcial sem tenant
                 setWizardMode('full');
@@ -542,14 +700,16 @@ const App: React.FC = () => {
                 full_name: meta.full_name || 'Novo Usuário',
                 role: (meta.role as UserRole) || 'investor',
                 tenant_id: meta.tenant_id || '00000000-0000-0000-0000-000000000000',
+                company_id: meta.company_id || null,
                 updated_at: new Date().toISOString()
             });
-            setTenant({
+            const fallbackTenant = {
                 id: meta.tenant_id || '00000000-0000-0000-0000-000000000000',
                 name: meta.company_name || 'Organização',
                 slug: 'org',
                 created_at: new Date().toISOString()
-            });
+            } as Tenant;
+            setTenant(fallbackTenant);
         }
         profileLoadedRef.current = true;
         setLoadingPhase('ready');
@@ -573,6 +733,36 @@ const App: React.FC = () => {
   }, [currentView]);
 
   useEffect(() => {
+    if (currentView !== AppView.SETTINGS && settingsInitialSection) {
+      setSettingsInitialSection(undefined);
+    }
+  }, [currentView, settingsInitialSection]);
+
+  useEffect(() => {
+    if (!tenant?.id || !activeCompanyScope) return;
+    localStorage.setItem(getCompanyScopeStorageKey(tenant.id), activeCompanyScope);
+  }, [tenant?.id, activeCompanyScope]);
+
+  const handleCompanyScopeChange = (scope: CompanyScope) => {
+    const primaryCompanyId = companies.find((company) => company.is_primary)?.id ?? companies[0]?.id ?? profile?.company_id ?? null;
+    const nextScope = companyAccessMode === 'enabled' ? scope : primaryCompanyId;
+
+    setActiveCompanyScope(nextScope);
+    clearAllCache();
+
+    if (
+      nextScope === 'all'
+      && (currentView === AppView.USERS
+        || currentView === AppView.USER_DETAILS
+        || currentView === AppView.CONTRACTS
+        || currentView === AppView.LEGACY_CONTRACT)
+    ) {
+      setTargetUserId(undefined);
+      setCurrentView(AppView.HOME);
+    }
+  };
+
+  useEffect(() => {
     const supabase = getSupabase();
     if (!supabase) {
         setIsLoading(false);
@@ -587,8 +777,8 @@ const App: React.FC = () => {
         } else {
             console.log('[GetSession] No session found, showing login');
             setIsLoading(false);
-            setCurrentView(AppView.LOGIN);
-        }
+        setCurrentView(AppView.LOGIN);
+    }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -723,8 +913,51 @@ const App: React.FC = () => {
     );
   }
 
+  const companyContextValue = {
+    tenant,
+    profile,
+    companies,
+    activeCompanyScope,
+    activeCompanyId,
+    activeCompany,
+    isEnterpriseTenant: isEnterprisePlan(tenant),
+    isTrialActive: isTrialTenant,
+    companyAccessMode,
+    canManageMultipleCompanies: canAggregateCompanies,
+    canUseAggregateScope: canAggregateCompanies,
+    setActiveCompanyScope,
+    refreshCompanies: () => refreshCompanies(),
+  };
+
+  const openSettingsSection = (section?: SettingsSection) => {
+    setSettingsInitialSection(section);
+    setCurrentView(AppView.SETTINGS);
+  };
+
+  const requiresCompanySelection =
+    profile?.role === 'admin' &&
+    canAggregateCompanies &&
+    isAggregateCompanyScope(activeCompanyScope);
+
+  const companyGate = (title: string, description: string) => (
+    <CompanyScopeGate
+      title={title}
+      description={description}
+      onSelectCompany={() => {
+        const firstCompanyId = companies.find((company) => company.is_primary)?.id ?? companies[0]?.id;
+        if (firstCompanyId) {
+          handleCompanyScopeChange(firstCompanyId);
+          return;
+        }
+        setCurrentView(AppView.HOME);
+      }}
+      onManageCompanies={() => openSettingsSection(companyAccessMode === 'enabled' ? 'empresas' : 'assinatura')}
+    />
+  );
+
   return (
     <Router>
+      <CompanyContextProvider value={companyContextValue}>
         <Layout
           activeView={currentView}
           onChangeView={(view) => {
@@ -735,6 +968,16 @@ const App: React.FC = () => {
           userRole={profile?.role}
           tenant={tenant}
           profile={profile}
+          companies={companies}
+          activeCompany={activeCompany}
+          activeCompanyScope={activeCompanyScope}
+          companyScopeLabel={companyScopeLabel}
+          companyScopeDescriptorLabel={companyScopeSummary.label}
+          isEnterpriseTenant={isEnterprisePlan(tenant)}
+          companyAccessMode={companyAccessMode}
+          onSelectCompanyScope={handleCompanyScopeChange}
+          onOpenCompanySettings={openSettingsSection}
+          onOpenSubscriptionSettings={() => openSettingsSection('assinatura')}
         >
           {currentView === AppView.HOME && profile?.role === 'admin' && (
             <AdminHome
@@ -771,31 +1014,65 @@ const App: React.FC = () => {
             />
           )}
           {currentView === AppView.USERS && profile?.role === 'admin' && (
-              <AdminUsers onViewDashboard={(uid) => { setTargetUserId(uid); setCurrentView(AppView.USER_DETAILS); }} />
+              requiresCompanySelection
+                ? companyGate(
+                    'Usuários exigem empresa ativa',
+                    'A lista de usuários e convites é operacional e fica isolada por empresa. Escolha uma empresa no topo para continuar.'
+                  )
+                : <AdminUsers onViewDashboard={(uid) => { setTargetUserId(uid); setCurrentView(AppView.USER_DETAILS); }} />
           )}
           {currentView === AppView.USER_DETAILS && profile?.role === 'admin' && targetUserId && (
-              <AdminUserDetails userId={targetUserId} onBack={() => { setTargetUserId(undefined); setCurrentView(AppView.USERS); }} />
+              requiresCompanySelection
+                ? companyGate(
+                    'Detalhes do cliente exigem empresa ativa',
+                    'O dossiê do cliente usa contratos e parcelas isolados por empresa. Escolha uma empresa específica para abrir o detalhe.'
+                  )
+                : <AdminUserDetails userId={targetUserId} onBack={() => { setTargetUserId(undefined); setCurrentView(AppView.USERS); }} />
           )}
           {currentView === AppView.CONTRACTS && profile?.role === 'admin' && (
-              <AdminContracts autoOpenCreate={contractAutoNew} onNavigate={(view) => setCurrentView(view)} />
+              requiresCompanySelection
+                ? companyGate(
+                    'Contratos exigem empresa ativa',
+                    'Criação, edição e leitura operacional de contratos só podem acontecer dentro de uma empresa específica.'
+                  )
+                : <AdminContracts autoOpenCreate={contractAutoNew} onNavigate={(view) => setCurrentView(view)} />
           )}
           {currentView === AppView.LEGACY_CONTRACT && profile?.role === 'admin' && (
-              <LegacyContractPage
-                onBack={() => setCurrentView(AppView.CONTRACTS)}
-                onSuccess={() => setCurrentView(AppView.CONTRACTS)}
-              />
+              requiresCompanySelection
+                ? companyGate(
+                    'Importação legada exige empresa ativa',
+                    'Contratos legados precisam nascer já vinculados a uma empresa. Escolha uma empresa antes de continuar.'
+                  )
+                : <LegacyContractPage
+                    onBack={() => setCurrentView(AppView.CONTRACTS)}
+                    onSuccess={() => setCurrentView(AppView.CONTRACTS)}
+                  />
           )}
           {currentView === AppView.SETTINGS && profile?.role === 'admin' && tenant && (
-              <AdminSettings tenant={tenant} onUpdate={(updated) => setTenant(updated)} profile={profile} />
+              <AdminSettings
+                tenant={tenant}
+                onUpdate={(updated) => setTenant(updated)}
+                profile={profile}
+                companies={companies}
+                activeCompany={activeCompany}
+                activeCompanyScope={activeCompanyScope}
+                companyAccessMode={companyAccessMode}
+                isTrialActive={isTrialTenant}
+                initialSection={settingsInitialSection}
+                onCompanyScopeChange={handleCompanyScopeChange}
+                onCompaniesChange={setCompanies}
+                onRefreshCompanies={() => refreshCompanies()}
+              />
           )}
           {currentView === AppView.ASSISTANT && profile?.role === 'admin' && tenant && profile && (
-              (tenant?.plan === 'empresarial' && tenant?.plan_status === 'active') || isInTrial(tenant) ? (
+              (tenant?.plan === 'empresarial' && tenant?.plan_status === 'active') || isTrialTenant ? (
                 <AdminAssistant tenant={tenant} profile={profile} />
               ) : (
                 <AssistantPaywall tenant={tenant} />
               )
           )}
         </Layout>
+      </CompanyContextProvider>
     </Router>
   );
 };

@@ -1,6 +1,8 @@
 
 
 export type UserRole = 'admin' | 'investor' | 'debtor';
+export type CompanyScope = 'all' | string | null;
+export type CompanyAccessMode = 'enabled' | 'upsell_locked';
 
 export interface Tenant {
   id: string;
@@ -31,6 +33,23 @@ export interface Tenant {
   trial_ends_at?: string;
 }
 
+export interface Company {
+  id: string;
+  tenant_id: string;
+  name: string;
+  logo_url?: string | null;
+  pix_key?: string | null;
+  pix_key_type?: 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'EVP' | null;
+  pix_name?: string | null;
+  pix_city?: string | null;
+  support_whatsapp?: string | null;
+  timezone?: string | null;
+  is_primary?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  is_fallback?: boolean;
+}
+
 export interface Profile {
   id: string;
   auth_user_id?: string;
@@ -38,6 +57,7 @@ export interface Profile {
   full_name: string;
   role: UserRole;
   tenant_id: string;
+  company_id?: string | null;
   phone_number?: string;
   cpf?: string;
   cep?: string;
@@ -49,12 +69,14 @@ export interface Profile {
   photo_url?: string;
   updated_at: string;
   tenants?: Tenant;
+  company?: Company | null;
 }
 
 // Interface para a View SQL view_investor_balances
 export interface InvestorBalanceView {
   profile_id: string;
   tenant_id: string;
+  company_id?: string | null;
   full_name: string;
   total_own_capital: number;       // Dinheiro do Bolso
   total_profit_reinvested: number; // Lucro que virou Principal
@@ -66,6 +88,7 @@ export interface LoanInstallment {
   id: string;
   investment_id: number;
   tenant_id: string;
+  company_id?: string | null;
   number: number;
   due_date: string;
   amount_principal: number;
@@ -92,6 +115,7 @@ export interface Investment {
   user_id: string;      
   payer_id?: string;    
   tenant_id: string;    
+  company_id?: string | null;
   asset_name: string;   
   amount_invested: number;
   current_value: number; // Montante Total do Contrato (Principal + Juros)
@@ -143,6 +167,7 @@ export interface ContractRenegotiation {
   id: number;
   investment_id: number;
   tenant_id: string;
+  company_id?: string | null;
   renegotiated_at: string;
   old_installment_value?: number | null;
   new_installment_value?: number | null;
@@ -159,6 +184,7 @@ export interface AvulsoPayment {
   id: string;
   investment_id: number;
   tenant_id: string;
+  company_id?: string | null;
   amount: number;
   notes: string | null;
   paid_at: string;
@@ -236,6 +262,7 @@ export interface DashboardMetrics {
 export interface Invite {
   id: string;
   tenant_id: string;
+  company_id?: string | null;
   code: string;
   role: UserRole;
   full_name?: string;
