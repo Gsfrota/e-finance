@@ -419,7 +419,7 @@ const Layout: React.FC<LayoutProps> = ({
       )}
 
       <div className="flex h-screen flex-1 flex-col overflow-hidden">
-        <header className="glass-border z-20 flex h-16 items-center justify-between border-b px-4 md:h-20 md:px-8">
+        <header className="glass-border z-20 flex min-h-[78px] items-start justify-between border-b px-4 py-3 md:h-20 md:min-h-0 md:items-center md:px-8 md:py-0">
 
           <div className="flex min-w-0 flex-1 items-center gap-3 md:hidden">
             <button onClick={() => setMobileMenuOpen(true)} className="flex min-h-[44px] min-w-[44px] items-center justify-center text-[color:var(--text-secondary)] hover:text-white">
@@ -496,7 +496,7 @@ const Layout: React.FC<LayoutProps> = ({
             </div>
           </div>
 
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-[color:var(--accent-brass)] md:hidden">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-[color:var(--accent-brass)] md:hidden">
              <UserRound size={16} />
           </div>
         </header>

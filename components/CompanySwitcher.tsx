@@ -168,14 +168,12 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
             />
 
             <div
-              className={`absolute inset-x-0 bottom-0 rounded-t-[2rem] border border-white/10 bg-[color:var(--bg-elevated)] px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-4 shadow-[0_-24px_60px_rgba(0,0,0,0.35)] transition-all duration-200 ${
-                isSheetVisible ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+              className={`absolute inset-x-4 top-[calc(env(safe-area-inset-top,0px)+5rem)] overflow-hidden rounded-[1.75rem] border border-white/10 bg-[color:var(--bg-elevated)] shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition-all duration-200 ${
+                isSheetVisible ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'
               }`}
             >
-              <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/10" />
-
-              <div className="mb-4 flex items-start justify-between gap-3">
-                <div className="min-w-0">
+              <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
+                <div className="min-w-0 pr-2">
                   <p className="section-kicker mb-1">Escopo operacional</p>
                   <h3 className="truncate text-base font-semibold text-[color:var(--text-primary)]">
                     {tenantName || 'Empresas'}
@@ -194,75 +192,77 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
                 </button>
               </div>
 
-              {isLocked && (
-                <div className="mb-4 rounded-[1.5rem] border border-[rgba(202,176,122,0.2)] bg-[rgba(202,176,122,0.08)] px-4 py-3">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)]">
-                      <Crown size={15} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-[color:var(--text-primary)]">Multiempresa bloqueado</p>
-                      <p className="mt-1 text-sm text-[color:var(--text-muted)]">
-                        Sua empresa primária continua ativa. Faça upgrade para voltar a alternar entre empresas e usar a visão consolidada.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  disabled={isLocked}
-                  onClick={() => handleSelectScope('all')}
-                  className={`flex min-h-[52px] w-full items-center gap-3 rounded-[1.35rem] border px-4 py-3 text-left transition-colors ${
-                    normalizedScope === 'all'
-                      ? 'border-[rgba(202,176,122,0.28)] bg-[rgba(202,176,122,0.08)]'
-                      : 'border-[color:var(--border-subtle)] bg-[color:var(--bg-base)]'
-                  } ${isLocked ? 'cursor-not-allowed opacity-55' : 'hover:border-[rgba(202,176,122,0.2)] hover:bg-white/[0.03]'}`}
-                >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[rgba(202,176,122,0.12)] text-[color:var(--accent-brass)]">
-                    <Building2 size={16} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-[color:var(--text-primary)]">{allCompaniesLabel}</div>
-                    <div className="mt-0.5 text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
-                      Visão consolidada
-                    </div>
-                  </div>
-                  {normalizedScope === 'all' && <Check size={16} className="shrink-0 text-[color:var(--accent-brass)]" />}
-                </button>
-
-                {companyOptions.map((company) => {
-                  const isActive = normalizedScope === company.id;
-                  return (
-                    <button
-                      key={company.id}
-                      type="button"
-                      disabled={isLocked}
-                      onClick={() => handleSelectScope(company.id)}
-                      className={`flex min-h-[52px] w-full items-center gap-3 rounded-[1.35rem] border px-4 py-3 text-left transition-colors ${
-                        isActive
-                          ? 'border-[rgba(202,176,122,0.28)] bg-[rgba(202,176,122,0.08)]'
-                          : 'border-[color:var(--border-subtle)] bg-[color:var(--bg-base)]'
-                      } ${isLocked ? 'cursor-not-allowed opacity-55' : 'hover:border-[rgba(202,176,122,0.2)] hover:bg-white/[0.03]'}`}
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[rgba(202,176,122,0.12)] text-[color:var(--accent-brass)]">
-                        <Building2 size={16} />
+              <div className="max-h-[min(55vh,26rem)] overflow-y-auto px-4 py-4">
+                {isLocked && (
+                  <div className="mb-4 rounded-[1.5rem] border border-[rgba(202,176,122,0.2)] bg-[rgba(202,176,122,0.08)] px-4 py-3">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)]">
+                        <Crown size={15} />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-semibold text-[color:var(--text-primary)]">{company.name}</div>
-                        <div className="mt-0.5 text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
-                          {company.is_primary ? 'Empresa principal' : 'Empresa'}
+                      <div>
+                        <p className="text-sm font-semibold text-[color:var(--text-primary)]">Multiempresa bloqueado</p>
+                        <p className="mt-1 text-sm text-[color:var(--text-muted)]">
+                          Sua empresa primária continua ativa. Faça upgrade para voltar a alternar entre empresas e usar a visão consolidada.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    disabled={isLocked}
+                    onClick={() => handleSelectScope('all')}
+                    className={`flex min-h-[52px] w-full items-center gap-3 rounded-[1.35rem] border px-4 py-3 text-left transition-colors ${
+                      normalizedScope === 'all'
+                        ? 'border-[rgba(202,176,122,0.28)] bg-[rgba(202,176,122,0.08)]'
+                        : 'border-[color:var(--border-subtle)] bg-[color:var(--bg-base)]'
+                    } ${isLocked ? 'cursor-not-allowed opacity-55' : 'hover:border-[rgba(202,176,122,0.2)] hover:bg-white/[0.03]'}`}
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[rgba(202,176,122,0.12)] text-[color:var(--accent-brass)]">
+                      <Building2 size={16} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold text-[color:var(--text-primary)]">{allCompaniesLabel}</div>
+                      <div className="mt-0.5 text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
+                        Visão consolidada
+                      </div>
+                    </div>
+                    {normalizedScope === 'all' && <Check size={16} className="shrink-0 text-[color:var(--accent-brass)]" />}
+                  </button>
+
+                  {companyOptions.map((company) => {
+                    const isActive = normalizedScope === company.id;
+                    return (
+                      <button
+                        key={company.id}
+                        type="button"
+                        disabled={isLocked}
+                        onClick={() => handleSelectScope(company.id)}
+                        className={`flex min-h-[52px] w-full items-center gap-3 rounded-[1.35rem] border px-4 py-3 text-left transition-colors ${
+                          isActive
+                            ? 'border-[rgba(202,176,122,0.28)] bg-[rgba(202,176,122,0.08)]'
+                            : 'border-[color:var(--border-subtle)] bg-[color:var(--bg-base)]'
+                        } ${isLocked ? 'cursor-not-allowed opacity-55' : 'hover:border-[rgba(202,176,122,0.2)] hover:bg-white/[0.03]'}`}
+                      >
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[rgba(202,176,122,0.12)] text-[color:var(--accent-brass)]">
+                          <Building2 size={16} />
                         </div>
-                      </div>
-                      {isActive && <Check size={16} className="shrink-0 text-[color:var(--accent-brass)]" />}
-                    </button>
-                  );
-                })}
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-semibold text-[color:var(--text-primary)]">{company.name}</div>
+                          <div className="mt-0.5 text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
+                            {company.is_primary ? 'Empresa principal' : 'Empresa'}
+                          </div>
+                        </div>
+                        {isActive && <Check size={16} className="shrink-0 text-[color:var(--accent-brass)]" />}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div className="mt-4 border-t border-white/10 pt-4">
+              <div className="border-t border-white/10 px-4 py-4">
                 {isLocked ? (
                   <button
                     type="button"
