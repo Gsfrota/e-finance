@@ -146,12 +146,23 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
 
                 {((isPaid || isPartial) && inst.paid_at) || (modInfo && (inst as any).notes) || (txByInstallment[inst.id]?.length > 0) ? (
                   <div className="px-4 py-1.5 space-y-1" style={{ background: 'var(--bg-soft)' }}>
-                    {(isPaid || isPartial) && inst.paid_at && (
-                      <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                        Recebido em {fmtDate(inst.paid_at)}
-                        {(inst as any).payment_method ? ` · ${(inst as any).payment_method}` : ''}
-                      </p>
-                    )}
+                    {(isPaid || isPartial) && inst.paid_at && (() => {
+                      const paidDate = inst.paid_at.includes('T') ? inst.paid_at.split('T')[0] : inst.paid_at;
+                      const dueDate = inst.due_date?.includes('T') ? inst.due_date.split('T')[0] : inst.due_date;
+                      const paidLate = dueDate && paidDate > dueDate;
+                      const daysLate = paidLate ? Math.ceil((new Date(paidDate).getTime() - new Date(dueDate).getTime()) / 86400000) : 0;
+                      return (
+                        <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                          Venc: {fmtDate(inst.due_date)} · Pago em: {fmtDate(inst.paid_at)}
+                          {(inst as any).payment_method ? ` · ${(inst as any).payment_method}` : ''}
+                          {paidLate && (
+                            <span style={{ color: 'var(--accent-brass)', marginLeft: 6, fontWeight: 700 }}>
+                              ⚠ {daysLate}d atraso
+                            </span>
+                          )}
+                        </p>
+                      );
+                    })()}
                     {(inst as any).notes && (
                       <p className="text-[10px] italic mt-0.5" style={{ color: modInfo ? modInfo.chipClass.includes('anomaly') ? '#EF5350' : '#CE93D8' : 'var(--text-faint)' }}>
                         {(inst as any).notes}
