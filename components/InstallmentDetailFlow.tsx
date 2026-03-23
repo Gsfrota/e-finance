@@ -911,19 +911,10 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     setLoading(true); setError(null);
     const supabase = getSupabase(); if (!supabase) return;
     try {
-      // Auditoria: log da reversão ANTES de zerar (para capturar o valor revertido)
-      const revertedAmount = normalizeNum(installment.amount_paid);
-      logPaymentTransaction({
-        tenant_id: installment.tenant_id,
-        investment_id: installment.investment_id,
-        installment_id: installment.id,
-        transaction_type: 'reversal',
-        amount: revertedAmount,
-        notes: `Reversão de pagamento (parcela #${installment.number}) · valor revertido: ${fmtMoney(revertedAmount)}`,
+      // RPC com reversão em cascata: reverte excedentes, saldos diferidos e parcelas criadas
+      const { error: err } = await supabase.rpc('revert_installment_payment', {
+        p_installment_id: installment.id,
       });
-
-      const { error: err } = await supabase.from('loan_installments')
-        .update({ status: 'pending', amount_paid: 0, paid_at: null }).eq('id', installment.id);
       if (err) throw err;
       onSuccess(); onBack();
     } catch (e: any) { setError(parseSupabaseError(e)); }
@@ -940,6 +931,19 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     try {
       const { error: err } = await supabase.rpc('refinance_installment', { p_installment_id: installment.id, p_payment_amount: val, p_new_due_date: newDate });
       if (err) throw err;
+
+      // Auditoria: log do refinanciamento
+      const rfBreakdown = calcBreakdown(installment, val);
+      logPaymentTransaction({
+        tenant_id: installment.tenant_id,
+        investment_id: installment.investment_id,
+        installment_id: installment.id,
+        transaction_type: 'payment',
+        amount: val,
+        ...rfBreakdown,
+        notes: `Refinanciamento: entrada ${fmtMoney(val)}, nova data ${fmtDate(newDate)} (parcela #${installment.number})`,
+      });
+
       onSuccess(); onBack();
     } catch (e: any) { setError(e.message || 'Erro.'); }
     finally { setLoading(false); }
@@ -969,6 +973,18 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     try {
       const { error: err } = await supabase.rpc('pay_interest_only', { p_installment_id: installment.id, p_interest_amount: val });
       if (err) throw err;
+
+      // Auditoria: log do pagamento de juros
+      logPaymentTransaction({
+        tenant_id: installment.tenant_id,
+        investment_id: installment.investment_id,
+        installment_id: installment.id,
+        transaction_type: 'payment',
+        amount: val,
+        interest_portion: val,
+        notes: `Pagamento só juros ${fmtMoney(val)} (parcela #${installment.number})`,
+      });
+
       onSuccess(); onBack();
     } catch (e: any) { setError(parseSupabaseError(e)); }
     finally { setLoading(false); }

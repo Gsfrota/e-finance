@@ -1040,6 +1040,19 @@ export const RefinanceModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSu
       });
 
       if (rpcError) throw rpcError;
+
+      // Auditoria: log do refinanciamento
+      const rfBreakdown = calcBreakdown(installment, val);
+      logPaymentTransaction({
+        tenant_id: installment.tenant_id,
+        investment_id: installment.investment_id,
+        installment_id: installment.id,
+        transaction_type: 'payment',
+        amount: val,
+        ...rfBreakdown,
+        notes: `Refinanciamento: entrada ${formatCurrency(val)}, nova data ${newDate} (parcela #${installment.number})`,
+      });
+
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -1271,6 +1284,18 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
         p_interest_amount: val
       });
       if (rpcError) throw rpcError;
+
+      // Auditoria: log do pagamento de juros
+      logPaymentTransaction({
+        tenant_id: installment.tenant_id,
+        investment_id: installment.investment_id,
+        installment_id: installment.id,
+        transaction_type: 'payment',
+        amount: val,
+        interest_portion: val,
+        notes: `Pagamento só juros ${formatCurrency(val)} (parcela #${installment.number})`,
+      });
+
       onSuccess();
       onClose();
     } catch (err: any) {
