@@ -6,7 +6,6 @@ import { useCompanyContext } from '../services/companyScope';
 import { fmtMoney } from './InstallmentDetailFlow';
 import {
   ArrowLeft,
-  ArrowUpDown,
   ChevronRight,
   Crown,
   Loader2,
@@ -30,18 +29,60 @@ const maskCPF = (cpf?: string) => {
   return `${cpf.slice(0, 3)}.***.***.${cpf.slice(-2)}`;
 };
 
-const scoreBadge = (score: number, hasResolved: boolean) => {
-  if (!hasResolved) return { bg: 'rgba(148,163,184,0.12)', color: '#94a3b8', label: 'Novo' };
-  if (score >= 70) return { bg: 'rgba(34,197,94,0.12)', color: '#22c55e', label: 'Pontual' };
-  if (score >= 40) return { bg: 'rgba(234,179,8,0.12)', color: '#eab308', label: 'Regular' };
-  return { bg: 'rgba(239,68,68,0.12)', color: '#ef4444', label: 'Risco' };
+const scoreConfig = (score: number) => {
+  if (score >= 70) return {
+    bg: 'rgba(52,211,153,0.12)',
+    color: 'var(--accent-positive)',
+    ring: 'rgba(52,211,153,0.30)',
+    label: 'Pontual',
+  };
+  if (score >= 40) return {
+    bg: 'rgba(251,191,36,0.12)',
+    color: 'var(--accent-warning)',
+    ring: 'rgba(251,191,36,0.30)',
+    label: 'Regular',
+  };
+  return {
+    bg: 'rgba(248,113,113,0.12)',
+    color: 'var(--accent-danger)',
+    ring: 'rgba(248,113,113,0.30)',
+    label: 'Risco',
+  };
 };
 
-const rankColors: Record<number, { bg: string; color: string }> = {
-  1: { bg: 'rgba(255,215,0,0.18)', color: '#FFD700' },
-  2: { bg: 'rgba(192,192,192,0.18)', color: '#C0C0C0' },
-  3: { bg: 'rgba(205,127,50,0.18)', color: '#CD7F32' },
-};
+const SORT_OPTIONS: [SortKey, string][] = [
+  ['score', 'Score'],
+  ['valor', 'Valor'],
+  ['pontualidade', 'Pontualidade'],
+  ['nome', 'Nome'],
+];
+
+const KPI_CARDS = (kpis: { totalClientes: number; mediaScore: number; clientesPontuais: number; clientesRisco: number }) => [
+  {
+    icon: <Users size={17} style={{ color: 'var(--accent-brass)' }} />,
+    iconBg: 'rgba(202,176,122,0.14)',
+    value: kpis.totalClientes,
+    label: 'Total Clientes',
+  },
+  {
+    icon: <Target size={17} style={{ color: 'var(--accent-brass)' }} />,
+    iconBg: 'rgba(202,176,122,0.14)',
+    value: kpis.mediaScore,
+    label: 'Score Médio',
+  },
+  {
+    icon: <ShieldCheck size={17} style={{ color: 'var(--accent-positive)' }} />,
+    iconBg: 'rgba(52,211,153,0.12)',
+    value: kpis.clientesPontuais,
+    label: 'Pontuais ≥70',
+  },
+  {
+    icon: <ShieldAlert size={17} style={{ color: 'var(--accent-danger)' }} />,
+    iconBg: 'rgba(248,113,113,0.12)',
+    value: kpis.clientesRisco,
+    label: 'Em Risco <40',
+  },
+];
 
 const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientClick }) => {
   const { activeCompanyId } = useCompanyContext();
@@ -50,26 +91,26 @@ const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientC
 
   const sorted = [...clientes].sort((a, b) => {
     switch (sortBy) {
-      case 'valor': return b.totalPrincipal - a.totalPrincipal;
+      case 'valor':       return b.totalPrincipal - a.totalPrincipal;
       case 'pontualidade': return b.punctualityRate - a.punctualityRate;
-      case 'nome': return a.fullName.localeCompare(b.fullName);
-      default: return b.score - a.score;
+      case 'nome':        return a.fullName.localeCompare(b.fullName);
+      default:            return b.score - a.score;
     }
   });
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 size={32} className="animate-spin text-[color:var(--accent-brass)]" />
+        <Loader2 size={32} className="animate-spin" style={{ color: 'var(--accent-brass)' }} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="space-y-6 pb-12 animate-fade-in">
-        <div className="panel-card rounded-[2rem] px-6 py-10 text-center border border-white/[0.06]">
-          <AlertCircle size={32} className="mx-auto mb-2" style={{ color: '#ef4444' }} />
+      <div className="space-y-4 pb-12 animate-fade-in">
+        <div className="panel-card rounded-[2rem] px-6 py-10 text-center">
+          <AlertCircle size={32} className="mx-auto mb-2" style={{ color: 'var(--accent-danger)' }} />
           <p className="text-sm text-[color:var(--text-secondary)]">{error}</p>
         </div>
       </div>
@@ -77,121 +118,149 @@ const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientC
   }
 
   return (
-    <div className="space-y-6 pb-12 animate-fade-in">
+    <div className="space-y-4 pb-12 animate-fade-in">
 
-      {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="panel-card rounded-[2rem] px-5 py-5 md:px-8 md:py-7">
         <button
           onClick={() => onNavigate(AppView.HOME)}
-          className="mb-5 flex items-center gap-2 text-sm font-semibold text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition-colors cursor-pointer"
+          className="mb-4 flex items-center gap-1.5 text-sm font-medium transition-colors cursor-pointer"
+          style={{ color: 'var(--text-muted)' }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-primary)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={15} />
           Voltar
         </button>
-        <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl" style={{ background: 'rgba(202,176,122,0.14)' }}>
-          <Crown size={22} style={{ color: 'var(--accent-brass)' }} />
+        <div className="flex items-center gap-4">
+          <div
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
+            style={{ background: 'rgba(202,176,122,0.14)' }}
+          >
+            <Crown size={22} style={{ color: 'var(--accent-brass)' }} />
+          </div>
+          <div>
+            <p className="section-kicker mb-0.5">Ranking</p>
+            <h2 className="type-title leading-tight text-[color:var(--text-primary)]">
+              Top Clientes
+            </h2>
+          </div>
         </div>
-        <p className="section-kicker mb-2">Ranking</p>
-        <h2 className="type-title text-[color:var(--text-primary)] md:text-5xl">
-          Top Clientes
-        </h2>
       </div>
 
-      {/* ── KPI cards ───────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="panel-card card-hover rounded-[2rem] p-4 md:p-5 flex flex-col">
-          <div className="mb-3 w-fit rounded-2xl p-2.5" style={{ background: 'rgba(202,176,122,0.14)' }}>
-            <Users size={18} style={{ color: 'var(--accent-brass)' }} />
+      {/* ── KPI cards ──────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3">
+        {KPI_CARDS(kpis).map(({ icon, iconBg, value, label }) => (
+          <div
+            key={label}
+            className="panel-card card-hover rounded-[1.8rem] p-4 flex flex-col gap-3"
+          >
+            <div className="w-fit rounded-xl p-2" style={{ background: iconBg }}>
+              {icon}
+            </div>
+            <div>
+              <p
+                className="font-bold leading-none tracking-tight text-[color:var(--text-primary)]"
+                style={{ fontSize: '1.65rem' }}
+              >
+                {value}
+              </p>
+              <p className="type-caption mt-1 text-[color:var(--text-muted)]">{label}</p>
+            </div>
           </div>
-          <p className="type-metric-lg text-[color:var(--text-primary)]">{kpis.totalClientes}</p>
-          <p className="type-caption text-[color:var(--text-muted)]">Total Clientes</p>
-        </div>
-        <div className="panel-card card-hover rounded-[2rem] p-4 md:p-5 flex flex-col">
-          <div className="mb-3 w-fit rounded-2xl p-2.5" style={{ background: 'rgba(202,176,122,0.14)' }}>
-            <Target size={18} style={{ color: 'var(--accent-brass)' }} />
-          </div>
-          <p className="type-metric-lg text-[color:var(--text-primary)]">{Math.round(kpis.mediaScore)} <span className="text-xs font-normal text-[color:var(--text-faint)]">/ 100</span></p>
-          <p className="type-caption text-[color:var(--text-muted)]">Score Médio</p>
-        </div>
-        <div className="panel-card card-hover rounded-[2rem] p-4 md:p-5 flex flex-col">
-          <div className="mb-3 w-fit rounded-2xl p-2.5" style={{ background: 'rgba(52,211,153,0.12)' }}>
-            <ShieldCheck size={18} style={{ color: 'var(--accent-positive)' }} />
-          </div>
-          <p className="type-metric-lg text-[color:var(--text-primary)]">{kpis.clientesPontuais} {kpis.totalClientes > 0 && <span className="text-xs font-normal text-[color:var(--text-faint)]">({Math.round(kpis.clientesPontuais / kpis.totalClientes * 100)}%)</span>}</p>
-          <p className="type-caption text-[color:var(--text-muted)]">Pontuais (≥70)</p>
-        </div>
-        <div className="panel-card card-hover rounded-[2rem] p-4 md:p-5 flex flex-col">
-          <div className="mb-3 w-fit rounded-2xl p-2.5" style={{ background: 'rgba(248,113,113,0.12)' }}>
-            <ShieldAlert size={18} style={{ color: 'var(--accent-danger)' }} />
-          </div>
-          <p className="type-metric-lg text-[color:var(--text-primary)]">{kpis.clientesRisco} {kpis.totalClientes > 0 && <span className="text-xs font-normal text-[color:var(--text-faint)]">({Math.round(kpis.clientesRisco / kpis.totalClientes * 100)}%)</span>}</p>
-          <p className="type-caption text-[color:var(--text-muted)]">Em Risco (&lt;40)</p>
-        </div>
+        ))}
       </div>
 
       {/* ── Lista de clientes ───────────────────────────────────────────── */}
-      <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
-        {/* Controles de ordenação */}
-        <div className="flex items-center gap-2 flex-wrap border-b border-white/[0.06] pb-4 mb-5">
-          <ArrowUpDown size={16} style={{ color: 'var(--text-faint)' }} />
-          <span className="type-caption mr-1 text-[color:var(--text-muted)]">Ordenar:</span>
-          {([
-            ['score', 'Score'],
-            ['valor', 'Valor'],
-            ['pontualidade', 'Pontualidade'],
-            ['nome', 'Nome'],
-          ] as [SortKey, string][]).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setSortBy(key)}
-              className="rounded-full px-4 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
-              style={{
-                background: sortBy === key ? 'rgba(202,176,122,0.14)' : 'transparent',
-                color: sortBy === key ? 'var(--accent-brass)' : 'var(--text-muted)',
-                border: sortBy === key ? '1px solid rgba(202,176,122,0.25)' : '1px solid transparent',
-              }}
-            >
-              {label}
-            </button>
-          ))}
+      <div className="panel-card rounded-[2rem] overflow-hidden">
+
+        {/* Cabeçalho + sort (nunca quebra linha) */}
+        <div className="px-5 pt-5 pb-3 md:px-7 md:pt-6">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-[color:var(--text-primary)]">
+              Clientes{' '}
+              {sorted.length > 0 && (
+                <span className="font-normal text-[color:var(--text-muted)]">
+                  ({sorted.length})
+                </span>
+              )}
+            </p>
+          </div>
+
+          {/* Sort strip — scroll horizontal, nunca quebra */}
+          <div
+            className="flex items-center gap-1.5 overflow-x-auto pb-0.5"
+            style={{ scrollbarWidth: 'none' }}
+          >
+            {SORT_OPTIONS.map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setSortBy(key)}
+                className="shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer"
+                style={{
+                  background: sortBy === key
+                    ? 'rgba(202,176,122,0.16)'
+                    : 'rgba(255,255,255,0.04)',
+                  color: sortBy === key ? 'var(--accent-brass)' : 'var(--text-muted)',
+                  border: sortBy === key
+                    ? '1px solid rgba(202,176,122,0.30)'
+                    : '1px solid rgba(255,255,255,0.06)',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Contagem */}
-        {sorted.length > 0 && (
-          <p className="type-caption text-[color:var(--text-faint)] mb-4">
-            Exibindo {sorted.length} cliente{sorted.length !== 1 ? 's' : ''}
-          </p>
-        )}
+        <div className="border-t border-white/[0.06]" />
 
-        {/* Lista */}
+        {/* Empty state */}
         {sorted.length === 0 ? (
-          <div className="panel-card rounded-[2rem] px-6 py-10 text-center border border-white/[0.06]">
-            <Users size={40} className="mx-auto mb-3" style={{ color: 'var(--text-faint)' }} />
-            <p className="text-sm text-[color:var(--text-secondary)]">Nenhum cliente com contratos encontrado.</p>
+          <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
+            <div
+              className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
+              style={{ background: 'rgba(255,255,255,0.04)' }}
+            >
+              <Users size={26} style={{ color: 'var(--text-faint)' }} />
+            </div>
+            <p className="text-sm font-medium text-[color:var(--text-secondary)]">
+              Nenhum cliente encontrado
+            </p>
+            <p className="type-caption mt-1 text-[color:var(--text-faint)]">
+              Contratos ativos aparecerão aqui
+            </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div>
             {sorted.map((c, idx) => {
-              const badge = scoreBadge(c.score, c.hasResolved);
+              const cfg = scoreConfig(c.score);
               const position = idx + 1;
-              const rank = rankColors[position];
+              const isTop3 = position <= 3;
               const punctPct = Math.round(c.punctualityRate * 100);
-              const scoreInt = Math.round(c.score);
+
               return (
                 <button
                   key={c.profileId}
                   onClick={() => onClientClick(c.profileId)}
-                  className="w-full panel-card card-hover rounded-[1.6rem] border border-white/[0.06] flex items-center gap-4 px-5 py-4 text-left active:bg-white/[0.05] transition-colors cursor-pointer"
+                  className="w-full flex items-center gap-3.5 px-5 py-4 md:px-7 text-left transition-colors cursor-pointer hover:bg-white/[0.025] active:bg-white/[0.04]"
+                  style={{
+                    borderBottom: idx < sorted.length - 1
+                      ? '1px solid rgba(255,255,255,0.05)'
+                      : 'none',
+                  }}
                 >
-                  {/* Position */}
+                  {/* Posição */}
                   <div
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold"
                     style={{
-                      background: rank?.bg || 'var(--bg-elevated)',
-                      color: rank?.color || 'var(--text-muted)',
+                      background: isTop3
+                        ? 'rgba(202,176,122,0.15)'
+                        : 'rgba(255,255,255,0.05)',
+                      color: isTop3 ? 'var(--accent-brass)' : 'var(--text-muted)',
                     }}
                   >
-                    {position <= 3 ? <Crown size={16} /> : position}
+                    {isTop3 ? <Crown size={15} /> : position}
                   </div>
 
                   {/* Info */}
@@ -199,8 +268,9 @@ const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientC
                     <p className="text-sm font-semibold truncate text-[color:var(--text-primary)]">
                       {c.fullName}
                     </p>
-                    <p className="type-caption text-[color:var(--text-faint)]">
-                      CPF {maskCPF(c.cpf)} · {c.totalContracts} contrato{c.totalContracts !== 1 ? 's' : ''} · {fmtMoney(c.totalPrincipal)}
+                    <p className="type-caption mt-0.5 truncate text-[color:var(--text-faint)]">
+                      CPF {maskCPF(c.cpf)} · {c.totalContracts}{' '}
+                      contrato{c.totalContracts !== 1 ? 's' : ''} · {fmtMoney(c.totalPrincipal)}
                     </p>
                     {c.hasResolved && (
                       <p className="type-caption mt-0.5">
@@ -214,26 +284,31 @@ const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientC
                     )}
                   </div>
 
-                  {/* Score badge + progress bar */}
-                  <div className="shrink-0 text-right min-w-[52px]">
-                    <span
-                      className="inline-block rounded-lg px-2.5 py-1 text-xs font-bold"
-                      style={{ background: badge.bg, color: badge.color }}
+                  {/* Score circular */}
+                  <div className="shrink-0 flex flex-col items-center gap-0.5">
+                    <div
+                      className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold"
+                      style={{
+                        background: cfg.bg,
+                        color: cfg.color,
+                        border: `2px solid ${cfg.ring}`,
+                      }}
                     >
-                      {c.hasResolved ? scoreInt : '—'}
-                    </span>
-                    {c.hasResolved && (
-                      <div className="mt-1.5 h-[3px] rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{ width: `${scoreInt}%`, background: badge.color }}
-                        />
-                      </div>
-                    )}
-                    <p className="type-caption mt-0.5" style={{ color: badge.color }}>{badge.label}</p>
+                      {c.score}
+                    </div>
+                    <p
+                      className="text-[10px] font-semibold leading-none"
+                      style={{ color: cfg.color }}
+                    >
+                      {cfg.label}
+                    </p>
                   </div>
 
-                  <ChevronRight size={16} className="shrink-0" style={{ color: 'var(--text-faint)' }} />
+                  <ChevronRight
+                    size={15}
+                    className="shrink-0"
+                    style={{ color: 'var(--text-faint)' }}
+                  />
                 </button>
               );
             })}
