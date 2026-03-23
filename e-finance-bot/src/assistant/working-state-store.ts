@@ -30,7 +30,11 @@ export function getWorkingState(context?: SessionContext | null): ConversationWo
   if (state.pendingConfirmation?.expiresAt) {
     const expiresAt = new Date(state.pendingConfirmation.expiresAt).getTime();
     if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
+      const expiredCapability = state.pendingConfirmation.capability;
       delete state.pendingConfirmation;
+      if (state.pendingCapability === expiredCapability) {
+        delete state.pendingCapability;
+      }
     }
   }
 

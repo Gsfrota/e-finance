@@ -3,6 +3,10 @@ export interface MessageLogPayload {
   messageId?: string;
   sessionId?: string;
   tenantId?: string;
+  companyId?: string;
+  companyLabel?: string;
+  companySelectionMode?: 'list' | 'set' | 'clear' | 'inline_set' | 'inline_clear' | 'clarify';
+  companyCandidateCount?: number;
   intent?: string;
   confidence?: string;
   routeSource?: string;

@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   getContractOpenInstallments: vi.fn(),
   getContractOpenInstallmentByNumber: vi.fn(),
   getInstallmentByDebtorAndMonth: vi.fn(),
+  listCompaniesByTenant: vi.fn(),
 
   logStructuredMessage: vi.fn(),
 }));
@@ -84,6 +85,7 @@ vi.mock('../src/actions/admin-actions', () => ({
   getContractOpenInstallments: mocks.getContractOpenInstallments,
   getContractOpenInstallmentByNumber: mocks.getContractOpenInstallmentByNumber,
   getInstallmentByDebtorAndMonth: mocks.getInstallmentByDebtorAndMonth,
+  listCompaniesByTenant: mocks.listCompaniesByTenant,
   normalizeCpf: (value?: string | null) => {
     if (!value) return null;
     const digits = String(value).replace(/\D/g, '');
@@ -140,6 +142,7 @@ describe('conversation smoke (falando com o bot)', () => {
         name: 'Admin',
         role: 'admin',
         tenant_id: 'tenant-1',
+        company_id: 'company-1',
       },
     };
   }
@@ -258,6 +261,10 @@ describe('conversation smoke (falando com o bot)', () => {
       status: 'pending',
     });
     mocks.getInstallmentByDebtorAndMonth.mockResolvedValue(null);
+    mocks.listCompaniesByTenant.mockResolvedValue([
+      { id: 'company-1', name: 'Empresa 1', isPrimary: true },
+      { id: 'company-2', name: 'Empresa 2', isPrimary: false },
+    ]);
 
     mocks.markInstallmentPaid.mockResolvedValue(true);
     mocks.searchUser.mockResolvedValue([]);
@@ -340,5 +347,68 @@ describe('conversation smoke (falando com o bot)', () => {
     const r8 = await ask('sim', 'smk-8');
     expect(r8).toContain('Comprovante de Pagamento');
     expect(r8).toContain('#123');
+  });
+
+  it('permite ao admin selecionar empresa inline e seguir com o contexto ativo', async () => {
+    const ask = async (text: string, id: string) => {
+      const out = await handleMessage({
+        messageId: id,
+        channel: 'telegram',
+        channelUserId: 'chat-1',
+        senderName: 'Admin',
+        text,
+      });
+      return out.text;
+    };
+
+    const r1 = await ask('dashboard da empresa Empresa 2', 'smk-company-1');
+    expect(r1).toContain('Empresa ativa: *Empresa 2*');
+    expect(mocks.getDashboardSummary).toHaveBeenLastCalledWith('tenant-1', 'company-2');
+
+    const r2 = await ask('como tá o mês?', 'smk-company-2');
+    expect(r2).toContain('Empresa ativa: *Empresa 2*');
+    expect(mocks.getDashboardSummary).toHaveBeenLastCalledWith('tenant-1', 'company-2');
+
+    const r3 = await ask('todas empresas', 'smk-company-3');
+    expect(r3).toContain('visão consolidada');
+
+    const r4 = await ask('dashboard', 'smk-company-4');
+    expect(mocks.getDashboardSummary).toHaveBeenLastCalledWith('tenant-1', undefined);
+    expect(r4).not.toContain('Empresa ativa: *Empresa 2*');
+  });
+
+  it('desambigua empresa por apelido e mantem o contexto depois', async () => {
+    mocks.listCompaniesByTenant.mockResolvedValue([
+      { id: 'company-1', name: 'Matriz Centro', isPrimary: true },
+      { id: 'company-2', name: 'Filial Norte', isPrimary: false },
+      { id: 'company-3', name: 'Filial Sul', isPrimary: false },
+    ]);
+
+    const ask = async (text: string, id: string) => {
+      const out = await handleMessage({
+        messageId: id,
+        channel: 'telegram',
+        channelUserId: 'chat-1',
+        senderName: 'Admin',
+        text,
+      });
+      return out.text;
+    };
+
+    const r1 = await ask('dashboard da matriz', 'smk-alias-1');
+    expect(r1).toContain('Empresa ativa: *Matriz Centro*');
+    expect(mocks.getDashboardSummary).toHaveBeenLastCalledWith('tenant-1', 'company-1');
+
+    const r2 = await ask('cobrança da filial', 'smk-alias-2');
+    expect(r2).toContain('Encontrei mais de uma empresa compatível');
+    expect(r2).toContain('Filial Norte');
+    expect(r2).toContain('Filial Sul');
+
+    const r3 = await ask('3', 'smk-alias-3');
+    expect(r3).toContain('empresa *Filial Sul*');
+
+    const r4 = await ask('dashboard', 'smk-alias-4');
+    expect(r4).toContain('Empresa ativa: *Filial Sul*');
+    expect(mocks.getDashboardSummary).toHaveBeenLastCalledWith('tenant-1', 'company-3');
   });
 });

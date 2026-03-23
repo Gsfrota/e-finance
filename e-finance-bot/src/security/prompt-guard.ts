@@ -19,7 +19,7 @@ const GUARD_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
   },
   {
     name: 'prompt_exfiltration',
-    pattern: /\b(reveal|mostre|exiba|vaze|leak|imprima|dump)\b.{0,30}\b(prompt|system|developer|tokens?|senha|senhas|secret|api\s*keys?|credencial|credenciais|vari[aá]veis?\s+de\s+ambiente|env)\b/i,
+    pattern: /\b(reveal|mostre|exiba|vaze|leak|imprima|dump|liste|listar)\b.{0,30}\b(prompts?|system|developer|tokens?|senha|senhas|secrets?|api\s*keys?|credencial|credenciais|vari[aá]veis?\s+de\s+ambiente|env)\b/i,
   },
   {
     name: 'role_jailbreak',
@@ -31,7 +31,7 @@ const GUARD_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
   },
   {
     name: 'data_exfiltration_ptbr',
-    pattern: /\b(me\s+mostra|retorne|exporte|copie)\b.{0,30}\b(todos\s+os\s+dados|todos\s+os\s+clientes|cpfs?|cart[oõ]es?|senhas?|tokens?)\b/i,
+    pattern: /\b(me\s+mostra|retorne|exporte|copie|liste|listar)\b.{0,30}\b(todos\s+os\s+dados|todos\s+os\s+clientes|clientes|cpfs?|cart[oõ]es?|senhas?|tokens?)\b/i,
   },
   {
     name: 'sql_injection',

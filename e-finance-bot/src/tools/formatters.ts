@@ -194,17 +194,13 @@ export function formatContractConfirmationMessage(draft: ContractDraft): string 
 
   const cpfLine = draft.debtor_cpf ? `\n🪪 CPF: *${maskCpf(draft.debtor_cpf)}*` : '';
 
-  let modalidadeLine = '';
-  if (draft.frequency === 'monthly') {
-    modalidadeLine = draft.due_day ? `📆 Modalidade: *Mensal — dia ${draft.due_day}*` : `📆 Modalidade: *Mensal*`;
-  } else if (draft.frequency === 'weekly') {
-    const dayName = draft.due_day !== undefined ? (WEEKDAY_NAMES[draft.due_day % 7] ?? 'semanal') : 'semanal';
-    modalidadeLine = `📆 Modalidade: *Semanal — ${dayName}*`;
-  } else if (draft.frequency === 'daily') {
-    modalidadeLine = `📆 Modalidade: *Diária*`;
-  } else {
-    modalidadeLine = `📆 Modalidade: *${draft.frequency}*`;
-  }
+  const modalidadeLine = draft.frequency === 'monthly'
+    ? (draft.due_day ? `📆 Modalidade: *Mensal — dia ${draft.due_day}*` : `📆 Modalidade: *Mensal*`)
+    : draft.frequency === 'weekly'
+      ? `📆 Modalidade: *Semanal — ${draft.due_day !== undefined ? (WEEKDAY_NAMES[draft.due_day % 7] ?? 'semanal') : 'semanal'}*`
+      : draft.frequency === 'daily'
+        ? `📆 Modalidade: *Diária*`
+        : `📆 Modalidade: *${draft.frequency}*`;
 
   return [
     `📋 *Resumo do Contrato*`,

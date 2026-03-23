@@ -1,5 +1,23 @@
 # Changelog — e-finance-bot
 
+## [2026-03-23] — Hardening multiempresa conversacional
+
+- Bot passou a entender referências de empresa mais naturais no chat admin, como `matriz`, `filial`, `empresa 2` e frases inline do tipo `dashboard da empresa X`.
+- Quando a referência de empresa é ambígua, o bot agora para e pede clarificação antes de executar a consulta.
+- Logs estruturados do fluxo administrativo passaram a carregar `tenantId`, `companyId` e `companyLabel`, melhorando rastreio por empresa.
+- Evals e smoke live foram ampliados para cobrir seleção de empresa, limpeza de contexto e ambiguidade de apelidos.
+
+## [2026-03-23] — Contexto de empresa inline no chat
+
+### Alterado
+- **`src/handlers/message-handler.ts`** — o admin agora pode citar a empresa na própria frase, como `dashboard da empresa X` ou `cobrar hoje da empresa Y`, e o bot ativa esse contexto no mesmo turno.
+- **`src/actions/admin-actions.ts`** — dashboard, recebíveis, cobrança e relatório passaram a aceitar filtro opcional por `company_id`.
+- **`src/assistant/contracts.ts`** e **`src/assistant/tool-executor.ts`** — o `workingState` passou a guardar `activeCompany`, e o executor moderno aplica esse contexto nas consultas administrativas.
+
+### Testes
+- **`tests/message-handler.test.ts`** — cobre `quais empresas` e `dashboard da empresa X`.
+- **`tests/conversation-smoke.test.ts`** — cobre seleção inline e reaproveitamento do contexto de empresa em turnos seguintes.
+
 ## [2026-03-05] — NLP Natural + Confirmação + Agente Real
 
 ### Adicionado

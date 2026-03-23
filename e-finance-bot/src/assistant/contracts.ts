@@ -54,6 +54,7 @@ export interface ActionPlan {
 export interface ConversationWorkingState {
   updatedAt?: string;
   lastAction?: ActionCapability;
+  activeCompany?: { id: string; label: string };
   lastEntity?: { type: 'debtor' | 'contract' | 'installment'; id: string; label: string };
   lastFilters?: {
     daysAhead?: number;
@@ -65,6 +66,8 @@ export interface ConversationWorkingState {
   };
   lastContractId?: number;
   lastDebtorCandidates?: Array<{ id: string; label: string; cpfMasked?: string }>;
+  lastCompanyCandidates?: Array<{ id: string; label: string }>;
+  pendingCompanySelection?: boolean;
   pendingConfirmation?: {
     confirmationId: string;
     capability: ActionCapability;

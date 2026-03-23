@@ -11,15 +11,15 @@ import {
   generateMonthlyReport, parseContractTextWithMeta, createContract,
   markInstallmentPaid, searchUser, getUserDebtDetails, generateInvite,
   validateLinkCode, disconnectBot, formatCurrency, formatDate,
-  ContractDraft, DebtorToCollect, getContractOpenInstallments,
+  ContractDraft, getContractOpenInstallments,
   getContractOpenInstallmentByNumber, normalizeCpf, isValidCpf,
   getInstallmentByDebtorAndMonth, extractDebtorNameSimple,
-  extractAmount, extractRate, extractInstallments,
+  extractAmount, extractRate, extractInstallments, listCompaniesByTenant,
 } from '../actions/admin-actions';
 import { logStructuredMessage } from '../observability/logger';
 import { estimateCostUsd } from '../observability/cost-estimator';
 import { config } from '../config';
-import type { LinkValidationResult, ContractOpenInstallment } from '../actions/admin-actions';
+import type { LinkValidationResult, ContractOpenInstallment, CompanyOption } from '../actions/admin-actions';
 import { detectPromptInjectionAttempt, sanitizeUserText } from '../security/prompt-guard';
 import { renderConversationalReply, generateGreeting } from '../ai/response-generator';
 import { getFollowupFromTenantConfig } from '../assistant/followup-question-generator';
@@ -88,7 +88,8 @@ function getAudioPreview(text: string): string {
 function shouldPrependAudioPreview(response: string): boolean {
   return /^Vou criar o seguinte contrato:/i.test(response)
     || /^Confirma a baixa desta parcela\?/i.test(response)
-    || /Confirma\?\s*\(sim\/n[aã]o\)/i.test(response);
+    || /Confirma\?\s*\(sim\/n[aã]o\)/i.test(response)
+    || /taxa de juros|CPF do devedor|data da primeira parcela|dia do mês|dia da semana/i.test(response);
 }
 
 function prependAudioPreview(response: string, transcript?: string): string {
@@ -247,6 +248,11 @@ function extractCpfFromText(text: string): string | null {
     return normalizeCpf(directMatch[1]);
   }
 
+  const groupedMatch = text.match(/(?:cpf\s*[:\-]?\s*)?((?:\d[\s.-]?){11})/i);
+  if (groupedMatch?.[1]) {
+    return normalizeCpf(groupedMatch[1]);
+  }
+
   const digits = text.replace(/\D/g, '');
   if (digits.length === 11) {
     return normalizeCpf(digits);
@@ -262,6 +268,73 @@ interface PartialContractEntities {
   rate?: number;
   installments?: number;
   implied_installment_value?: number;
+  frequency?: string;
+  due_day?: number;
+  start_date?: string;
+  weekday?: number;
+}
+
+const SPOKEN_DIGIT_MAP: Record<string, string> = {
+  zero: '0',
+  um: '1',
+  uma: '1',
+  dois: '2',
+  tres: '3',
+  quatro: '4',
+  cinco: '5',
+  seis: '6',
+  sete: '7',
+  oito: '8',
+  nove: '9',
+};
+
+function extractSpokenCpfFromText(text: string): string | null {
+  const normalized = text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  const cpfSection = normalized.match(/cpf\s+([a-z0-9\s,-]+)/i)?.[1] || '';
+  if (!cpfSection) return null;
+
+  const digits = (cpfSection.match(/\b(?:zero|um|uma|dois|tres|quatro|cinco|seis|sete|oito|nove|\d)\b/g) || [])
+    .map(token => SPOKEN_DIGIT_MAP[token] || token)
+    .join('');
+
+  return digits.length >= 11 ? normalizeCpf(digits.slice(0, 11)) : null;
+}
+
+function extractContractFrequency(text: string): 'monthly' | 'weekly' | 'biweekly' | 'daily' | null {
+  const normalized = text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  if (/de\s*15\s*em\s*15|cada\s*quinze\s*dias|quinzenal|quinzena|15\s*dias/.test(normalized)) return 'biweekly';
+  if (/todo\s*santo\s*dia|todo\s*dia|diaria|diario|daily/.test(normalized)) return 'daily';
+  if (/semanal|weekly|toda\s*semana|cada\s*semana/.test(normalized)) return 'weekly';
+  if (/mensal|monthly|todo\s*mes|cada\s*mes/.test(normalized)) return 'monthly';
+  return null;
+}
+
+function extractContractStartDate(text: string): string | null {
+  const dateMatch = text.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\b/);
+  if (!dateMatch) return null;
+
+  const day = Number(dateMatch[1]);
+  const month = Number(dateMatch[2]);
+  const rawYear = Number(dateMatch[3]);
+  const year = rawYear < 100 ? 2000 + rawYear : rawYear;
+
+  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) return null;
+  if (day < 1 || day > 31 || month < 1 || month > 12) return null;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function extractContractDueDay(text: string): number | null {
+  const match = text.match(/(?:todo\s+dia|dia\s+de\s+vencimento|vence\s+todo\s+dia|dia)\s*(\d{1,2})/i);
+  if (!match?.[1]) return null;
+  const day = Number(match[1]);
+  return Number.isFinite(day) && day >= 1 && day <= 31 ? day : null;
 }
 
 function extractAllContractEntities(text: string): PartialContractEntities {
@@ -270,12 +343,22 @@ function extractAllContractEntities(text: string): PartialContractEntities {
   if (name) result.debtor_name = name;
   const cpf = extractCpfFromText(text);
   if (cpf && isValidCpf(cpf)) result.debtor_cpf = cpf;
+  if (!result.debtor_cpf) {
+    const spokenCpf = extractSpokenCpfFromText(text);
+    if (spokenCpf && isValidCpf(spokenCpf)) result.debtor_cpf = spokenCpf;
+  }
   const amount = extractAmount(text);
   if (amount !== null) result.amount = amount;
-  const rate = extractRate(text);
+  const rate = /sem\s+juros|s\/\s*juros/i.test(text) ? 0 : extractRate(text);
   if (rate !== null) result.rate = rate;
   const inst = extractInstallments(text);
   if (inst !== null) result.installments = inst;
+  const frequency = extractContractFrequency(text);
+  if (frequency) result.frequency = frequency;
+  const dueDay = extractContractDueDay(text);
+  if (dueDay !== null) result.due_day = dueDay;
+  const startDate = extractContractStartDate(text);
+  if (startDate) result.start_date = startDate;
   // Detecta "N de X" ou "N parcelas de X" → guarda installment_value implícito para back-calc de taxa
   const impliedMatch = text.match(/(\d{1,3})\s*(?:x|parcelas?|vezes?)?\s*de\s*(?:R\$\s*)?(\d+(?:[.,]\d+)?)/i);
   if (impliedMatch?.[1] && impliedMatch?.[2]) {
@@ -322,6 +405,7 @@ function getNextMissingStep(draft: Record<string, unknown>): number {
   if (!draft.frequency) return 15;
   if (draft.frequency === 'monthly' && (draft.due_day === undefined || draft.due_day === null)) return 16;
   if (draft.frequency === 'weekly' && (draft.weekday === undefined || draft.weekday === null)) return 16;
+  if ((draft.frequency === 'biweekly' || draft.frequency === 'daily') && !draft.start_date) return 16;
   return 2;
 }
 
@@ -334,10 +418,12 @@ function getStepPrompt(step: number, draft: Record<string, unknown>): string {
     case 12: return 'Qual é o *valor principal* emprestado? (Ex: *R$ 5.000* ou *20 mil*)';
     case 13: return 'Qual é a *taxa de juros mensal* (% a.m.)? Se não houver juros, responda *pular*.';
     case 14: return 'Quantas *parcelas mensais*? Se for uma parcela única, responda *pular*.';
-    case 15: return 'Qual a *modalidade de cobrança*?\n1️⃣ Mensal\n2️⃣ Semanal\n3️⃣ Diária';
+    case 15: return 'Qual a *modalidade de cobrança*?\n1️⃣ Mensal\n2️⃣ Semanal\n3️⃣ Quinzenal\n4️⃣ Diária';
     case 16: return draft.frequency === 'weekly'
       ? 'Qual o *dia da semana*?\n1️⃣ Seg  2️⃣ Ter  3️⃣ Qua  4️⃣ Qui  5️⃣ Sex  6️⃣ Sáb  7️⃣ Dom'
-      : 'Qual o *dia do mês* para cobrar? (1 a 31, ex: *5* ou *dia 10*)';
+      : draft.frequency === 'biweekly' || draft.frequency === 'daily'
+        ? 'Qual é a *data da primeira parcela*? (ex: *10/04/2026*)'
+        : 'Qual o *dia do mês* para cobrar? (1 a 31, ex: *5* ou *dia 10*)';
     default: return '';
   }
 }
@@ -383,6 +469,233 @@ function normalizeSearchTerm(raw: string): string {
     .replace(/\b(?:me|mim|pra mim|para mim)\b/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function normalizeCompanyMatch(raw: string): string {
+  return normalizeSearchTerm(raw)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+const COMPANY_GENERIC_TERMS = new Set([
+  'empresa',
+  'grupo',
+  'ltda',
+  'limitada',
+  'sa',
+  's.a',
+  'me',
+  'mei',
+  'eireli',
+  'holding',
+]);
+
+const COMPANY_INDEX_WORDS: Record<string, number> = {
+  primeira: 1,
+  primeiro: 1,
+  um: 1,
+  uma: 1,
+  segunda: 2,
+  segundo: 2,
+  dois: 2,
+  terceira: 3,
+  terceiro: 3,
+  tres: 3,
+  quarta: 4,
+  quarto: 4,
+  quatro: 4,
+  quinta: 5,
+  quinto: 5,
+  cinco: 5,
+};
+
+type CompanySelectionResult =
+  | { kind: 'selected'; company: CompanyOption; matchedText?: string }
+  | { kind: 'ambiguous'; candidates: CompanyOption[]; query: string }
+  | { kind: 'none' };
+
+function buildCompanyAliases(company: CompanyOption, index: number): Set<string> {
+  const normalizedName = normalizeCompanyMatch(company.name);
+  const aliases = new Set<string>([normalizedName]);
+  const cleanedTokens = normalizedName
+    .split(/\s+/)
+    .filter(token => token.length >= 3 && !COMPANY_GENERIC_TERMS.has(token));
+
+  if (cleanedTokens.length > 0) {
+    aliases.add(cleanedTokens.join(' '));
+    if (cleanedTokens.length === 1) {
+      aliases.add(cleanedTokens[0]);
+    } else {
+      aliases.add(cleanedTokens[0]);
+      aliases.add(cleanedTokens[cleanedTokens.length - 1]);
+    }
+  }
+
+  aliases.add(`empresa ${index + 1}`);
+  aliases.add(`${index + 1}`);
+
+  if (company.isPrimary) {
+    aliases.add('matriz');
+    aliases.add('principal');
+    aliases.add('sede');
+  } else {
+    aliases.add('filial');
+    aliases.add('secundaria');
+    aliases.add(`filial ${index + 1}`);
+  }
+
+  return aliases;
+}
+
+function getCompanyIndexHint(text: string): number | null {
+  const normalized = normalizeCompanyMatch(text);
+  const digitMatch = normalized.match(/\b(?:empresa|filial)?\s*(\d{1,2})\b/);
+  if (digitMatch?.[1]) {
+    const parsed = Number(digitMatch[1]);
+    return Number.isFinite(parsed) && parsed >= 1 ? parsed : null;
+  }
+
+  for (const [word, index] of Object.entries(COMPANY_INDEX_WORDS)) {
+    if (new RegExp(`\\b(?:empresa|filial)?\\s*${word}\\b|\\b${word}\\s+empresa\\b`).test(normalized)) {
+      return index;
+    }
+  }
+
+  return null;
+}
+
+function resolveCompanySelectionDetailed(text: string, companies: CompanyOption[]): CompanySelectionResult {
+  const trimmed = text.trim();
+  const directIndex = getCompanyIndexHint(trimmed);
+  if (directIndex && directIndex >= 1 && directIndex <= companies.length) {
+    return { kind: 'selected', company: companies[directIndex - 1], matchedText: String(directIndex) };
+  }
+
+  const explicitName = trimmed
+    .replace(/^(usar|selecionar|trocar\s+para|mudar\s+para|focar\s+na?|operar\s+na?)\s+empresa\s+/i, '')
+    .replace(/^empresa\s+/i, '')
+    .trim();
+
+  const normalizedQuery = normalizeCompanyMatch(explicitName || trimmed);
+  if (!normalizedQuery) return { kind: 'none' };
+
+  const exactAliasMatches = companies.filter((company, index) => buildCompanyAliases(company, index).has(normalizedQuery));
+  if (exactAliasMatches.length === 1) {
+    return { kind: 'selected', company: exactAliasMatches[0], matchedText: normalizedQuery };
+  }
+  if (exactAliasMatches.length > 1) {
+    return { kind: 'ambiguous', candidates: exactAliasMatches, query: explicitName || trimmed };
+  }
+
+  if (normalizedQuery.length < 3) return { kind: 'none' };
+
+  const containmentMatches = companies.filter((company, index) => {
+    const aliases = Array.from(buildCompanyAliases(company, index)).filter(alias => alias.length >= 3);
+    return aliases.some(alias => normalizedQuery.includes(alias) || alias.includes(normalizedQuery));
+  });
+
+  if (containmentMatches.length === 1) {
+    return { kind: 'selected', company: containmentMatches[0], matchedText: normalizedQuery };
+  }
+  if (containmentMatches.length > 1) {
+    return { kind: 'ambiguous', candidates: containmentMatches, query: explicitName || trimmed };
+  }
+
+  return { kind: 'none' };
+}
+
+function isCompanyListCommand(text: string): boolean {
+  return /^(quais|minhas|listar|lista|mostrar)\s+empresas\b|^empresas\b/i.test(text.trim());
+}
+
+function isCompanyClearCommand(text: string): boolean {
+  return /^(todas?\s+as?\s+empresas|todas?\s+empresas|vis[aã]o\s+geral|sem\s+filtro\s+de\s+empresa)$/i.test(text.trim());
+}
+
+function isExplicitCompanySelectionCommand(text: string): boolean {
+  return /^(usar|selecionar|trocar\s+para|mudar\s+para|focar\s+na?|operar\s+na?)\s+empresa\b/i.test(text.trim());
+}
+
+function formatCompanyOptions(companies: CompanyOption[], activeCompanyId?: string | null): string {
+  if (companies.length === 0) {
+    return 'Não encontrei empresas disponíveis para este tenant.';
+  }
+
+  const lines = companies.map((company, index) => {
+    const active = company.id === activeCompanyId ? ' — *ativa*' : '';
+    const primary = company.isPrimary ? ' — principal' : '';
+    return `${index + 1}. *${company.name}*${active}${primary}`;
+  });
+
+  return `Empresas disponíveis:\n\n${lines.join('\n')}\n\nResponda com *usar empresa NOME* ou só o *número* para ativar. Para voltar ao consolidado do tenant, envie *todas empresas*.`;
+}
+
+function shouldAcceptCompanyCandidateReply(text: string, companies: CompanyOption[]): boolean {
+  if (companies.length === 0) return false;
+  if (/^\d{1,2}$/.test(text.trim())) return true;
+  if (isExplicitCompanySelectionCommand(text)) return true;
+  return resolveCompanySelectionDetailed(text, companies).kind !== 'none';
+}
+
+function formatCompanySelectionClarification(
+  query: string,
+  candidates: CompanyOption[],
+  activeCompanyId?: string | null,
+): string {
+  return `Encontrei mais de uma empresa compatível com *${query.trim()}*.\n\n${formatCompanyOptions(candidates, activeCompanyId)}`;
+}
+
+function hasOperationalQuerySignal(text: string): boolean {
+  return /(dashboard|resumo|receb[ií]veis?|receber|cobrar|cobran[cç]a|relat[oó]rio|atrasad|vence|vencimento)/i.test(text);
+}
+
+function detectInlineCompanyContext(
+  text: string,
+  companies: CompanyOption[],
+): { mode: 'set'; company: CompanyOption; matchedText?: string } | { mode: 'clear' } | { mode: 'ambiguous'; candidates: CompanyOption[]; query: string } | null {
+  const trimmed = text.trim();
+  if (!hasOperationalQuerySignal(trimmed)) return null;
+
+  if (/\b(?:de|da|do|na|no|para|em)?\s*todas?\s+as?\s+empresas\b/i.test(trimmed)) {
+    return { mode: 'clear' };
+  }
+
+  const resolved = resolveCompanySelectionDetailed(trimmed, companies);
+  if (resolved.kind === 'selected') {
+    return { mode: 'set', company: resolved.company, matchedText: resolved.matchedText };
+  }
+  if (resolved.kind === 'ambiguous') {
+    return { mode: 'ambiguous', candidates: resolved.candidates, query: resolved.query };
+  }
+
+  return null;
+}
+
+function stripInlineCompanyContext(
+  text: string,
+  selection: { mode: 'set'; company: CompanyOption; matchedText?: string } | { mode: 'clear' } | { mode: 'ambiguous'; candidates: CompanyOption[]; query: string } | null,
+): string {
+  if (!selection) return text;
+
+  let stripped = text;
+  if (selection.mode === 'clear') {
+    stripped = stripped.replace(/\b(?:de|da|do|na|no|para|em)?\s*todas?\s+as?\s+empresas\b/gi, ' ');
+  } else if (selection.mode === 'set') {
+    const escapedName = selection.company.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    stripped = stripped.replace(new RegExp(`\\b(?:de|da|do|na|no|para|em)?\\s*empresa\\s+${escapedName}\\b`, 'gi'), ' ');
+    if (selection.matchedText) {
+      const escapedMatch = selection.matchedText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      stripped = stripped.replace(new RegExp(`\\b(?:de|da|do|na|no|para|em)?\\s*${escapedMatch}\\b`, 'gi'), ' ');
+    }
+  }
+
+  return stripped.replace(/\s+/g, ' ').trim() || text;
+}
+
+function withActiveCompanyLabel(message: string, activeCompanyLabel?: string | null): string {
+  if (!activeCompanyLabel) return message;
+  return `🏢 Empresa ativa: *${activeCompanyLabel}*\n\n${message}`;
 }
 
 function extractDebtorQueryFromText(text: string): string | null {
@@ -1039,7 +1352,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
     const role = session.profile.role;
     const tenantId = session.profile.tenant_id;
     const profileId = session.profile.id;
-    const workingState = getWorkingState(session.context);
+    let workingState = getWorkingState(session.context);
 
     const legacyExecuteIntent = async (legacyIntent: string, args: Record<string, unknown>): Promise<string> => (
       dispatchIntent(
@@ -1161,6 +1474,169 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       }
     }
 
+    const adminCompanies = role === 'admin'
+      ? await timed('dbReadMs', () => listCompaniesByTenant(tenantId))
+      : [];
+
+    if (role === 'admin' && isCompanyListCommand(textToProcess)) {
+      await saveMessageTimed(session.id, 'user', textToProcess, userMediaType, 'listar_empresas');
+      await timed('dbWriteMs', () => patchWorkingState(session, {
+        lastCompanyCandidates: adminCompanies.map(company => ({ id: company.id, label: company.name })),
+        pendingCompanySelection: true,
+        pendingCapability: undefined,
+        pendingMissingFields: [],
+      }));
+      logStructuredMessage('company_context_changed', {
+        channel: msg.channel,
+        messageId: msg.messageId,
+        sessionId: session.id,
+        tenantId,
+        companyId: workingState.activeCompany?.id,
+        companyLabel: workingState.activeCompany?.label,
+        companySelectionMode: 'list',
+        companyCandidateCount: adminCompanies.length,
+        result: 'success',
+      });
+      const companyReply = formatCompanyOptions(adminCompanies, workingState.activeCompany?.id);
+      await saveMessageTimed(session.id, 'assistant', companyReply);
+      return finalize(companyReply, { action: 'admin:list_companies', result: 'success' }, { skipLlm: true });
+    }
+
+    if (role === 'admin' && isCompanyClearCommand(textToProcess)) {
+      await saveMessageTimed(session.id, 'user', textToProcess, userMediaType, 'limpar_empresa_ativa');
+      await timed('dbWriteMs', () => patchWorkingState(session, {
+        activeCompany: undefined,
+        pendingCompanySelection: false,
+        pendingCapability: undefined,
+        pendingMissingFields: [],
+      }));
+      workingState = getWorkingState(session.context);
+      logStructuredMessage('company_context_changed', {
+        channel: msg.channel,
+        messageId: msg.messageId,
+        sessionId: session.id,
+        tenantId,
+        companySelectionMode: 'clear',
+        result: 'success',
+      });
+      const clearedReply = 'Certo. Voltei para a visão consolidada de *todas as empresas* do tenant.';
+      await saveMessageTimed(session.id, 'assistant', clearedReply);
+      return finalize(clearedReply, { action: 'admin:clear_active_company', result: 'success' }, { skipLlm: true });
+    }
+
+    const candidateCompanyReply = role === 'admin'
+      && workingState.pendingCompanySelection
+      && shouldAcceptCompanyCandidateReply(textToProcess, adminCompanies);
+    const explicitCompanySelection = role === 'admin' && isExplicitCompanySelectionCommand(textToProcess);
+
+    if (role === 'admin' && (explicitCompanySelection || candidateCompanyReply)) {
+      await saveMessageTimed(session.id, 'user', textToProcess, userMediaType, 'selecionar_empresa');
+      const companySelection = resolveCompanySelectionDetailed(textToProcess, adminCompanies);
+      if (companySelection.kind === 'ambiguous') {
+        await timed('dbWriteMs', () => patchWorkingState(session, {
+          lastCompanyCandidates: companySelection.candidates.map(company => ({ id: company.id, label: company.name })),
+          pendingCompanySelection: true,
+        }));
+        logStructuredMessage('company_context_changed', {
+          channel: msg.channel,
+          messageId: msg.messageId,
+          sessionId: session.id,
+          tenantId,
+          companySelectionMode: 'clarify',
+          companyCandidateCount: companySelection.candidates.length,
+          result: 'clarification',
+        });
+        const companyReply = formatCompanySelectionClarification(
+          companySelection.query,
+          companySelection.candidates,
+          workingState.activeCompany?.id,
+        );
+        await saveMessageTimed(session.id, 'assistant', companyReply);
+        return finalize(companyReply, { action: 'admin:select_company_retry', result: 'clarification' }, { skipLlm: true });
+      }
+
+      const selectedCompany = companySelection.kind === 'selected' ? companySelection.company : null;
+      if (!selectedCompany) {
+        const companyReply = formatCompanyOptions(adminCompanies, workingState.activeCompany?.id);
+        await saveMessageTimed(session.id, 'assistant', companyReply);
+        return finalize(companyReply, { action: 'admin:select_company_retry', result: 'clarification' }, { skipLlm: true });
+      }
+
+      await timed('dbWriteMs', () => patchWorkingState(session, {
+        activeCompany: { id: selectedCompany.id, label: selectedCompany.name },
+        lastCompanyCandidates: adminCompanies.map(company => ({ id: company.id, label: company.name })),
+        pendingCompanySelection: false,
+        pendingCapability: undefined,
+        pendingMissingFields: [],
+      }));
+      workingState = getWorkingState(session.context);
+      logStructuredMessage('company_context_changed', {
+        channel: msg.channel,
+        messageId: msg.messageId,
+        sessionId: session.id,
+        tenantId,
+        companyId: selectedCompany.id,
+        companyLabel: selectedCompany.name,
+        companySelectionMode: 'set',
+        result: 'success',
+      });
+      const companySelectedReply = `Certo. Vou considerar a empresa *${selectedCompany.name}* nas próximas consultas administrativas deste chat.`;
+      await saveMessageTimed(session.id, 'assistant', companySelectedReply);
+      return finalize(companySelectedReply, { action: 'admin:set_active_company', result: 'success' }, { skipLlm: true });
+    }
+
+    const inlineCompanyContext = role === 'admin'
+      ? detectInlineCompanyContext(textToProcess, adminCompanies)
+      : null;
+
+    if (role === 'admin' && inlineCompanyContext) {
+      if (inlineCompanyContext.mode === 'ambiguous') {
+        const clarificationReply = formatCompanySelectionClarification(
+          inlineCompanyContext.query,
+          inlineCompanyContext.candidates,
+          workingState.activeCompany?.id,
+        );
+        await timed('dbWriteMs', () => patchWorkingState(session, {
+          lastCompanyCandidates: inlineCompanyContext.candidates.map(company => ({ id: company.id, label: company.name })),
+          pendingCompanySelection: true,
+        }));
+        logStructuredMessage('company_context_changed', {
+          channel: msg.channel,
+          messageId: msg.messageId,
+          sessionId: session.id,
+          tenantId,
+          companySelectionMode: 'clarify',
+          companyCandidateCount: inlineCompanyContext.candidates.length,
+          result: 'clarification',
+        });
+        await saveMessageTimed(session.id, 'user', textToProcess, userMediaType, 'selecionar_empresa_inline');
+        await saveMessageTimed(session.id, 'assistant', clarificationReply);
+        return finalize(clarificationReply, { action: 'admin:select_company_inline_retry', result: 'clarification' }, { skipLlm: true });
+      }
+
+      await timed('dbWriteMs', () => patchWorkingState(session, inlineCompanyContext.mode === 'clear'
+        ? {
+            activeCompany: undefined,
+            pendingCompanySelection: false,
+          }
+        : {
+            activeCompany: { id: inlineCompanyContext.company.id, label: inlineCompanyContext.company.name },
+            pendingCompanySelection: false,
+          }));
+      workingState = getWorkingState(session.context);
+      logStructuredMessage('company_context_changed', {
+        channel: msg.channel,
+        messageId: msg.messageId,
+        sessionId: session.id,
+        tenantId,
+        companyId: inlineCompanyContext.mode === 'set' ? inlineCompanyContext.company.id : undefined,
+        companyLabel: inlineCompanyContext.mode === 'set' ? inlineCompanyContext.company.name : undefined,
+        companySelectionMode: inlineCompanyContext.mode === 'set' ? 'inline_set' : 'inline_clear',
+        result: 'success',
+      });
+      textToProcess = stripInlineCompanyContext(textToProcess, inlineCompanyContext);
+    }
+
     const followupPlan = await timed('followupMs', async () => resolveFollowup(textToProcess, workingState));
 
     let understanding: CommandUnderstanding | undefined;
@@ -1175,6 +1651,9 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
         channel: msg.channel,
         messageId: msg.messageId,
         sessionId: session.id,
+        tenantId,
+        companyId: workingState.activeCompany?.id,
+        companyLabel: workingState.activeCompany?.label,
         capability: followupPlan.capability,
         result: 'success',
       });
@@ -1213,6 +1692,9 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       channel: msg.channel,
       messageId: msg.messageId,
       sessionId: session.id,
+      tenantId,
+      companyId: workingState.activeCompany?.id,
+      companyLabel: workingState.activeCompany?.label,
       capability: actionPlan.capability,
       confidence: actionPlan.confidence,
       routeSource: actionPlan.source,
@@ -1251,6 +1733,9 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       channel: msg.channel,
       messageId: msg.messageId,
       sessionId: session.id,
+      tenantId,
+      companyId: workingState.activeCompany?.id,
+      companyLabel: workingState.activeCompany?.label,
       capability: actionPlan.capability,
       policyResult: policyResult.allowed ? 'allowed' : 'forbidden',
       confirmationState: policyResult.requiresConfirmation ? 'pending' : 'not_required',
@@ -1281,6 +1766,9 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       channel: msg.channel,
       messageId: msg.messageId,
       sessionId: session.id,
+      tenantId,
+      companyId: workingState.activeCompany?.id,
+      companyLabel: workingState.activeCompany?.label,
       capability: actionPlan.capability,
       result: execution.status,
       actionCapability: execution.audit.capability,
@@ -1540,6 +2028,10 @@ async function dispatchIntent(
   messageId: string,
   originalText: string
 ): Promise<string> {
+  const activeAdminCompany = role === 'admin' ? getWorkingState(session.context).activeCompany : undefined;
+  const activeCompanyId = activeAdminCompany?.id;
+  const activeCompanyLabel = activeAdminCompany?.label;
+
   switch (intent) {
     case 'saudacao': {
       const userName = session.profile?.name || 'você';
@@ -1561,14 +2053,20 @@ async function dispatchIntent(
         channel: session.channel,
         messageId,
         sessionId: session.id,
+        tenantId,
+        companyId: activeCompanyId,
+        companyLabel: activeCompanyLabel,
         action: 'dashboard',
         result: 'direct_sql',
       });
-      const summary = await getDashboardSummary(tenantId);
+      const summary = await getDashboardSummary(tenantId, activeCompanyId);
       logStructuredMessage('dashboard_values_computed', {
         channel: session.channel,
         messageId,
         sessionId: session.id,
+        tenantId,
+        companyId: activeCompanyId,
+        companyLabel: activeCompanyLabel,
         action: 'dashboard',
         result: 'success',
         receivedByPaymentMonth: summary.receivedByPaymentMonth,
@@ -1576,55 +2074,35 @@ async function dispatchIntent(
         expectedMonth: summary.expectedMonth,
         totalOverdue: summary.totalOverdue,
       });
-      return formatDashboard(summary);
+      return withActiveCompanyLabel(formatDashboard(summary), activeCompanyLabel);
     }
 
     case 'listar_recebiveis': {
       if (role !== 'admin') return 'Essa função é apenas para administradores.';
       const resolvedFilter: 'pending' | 'late' | 'week' | 'all' = entities.filter || 'pending';
-      const installments = await getInstallments(tenantId, resolvedFilter);
-      return formatInstallments(installments);
+      const installments = await getInstallments(tenantId, resolvedFilter, activeCompanyId);
+      return withActiveCompanyLabel(formatInstallments(installments), activeCompanyLabel);
     }
 
     case 'criar_contrato': {
       if (role !== 'admin') return 'Essa função é apenas para administradores.';
 
-      if (entities.debtor_name && entities.amount) {
-        const draft: ContractDraft = {
-          debtor_name: String(entities.debtor_name),
-          debtor_cpf: normalizeCpf(entities.debtor_cpf),
-          amount: Number(entities.amount),
-          rate: Number(entities.rate || 0),
-          installments: Number(entities.installments || 1),
-          frequency: String(entities.frequency || 'monthly'),
-        };
+      const entitySeed: PartialContractEntities = {};
+      if (entities.debtor_name) entitySeed.debtor_name = String(entities.debtor_name);
+      if (entities.debtor_cpf) entitySeed.debtor_cpf = normalizeCpf(String(entities.debtor_cpf)) || undefined;
+      if (entities.amount !== undefined && entities.amount !== null) entitySeed.amount = Number(entities.amount);
+      if (entities.rate !== undefined && entities.rate !== null) entitySeed.rate = Number(entities.rate);
+      if (entities.installments !== undefined && entities.installments !== null) entitySeed.installments = Number(entities.installments);
+      if (entities.frequency) entitySeed.frequency = String(entities.frequency);
+      if ((entities as any).due_day !== undefined && (entities as any).due_day !== null) entitySeed.due_day = Number((entities as any).due_day);
+      if ((entities as any).start_date) entitySeed.start_date = String((entities as any).start_date);
+      if ((entities as any).weekday !== undefined && (entities as any).weekday !== null) entitySeed.weekday = Number((entities as any).weekday);
 
-        if (!draft.debtor_cpf || !isValidCpf(draft.debtor_cpf)) {
-          await updateSessionContext(session.id, {
-            pendingAction: 'criar_contrato',
-            pendingActionAt: new Date().toISOString(),
-            pendingStep: 11,
-            pendingData: draft as unknown as Record<string, unknown>,
-          });
-          return CPF_REQUIRED_MSG;
-        }
-
-        await updateSessionContext(session.id, {
-          pendingAction: 'criar_contrato',
-          pendingActionAt: new Date().toISOString(),
-          pendingStep: 2,
-          pendingData: draft as unknown as Record<string, unknown>,
-        });
-        return formatContractConfirmationMessage(draft);
-      }
-
-      // Extrai entidades do texto original para capturar dados fora de ordem
-      const initialEntities = extractAllContractEntities(originalText);
-      const pendingData = mergeContractEntities({}, initialEntities);
+      const extractedEntities = extractAllContractEntities(originalText);
+      const pendingData = mergeContractEntities(entitySeed as Record<string, unknown>, extractedEntities);
       const nextStep = getNextMissingStep(pendingData);
 
       if (nextStep === 2) {
-        // Tudo preenchido — confirmação
         const draft: ContractDraft = {
           debtor_name: String(pendingData.debtor_name),
           debtor_cpf: String(pendingData.debtor_cpf),
@@ -1635,6 +2113,9 @@ async function dispatchIntent(
           due_day: pendingData.due_day ? Number(pendingData.due_day) : undefined,
           start_date: pendingData.start_date ? String(pendingData.start_date) : undefined,
         };
+        if (draft.frequency === 'monthly' && draft.due_day && !draft.start_date) {
+          draft.start_date = suggestFirstInstallmentDate(draft.due_day);
+        }
         await updateSessionContext(session.id, {
           pendingAction: 'criar_contrato',
           pendingActionAt: new Date().toISOString(),
@@ -1651,7 +2132,9 @@ async function dispatchIntent(
         pendingData: pendingData as Record<string, unknown>,
       });
       return Object.keys(pendingData).length > 0
-        ? getStepPrompt(nextStep, pendingData)
+        ? nextStep === 11
+          ? CPF_REQUIRED_MSG
+          : getStepPrompt(nextStep, pendingData)
         : `Claro! ${getStepPrompt(nextStep, pendingData)}`;
     }
 
@@ -1750,13 +2233,15 @@ async function dispatchIntent(
       const daysAhead = resolveDaysAhead(entities.days_ahead);
       const windowStart = resolveWindowStart(entities.window_start);
       const window = buildDateWindow(daysAhead, windowStart);
-      const installments = await getInstallmentsInWindow(tenantId, daysAhead, windowStart);
+      const installments = await getInstallmentsInWindow(tenantId, daysAhead, windowStart, activeCompanyId);
 
       logStructuredMessage('receivables_window_computed', {
         channel: session.channel,
         messageId,
         sessionId: session.id,
         tenantId,
+        companyId: activeCompanyId,
+        companyLabel: activeCompanyLabel,
         daysAhead,
         windowStart,
         startDate: window.startDate,
@@ -1768,7 +2253,7 @@ async function dispatchIntent(
         return `✅ Nenhum recebivel em aberto no periodo *${formatDateWindow(daysAhead, windowStart)}*.`;
       }
 
-      return formatReceivablesList(installments, formatDateWindow(daysAhead, windowStart));
+      return withActiveCompanyLabel(formatReceivablesList(installments, formatDateWindow(daysAhead, windowStart)), activeCompanyLabel);
     }
 
     case 'cobrar_periodo': {
@@ -1776,13 +2261,15 @@ async function dispatchIntent(
       const daysAhead = resolveDaysAhead(entities.days_ahead);
       const windowStart = resolveWindowStart(entities.window_start);
       const window = buildDateWindow(daysAhead, windowStart);
-      const debtors = await getDebtorsToCollectInWindow(tenantId, daysAhead, windowStart);
+      const debtors = await getDebtorsToCollectInWindow(tenantId, daysAhead, windowStart, activeCompanyId);
 
       logStructuredMessage('collection_window_computed', {
         channel: session.channel,
         messageId,
         sessionId: session.id,
         tenantId,
+        companyId: activeCompanyId,
+        companyLabel: activeCompanyLabel,
         daysAhead,
         windowStart,
         startDate: window.startDate,
@@ -1794,32 +2281,32 @@ async function dispatchIntent(
         return `✅ Nenhum devedor para cobranca no periodo *${formatDateWindow(daysAhead, windowStart)}*.`;
       }
 
-      return formatCobrancaList(debtors, formatDateWindow(daysAhead, windowStart));
+      return withActiveCompanyLabel(formatCobrancaList(debtors, formatDateWindow(daysAhead, windowStart)), activeCompanyLabel);
     }
 
     case 'recebiveis_hoje': {
       if (role !== 'admin') return 'Essa função é apenas para administradores.';
-      const hoje = await getInstallmentsToday(tenantId);
+      const hoje = await getInstallmentsToday(tenantId, activeCompanyId);
       if (hoje.length === 0) {
-        return '✅ Nenhuma parcela vence hoje.';
+        return withActiveCompanyLabel('✅ Nenhuma parcela vence hoje.', activeCompanyLabel);
       }
-      return formatReceivablesList(hoje, 'hoje');
+      return withActiveCompanyLabel(formatReceivablesList(hoje, 'hoje'), activeCompanyLabel);
     }
 
     case 'cobrar_hoje': {
       if (role !== 'admin') return 'Essa função é apenas para administradores.';
-      const devedores = await getDebtorsToCollectToday(tenantId);
+      const devedores = await getDebtorsToCollectToday(tenantId, activeCompanyId);
       if (devedores.length === 0) {
-        return '✅ Nenhum devedor com vencimento hoje.';
+        return withActiveCompanyLabel('✅ Nenhum devedor com vencimento hoje.', activeCompanyLabel);
       }
-      return formatCobrancaList(devedores, 'hoje');
+      return withActiveCompanyLabel(formatCobrancaList(devedores, 'hoje'), activeCompanyLabel);
     }
 
     case 'gerar_relatorio': {
       if (role !== 'admin') return 'Essa função é apenas para administradores.';
-      const report = await generateMonthlyReport(tenantId);
+      const report = await generateMonthlyReport(tenantId, activeCompanyId);
       const month = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-      return formatRelatorioCompleto(report, month);
+      return withActiveCompanyLabel(formatRelatorioCompleto(report, month), activeCompanyLabel);
     }
 
     case 'desconectar': {
@@ -2310,10 +2797,11 @@ async function handlePendingAction(
       let frequency15: string | null = null;
       if (/^(1|mensal|monthly|m[eê]s)/.test(lower15)) frequency15 = 'monthly';
       else if (/^(2|semanal|weekly|semana)/.test(lower15)) frequency15 = 'weekly';
-      else if (/^(3|di[aá]ria|daily|dia)/.test(lower15)) frequency15 = 'daily';
+      else if (/^(3|quinzenal|quinzena|de\s*15\s*em\s*15)/.test(lower15)) frequency15 = 'biweekly';
+      else if (/^(4|di[aá]ria|daily|dia)/.test(lower15)) frequency15 = 'daily';
 
       if (!frequency15) {
-        return 'Não entendi. Responda *1* (Mensal), *2* (Semanal) ou *3* (Diária).';
+        return 'Não entendi. Responda *1* (Mensal), *2* (Semanal), *3* (Quinzenal) ou *4* (Diária).';
       }
 
       const merged15: Record<string, unknown> = { ...partialDraft15, frequency: frequency15 };
@@ -2404,6 +2892,27 @@ async function handlePendingAction(
           installments: Number(merged16.installments ?? 1),
           frequency: 'weekly',
           due_day: weekday16,
+        };
+        await updateSessionContext(session.id, {
+          pendingAction: 'criar_contrato',
+          pendingActionAt: new Date().toISOString(),
+          pendingStep: 2,
+          pendingData: draft as unknown as Record<string, unknown>,
+        });
+        return formatContractConfirmationMessage(draft);
+      }
+
+      if (partialDraft16.frequency === 'biweekly' || partialDraft16.frequency === 'daily') {
+        const startDate16 = extractContractStartDate(text);
+        if (!startDate16) return 'Informe a *data da primeira parcela* no formato *DD/MM/AAAA*.';
+        const draft: ContractDraft = {
+          debtor_name: String(partialDraft16.debtor_name),
+          debtor_cpf: String(partialDraft16.debtor_cpf || ''),
+          amount: Number(partialDraft16.amount),
+          rate: Number(partialDraft16.rate ?? 0),
+          installments: Number(partialDraft16.installments ?? 1),
+          frequency: String(partialDraft16.frequency),
+          start_date: startDate16,
         };
         await updateSessionContext(session.id, {
           pendingAction: 'criar_contrato',

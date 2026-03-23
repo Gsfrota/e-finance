@@ -5,7 +5,6 @@
 import { sendAlertCall } from '../src/channels/whatsapp-alert';
 
 const TO = process.env.TEST_WA_PHONE || '5585991318582';
-const TTS = 'Atenção! Salomão fora do ar! O bot WhatsApp está desconectado. Acesse urgente!';
 const FALLBACK = '🔴 *Bot desconectado do WhatsApp*\nTESTE — acesse o painel UazAPI para reconectar.';
 
 // Injetar env vars manualmente para teste local

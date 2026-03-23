@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   getContractOpenInstallments: vi.fn(),
   getContractOpenInstallmentByNumber: vi.fn(),
   getInstallmentByDebtorAndMonth: vi.fn(),
+  listCompaniesByTenant: vi.fn(),
 
   logStructuredMessage: vi.fn(),
 }));
@@ -86,6 +87,7 @@ vi.mock('../src/actions/admin-actions', () => ({
   getContractOpenInstallments: mocks.getContractOpenInstallments,
   getContractOpenInstallmentByNumber: mocks.getContractOpenInstallmentByNumber,
   getInstallmentByDebtorAndMonth: mocks.getInstallmentByDebtorAndMonth,
+  listCompaniesByTenant: mocks.listCompaniesByTenant,
   normalizeCpf: (value?: string | null) => {
     if (!value) return null;
     const digits = String(value).replace(/\D/g, '');
@@ -137,6 +139,7 @@ function buildAdminSession(overrides: Record<string, unknown> = {}) {
       name: 'Admin',
       role: 'admin',
       tenant_id: 'tenant-1',
+      company_id: 'company-1',
     },
     ...overrides,
   };
@@ -158,6 +161,10 @@ beforeEach(() => {
   mocks.updateSessionContext.mockResolvedValue(undefined);
   mocks.clearSessionContext.mockResolvedValue(undefined);
   mocks.linkProfileToSession.mockResolvedValue(undefined);
+  mocks.listCompaniesByTenant.mockResolvedValue([
+    { id: 'company-1', name: 'Empresa 1', isPrimary: true },
+    { id: 'company-2', name: 'Empresa 2', isPrimary: false },
+  ]);
 
   mocks.routeIntent.mockResolvedValue({
     intent: 'ver_dashboard',
@@ -320,6 +327,7 @@ describe('handleMessage', () => {
         rate: 3,
         installments: 12,
         frequency: 'monthly',
+        due_day: 10,
       },
       confidence: 'high',
       source: 'llm',
@@ -720,7 +728,7 @@ describe('handleMessage', () => {
     });
 
     mocks.transcribeAudioDetailed.mockResolvedValue({
-      text: 'emprestimo para João Silva, CPF 52998224725, 5000 reais, 12 parcelas',
+      text: 'emprestimo para João Silva, CPF 52998224725, 5000 reais, 12 parcelas, dia 10',
       quality: 'ok',
       usedFilesApi: false,
       durationMs: 180,
@@ -821,7 +829,7 @@ describe('handleMessage', () => {
 
     expect(out.text).toContain('Total previsto');
     expect(out.text).toContain('R$ 500.00');
-    expect(mocks.getInstallmentsByDateRange).toHaveBeenCalledWith('tenant-1', '2026-03-05', '2026-03-11');
+    expect(mocks.getInstallmentsByDateRange).toHaveBeenCalledWith('tenant-1', '2026-03-05', '2026-03-11', undefined);
   });
 
   it('responde cobrança por janela a partir de amanhã', async () => {
@@ -853,7 +861,114 @@ describe('handleMessage', () => {
 
     expect(out.text).toContain('Total em aberto');
     expect(out.text).toContain('R$ 450.00');
-    expect(mocks.getDebtorsToCollectByDateRange).toHaveBeenCalledWith('tenant-1', '2026-03-06', '2026-03-08');
+    expect(mocks.getDebtorsToCollectByDateRange).toHaveBeenCalledWith('tenant-1', '2026-03-06', '2026-03-08', undefined);
+  });
+
+  it('lista empresas disponíveis para admin', async () => {
+    const out = await handleMessage({
+      messageId: 'm-list-companies',
+      channel: 'telegram',
+      channelUserId: 'chat-1',
+      senderName: 'User',
+      text: 'quais empresas eu tenho?',
+    });
+
+    expect(out.text).toContain('Empresas disponíveis');
+    expect(out.text).toContain('Empresa 1');
+    expect(out.text).toContain('Empresa 2');
+  });
+
+  it('entende empresa inline na mesma frase e filtra dashboard pela empresa escolhida', async () => {
+    const out = await handleMessage({
+      messageId: 'm-inline-company-dashboard',
+      channel: 'telegram',
+      channelUserId: 'chat-1',
+      senderName: 'User',
+      text: 'dashboard da empresa Empresa 2',
+    });
+
+    expect(mocks.getDashboardSummary).toHaveBeenCalledWith('tenant-1', 'company-2');
+    expect(mocks.updateSessionContext).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({
+        workingState: expect.objectContaining({
+          activeCompany: { id: 'company-2', label: 'Empresa 2' },
+        }),
+      }),
+    );
+    expect(out.text).toContain('Empresa ativa: *Empresa 2*');
+  });
+
+  it('aceita apelidos de empresa como matriz e filial no mesmo turno', async () => {
+    const matriz = await handleMessage({
+      messageId: 'm-company-alias-matriz',
+      channel: 'telegram',
+      channelUserId: 'chat-1',
+      senderName: 'User',
+      text: 'dashboard da matriz',
+    });
+
+    expect(matriz.text).toContain('Empresa ativa: *Empresa 1*');
+    expect(mocks.getDashboardSummary).toHaveBeenLastCalledWith('tenant-1', 'company-1');
+
+    const filial = await handleMessage({
+      messageId: 'm-company-alias-filial',
+      channel: 'telegram',
+      channelUserId: 'chat-1',
+      senderName: 'User',
+      text: 'dashboard da filial',
+    });
+
+    expect(filial.text).toContain('Empresa ativa: *Empresa 2*');
+    expect(mocks.getDashboardSummary).toHaveBeenLastCalledWith('tenant-1', 'company-2');
+  });
+
+  it('pede clarificacao quando filial fica ambigua entre varias empresas', async () => {
+    mocks.listCompaniesByTenant.mockResolvedValue([
+      { id: 'company-1', name: 'Matriz Centro', isPrimary: true },
+      { id: 'company-2', name: 'Filial Norte', isPrimary: false },
+      { id: 'company-3', name: 'Filial Sul', isPrimary: false },
+    ]);
+
+    const out = await handleMessage({
+      messageId: 'm-company-alias-ambiguous',
+      channel: 'telegram',
+      channelUserId: 'chat-1',
+      senderName: 'User',
+      text: 'dashboard da filial',
+    });
+
+    expect(out.text).toContain('Encontrei mais de uma empresa compatível');
+    expect(out.text).toContain('Filial Norte');
+    expect(out.text).toContain('Filial Sul');
+    expect(mocks.getDashboardSummary).not.toHaveBeenCalled();
+  });
+
+  it('registra tenant e empresa ativa na telemetria de execucao', async () => {
+    await handleMessage({
+      messageId: 'm-company-telemetry',
+      channel: 'telegram',
+      channelUserId: 'chat-1',
+      senderName: 'User',
+      text: 'dashboard da empresa 2',
+    });
+
+    expect(mocks.logStructuredMessage).toHaveBeenCalledWith(
+      'action_plan_created',
+      expect.objectContaining({
+        tenantId: 'tenant-1',
+        companyId: 'company-2',
+        companyLabel: 'Empresa 2',
+      }),
+    );
+    expect(mocks.logStructuredMessage).toHaveBeenCalledWith(
+      'tool_execution',
+      expect.objectContaining({
+        tenantId: 'tenant-1',
+        companyId: 'company-2',
+        companyLabel: 'Empresa 2',
+      }),
+    );
   });
 
 

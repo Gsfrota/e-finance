@@ -14,12 +14,16 @@ interface ProfileChannel {
   full_name: string;
   whatsapp_phone: string | null;
   telegram_chat_id: string | null;
+  company_id?: string | null;
+  companies?: {
+    name?: string | null;
+  } | null;
 }
 
 export async function getAdminProfiles(tenantId: string): Promise<ProfileChannel[]> {
   const { data, error } = await db()
     .from('profiles')
-    .select('id, full_name, whatsapp_phone, telegram_chat_id')
+    .select('id, full_name, whatsapp_phone, telegram_chat_id, company_id, companies(name)')
     .eq('tenant_id', tenantId)
     .eq('role', 'admin')
     .or('whatsapp_phone.not.is.null,telegram_chat_id.not.is.null');

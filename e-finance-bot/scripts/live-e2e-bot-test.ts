@@ -24,14 +24,24 @@ async function main() {
   const password = `Temp#${randomUUID().slice(0, 12)}`;
   const fullName = `Bot E2E Admin ${suffix}`;
   const company = `Bot E2E Tenant ${suffix}`;
+  const secondaryCompanyName = `Bot E2E Filial ${suffix}`;
   const linkCode = `E2${suffix.slice(-4)}`.toUpperCase();
   const channelUserId = `telegram-e2e-${suffix}`;
 
   let authUserId: string | null = null;
   let tenantId: string | null = null;
   let profileId: string | null = null;
+  let secondaryCompanyId: string | undefined;
   const transcript: TranscriptEntry[] = [];
   let step = 0;
+
+  const ensureReplyContains = (reply: string, snippets: string[], label: string) => {
+    for (const snippet of snippets) {
+      if (!reply.includes(snippet)) {
+        throw new Error(`Falha no passo ${label}: resposta não contém "${snippet}". Resposta: ${reply}`);
+      }
+    }
+  };
 
   const ask = async (text: string): Promise<string> => {
     step += 1;
@@ -79,6 +89,22 @@ async function main() {
     profileId = String(profile.id);
     tenantId = String(profile.tenant_id);
 
+    const { data: insertedCompany, error: insertCompanyError } = await sb
+      .from("companies")
+      .insert({
+        tenant_id: tenantId,
+        name: secondaryCompanyName,
+        is_primary: false,
+      })
+      .select("id, name")
+      .single();
+
+    if (insertCompanyError || !insertedCompany) {
+      throw new Error(`Falha ao inserir segunda company: ${insertCompanyError?.message || "sem company"}`);
+    }
+
+    secondaryCompanyId = String(insertedCompany.id);
+
     const { error: linkCodeError } = await sb.from("bot_link_codes").insert({
       code: linkCode,
       channel: "telegram",
@@ -92,6 +118,18 @@ async function main() {
 
     await ask("/start");
     await ask(linkCode);
+    const listCompaniesReply = await ask("quais empresas eu tenho?");
+    ensureReplyContains(listCompaniesReply, [company, secondaryCompanyName], "listar empresas");
+
+    const selectSecondaryReply = await ask("2");
+    ensureReplyContains(selectSecondaryReply, [secondaryCompanyName], "selecionar empresa 2");
+
+    const secondaryDashboardReply = await ask(`dashboard da empresa ${secondaryCompanyName}`);
+    ensureReplyContains(secondaryDashboardReply, ["Empresa ativa", secondaryCompanyName], "dashboard empresa secundaria");
+
+    const clearCompanyReply = await ask("todas empresas");
+    ensureReplyContains(clearCompanyReply, ["todas as empresas"], "limpar empresa ativa");
+
     await ask("/dashboard");
     await ask("/contrato");
     await ask("Emprestimo pessoal para Icaro Soares, CPF 529.982.247-25, ele vai receber 1000 reais por 2000, vai pagar 10 parcelas todo dia 5");
@@ -114,6 +152,8 @@ async function main() {
       profileId,
       tenantId,
       linkCode,
+      secondaryCompanyId,
+      secondaryCompanyName,
       contractId,
       createdContract: !!contractId,
       transcript,
@@ -145,6 +185,7 @@ async function main() {
       await sb.from("loan_installments").delete().eq("tenant_id", tenantId);
       await sb.from("investments").delete().eq("tenant_id", tenantId);
       await sb.from("profiles").delete().eq("tenant_id", tenantId);
+      await sb.from("companies").delete().eq("tenant_id", tenantId);
       await sb.from("tenants").delete().eq("id", tenantId);
     }
 

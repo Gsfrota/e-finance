@@ -1,5 +1,4 @@
 import { randomUUID } from 'crypto';
-import { config } from '../config';
 import { getGeminiClient, getSupabaseClient } from '../infra/runtime-clients';
 
 function db() {
@@ -18,6 +17,12 @@ export interface DashboardSummary {
   totalOverdue: number;
   activeContracts: number;
   overdueContracts: number;
+}
+
+export interface CompanyOption {
+  id: string;
+  name: string;
+  isPrimary: boolean;
 }
 
 export interface Installment {
@@ -566,12 +571,38 @@ export async function getProfileById(profileId: string): Promise<{ id: string; f
   return data as { id: string; full_name: string; whatsapp_phone: string | null; telegram_chat_id: string | null } | null;
 }
 
-export async function getDashboardSummary(tenantId: string): Promise<DashboardSummary> {
-  const { data: investments, error: investmentsError } = await db()
+export async function listCompaniesByTenant(tenantId: string): Promise<CompanyOption[]> {
+  const { data, error } = await db()
+    .from('companies')
+    .select('id, name, is_primary')
+    .eq('tenant_id', tenantId)
+    .order('is_primary', { ascending: false })
+    .order('name', { ascending: true });
+
+  if (error) {
+    console.error('[listCompaniesByTenant] query failed', error);
+    return [];
+  }
+
+  return (data || []).map(row => ({
+    id: String((row as any).id),
+    name: String((row as any).name || 'Empresa'),
+    isPrimary: Boolean((row as any).is_primary),
+  }));
+}
+
+export async function getDashboardSummary(tenantId: string, companyId?: string): Promise<DashboardSummary> {
+  let investmentsQuery = db()
     .from('investments')
     .select('id')
     .eq('tenant_id', tenantId)
     .eq('status', 'active');
+
+  if (companyId) {
+    investmentsQuery = investmentsQuery.eq('company_id', companyId);
+  }
+
+  const { data: investments, error: investmentsError } = await investmentsQuery;
 
   if (investmentsError) {
     console.error('[dashboard] investments query failed', investmentsError);
@@ -625,7 +656,8 @@ export async function getDashboardSummary(tenantId: string): Promise<DashboardSu
 
 export async function getInstallments(
   tenantId: string,
-  filter: 'pending' | 'late' | 'week' | 'all' = 'pending'
+  filter: 'pending' | 'late' | 'week' | 'all' = 'pending',
+  companyId?: string,
 ): Promise<Installment[]> {
   let query = db()
     .from('loan_installments')
@@ -636,6 +668,10 @@ export async function getInstallments(
     .eq('investments.tenant_id', tenantId)
     .order('due_date', { ascending: true })
     .limit(10);
+
+  if (companyId) {
+    query = query.eq('company_id', companyId);
+  }
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -1906,19 +1942,21 @@ export async function getInstallmentsInWindow(
   tenantId: string,
   daysAhead = 7,
   windowStart: WindowStart = 'today',
+  companyId?: string,
 ): Promise<Installment[]> {
   const window = buildDateWindow(daysAhead, windowStart);
-  return getInstallmentsByDateRange(tenantId, window.startDate, window.endDate);
+  return getInstallmentsByDateRange(tenantId, window.startDate, window.endDate, companyId);
 }
 
 export async function getInstallmentsByDateRange(
   tenantId: string,
   startDate: string,
   endDate: string,
+  companyId?: string,
 ): Promise<Installment[]> {
   const today = toYmdInTimeZone(new Date(), OPERATION_TIMEZONE);
 
-  const { data, error } = await db()
+  let query = db()
     .from('loan_installments')
     .select(
       `
@@ -1932,6 +1970,12 @@ export async function getInstallmentsByDateRange(
     .in('status', ['pending', 'late', 'partial'])
     .order('due_date', { ascending: true })
     .order('amount_total', { ascending: false });
+
+  if (companyId) {
+    query = query.eq('company_id', companyId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[getInstallmentsByDateRange] query failed', error);
@@ -1956,8 +2000,8 @@ export async function getInstallmentsByDateRange(
   });
 }
 
-export async function getInstallmentsToday(tenantId: string): Promise<Installment[]> {
-  return getInstallmentsInWindow(tenantId, 1, 'today');
+export async function getInstallmentsToday(tenantId: string, companyId?: string): Promise<Installment[]> {
+  return getInstallmentsInWindow(tenantId, 1, 'today', companyId);
 }
 
 // ─── Devedores para Cobrar por Janela ────────────────────────────────────────
@@ -2008,19 +2052,21 @@ export async function getDebtorsToCollectInWindow(
   tenantId: string,
   daysAhead = 7,
   windowStart: WindowStart = 'today',
+  companyId?: string,
 ): Promise<DebtorToCollect[]> {
   const window = buildDateWindow(daysAhead, windowStart);
-  return getDebtorsToCollectByDateRange(tenantId, window.startDate, window.endDate);
+  return getDebtorsToCollectByDateRange(tenantId, window.startDate, window.endDate, companyId);
 }
 
 export async function getDebtorsToCollectByDateRange(
   tenantId: string,
   startDate: string,
   endDate: string,
+  companyId?: string,
 ): Promise<DebtorToCollect[]> {
   const today = toYmdInTimeZone(new Date(), OPERATION_TIMEZONE);
 
-  const { data, error } = await db()
+  let query = db()
     .from('loan_installments')
     .select(
       `
@@ -2034,6 +2080,12 @@ export async function getDebtorsToCollectByDateRange(
     .lte('due_date', endDate)
     .order('due_date', { ascending: true });
 
+  if (companyId) {
+    query = query.eq('company_id', companyId);
+  }
+
+  const { data, error } = await query;
+
   if (error) {
     console.error('[getDebtorsToCollectByDateRange] query failed', error);
     return [];
@@ -2042,13 +2094,13 @@ export async function getDebtorsToCollectByDateRange(
   return mapDebtorsToCollect(data || [], today);
 }
 
-export async function getDebtorsToCollectToday(tenantId: string): Promise<DebtorToCollect[]> {
-  return getDebtorsToCollectInWindow(tenantId, 1, 'today');
+export async function getDebtorsToCollectToday(tenantId: string, companyId?: string): Promise<DebtorToCollect[]> {
+  return getDebtorsToCollectInWindow(tenantId, 1, 'today', companyId);
 }
 
-async function getOverdueDebtors(tenantId: string): Promise<DebtorToCollect[]> {
+async function getOverdueDebtors(tenantId: string, companyId?: string): Promise<DebtorToCollect[]> {
   const today = toYmdInTimeZone(new Date(), OPERATION_TIMEZONE);
-  const { data, error } = await db()
+  let query = db()
     .from('loan_installments')
     .select(`
       amount_total, amount_paid, due_date, status,
@@ -2058,6 +2110,12 @@ async function getOverdueDebtors(tenantId: string): Promise<DebtorToCollect[]> {
     .in('status', ['pending', 'late', 'partial'])
     .lt('due_date', today)
     .order('due_date', { ascending: true });
+
+  if (companyId) {
+    query = query.eq('company_id', companyId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[getOverdueDebtors] query failed', error);
@@ -2076,8 +2134,8 @@ export interface MonthlyReport {
   topDebtors: Array<{ name: string; totalDebt: number }>;
 }
 
-async function getTopDebtors(tenantId: string, limit = 5): Promise<Array<{ name: string; totalDebt: number }>> {
-  const { data, error } = await db()
+async function getTopDebtors(tenantId: string, limit = 5, companyId?: string): Promise<Array<{ name: string; totalDebt: number }>> {
+  let query = db()
     .from('loan_installments')
     .select(`
       amount_total, amount_paid,
@@ -2085,6 +2143,12 @@ async function getTopDebtors(tenantId: string, limit = 5): Promise<Array<{ name:
     `)
     .eq('investments.tenant_id', tenantId)
     .in('status', ['pending', 'late', 'partial']);
+
+  if (companyId) {
+    query = query.eq('company_id', companyId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[getTopDebtors] query failed', error);
@@ -2110,12 +2174,12 @@ async function getTopDebtors(tenantId: string, limit = 5): Promise<Array<{ name:
     .slice(0, Math.max(1, limit));
 }
 
-export async function generateMonthlyReport(tenantId: string): Promise<MonthlyReport> {
+export async function generateMonthlyReport(tenantId: string, companyId?: string): Promise<MonthlyReport> {
   const [dashboard, overdueDebtors, todayInstallments, topDebtors] = await Promise.all([
-    getDashboardSummary(tenantId),
-    getOverdueDebtors(tenantId),
-    getInstallmentsToday(tenantId),
-    getTopDebtors(tenantId, 5),
+    getDashboardSummary(tenantId, companyId),
+    getOverdueDebtors(tenantId, companyId),
+    getInstallmentsToday(tenantId, companyId),
+    getTopDebtors(tenantId, 5, companyId),
   ]);
 
   return { dashboard, overdueDebtors, todayInstallments, topDebtors };

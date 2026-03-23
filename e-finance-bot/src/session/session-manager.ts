@@ -66,6 +66,8 @@ interface SaveMessageOptions {
 }
 
 let messagePersistQueues = new Map<string, Promise<void>>();
+const ephemeralSessions = new Map<string, Session>();
+const ephemeralMessages = new Map<string, Array<{ role: string; content: string }>>();
 
 function wait(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, Math.max(0, ms)));
@@ -78,6 +80,54 @@ function normalizeError(error: unknown): string {
 
 export function isEphemeralSessionId(sessionId: string): boolean {
   return sessionId.startsWith('ephemeral:');
+}
+
+function buildEphemeralSessionId(
+  channel: 'whatsapp' | 'telegram',
+  channelUserId: string,
+  profileId: string | null,
+): string {
+  return `ephemeral:${channel}:${channelUserId}:${profileId || 'anon'}`;
+}
+
+function createEphemeralSession(
+  channel: 'whatsapp' | 'telegram',
+  channelUserId: string,
+  profileId: string | null,
+): Session {
+  return {
+    id: buildEphemeralSessionId(channel, channelUserId, profileId),
+    profile_id: profileId,
+    channel,
+    channel_user_id: channelUserId,
+    context: {},
+    profile: null,
+  };
+}
+
+export function getEphemeralSessionSnapshot(
+  channel: 'whatsapp' | 'telegram',
+  channelUserId: string,
+  profileId: string | null,
+): Session {
+  const sessionId = buildEphemeralSessionId(channel, channelUserId, profileId);
+  const existing = ephemeralSessions.get(sessionId);
+  if (existing) {
+    return {
+      ...existing,
+      context: { ...(existing.context || {}) },
+    };
+  }
+
+  const created = createEphemeralSession(channel, channelUserId, profileId);
+  ephemeralSessions.set(sessionId, created);
+  if (!ephemeralMessages.has(sessionId)) {
+    ephemeralMessages.set(sessionId, []);
+  }
+  return {
+    ...created,
+    context: {},
+  };
 }
 
 function mapProfile(profileRow: any): Session['profile'] {
@@ -181,8 +231,31 @@ export async function getOrCreateSession(
   const { data: created, error: createError } = await db()
     .from('bot_sessions')
     .insert({ channel, channel_user_id: channelUserId, context: {} })
-    .select('id')
+    .select('id, profile_id, context')
     .single();
+
+  if (createError?.code === '23505') {
+    const { data: winner, error: winnerError } = await db()
+      .from('bot_sessions')
+      .select('id, profile_id, context')
+      .eq('channel', channel)
+      .eq('channel_user_id', channelUserId)
+      .maybeSingle();
+
+    if (winnerError || !winner) {
+      throw winnerError || createError;
+    }
+
+    touchSessionLastActive(winner.id);
+    return {
+      id: winner.id,
+      profile_id: winner.profile_id,
+      channel,
+      channel_user_id: channelUserId,
+      context: (winner.context as SessionContext) || {},
+      profile: null,
+    };
+  }
 
   if (createError || !created) {
     throw createError || new Error('session_create_failed');
@@ -190,10 +263,10 @@ export async function getOrCreateSession(
 
   return {
     id: created.id,
-    profile_id: null,
+    profile_id: created.profile_id ?? null,
     channel,
     channel_user_id: channelUserId,
-    context: {},
+    context: (created.context as SessionContext) || {},
     profile: null,
   };
 }
@@ -287,7 +360,16 @@ export async function syncSessionProfileFromChannelBinding(session: Session): Pr
 }
 
 export async function updateSessionContext(sessionId: string, context: SessionContext): Promise<void> {
-  if (isEphemeralSessionId(sessionId)) return;
+  if (isEphemeralSessionId(sessionId)) {
+    const existing = ephemeralSessions.get(sessionId);
+    if (existing) {
+      ephemeralSessions.set(sessionId, {
+        ...existing,
+        context: { ...context },
+      });
+    }
+    return;
+  }
   await db()
     .from('bot_sessions')
     .update({ context, last_active_at: new Date().toISOString() })
@@ -295,7 +377,16 @@ export async function updateSessionContext(sessionId: string, context: SessionCo
 }
 
 export async function clearSessionContext(sessionId: string): Promise<void> {
-  if (isEphemeralSessionId(sessionId)) return;
+  if (isEphemeralSessionId(sessionId)) {
+    const existing = ephemeralSessions.get(sessionId);
+    if (existing) {
+      ephemeralSessions.set(sessionId, {
+        ...existing,
+        context: {},
+      });
+    }
+    return;
+  }
   await db()
     .from('bot_sessions')
     .update({ context: {}, last_active_at: new Date().toISOString() })
@@ -321,7 +412,12 @@ export async function saveMessage(
   intent?: string,
   options: SaveMessageOptions = {},
 ): Promise<void> {
-  if (isEphemeralSessionId(sessionId)) return;
+  if (isEphemeralSessionId(sessionId)) {
+    const items = ephemeralMessages.get(sessionId) || [];
+    items.push({ role, content });
+    ephemeralMessages.set(sessionId, items);
+    return;
+  }
   const payload = {
     session_id: sessionId,
     role,
@@ -354,7 +450,10 @@ export async function saveMessage(
 }
 
 export async function getRecentMessages(sessionId: string, limit = 6): Promise<Array<{ role: string; content: string }>> {
-  if (isEphemeralSessionId(sessionId)) return [];
+  if (isEphemeralSessionId(sessionId)) {
+    const items = ephemeralMessages.get(sessionId) || [];
+    return items.slice(-limit);
+  }
   const { data } = await db()
     .from('bot_messages')
     .select('role, content')
@@ -367,4 +466,6 @@ export async function getRecentMessages(sessionId: string, limit = 6): Promise<A
 
 export function __resetSessionManagerStateForTests(): void {
   messagePersistQueues = new Map();
+  ephemeralSessions.clear();
+  ephemeralMessages.clear();
 }
