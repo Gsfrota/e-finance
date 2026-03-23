@@ -15,6 +15,7 @@ import { buildBriefingMessage } from '../scheduler/morning-briefing';
 import { getCapabilityDefinition } from './capability-registry';
 import { createPendingConfirmation } from './confirmation-store';
 import { runPolicyCheck } from './policy-engine';
+import { getWorkingState } from './working-state-store';
 import type {
   ActionPlan,
   ConversationWorkingState,
@@ -140,11 +141,24 @@ function buildStatePatch(
   };
 }
 
+function getActiveAdminCompany(session: Session, role: string): { id: string; label: string } | undefined {
+  if (role !== 'admin') return undefined;
+  return getWorkingState(session.context).activeCompany;
+}
+
+function withActiveCompanyLabel(message: string, activeCompanyLabel?: string): string {
+  if (!activeCompanyLabel) return message;
+  return `🏢 Empresa ativa: *${activeCompanyLabel}*\n\n${message}`;
+}
+
 export async function executeActionPlan(
   plan: ActionPlan,
   context: ToolExecutorContext,
   deps: ToolExecutorDeps,
 ): Promise<ToolExecutionResult> {
+  const activeCompany = getActiveAdminCompany(context.session, context.role);
+  const activeCompanyId = activeCompany?.id;
+  const activeCompanyLabel = activeCompany?.label;
   const policy = runPolicyCheck({
     tenantId: context.tenantId,
     profileId: context.profileId,
@@ -231,10 +245,10 @@ export async function executeActionPlan(
   }
 
   if (plan.capability === 'show_dashboard') {
-    const summary = await getDashboardSummary(context.tenantId);
+    const summary = await getDashboardSummary(context.tenantId, activeCompanyId);
     return {
       status: 'ok',
-      safeUserMessage: formatDashboard(summary),
+      safeUserMessage: withActiveCompanyLabel(formatDashboard(summary), activeCompanyLabel),
       audit: {
         requestId: context.requestId,
         capability: plan.capability,
@@ -248,10 +262,10 @@ export async function executeActionPlan(
 
   if (plan.capability === 'list_receivables') {
     const filter = String(plan.args.filter || 'pending') as 'pending' | 'late' | 'week' | 'all';
-    const installments = await getInstallments(context.tenantId, filter);
+    const installments = await getInstallments(context.tenantId, filter, activeCompanyId);
     return {
       status: 'ok',
-      safeUserMessage: formatOpenInstallments(installments),
+      safeUserMessage: withActiveCompanyLabel(formatOpenInstallments(installments), activeCompanyLabel),
       audit: {
         requestId: context.requestId,
         capability: plan.capability,
@@ -283,10 +297,10 @@ export async function executeActionPlan(
       };
     }
 
-    const installments = await getInstallmentsByDateRange(context.tenantId, timeWindow.startDate, timeWindow.endDate);
+    const installments = await getInstallmentsByDateRange(context.tenantId, timeWindow.startDate, timeWindow.endDate, activeCompanyId);
     return {
       status: 'ok',
-      safeUserMessage: formatReceivablesWindow(timeWindow, installments),
+      safeUserMessage: withActiveCompanyLabel(formatReceivablesWindow(timeWindow, installments), activeCompanyLabel),
       audit: {
         requestId: context.requestId,
         capability: plan.capability,
@@ -323,10 +337,10 @@ export async function executeActionPlan(
       };
     }
 
-    const debtors = await getDebtorsToCollectByDateRange(context.tenantId, timeWindow.startDate, timeWindow.endDate);
+    const debtors = await getDebtorsToCollectByDateRange(context.tenantId, timeWindow.startDate, timeWindow.endDate, activeCompanyId);
     return {
       status: 'ok',
-      safeUserMessage: formatCollectionWindow(timeWindow, debtors),
+      safeUserMessage: withActiveCompanyLabel(formatCollectionWindow(timeWindow, debtors), activeCompanyLabel),
       audit: {
         requestId: context.requestId,
         capability: plan.capability,

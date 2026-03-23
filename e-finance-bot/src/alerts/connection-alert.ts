@@ -80,9 +80,9 @@ function buildAlertMessage(status: ConnectionStatus, owner: string): string {
 
 async function getAllActiveTenantIds(): Promise<string[]> {
   const { data, error } = await getSupabaseClient()
-    .from('bot_tenant_configs')
+    .from('bot_tenant_config')
     .select('tenant_id')
-    .eq('active', true);
+    .or('followup_enabled.eq.true,morning_briefing_enabled.eq.true');
 
   if (error) {
     throw new Error(`Erro ao buscar tenants: ${error.message}`);

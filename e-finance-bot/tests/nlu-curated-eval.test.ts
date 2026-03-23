@@ -43,6 +43,7 @@ vi.mock('../src/actions/admin-actions', () => ({
   disconnectBot: vi.fn(),
   getContractOpenInstallments: vi.fn(),
   getContractOpenInstallmentByNumber: vi.fn(),
+  listCompaniesByTenant: vi.fn(),
   normalizeCpf: (value?: string | null) => {
     if (!value) return null;
     const digits = String(value).replace(/\D/g, '');

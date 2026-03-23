@@ -5,11 +5,15 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "test": "vitest run",
+    "test:bot-regression": "vitest run tests/message-handler.test.ts tests/conversation-smoke.test.ts tests/payment-followup.test.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:live-bot-e2e": "tsx scripts/live-e2e-bot-test.ts",
     "test:window-validation": "tsx scripts/validate-window-reports.ts",
     "audit:duplicate-installments": "tsx scripts/audit-duplicate-installments.ts"
   },
@@ -21,12 +25,16 @@
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/express": "^4.17.21",
     "@types/node": "^22.0.0",
     "@types/supertest": "^6.0.3",
+    "eslint": "^10.1.0",
+    "globals": "^17.4.0",
     "supertest": "^7.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0",
+    "typescript-eslint": "^8.57.2",
     "vitest": "^2.1.5"
   }
 }

@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { config } from '../config';
-import { getAllTenantsWithBriefingEnabled, updateBriefingSentAt } from '../actions/bot-config-actions';
+import { getAllTenantsWithBriefingEnabled, getAllTenantsWithFollowupEnabled, updateBriefingSentAt } from '../actions/bot-config-actions';
 import { runMorningBriefingForTenant, isTimeWindowMatch } from './morning-briefing';
+import { runPaymentFollowupForTenant, shouldRunPaymentFollowupNow } from './payment-followup';
 
 export const router = Router();
 
@@ -57,5 +58,36 @@ router.post('/morning-briefing', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[briefing-router] erro:', err);
     return res.status(500).json({ error: 'Erro interno ao disparar briefings' });
+  }
+});
+
+router.post('/payment-followup', async (req: Request, res: Response) => {
+  const secret = req.headers['x-scheduler-secret'];
+  if (!config.scheduler.secret || secret !== config.scheduler.secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const tenantConfigs = await getAllTenantsWithFollowupEnabled();
+    if (!shouldRunPaymentFollowupNow()) {
+      return res.json({ dispatched: 0, skipped: tenantConfigs.length, skippedDuplicate: 0, skippedBusy: 0, results: [] });
+    }
+
+    const results: Array<{ tenantId: string; sent: number; skipped: number; skippedDuplicate: number; skippedBusy: number }> = [];
+    for (const tenantConfig of tenantConfigs) {
+      const result = await runPaymentFollowupForTenant(tenantConfig.tenant_id);
+      results.push({ tenantId: tenantConfig.tenant_id, ...result });
+    }
+
+    return res.json({
+      dispatched: results.length,
+      skipped: 0,
+      skippedDuplicate: results.reduce((sum, item) => sum + item.skippedDuplicate, 0),
+      skippedBusy: results.reduce((sum, item) => sum + item.skippedBusy, 0),
+      results,
+    });
+  } catch (err) {
+    console.error('[payment-followup-router] erro:', err);
+    return res.status(500).json({ error: 'Erro interno ao disparar follow-up' });
   }
 });

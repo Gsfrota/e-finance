@@ -65,6 +65,20 @@ export async function getAllTenantsWithBriefingEnabled(): Promise<BotTenantConfi
   return (data ?? []) as BotTenantConfig[];
 }
 
+export async function getAllTenantsWithFollowupEnabled(): Promise<BotTenantConfig[]> {
+  const { data, error } = await db()
+    .from('bot_tenant_config')
+    .select('*')
+    .eq('followup_enabled', true);
+
+  if (error) {
+    console.error('[getAllTenantsWithFollowupEnabled] erro:', error.message);
+    return [];
+  }
+
+  return (data ?? []) as BotTenantConfig[];
+}
+
 export async function updateBriefingSentAt(tenantId: string): Promise<void> {
   const { error } = await db()
     .from('bot_tenant_config')
