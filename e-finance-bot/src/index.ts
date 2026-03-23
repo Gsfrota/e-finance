@@ -201,10 +201,13 @@ export function createApp(): Express {
         ? (() => {
             const msg = raw.message as Record<string, unknown>;
             const chat = (raw.chat ?? {}) as Record<string, unknown>;
+            const content = ((msg.content && typeof msg.content === 'object')
+              ? msg.content
+              : {}) as Record<string, unknown>;
             return {
               chatid: (msg.chatid ?? msg.sender_pn ?? '') as string,
-              text: (msg.text ?? (msg.content as Record<string,unknown>)?.text ?? '') as string,
-              messageType: (msg.messageType ?? '') as string,
+              text: (msg.text ?? content.text ?? '') as string,
+              messageType: (msg.messageType ?? msg.type ?? content.type ?? '') as string,
               sender: (msg.sender_pn ?? msg.chatid ?? '') as string,
               senderName: (msg.senderName ?? chat.name ?? 'Usuário') as string,
               fromMe: Boolean(msg.fromMe),
@@ -214,19 +217,20 @@ export function createApp(): Express {
               messageid: (msg.messageid ?? '') as string,
               owner: (msg.owner ?? '') as string,
               isGroup: Boolean(msg.isGroup),
-              mimetype: msg.mimetype as string | undefined,
-              duration: typeof msg.duration === 'number' ? msg.duration : undefined,
-              seconds: typeof msg.seconds === 'number' ? msg.seconds : undefined,
-              audioDuration: typeof msg.audioDuration === 'number' ? msg.audioDuration : undefined,
-              fileSize: typeof msg.fileSize === 'number' ? msg.fileSize : undefined,
-              fileLength: typeof msg.fileLength === 'number' ? msg.fileLength : undefined,
-              size: typeof msg.size === 'number' ? msg.size : undefined,
+              mimetype: (msg.mimetype ?? content.mimetype ?? content.mimeType) as string | undefined,
+              duration: typeof (msg.duration ?? content.duration) === 'number' ? Number(msg.duration ?? content.duration) : undefined,
+              seconds: typeof (msg.seconds ?? content.seconds) === 'number' ? Number(msg.seconds ?? content.seconds) : undefined,
+              audioDuration: typeof (msg.audioDuration ?? content.audioDuration) === 'number' ? Number(msg.audioDuration ?? content.audioDuration) : undefined,
+              fileSize: typeof (msg.fileSize ?? content.fileSize) === 'number' ? Number(msg.fileSize ?? content.fileSize) : undefined,
+              fileLength: typeof (msg.fileLength ?? content.fileLength) === 'number' ? Number(msg.fileLength ?? content.fileLength) : undefined,
+              size: typeof (msg.size ?? content.size) === 'number' ? Number(msg.size ?? content.size) : undefined,
             } as wa.WaMessage;
           })()
         : raw as unknown as wa.WaMessage;
 
-      const isAudioMessage = body.messageType === 'audioMessage' || body.messageType === 'pttMessage';
-      const isImageMessage = body.messageType === 'imageMessage';
+      const normalizedMessageType = String(body.messageType || '').toLowerCase();
+      const isAudioMessage = ['audiomessage', 'pttmessage', 'audio', 'myaudio', 'ptt'].includes(normalizedMessageType);
+      const isImageMessage = ['imagemessage', 'image'].includes(normalizedMessageType);
 
       if (body.fromMe || body.isGroup || !body.sender) return;
       if (!body.text && !isAudioMessage && !isImageMessage) return;
@@ -297,7 +301,7 @@ export function createApp(): Express {
           audioSizeBytes = toOptionalPositiveNumber(
             body.fileSize ?? body.fileLength ?? body.size
           ) || buf.length;
-          audioKind = body.messageType === 'pttMessage' ? 'voice_note' : 'audio_file';
+          audioKind = ['pttmessage', 'ptt'].includes(normalizedMessageType) ? 'voice_note' : 'audio_file';
         }
       } else if (isImageMessage) {
         const buf = await downloadMedia(body.messageid, body.chatid);
