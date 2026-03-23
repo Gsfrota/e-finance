@@ -11,6 +11,7 @@ export interface DashboardDataState {
   detailedKPIs: DashboardKPIs;
   investments: Investment[];
   installments: LoanInstallment[];
+  allPaidInstallments: LoanInstallment[];
   loading: boolean;
   isStale: boolean;
   error: string | null;
@@ -257,6 +258,7 @@ interface CachedDashboard {
   detailedKPIs: DashboardKPIs;
   investments: Investment[];
   installments: LoanInstallment[];
+  allPaidInstallments: LoanInstallment[];
   monthRange: { start: string; end: string };
 }
 
@@ -278,6 +280,7 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
       detailedKPIs: INITIAL_KPIS,
       investments: [],
       installments: [],
+      allPaidInstallments: [],
       loading: true,
       isStale: false,
       error: null,
@@ -403,6 +406,20 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
           return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
       });
 
+      // Todas as parcelas pagas/parciais (sem filtro de mês) para o SalaryDashboard
+      const allPaidInstallments: LoanInstallment[] = uniqueInstallments
+        .filter((inst: any) => inst.status === 'paid' || inst.status === 'partial')
+        .map((inst: any) => ({
+          ...inst,
+          amount_total: normalizeNumber(inst.amount_total),
+          amount_principal: normalizeNumber(inst.amount_principal),
+          amount_interest: normalizeNumber(inst.amount_interest),
+          amount_paid: normalizeNumber(inst.amount_paid),
+          fine_amount: normalizeNumber(inst.fine_amount),
+          interest_delay_amount: normalizeNumber(inst.interest_delay_amount),
+          contract_name: inst.investment?.asset_name || 'Desconhecido',
+        }));
+
       const derivedStats: AdminDashboardStats = {
         active_portfolio: computedKPIs.activeStreetMoney,
         expected_month: computedKPIs.expectedMonth,
@@ -416,6 +433,7 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
         detailedKPIs: computedKPIs,
         investments: safeInvestments,
         installments: uiInstallments,
+        allPaidInstallments,
         monthRange: { start: monthRange.startYMD, end: monthRange.endYMD }
       };
 

@@ -53,19 +53,35 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
   }, [period, today, customFrom, customTo]);
 
   const filtered = useMemo(() => {
+    // Fix #2: parcelas parciais sem paid_at são excluídas do filtro de período
+    // (não usar due_date como substituto — introduziria data errada)
     return installments.filter(i => {
       if (i.status !== 'paid' && i.status !== 'partial') return false;
-      const refDate = i.paid_at || (i.status === 'partial' ? i.due_date : null);
-      if (!refDate) return false;
+      const refDate = i.paid_at;
+      if (!refDate) return false; // sem data de pagamento real, não incluir no período
       const paidDate = refDate.split('T')[0];
-      if (from && paidDate < from) return false;
-      if (to && paidDate > to) return false;
+      // Fix #5: period === 'all' → from e to são '', comparações são ignoradas corretamente
+      if (from !== '' && paidDate < from) return false;
+      if (to !== '' && paidDate > to) return false;
       return true;
     });
   }, [installments, from, to]);
 
+  // Fix #6: parcelas parciais — calcular juros proporcionais ao que foi pago
+  // Para 'paid': usa amount_interest integral (pago completamente)
+  // Para 'partial': juros = amount_paid * (interest / (principal + interest))
+  const calcInterestReceived = (i: LoanInstallment): number => {
+    if (i.status === 'paid') return Number(i.amount_interest) || 0;
+    const principal = Number(i.amount_principal) || 0;
+    const interest = Number(i.amount_interest) || 0;
+    const paid = Number(i.amount_paid) || 0;
+    const contractual = principal + interest;
+    if (contractual <= 0 || paid <= 0) return 0;
+    return paid * (interest / contractual);
+  };
+
   const lucroJuros = useMemo(
-    () => filtered.reduce((s, i) => s + (Number(i.amount_interest) || 0), 0),
+    () => filtered.reduce((s, i) => s + calcInterestReceived(i), 0),
     [filtered]
   );
 
@@ -85,11 +101,12 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
     [filtered]
   );
 
+  // Fix #4: byMethod soma juros proporcionais recebidos (não o valor integral contratual)
   const byMethod = useMemo(() => {
     const map = new Map<string, number>();
     filtered.forEach(i => {
       const method = i.payment_method || 'Não informado';
-      map.set(method, (map.get(method) ?? 0) + (Number(i.amount_interest) || 0));
+      map.set(method, (map.get(method) ?? 0) + calcInterestReceived(i));
     });
     return Array.from(map.entries())
       .sort((a, b) => b[1] - a[1])
@@ -98,11 +115,7 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
 
   // Sorted by reference date desc for detail lists
   const sortedFiltered = useMemo(
-    () => [...filtered].sort((a, b) => {
-      const dateA = a.paid_at || (a.status === 'partial' ? a.due_date : '') || '';
-      const dateB = b.paid_at || (b.status === 'partial' ? b.due_date : '') || '';
-      return dateB.localeCompare(dateA);
-    }),
+    () => [...filtered].sort((a, b) => (b.paid_at ?? '').localeCompare(a.paid_at ?? '')),
     [filtered]
   );
 
@@ -266,12 +279,12 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
                     {contractName(i)}
                   </p>
                   <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>
-                    {debtorName(i)} · {fmtDate(i.paid_at || (i.status === 'partial' ? i.due_date : undefined))}
+                    {debtorName(i)} · {fmtDate(i.paid_at)}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <span className="text-xs tabular-nums font-bold" style={{ color: 'var(--accent-positive)' }}>
-                    {fmt(Number(i.amount_interest) || 0)}
+                    {fmt(calcInterestReceived(i))}
                   </span>
                   {i.status === 'partial' && (
                     <span className="text-[10px] px-1 py-0.5 rounded font-semibold"
@@ -300,12 +313,12 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
       >
         <div className="flex items-center justify-between">
           <div>
-            <p className="type-label" style={{ color: 'var(--text-faint)' }}>Lucro Bruto Total</p>
+            <p className="type-label" style={{ color: 'var(--text-faint)' }}>Total Recebido</p>
             <p className="type-metric-xl mt-0.5" style={{ color: 'var(--accent-brass)' }}>
               {fmt(lucroBruto)}
             </p>
             <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
-              Principal + Juros + Acréscimos
+              Principal devolvido + Juros + Acréscimos
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -356,7 +369,7 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
                     {contractName(i)}
                   </p>
                   <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>
-                    {debtorName(i)} · {fmtDate(i.paid_at || (i.status === 'partial' ? i.due_date : undefined))}
+                    {debtorName(i)} · {fmtDate(i.paid_at)}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
