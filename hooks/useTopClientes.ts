@@ -153,8 +153,9 @@ export function useTopClientes(tenantId: string | undefined, companyId?: string 
 
       const paidLate = resolved.length - paidOnTime;
 
-      // Punctuality: paid on time / total resolved
-      const punctualityRate = resolved.length > 0 ? paidOnTime / resolved.length : 0;
+      // Punctuality: paid on time / all due (resolved + overdue)
+      const allDue = resolved.length + overdue.length;
+      const punctualityRate = allDue > 0 ? paidOnTime / allDue : 0;
 
       // Completion: total paid / (total due = resolved + overdue)
       const totalDue = resolved.length + overdue.length;
