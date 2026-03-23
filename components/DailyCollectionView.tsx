@@ -212,7 +212,7 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
       )}
 
       {!loading && !error && (
-        <div className="px-4 py-4 space-y-4">
+        <div className="px-3 py-4 space-y-4">
 
           {/* ── Summary Card ──────────────────────────────────────────────── */}
           <div className="panel-card rounded-[2rem] p-5">
@@ -452,7 +452,7 @@ const ClientCard: React.FC<{
   return (
     <button
       onClick={onClick}
-      className="group w-full flex items-center gap-3 rounded-2xl p-4 text-left transition-all hover:shadow-md active:scale-[0.98]"
+      className="group w-full flex items-center gap-2.5 rounded-2xl px-3.5 py-3.5 text-left transition-all hover:shadow-md active:scale-[0.98]"
       style={{
         background: 'var(--bg-elevated)',
         border: isAnomaly ? '1.5px solid #EF5350'
@@ -507,7 +507,7 @@ const ClientCard: React.FC<{
 
       {/* Amount badge + chevron */}
       <div className="flex items-center gap-2 shrink-0">
-        <span className="rounded-lg px-3 py-1.5 text-sm font-bold text-white tabular-nums"
+        <span className="rounded-lg px-2.5 py-1 text-xs font-bold text-white tabular-nums"
           style={{ background: isPartial ? '#42A5F5' : isOverdue ? 'var(--accent-danger, #f44336)' : '#4CAF50' }}>
           {fmtMoney(outstanding)}
         </span>
