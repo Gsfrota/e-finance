@@ -87,6 +87,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   // ── Step 1 state ────────────────────────────────────────────────────────────
   const [amount, setAmount]           = useState('');
   const [paymentMethod, setPaymentMethod] = useState('PIX');
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   // ── Step 2 state ────────────────────────────────────────────────────────────
   const [step2Mode, setStep2Mode]         = useState<'partial' | 'surplus'>('partial');
@@ -123,6 +124,12 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   const remainderWithInterest = remainder + interestAmt;
   const discountPerInstallment = pendingInstallments.length > 0 ? surplus / pendingInstallments.length : 0;
 
+  // Detecção de pagamento atrasado
+  const isLatePayment = installment?.due_date && paymentDate > installment.due_date.split('T')[0];
+  const lateDays = isLatePayment && installment?.due_date
+    ? Math.ceil((new Date(paymentDate).getTime() - new Date(installment.due_date.split('T')[0]).getTime()) / 86400000)
+    : 0;
+
   // ── Late payment preview ─────────────────────────────────────────────────────
   const activeSurplus = postLateSurplus !== null ? postLateSurplus : surplus;
   const latePaymentPreview = React.useMemo(() => {
@@ -143,6 +150,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       setStep2Mode('partial');
       setError(null);
       setPaymentMethod('PIX');
+      setPaymentDate(new Date().toISOString().split('T')[0]);
       setDeferAction('last');
       setUseInterest(false);
       setInterestPercent('');
@@ -248,12 +256,14 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
     try {
       const effectiveSurplus = postLateSurplus !== null ? postLateSurplus : surplus;
       const effectiveAction = surplusAction === 'pay_late' ? 'pay_late' : surplusAction;
+      const paidAtTs = paymentDate + 'T12:00:00';
 
       if (effectiveAction === 'pay_late') {
         // 1. Paga parcela atual (só o outstanding)
         const { error: payErr } = await supabase.rpc('pay_installment', {
           p_installment_id: installment.id,
           p_amount_paid: outstanding,
+          p_paid_at: paidAtTs,
         });
         if (payErr) throw payErr;
 
@@ -268,6 +278,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
           const { error: latePayErr } = await supabase.rpc('pay_installment', {
             p_installment_id: late.id,
             p_amount_paid: toPay,
+            p_paid_at: paidAtTs,
           });
           if (latePayErr) throw latePayErr;
 
@@ -341,7 +352,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         // 5. Finalizar
         installment.amount_paid = (installment.amount_paid || 0) + outstanding;
         installment.status = 'paid';
-        installment.paid_at = new Date().toISOString();
+        installment.paid_at = paymentDate + 'T12:00:00';
         onSuccess();
         setIsReceiptMode(true);
         return;
@@ -353,6 +364,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         const { error: payErr } = await supabase.rpc('pay_installment', {
           p_installment_id: installment.id,
           p_amount_paid: outstanding,
+          p_paid_at: paidAtTs,
         });
         if (payErr) throw payErr;
       }
@@ -402,7 +414,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       onSuccess();
       installment.amount_paid = (installment.amount_paid || 0) + outstanding;
       installment.status = 'paid';
-      installment.paid_at = new Date().toISOString();
+      installment.paid_at = paymentDate + 'T12:00:00';
       setIsReceiptMode(true);
     } catch (err: any) {
       setError(err.message || 'Erro ao processar pagamento.');
@@ -421,6 +433,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       const { error: payErr } = await supabase.rpc('pay_installment', {
         p_installment_id: installment.id,
         p_amount_paid: val,
+        p_paid_at: paymentDate + 'T12:00:00',
       });
       if (payErr) throw payErr;
 
@@ -589,11 +602,21 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
             )}
           </div>
 
-          {/* Data */}
-          <div className="flex items-center gap-2 p-3 rounded-xl bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] text-[color:var(--text-muted)] text-xs">
-            <Calendar size={14} className="shrink-0"/>
-            <span>Data da baixa: <strong>Hoje ({new Date().toLocaleDateString('pt-BR')})</strong></span>
+          {/* Data do pagamento */}
+          <div>
+            <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">Data do Pagamento</label>
+            <div className="relative">
+              <Calendar size={16} className="absolute left-4 top-4 text-[color:var(--text-muted)]"/>
+              <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all" />
+            </div>
           </div>
+          {isLatePayment && installment && (
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-900/20 border border-amber-800/40 text-amber-300 text-xs">
+              <AlertTriangle size={14} className="shrink-0"/>
+              <span>Pagamento <strong>{lateDays} dia(s)</strong> após o vencimento ({new Date(installment.due_date + 'T12:00:00').toLocaleDateString('pt-BR')})</span>
+            </div>
+          )}
 
           {/* Forma de pagamento */}
           <div>

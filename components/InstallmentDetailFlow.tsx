@@ -464,6 +464,9 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
   const [missStep, setMissStep]           = useState<1 | 2>(1);
   const [missDeferAction, setMissDeferAction] = useState<'postpone' | 'last' | 'new'>('postpone');
 
+  // Data real do pagamento
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split('T')[0]);
+
   // Pay-after-miss state
   const [useMissedInterest, setUseMissedInterest]   = useState(false);
   const [missedInterestRate, setMissedInterestRate] = useState('');
@@ -479,6 +482,12 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
   const interestAmt           = useInterest && interestPercent ? remainder * (parseFloat(interestPercent) || 0) / 100 : 0;
   const remainderWithInterest = remainder + interestAmt;
   const discountPerInstallment = pendingInstallments.length > 0 ? surplus / pendingInstallments.length : 0;
+
+  // Detecção de pagamento atrasado
+  const isLatePayment = action.type === 'pay' && installment.due_date && paymentDate > installment.due_date.split('T')[0];
+  const lateDays = isLatePayment
+    ? Math.ceil((new Date(paymentDate).getTime() - new Date(installment.due_date.split('T')[0]).getTime()) / 86400000)
+    : 0;
 
   const activeSurplus = postLateSurplus !== null ? postLateSurplus : surplus;
   const latePaymentPreview = React.useMemo(() => {
@@ -599,11 +608,14 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
       const effectiveSurplus = postLateSurplus !== null ? postLateSurplus : surplus;
       const effectiveAction = surplusAction === 'pay_late' ? 'pay_late' : surplusAction;
 
+      const paidAtTs = paymentDate + 'T12:00:00';
+
       if (effectiveAction === 'pay_late') {
         // 1. Paga parcela atual
         const { error: payErr } = await supabase.rpc('pay_installment', {
           p_installment_id: installment.id,
           p_amount_paid: outstanding,
+          p_paid_at: paidAtTs,
         });
         if (payErr) throw payErr;
 
@@ -618,6 +630,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
           const { error: latePayErr } = await supabase.rpc('pay_installment', {
             p_installment_id: late.id,
             p_amount_paid: toPay,
+            p_paid_at: paidAtTs,
           });
           if (latePayErr) throw latePayErr;
 
@@ -696,7 +709,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         });
         installment.amount_paid = (installment.amount_paid || 0) + outstanding;
         installment.status = 'paid';
-        installment.paid_at = new Date().toISOString();
+        installment.paid_at = paymentDate + 'T12:00:00';
         onSuccess(); setIsReceiptMode(true);
         return;
       }
@@ -706,6 +719,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         const { error: payErr } = await supabase.rpc('pay_installment', {
           p_installment_id: installment.id,
           p_amount_paid: outstanding,
+          p_paid_at: paidAtTs,
         });
         if (payErr) throw payErr;
       }
@@ -764,7 +778,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
       });
       installment.amount_paid = (installment.amount_paid || 0) + outstanding;
       installment.status = 'paid';
-      installment.paid_at = new Date().toISOString();
+      installment.paid_at = paymentDate + 'T12:00:00';
       onSuccess(); setIsReceiptMode(true);
     } catch (e: any) { setError(e.message || 'Erro ao processar.'); }
     finally { setLoading(false); }
@@ -799,7 +813,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
           .eq('id', installment.id);
       }
 
-      const { error: err } = await supabase.rpc('pay_installment', { p_installment_id: installment.id, p_amount_paid: val });
+      const { error: err } = await supabase.rpc('pay_installment', { p_installment_id: installment.id, p_amount_paid: val, p_paid_at: paymentDate + 'T12:00:00' });
       if (err) throw err;
       if (action2) {
         const { error: deferErr } = await supabase.rpc('apply_remainder_action', {
@@ -1148,10 +1162,20 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
                 <option value="Cheque">Cheque</option>
               </select>
             </div>
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] text-[color:var(--text-muted)] text-xs">
-              <Calendar size={14} className="shrink-0" />
-              <span>Data da baixa: <strong>Hoje ({new Date().toLocaleDateString('pt-BR')})</strong></span>
+            <div>
+              <label className="block type-label text-[color:var(--text-faint)] mb-2">Data do Pagamento</label>
+              <div className="relative">
+                <Calendar size={16} className="absolute left-4 top-4 text-[color:var(--text-muted)]" />
+                <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
+                  className={`${inputCls} pl-10 focus:ring-[color:var(--accent-positive)]`} />
+              </div>
             </div>
+            {isLatePayment && (
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-900/20 border border-amber-800/40 text-amber-300 text-xs">
+                <AlertTriangle size={14} className="shrink-0" />
+                <span>Pagamento <strong>{lateDays} dia(s)</strong> após o vencimento ({fmtDate(installment.due_date)})</span>
+              </div>
+            )}
             {errorBlock}
             <button type="submit" disabled={loading || loadingContext}
               className="type-label w-full rounded-xl bg-[rgba(52,211,153,0.12)] py-4 text-[color:var(--accent-positive)] ring-1 ring-[rgba(52,211,153,0.2)] active:scale-95 transition-all flex items-center justify-center gap-2">
