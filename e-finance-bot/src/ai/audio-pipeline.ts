@@ -91,6 +91,15 @@ function classifyTranscriptQuality(text: string): AudioTranscriptQuality {
   return 'ok';
 }
 
+function resolveTranscriptionTimeoutMs(input: AudioTranscriptInput): number {
+  const baseTimeoutMs = config.audio.transcribeTimeoutMs;
+  const durationSec = input.durationSec ?? 0;
+  const durationBudgetMs = durationSec > 0 ? 4_000 + (durationSec * 2_000) : 0;
+  const filesApiBudgetMs = (input.sizeBytes ?? input.audioBuffer.length) > config.audio.inlineMaxBytes ? 6_000 : 0;
+
+  return Math.max(baseTimeoutMs, durationBudgetMs, filesApiBudgetMs);
+}
+
 async function transcribeInline(audioBuffer: Buffer, mimeType: string): Promise<string> {
   const base64 = audioBuffer.toString('base64');
   const result = await ai().models.generateContent({
@@ -175,11 +184,12 @@ export async function transcribeAudioDetailed(input: AudioTranscriptInput): Prom
   const usedFilesApi = sizeBytes > config.audio.inlineMaxBytes;
 
   try {
+    const timeoutMs = resolveTranscriptionTimeoutMs(input);
     const rawText = await withTimeout(
       () => usedFilesApi
         ? transcribeViaFilesApi(input.audioBuffer, input.mimeType)
         : transcribeInline(input.audioBuffer, input.mimeType),
-      config.audio.transcribeTimeoutMs
+      timeoutMs
     );
     const normalizedText = normalizeTranscriptText(rawText);
     const quality = classifyTranscriptQuality(normalizedText);

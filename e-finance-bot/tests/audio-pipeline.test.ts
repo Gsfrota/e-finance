@@ -103,6 +103,24 @@ describe('audio-pipeline', () => {
     expect(result.quality).toBe('timeout');
   });
 
+  it('dá orçamento maior para áudio curto com duração conhecida', async () => {
+    process.env.AUDIO_TRANSCRIBE_TIMEOUT_MS = '5';
+    mocks.generateContent.mockImplementation(
+      () => new Promise(resolve => setTimeout(() => resolve({ text: 'parcela paga hoje' }), 40))
+    );
+
+    const { transcribeAudioDetailed } = await loadModule();
+
+    const result = await transcribeAudioDetailed({
+      audioBuffer: Buffer.from('audio'),
+      mimeType: 'audio/ogg',
+      sizeBytes: 128,
+      durationSec: 2,
+    });
+
+    expect(result.quality).toBe('ok');
+  });
+
   it('normaliza transcript sem perder mês e valores', async () => {
     const { normalizeTranscriptText } = await loadModule();
 
