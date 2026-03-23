@@ -494,9 +494,10 @@ const ClientCard: React.FC<{
             <span className="ml-1.5 inline-flex items-center px-1.5 py-0 rounded text-[9px] font-bold uppercase" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}>Bullet</span>
           )}
         </p>
-        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          Parcela: {inst.number}   Venc.: {fmtDate(inst.due_date)}
-        </p>
+        <div className="flex items-center justify-between gap-2 mt-0.5">
+          <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>Parcela {inst.number}</span>
+          <span className="text-xs shrink-0 tabular-nums" style={{ color: 'var(--text-muted)' }}>Venc. {fmtDate(inst.due_date)}</span>
+        </div>
         {isPartial && (
           <p className="text-xs font-semibold" style={{ color: '#42A5F5' }}>
             Recebido: {fmtMoney(Number(inst.amount_paid) || 0)}
