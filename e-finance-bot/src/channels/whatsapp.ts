@@ -62,15 +62,29 @@ export async function setInstancePresence(presence: WaPresence): Promise<void> {
   await api.post('/instance/presence', { presence });
 }
 
-export async function downloadMedia(messageid: string, chatid: string): Promise<Buffer | null> {
+function extractBase64Media(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return null;
+
+  const payload = data as Record<string, unknown>;
+  const raw = payload.base64Data ?? payload.base64;
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+
+  return raw.replace(/^data:[^;]+;base64,/i, '').trim();
+}
+
+export async function downloadMedia(messageid: string, _chatid?: string): Promise<Buffer | null> {
   try {
-    const res = await api.post('/message/download', { messageid, chatid }, {
+    const res = await api.post('/message/download', {
+      id: messageid,
+      return_base64: true,
+      return_link: false,
+      generate_mp3: false,
+    }, {
       timeout: config.http.downloadTimeoutMs,
     });
-    if (res.data?.base64) {
-      return Buffer.from(res.data.base64, 'base64');
-    }
-    return null;
+
+    const base64 = extractBase64Media(res.data);
+    return base64 ? Buffer.from(base64, 'base64') : null;
   } catch {
     return null;
   }
