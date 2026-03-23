@@ -67,46 +67,51 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
     });
   }, [installments, from, to]);
 
-  // Fix #6: parcelas parciais — calcular juros proporcionais ao que foi pago
-  // Para 'paid': usa amount_interest integral (pago completamente)
-  // Para 'partial': juros = amount_paid * (interest / (principal + interest))
-  const calcInterestReceived = (i: LoanInstallment): number => {
-    if (i.status === 'paid') return Number(i.amount_interest) || 0;
+  // Calcula as porções proporcionais de cada parcela ao que foi realmente pago.
+  // Para 'paid': usa valores integrais (pagamento completo).
+  // Para 'partial': distribui amount_paid proporcionalmente entre principal, juros e acréscimos.
+  const calcPortions = (i: LoanInstallment) => {
     const principal = Number(i.amount_principal) || 0;
     const interest = Number(i.amount_interest) || 0;
+    const fine = Number(i.fine_amount) || 0;
+    const delay = Number(i.interest_delay_amount) || 0;
     const paid = Number(i.amount_paid) || 0;
-    const contractual = principal + interest;
-    if (contractual <= 0 || paid <= 0) return 0;
-    return paid * (interest / contractual);
+
+    if (i.status === 'paid') {
+      return { principal, interest, extras: fine + delay, paid };
+    }
+    // Parcial: distribuir proporcionalmente
+    const obligation = principal + interest + fine + delay;
+    if (obligation <= 0 || paid <= 0) return { principal: 0, interest: 0, extras: 0, paid: 0 };
+    return {
+      principal: paid * (principal / obligation),
+      interest: paid * (interest / obligation),
+      extras: paid * ((fine + delay) / obligation),
+      paid,
+    };
   };
 
-  const lucroJuros = useMemo(
-    () => filtered.reduce((s, i) => s + calcInterestReceived(i), 0),
-    [filtered]
-  );
+  const totals = useMemo(() => {
+    let juros = 0, principal = 0, extras = 0, bruto = 0;
+    filtered.forEach(i => {
+      const p = calcPortions(i);
+      juros += p.interest;
+      principal += p.principal;
+      extras += p.extras;
+      bruto += p.paid;
+    });
+    return { juros, principal, extras, bruto };
+  }, [filtered]);
 
-  const lucroBruto = useMemo(
-    () => filtered.reduce((s, i) => s + (Number(i.amount_paid) || 0), 0),
-    [filtered]
-  );
+  // Lucro real = juros + multas/mora (tudo que não é devolução de principal)
+  const lucroReal = totals.juros + totals.extras;
 
-  const lucroAcrescimos = useMemo(
-    () => filtered.reduce((s, i) =>
-      s + (Number(i.fine_amount) || 0) + (Number(i.interest_delay_amount) || 0), 0),
-    [filtered]
-  );
-
-  const lucroPrincipal = useMemo(
-    () => filtered.reduce((s, i) => s + (Number(i.amount_principal) || 0), 0),
-    [filtered]
-  );
-
-  // Fix #4: byMethod soma juros proporcionais recebidos (não o valor integral contratual)
   const byMethod = useMemo(() => {
     const map = new Map<string, number>();
     filtered.forEach(i => {
       const method = i.payment_method || 'Não informado';
-      map.set(method, (map.get(method) ?? 0) + calcInterestReceived(i));
+      const p = calcPortions(i);
+      map.set(method, (map.get(method) ?? 0) + p.interest + p.extras);
     });
     return Array.from(map.entries())
       .sort((a, b) => b[1] - a[1])
@@ -221,9 +226,9 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
       >
         <div className="flex items-center justify-between">
           <div>
-            <p className="type-label" style={{ color: 'var(--text-faint)' }}>Lucro de Juros</p>
+            <p className="type-label" style={{ color: 'var(--text-faint)' }}>Seu Lucro</p>
             <p className="type-metric-xl mt-0.5" style={{ color: 'var(--accent-positive)' }}>
-              {fmt(lucroJuros)}
+              {fmt(lucroReal)}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -245,7 +250,7 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
                   <span className="text-xs tabular-nums font-bold" style={{ color: 'var(--text-primary)' }}>{fmt(value)}</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded-lg font-semibold"
                     style={{ background: 'var(--bg-soft)', color: 'var(--text-muted)' }}>
-                    {fmtPct(value, lucroJuros)}
+                    {fmtPct(value, lucroReal)}
                   </span>
                 </div>
               </div>
@@ -284,7 +289,7 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <span className="text-xs tabular-nums font-bold" style={{ color: 'var(--accent-positive)' }}>
-                    {fmt(calcInterestReceived(i))}
+                    {fmt(calcPortions(i).interest + calcPortions(i).extras)}
                   </span>
                   {i.status === 'partial' && (
                     <span className="text-[10px] px-1 py-0.5 rounded font-semibold"
@@ -315,7 +320,7 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
           <div>
             <p className="type-label" style={{ color: 'var(--text-faint)' }}>Total Recebido</p>
             <p className="type-metric-xl mt-0.5" style={{ color: 'var(--accent-brass)' }}>
-              {fmt(lucroBruto)}
+              {fmt(totals.bruto)}
             </p>
             <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
               Principal devolvido + Juros + Acréscimos
@@ -330,20 +335,20 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
         </div>
 
         {/* Breakdown resumido quando não expandido */}
-        {expanded !== 'bruto' && lucroBruto > 0 && (
+        {expanded !== 'bruto' && totals.bruto > 0 && (
           <div className="mt-3 pt-3 border-t space-y-1" style={{ borderColor: 'var(--border-subtle)' }}>
             <div className="flex items-center justify-between">
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Principal</span>
-              <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmt(lucroPrincipal)}</span>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Principal devolvido</span>
+              <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmt(totals.principal)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Juros</span>
-              <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmt(lucroJuros)}</span>
+              <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--accent-positive)' }}>{fmt(totals.juros)}</span>
             </div>
-            {lucroAcrescimos > 0 && (
+            {totals.extras > 0 && (
               <div className="flex items-center justify-between">
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Multas + Mora</span>
-                <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--accent-danger)' }}>{fmt(lucroAcrescimos)}</span>
+                <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--accent-danger)' }}>{fmt(totals.extras)}</span>
               </div>
             )}
           </div>
