@@ -77,9 +77,30 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
     const delay = Number(i.interest_delay_amount) || 0;
     const paid = Number(i.amount_paid) || 0;
 
+    // Parcela quitada por excedente: status=paid mas amount_paid=0
+    // Usar principal+interest como valor implícito pago
+    if (i.status === 'paid' && paid === 0) {
+      const impliedPaid = principal + interest + fine + delay;
+      if (impliedPaid > 0) {
+        return { principal, interest, extras: fine + delay, paid: impliedPaid };
+      }
+      return { principal: 0, interest: 0, extras: 0, paid: 0 };
+    }
+
     if (i.status === 'paid') {
+      // Se componentes divergem muito do pago (bug de acúmulo), distribuir proporcionalmente
+      const obligation = principal + interest + fine + delay;
+      if (obligation > 0 && Math.abs(obligation - paid) > 1) {
+        return {
+          principal: paid * (principal / obligation),
+          interest: paid * (interest / obligation),
+          extras: paid * ((fine + delay) / obligation),
+          paid,
+        };
+      }
       return { principal, interest, extras: fine + delay, paid };
     }
+
     // Parcial: distribuir proporcionalmente
     const obligation = principal + interest + fine + delay;
     if (obligation <= 0 || paid <= 0) return { principal: 0, interest: 0, extras: 0, paid: 0 };

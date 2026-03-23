@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertTriangle, ArrowLeft, CheckCircle, Clock, Share2, User } from 'lucide-react';
-import { Investment, LoanInstallment } from '../types';
-import { fmtMoney, fmtDate, calcOutstanding, normalizeNum, getInstallmentModInfo } from './InstallmentDetailFlow';
+import { Investment, LoanInstallment, PaymentTransaction } from '../types';
+import { fmtMoney, fmtDate, fmtDatetime, calcOutstanding, normalizeNum, getInstallmentModInfo } from './InstallmentDetailFlow';
+import { getSupabase } from '../services/supabase';
 
 interface InstallmentHistoryProps {
   investment: Investment;
@@ -16,6 +17,28 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
   onBack,
   onInstallmentClick,
 }) => {
+  const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
+
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      const supabase = getSupabase();
+      if (!supabase) return;
+      const { data } = await supabase
+        .from('payment_transactions')
+        .select('*')
+        .eq('investment_id', investment.id)
+        .order('created_at', { ascending: false });
+      if (data) setTransactions(data);
+    };
+    fetchTransactions();
+  }, [investment.id]);
+
+  // Transações agrupadas por installment_id
+  const txByInstallment = transactions.reduce<Record<string, PaymentTransaction[]>>((acc, tx) => {
+    (acc[tx.installment_id] ??= []).push(tx);
+    return acc;
+  }, {});
+
   const allInstallments: LoanInstallment[] = (investment.loan_installments || [])
     .slice()
     .sort((a, b) => a.number - b.number);
@@ -121,8 +144,8 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                   </span>
                 </button>
 
-                {((isPaid || isPartial) && inst.paid_at) || (modInfo && (inst as any).notes) ? (
-                  <div className="px-4 py-1" style={{ background: 'var(--bg-soft)' }}>
+                {((isPaid || isPartial) && inst.paid_at) || (modInfo && (inst as any).notes) || (txByInstallment[inst.id]?.length > 0) ? (
+                  <div className="px-4 py-1.5 space-y-1" style={{ background: 'var(--bg-soft)' }}>
                     {(isPaid || isPartial) && inst.paid_at && (
                       <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
                         Recebido em {fmtDate(inst.paid_at)}
@@ -134,6 +157,20 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                         {(inst as any).notes}
                       </p>
                     )}
+                    {/* Transações detalhadas */}
+                    {txByInstallment[inst.id]?.map(tx => (
+                      <div key={tx.id} className="flex items-start gap-1.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                        <span style={{ color: tx.transaction_type === 'payment' ? 'var(--accent-positive)' : tx.transaction_type === 'surplus_received' ? '#CE93D8' : '#FFB74D' }}>
+                          {tx.transaction_type === 'payment' ? '●' : tx.transaction_type === 'surplus_received' ? '◆' : '▸'}
+                        </span>
+                        <span className="flex-1">
+                          {fmtDatetime(tx.created_at)} — {tx.notes || `${tx.transaction_type}: ${fmtMoney(tx.amount)}`}
+                        </span>
+                        <span className="font-bold tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>
+                          {fmtMoney(tx.amount)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 ) : null}
                 {(inst as any).missed_at && (

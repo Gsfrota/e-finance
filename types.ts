@@ -110,6 +110,23 @@ export interface LoanInstallment {
   investment?: Investment; // Join
 }
 
+export interface PaymentTransaction {
+  id: string;
+  tenant_id: string;
+  investment_id: number;
+  installment_id: string;
+  transaction_type: 'payment' | 'surplus_applied' | 'surplus_received' | 'deferred' | 'missed';
+  amount: number;
+  principal_portion: number;
+  interest_portion: number;
+  extras_portion: number;
+  related_installment_id?: string;
+  related_installment_number?: number;
+  payment_method?: string;
+  notes?: string;
+  created_at: string;
+}
+
 export interface Investment {
   id: number;
   user_id: string;      
