@@ -704,12 +704,33 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
       );
     }
 
+    const sortedDefaulted = [...defaultedInstallments].sort(
+      (a, b) => daysOverdue(b.due_date) - daysOverdue(a.due_date),
+    );
+
+    const totalDefaulted = sortedDefaulted.reduce((sum, inst) => {
+      const outstanding =
+        (Number(inst.amount_total) || 0) +
+        (Number(inst.fine_amount) || 0) +
+        (Number(inst.interest_delay_amount) || 0) -
+        (Number(inst.amount_paid) || 0);
+      return sum + Math.max(0, outstanding);
+    }, 0);
+
+    const severityColor = (days: number) => {
+      if (days >= 60) return '#991b1b';
+      if (days >= 30) return '#dc2626';
+      return '#ef4444';
+    };
+
     return (
-      <div className="space-y-6 pb-12 animate-fade-in">
+      <div className="space-y-5 pb-12 animate-fade-in">
+
+        {/* ── Cabeçalho ─────────────────────────────────────────────────── */}
         <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
           <button
             onClick={() => setSubView('home')}
-            className="mb-5 flex items-center gap-2 text-sm font-semibold text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition-colors cursor-pointer"
+            className="mb-5 flex items-center gap-2 text-sm font-semibold text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition-colors duration-150 cursor-pointer"
           >
             <ArrowLeft size={16} />
             Voltar
@@ -720,55 +741,92 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
           </h2>
         </div>
 
-        <div className="panel-card rounded-[2rem] px-6 py-5 flex items-center gap-3" style={{ background: 'rgba(198,126,105,0.08)', border: '1px solid rgba(198,126,105,0.24)' }}>
-          <AlertTriangle size={20} style={{ color: 'var(--accent-danger)' }} />
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--accent-danger)' }}>Inadimplentes</p>
-            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-              {defaultedInstallments.length} parcela{defaultedInstallments.length !== 1 ? 's' : ''} com 20+ dias de atraso
+        {/* ── Resumo financeiro ─────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 gap-3">
+          <div
+            className="panel-card rounded-[1.6rem] px-5 py-4"
+            style={{ background: 'rgba(198,126,105,0.08)', border: '1px solid rgba(198,126,105,0.24)' }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--accent-danger)' }}>
+              Parcelas
+            </p>
+            <p className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+              {sortedDefaulted.length}
+            </p>
+          </div>
+          <div
+            className="panel-card rounded-[1.6rem] px-5 py-4"
+            style={{ background: 'rgba(198,126,105,0.08)', border: '1px solid rgba(198,126,105,0.24)' }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--accent-danger)' }}>
+              Total em aberto
+            </p>
+            <p className="text-lg font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>
+              {formatCurrency(totalDefaulted)}
             </p>
           </div>
         </div>
 
-        {defaultedInstallments.length === 0 ? (
-          <div className="panel-card rounded-[2rem] px-6 py-10 text-center border border-white/[0.06]">
-            <p className="text-sm text-[color:var(--text-secondary)]">Nenhum inadimplente no momento.</p>
+        {/* ── Lista ─────────────────────────────────────────────────────── */}
+        {sortedDefaulted.length === 0 ? (
+          <div className="panel-card rounded-[2rem] px-6 py-12 text-center" style={{ border: '1px solid var(--border-subtle)' }}>
+            <CheckCircle2 size={36} className="mx-auto mb-3" style={{ color: 'var(--accent-positive)' }} />
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Nenhum inadimplente</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Todas as parcelas estão em dia ou com menos de 20 dias de atraso.</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {defaultedInstallments.map(inst => {
+          <div className="space-y-2">
+            {sortedDefaulted.map(inst => {
               const payer = (inst as any).investment?.payer;
               const assetName = (inst as any).investment?.asset_name || 'Contrato';
-              const diasAtraso = daysOverdue(inst.due_date);
-              const outstanding =
+              const dias = daysOverdue(inst.due_date);
+              const outstanding = Math.max(
+                0,
                 (Number(inst.amount_total) || 0) +
                 (Number(inst.fine_amount) || 0) +
                 (Number(inst.interest_delay_amount) || 0) -
-                (Number(inst.amount_paid) || 0);
+                (Number(inst.amount_paid) || 0),
+              );
+              const color = severityColor(dias);
               return (
                 <button
                   key={inst.id}
                   onClick={() => setSelectedInstallment(inst)}
-                  className="w-full panel-card rounded-[1.6rem] flex items-center justify-between px-5 py-4 hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer text-left"
-                  style={{ borderColor: 'rgba(198,126,105,0.20)', border: '1px solid rgba(198,126,105,0.20)' }}
+                  className="w-full panel-card rounded-[1.6rem] flex items-center gap-4 px-5 py-4 hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors duration-150 cursor-pointer text-left"
+                  style={{ border: `1px solid rgba(198,126,105,0.18)` }}
                 >
+                  {/* Ícone de severidade */}
+                  <div
+                    className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
+                    style={{ background: `${color}1a` }}
+                  >
+                    <AlertTriangle size={18} style={{ color }} />
+                  </div>
+
+                  {/* Dados do devedor */}
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-bold text-[color:var(--text-primary)] truncate">
                       {payer?.full_name || '—'}
                     </div>
                     <div className="text-xs text-[color:var(--text-faint)] mt-0.5 truncate">
-                      {assetName} · Parcela {inst.number} · {diasAtraso}d em atraso
+                      {assetName} · Parcela {inst.number}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      <div className="text-sm font-bold" style={{ color: 'var(--accent-danger)' }}>
-                        {formatCurrency(outstanding)}
-                      </div>
-                      <span className="chip chip-late text-[0.65rem]">Inadimplente</span>
+
+                  {/* Valor + badge de dias */}
+                  <div className="shrink-0 text-right">
+                    <div className="text-sm font-bold mb-1" style={{ color: 'var(--accent-danger)' }}>
+                      {formatCurrency(outstanding)}
                     </div>
-                    <ChevronRight size={16} className="text-[color:var(--text-faint)]" />
+                    <span
+                      className="inline-block text-[0.65rem] font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: `${color}22`, color }}
+                    >
+                      {dias}d atraso
+                    </span>
                   </div>
+
+                  <ChevronRight size={16} className="shrink-0 text-[color:var(--text-faint)]" />
                 </button>
               );
             })}
@@ -787,7 +845,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
     { icon: BarChart3,     label: 'Relatórios',           onClick: () => onNavigate(AppView.DASHBOARD),                                                                      variant: 'default' as const },
     { icon: Bot,           label: 'Assistente',           onClick: () => onNavigate(AppView.ASSISTANT),                                                                      variant: 'default' as const },
     { icon: Calendar,      label: 'Cobranças',            onClick: () => onNavigate(AppView.COLLECTION),                                                                       variant: 'default' as const },
-    { icon: AlertTriangle, label: 'Inadimplentes',        onClick: () => { setCollectionBucket('overdue'); setCollectionKey(k => k + 1); setActiveTab('inadimplentes'); },   variant: 'danger'  as const },
+    { icon: AlertTriangle, label: 'Inadimplentes',        onClick: () => setSubView('parcelas-inadimplentes'),                                                               variant: 'danger'  as const },
   ];
 
   const tabs = [
