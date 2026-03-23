@@ -303,7 +303,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
         <InstallmentFormScreen
           action={installmentAction}
           onBack={() => setInstallmentAction(null)}
-          onDone={() => { setInstallmentAction(null); setSelectedInstallment(null); refetch(); }}
+          onSuccess={() => { setInstallmentAction(null); setSelectedInstallment(null); refetch(); }}
           tenant={tenant}
         />
       );
@@ -340,7 +340,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
         <InstallmentFormScreen
           action={installmentAction}
           onBack={() => setInstallmentAction(null)}
-          onDone={() => { setInstallmentAction(null); setSelectedInstallment(null); refetch(); }}
+          onSuccess={() => { setInstallmentAction(null); setSelectedInstallment(null); refetch(); }}
           tenant={tenant}
         />
       );
@@ -523,7 +523,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
         <InstallmentFormScreen
           action={installmentAction}
           onBack={() => setInstallmentAction(null)}
-          onDone={() => { setInstallmentAction(null); setSelectedInstallment(null); refetch(); }}
+          onSuccess={() => { setInstallmentAction(null); setSelectedInstallment(null); refetch(); }}
           tenant={tenant}
         />
       );
@@ -604,7 +604,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
         <InstallmentFormScreen
           action={installmentAction}
           onBack={() => setInstallmentAction(null)}
-          onDone={() => { setInstallmentAction(null); setSelectedInstallment(null); refetch(); }}
+          onSuccess={() => { setInstallmentAction(null); setSelectedInstallment(null); refetch(); }}
           tenant={tenant}
         />
       );
@@ -700,7 +700,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
         <InstallmentFormScreen
           action={installmentAction}
           onBack={() => setInstallmentAction(null)}
-          onDone={() => { setInstallmentAction(null); setSelectedInstallment(null); refetch(); }}
+          onSuccess={() => { setInstallmentAction(null); setSelectedInstallment(null); refetch(); }}
           tenant={tenant}
         />
       );
