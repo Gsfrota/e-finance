@@ -28,6 +28,7 @@ interface ActionSummary {
   latePaidNumbers?: number[];
 }
 import { getSupabase, parseSupabaseError } from '../services/supabase';
+import { logPaymentTransaction, calcBreakdown } from '../services/paymentAudit';
 import ReceiptTemplate from './ReceiptTemplate';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -628,9 +629,44 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
             .update({ notes: noteText, payment_method: paymentMethod })
             .eq('id', late.id);
 
+          // Auditoria: log recebimento excedente na parcela atrasada
+          logPaymentTransaction({
+            tenant_id: installment.tenant_id,
+            investment_id: installment.investment_id,
+            installment_id: late.id,
+            transaction_type: 'surplus_received',
+            amount: toPay,
+            related_installment_id: installment.id,
+            related_installment_number: installment.number,
+            payment_method: paymentMethod,
+            notes: noteText,
+          });
+
           paidNumbers.push(late.number);
           remaining -= toPay;
         }
+
+        // Auditoria: log pagamento da parcela atual + excedente enviado
+        const payBreakdown = calcBreakdown(installment, outstanding);
+        logPaymentTransaction({
+          tenant_id: installment.tenant_id,
+          investment_id: installment.investment_id,
+          installment_id: installment.id,
+          transaction_type: 'payment',
+          amount: outstanding,
+          ...payBreakdown,
+          payment_method: paymentMethod,
+          notes: `Pagamento integral ${fmtMoney(outstanding)} (parcela #${installment.number})`,
+        });
+        logPaymentTransaction({
+          tenant_id: installment.tenant_id,
+          investment_id: installment.investment_id,
+          installment_id: installment.id,
+          transaction_type: 'surplus_applied',
+          amount: surplus,
+          payment_method: paymentMethod,
+          notes: `Excedente ${fmtMoney(surplus)} → parcelas atrasadas #${paidNumbers.join(', #')}`,
+        });
 
         // 3. Notes na parcela atual
         await supabase.from('loan_installments')
@@ -691,6 +727,31 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         ? `Pago com excedente de ${fmtMoney(effectiveSurplus)} → descontado da parcela #${context.lastInst?.number}`
         : `Pago com excedente de ${fmtMoney(effectiveSurplus)} → distribuído em ${pendingInstallments.length} parcelas`;
       await supabase.from('loan_installments').update({ payment_method: paymentMethod, notes: surplusNotes }).eq('id', installment.id);
+
+      // Auditoria: log pagamento + excedente (next/last/spread)
+      if (postLateSurplus === null) {
+        const sBreakdown = calcBreakdown(installment, outstanding);
+        logPaymentTransaction({
+          tenant_id: installment.tenant_id,
+          investment_id: installment.investment_id,
+          installment_id: installment.id,
+          transaction_type: 'payment',
+          amount: outstanding,
+          ...sBreakdown,
+          payment_method: paymentMethod,
+          notes: `Pagamento integral ${fmtMoney(outstanding)} (parcela #${installment.number})`,
+        });
+      }
+      logPaymentTransaction({
+        tenant_id: installment.tenant_id,
+        investment_id: installment.investment_id,
+        installment_id: installment.id,
+        transaction_type: 'surplus_applied',
+        amount: effectiveSurplus,
+        payment_method: paymentMethod,
+        notes: surplusNotes,
+      });
+
       setActionSummary({
         type: 'surplus',
         paidAmount: outstanding,
@@ -784,6 +845,35 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
       } else {
         setActionSummary({ type: 'exact', paidAmount: val, installmentNumber: installment.number });
       }
+
+      // Auditoria: log da transação de pagamento
+      const breakdown = calcBreakdown(installment, val);
+      logPaymentTransaction({
+        tenant_id: installment.tenant_id,
+        investment_id: installment.investment_id,
+        installment_id: installment.id,
+        transaction_type: 'payment',
+        amount: val,
+        ...breakdown,
+        payment_method: paymentMethod,
+        notes: isPartialPayment
+          ? `Pagamento parcial ${fmtMoney(val)} de ${fmtMoney(instOutstanding)} (parcela #${installment.number})`
+          : `Pagamento integral ${fmtMoney(val)} (parcela #${installment.number})`,
+      });
+
+      // Auditoria: log do deferimento do saldo restante
+      if (action2) {
+        const rem = Math.max(0, instOutstanding - val);
+        logPaymentTransaction({
+          tenant_id: installment.tenant_id,
+          investment_id: installment.investment_id,
+          installment_id: installment.id,
+          transaction_type: 'deferred',
+          amount: rem,
+          notes: `Saldo ${fmtMoney(rem)} diferido → ${action2 === 'new' ? 'nova parcela' : `parcela #${action2 === 'next' ? context.nextInst?.number : context.lastInst?.number}`}`,
+        });
+      }
+
       installment.amount_paid = (installment.amount_paid || 0) + val;
       installment.status = isPartialPayment ? 'partial' : 'paid';
       if (!isPartialPayment) installment.paid_at = new Date().toISOString();
@@ -801,6 +891,17 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         p_defer_action: missDeferAction,
       });
       if (err) throw err;
+
+      // Auditoria: log da falta registrada
+      logPaymentTransaction({
+        tenant_id: installment.tenant_id,
+        investment_id: installment.investment_id,
+        installment_id: installment.id,
+        transaction_type: 'missed',
+        amount: calcOutstanding(installment),
+        notes: `Falta registrada (parcela #${installment.number}) · ação: ${missDeferAction}`,
+      });
+
       onSuccess(); onBack();
     } catch (e: any) { setError(parseSupabaseError(e)); }
     finally { setLoading(false); }
@@ -810,6 +911,17 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     setLoading(true); setError(null);
     const supabase = getSupabase(); if (!supabase) return;
     try {
+      // Auditoria: log da reversão ANTES de zerar (para capturar o valor revertido)
+      const revertedAmount = normalizeNum(installment.amount_paid);
+      logPaymentTransaction({
+        tenant_id: installment.tenant_id,
+        investment_id: installment.investment_id,
+        installment_id: installment.id,
+        transaction_type: 'reversal',
+        amount: revertedAmount,
+        notes: `Reversão de pagamento (parcela #${installment.number}) · valor revertido: ${fmtMoney(revertedAmount)}`,
+      });
+
       const { error: err } = await supabase.from('loan_installments')
         .update({ status: 'pending', amount_paid: 0, paid_at: null }).eq('id', installment.id);
       if (err) throw err;
