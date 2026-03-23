@@ -160,8 +160,8 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                     {/* Transações detalhadas */}
                     {txByInstallment[inst.id]?.map(tx => (
                       <div key={tx.id} className="flex items-start gap-1.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                        <span style={{ color: tx.transaction_type === 'payment' ? 'var(--accent-positive)' : tx.transaction_type === 'surplus_received' ? '#CE93D8' : '#FFB74D' }}>
-                          {tx.transaction_type === 'payment' ? '●' : tx.transaction_type === 'surplus_received' ? '◆' : '▸'}
+                        <span style={{ color: tx.transaction_type === 'payment' ? 'var(--accent-positive)' : tx.transaction_type === 'reversal' ? '#EF5350' : tx.transaction_type === 'surplus_received' ? '#CE93D8' : tx.transaction_type === 'missed' ? '#FF8A65' : '#FFB74D' }}>
+                          {tx.transaction_type === 'payment' ? '●' : tx.transaction_type === 'reversal' ? '✕' : tx.transaction_type === 'surplus_received' ? '◆' : tx.transaction_type === 'missed' ? '⚠' : '▸'}
                         </span>
                         <span className="flex-1">
                           {fmtDatetime(tx.created_at)} — {tx.notes || `${tx.transaction_type}: ${fmtMoney(tx.amount)}`}
