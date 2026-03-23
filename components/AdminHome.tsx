@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   Calendar,
   CheckCircle2,
+  Clock,
 } from 'lucide-react';
 
 interface AdminHomeProps {
@@ -188,6 +189,16 @@ const todayLabel = () =>
   });
 
 
+const INADIMPLENTE_THRESHOLD_DAYS = 20;
+
+const daysOverdue = (dueDate: string): number => {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate + 'T00:00:00');
+  const diff = now.getTime() - due.getTime();
+  return diff > 0 ? Math.floor(diff / (1000 * 60 * 60 * 24)) : 0;
+};
+
 const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNewContract }) => {
   const { activeCompanyId } = useCompanyContext();
   const {
@@ -208,7 +219,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
   }, []);
   const [subView, setSubView] = useState<
     'home' | 'pagaram-hoje' | 'contratos-hoje' |
-    'contratos-vigentes' | 'parcelas-vencendo' | 'parcelas-atrasadas'
+    'contratos-vigentes' | 'parcelas-vencendo' | 'parcelas-atrasadas' | 'parcelas-inadimplentes'
   >('home');
   const [selectedContractId, setSelectedContractId] = useState<number | null>(null);
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
@@ -243,14 +254,20 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
     () => installments.filter(i => i.due_date >= today && i.due_date <= in3Days && i.status !== 'paid').length,
     [installments, today, in3Days],
   );
-  const parcelasAtrasadas = useMemo(
-    () => installments.filter(i => i.due_date < today && i.status !== 'paid').length,
-    [installments, today],
-  );
-  const overdueInstallments = useMemo(
+  const allOverdue = useMemo(
     () => installments.filter(i => i.due_date < today && i.status !== 'paid'),
     [installments, today],
   );
+  const lateInstallments = useMemo(
+    () => allOverdue.filter(i => daysOverdue(i.due_date) < INADIMPLENTE_THRESHOLD_DAYS),
+    [allOverdue],
+  );
+  const defaultedInstallments = useMemo(
+    () => allOverdue.filter(i => daysOverdue(i.due_date) >= INADIMPLENTE_THRESHOLD_DAYS),
+    [allOverdue],
+  );
+  const parcelasAtrasadas = lateInstallments.length;
+  const parcelasInadimplentes = defaultedInstallments.length;
   const parcelasVencendoList = useMemo(
     () => installments.filter(i => i.due_date >= today && i.due_date <= in3Days && i.status !== 'paid'),
     [installments, today, in3Days],
@@ -569,7 +586,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
     );
   }
 
-  // ─── Sub-página: Parcelas Atrasadas ──────────────────────────────────────────
+  // ─── Sub-página: Parcelas Atrasadas (1-19 dias) ─────────────────────────────
   if (subView === 'parcelas-atrasadas') {
     if (selectedInstallment && !installmentAction) {
       return (
@@ -591,8 +608,6 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
       );
     }
 
-    const nowMs = new Date().getTime();
-
     return (
       <div className="space-y-6 pb-12 animate-fade-in">
         <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
@@ -603,33 +618,32 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
             <ArrowLeft size={16} />
             Voltar
           </button>
-          <p className="section-kicker mb-2">Em atraso</p>
+          <p className="section-kicker mb-2">1 a 19 dias</p>
           <h2 className="type-title text-[color:var(--text-primary)] md:text-5xl">
-            Parcelas Atrasadas
+            Recebimentos em Atraso
           </h2>
         </div>
 
-        <div className="panel-card rounded-[2rem] px-6 py-5 flex items-center gap-3" style={{ background: 'rgba(198,126,105,0.08)', border: '1px solid rgba(198,126,105,0.20)' }}>
-          <AlertTriangle size={20} style={{ color: 'var(--accent-danger)' }} />
+        <div className="panel-card rounded-[2rem] px-6 py-5 flex items-center gap-3" style={{ background: 'rgba(200,154,85,0.10)', border: '1px solid rgba(200,154,85,0.24)' }}>
+          <Clock size={20} style={{ color: 'var(--accent-warning)' }} />
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--accent-danger)' }}>Inadimplentes</p>
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--accent-warning)' }}>Recebimentos em atraso</p>
             <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-              {overdueInstallments.length} parcela{overdueInstallments.length !== 1 ? 's' : ''} em atraso
+              {lateInstallments.length} parcela{lateInstallments.length !== 1 ? 's' : ''} com 1 a 19 dias de atraso
             </p>
           </div>
         </div>
 
-        {overdueInstallments.length === 0 ? (
+        {lateInstallments.length === 0 ? (
           <div className="panel-card rounded-[2rem] px-6 py-10 text-center border border-white/[0.06]">
-            <p className="text-sm text-[color:var(--text-secondary)]">Nenhuma parcela em atraso.</p>
+            <p className="text-sm text-[color:var(--text-secondary)]">Nenhuma parcela em atraso recente.</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {overdueInstallments.map(inst => {
+            {lateInstallments.map(inst => {
               const payer = (inst as any).investment?.payer;
               const assetName = (inst as any).investment?.asset_name || 'Contrato';
-              const dueMs = new Date(inst.due_date).getTime();
-              const diasAtraso = Math.floor((nowMs - dueMs) / (1000 * 60 * 60 * 24));
+              const diasAtraso = daysOverdue(inst.due_date);
               const outstanding =
                 (Number(inst.amount_total) || 0) +
                 (Number(inst.fine_amount) || 0) +
@@ -639,8 +653,8 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                 <button
                   key={inst.id}
                   onClick={() => setSelectedInstallment(inst)}
-                  className="w-full panel-card rounded-[1.6rem] border border-white/[0.06] flex items-center justify-between px-5 py-4 hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer text-left"
-                  style={{ borderColor: 'rgba(198,126,105,0.15)' }}
+                  className="w-full panel-card rounded-[1.6rem] flex items-center justify-between px-5 py-4 hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer text-left"
+                  style={{ borderColor: 'rgba(200,154,85,0.20)', border: '1px solid rgba(200,154,85,0.20)' }}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-bold text-[color:var(--text-primary)] truncate">
@@ -652,10 +666,106 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right">
-                      <div className="text-sm font-bold" style={{ color: 'var(--accent-danger)' }}>
+                      <div className="text-sm font-bold" style={{ color: 'var(--accent-warning)' }}>
                         {formatCurrency(outstanding)}
                       </div>
                       <span className="chip chip-late text-[0.65rem]">Atrasado</span>
+                    </div>
+                    <ChevronRight size={16} className="text-[color:var(--text-faint)]" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Sub-página: Inadimplentes (20+ dias) ────────────────────────────────────
+  if (subView === 'parcelas-inadimplentes') {
+    if (selectedInstallment && !installmentAction) {
+      return (
+        <InstallmentDetailScreen
+          installment={selectedInstallment}
+          onBack={() => setSelectedInstallment(null)}
+          onAction={action => setInstallmentAction(action)}
+        />
+      );
+    }
+    if (installmentAction) {
+      return (
+        <InstallmentFormScreen
+          action={installmentAction}
+          onBack={() => setInstallmentAction(null)}
+          onDone={() => { setInstallmentAction(null); setSelectedInstallment(null); refetch(); }}
+          tenant={tenant}
+        />
+      );
+    }
+
+    return (
+      <div className="space-y-6 pb-12 animate-fade-in">
+        <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
+          <button
+            onClick={() => setSubView('home')}
+            className="mb-5 flex items-center gap-2 text-sm font-semibold text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition-colors cursor-pointer"
+          >
+            <ArrowLeft size={16} />
+            Voltar
+          </button>
+          <p className="section-kicker mb-2">20+ dias em atraso</p>
+          <h2 className="type-title text-[color:var(--text-primary)] md:text-5xl">
+            Inadimplentes
+          </h2>
+        </div>
+
+        <div className="panel-card rounded-[2rem] px-6 py-5 flex items-center gap-3" style={{ background: 'rgba(198,126,105,0.08)', border: '1px solid rgba(198,126,105,0.24)' }}>
+          <AlertTriangle size={20} style={{ color: 'var(--accent-danger)' }} />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--accent-danger)' }}>Inadimplentes</p>
+            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+              {defaultedInstallments.length} parcela{defaultedInstallments.length !== 1 ? 's' : ''} com 20+ dias de atraso
+            </p>
+          </div>
+        </div>
+
+        {defaultedInstallments.length === 0 ? (
+          <div className="panel-card rounded-[2rem] px-6 py-10 text-center border border-white/[0.06]">
+            <p className="text-sm text-[color:var(--text-secondary)]">Nenhum inadimplente no momento.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {defaultedInstallments.map(inst => {
+              const payer = (inst as any).investment?.payer;
+              const assetName = (inst as any).investment?.asset_name || 'Contrato';
+              const diasAtraso = daysOverdue(inst.due_date);
+              const outstanding =
+                (Number(inst.amount_total) || 0) +
+                (Number(inst.fine_amount) || 0) +
+                (Number(inst.interest_delay_amount) || 0) -
+                (Number(inst.amount_paid) || 0);
+              return (
+                <button
+                  key={inst.id}
+                  onClick={() => setSelectedInstallment(inst)}
+                  className="w-full panel-card rounded-[1.6rem] flex items-center justify-between px-5 py-4 hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer text-left"
+                  style={{ borderColor: 'rgba(198,126,105,0.20)', border: '1px solid rgba(198,126,105,0.20)' }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-[color:var(--text-primary)] truncate">
+                      {payer?.full_name || '—'}
+                    </div>
+                    <div className="text-xs text-[color:var(--text-faint)] mt-0.5 truncate">
+                      {assetName} · Parcela {inst.number} · {diasAtraso}d em atraso
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-right">
+                      <div className="text-sm font-bold" style={{ color: 'var(--accent-danger)' }}>
+                        {formatCurrency(outstanding)}
+                      </div>
+                      <span className="chip chip-late text-[0.65rem]">Inadimplente</span>
                     </div>
                     <ChevronRight size={16} className="text-[color:var(--text-faint)]" />
                   </div>
@@ -719,22 +829,22 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
         </div>
       )}
 
-      {/* ── Aba: Inadimplentes ────────────────────────────────────────────── */}
+      {/* ── Aba: Inadimplentes (20+ dias) ─────────────────────────────────── */}
       {activeTab === 'inadimplentes' && (
         <div className="space-y-4">
           <button onClick={() => setActiveTab('home')} className="flex items-center gap-2 text-sm font-semibold px-1 py-2 transition-colors" style={{ color: 'var(--text-muted)' }}>
             <ArrowLeft size={16} /> Voltar
           </button>
-          <div className="panel-card rounded-[2rem] px-6 py-5 flex items-center gap-3" style={{ background: 'rgba(198,126,105,0.08)', border: '1px solid rgba(198,126,105,0.20)' }}>
+          <div className="panel-card rounded-[2rem] px-6 py-5 flex items-center gap-3" style={{ background: 'rgba(198,126,105,0.08)', border: '1px solid rgba(198,126,105,0.24)' }}>
             <AlertTriangle size={20} style={{ color: 'var(--accent-danger)' }} />
             <div>
-              <p className="type-label" style={{ color: 'var(--accent-danger)' }}>Inadimplentes</p>
+              <p className="type-label" style={{ color: 'var(--accent-danger)' }}>Inadimplentes — 20+ dias</p>
               <p className="type-body font-bold" style={{ color: 'var(--text-primary)' }}>
-                {parcelasAtrasadas} parcela{parcelasAtrasadas !== 1 ? 's' : ''} em atraso
+                {parcelasInadimplentes} parcela{parcelasInadimplentes !== 1 ? 's' : ''} com 20+ dias de atraso
               </p>
             </div>
           </div>
-          <CollectionDashboard key={collectionKey} initialBucket="overdue" installments={overdueInstallments} onUpdate={refetch} tenant={tenant} />
+          <CollectionDashboard key={collectionKey} initialBucket="overdue" installments={defaultedInstallments} onUpdate={refetch} tenant={tenant} />
         </div>
       )}
 
@@ -794,8 +904,14 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                 {
                   label: 'Atrasados',
                   value: parcelasAtrasadas,
-                  color: '#F44336',
+                  color: '#FF9800',
                   onClick: () => setSubView('parcelas-atrasadas'),
+                },
+                {
+                  label: 'Inadimplentes',
+                  value: parcelasInadimplentes,
+                  color: '#D32F2F',
+                  onClick: () => setSubView('parcelas-inadimplentes'),
                 },
               ].map(stat => (
                 <button
