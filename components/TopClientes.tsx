@@ -81,6 +81,9 @@ const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientC
           <ArrowLeft size={16} />
           Voltar
         </button>
+        <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl" style={{ background: 'rgba(202,176,122,0.14)' }}>
+          <Crown size={22} style={{ color: 'var(--accent-brass)' }} />
+        </div>
         <p className="section-kicker mb-2">Ranking</p>
         <h2 className="type-title text-[color:var(--text-primary)] md:text-5xl">
           Top Clientes
@@ -89,24 +92,32 @@ const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientC
 
       {/* ── KPI cards ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="panel-card rounded-[2rem] px-5 py-5 border border-white/[0.06]">
-          <Users size={20} className="mb-2" style={{ color: 'var(--accent-brass)' }} />
-          <p className="text-2xl font-bold text-[color:var(--text-primary)]">{kpis.totalClientes}</p>
+        <div className="panel-card card-hover rounded-[2rem] p-4 md:p-5 flex flex-col">
+          <div className="mb-3 w-fit rounded-2xl p-2.5" style={{ background: 'rgba(202,176,122,0.14)' }}>
+            <Users size={18} style={{ color: 'var(--accent-brass)' }} />
+          </div>
+          <p className="type-metric-lg text-[color:var(--text-primary)]">{kpis.totalClientes}</p>
           <p className="type-caption text-[color:var(--text-muted)]">Total Clientes</p>
         </div>
-        <div className="panel-card rounded-[2rem] px-5 py-5 border border-white/[0.06]">
-          <Target size={20} className="mb-2" style={{ color: 'var(--accent-brass)' }} />
-          <p className="text-2xl font-bold text-[color:var(--text-primary)]">{kpis.mediaScore}</p>
+        <div className="panel-card card-hover rounded-[2rem] p-4 md:p-5 flex flex-col">
+          <div className="mb-3 w-fit rounded-2xl p-2.5" style={{ background: 'rgba(202,176,122,0.14)' }}>
+            <Target size={18} style={{ color: 'var(--accent-brass)' }} />
+          </div>
+          <p className="type-metric-lg text-[color:var(--text-primary)]">{kpis.mediaScore}</p>
           <p className="type-caption text-[color:var(--text-muted)]">Score Médio</p>
         </div>
-        <div className="panel-card rounded-[2rem] px-5 py-5 border border-white/[0.06]">
-          <ShieldCheck size={20} className="mb-2" style={{ color: '#22c55e' }} />
-          <p className="text-2xl font-bold text-[color:var(--text-primary)]">{kpis.clientesPontuais}</p>
+        <div className="panel-card card-hover rounded-[2rem] p-4 md:p-5 flex flex-col">
+          <div className="mb-3 w-fit rounded-2xl p-2.5" style={{ background: 'rgba(52,211,153,0.12)' }}>
+            <ShieldCheck size={18} style={{ color: 'var(--accent-positive)' }} />
+          </div>
+          <p className="type-metric-lg text-[color:var(--text-primary)]">{kpis.clientesPontuais}</p>
           <p className="type-caption text-[color:var(--text-muted)]">Pontuais (≥70)</p>
         </div>
-        <div className="panel-card rounded-[2rem] px-5 py-5 border border-white/[0.06]">
-          <ShieldAlert size={20} className="mb-2" style={{ color: '#ef4444' }} />
-          <p className="text-2xl font-bold text-[color:var(--text-primary)]">{kpis.clientesRisco}</p>
+        <div className="panel-card card-hover rounded-[2rem] p-4 md:p-5 flex flex-col">
+          <div className="mb-3 w-fit rounded-2xl p-2.5" style={{ background: 'rgba(248,113,113,0.12)' }}>
+            <ShieldAlert size={18} style={{ color: 'var(--accent-danger)' }} />
+          </div>
+          <p className="type-metric-lg text-[color:var(--text-primary)]">{kpis.clientesRisco}</p>
           <p className="type-caption text-[color:var(--text-muted)]">Em Risco (&lt;40)</p>
         </div>
       </div>
@@ -114,7 +125,7 @@ const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientC
       {/* ── Lista de clientes ───────────────────────────────────────────── */}
       <div className="panel-card rounded-[2rem] px-6 py-6 md:px-8 md:py-8">
         {/* Controles de ordenação */}
-        <div className="flex items-center gap-2 flex-wrap mb-5">
+        <div className="flex items-center gap-2 flex-wrap border-b border-white/[0.06] pb-4 mb-5">
           <ArrowUpDown size={16} style={{ color: 'var(--text-faint)' }} />
           <span className="type-caption mr-1 text-[color:var(--text-muted)]">Ordenar:</span>
           {([
@@ -126,7 +137,7 @@ const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientC
             <button
               key={key}
               onClick={() => setSortBy(key)}
-              className="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
+              className="rounded-full px-4 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
               style={{
                 background: sortBy === key ? 'rgba(202,176,122,0.14)' : 'transparent',
                 color: sortBy === key ? 'var(--accent-brass)' : 'var(--text-muted)',
@@ -153,7 +164,7 @@ const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientC
                 <button
                   key={c.profileId}
                   onClick={() => onClientClick(c.profileId)}
-                  className="w-full panel-card rounded-[1.6rem] border border-white/[0.06] flex items-center gap-4 px-5 py-4 text-left hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer"
+                  className="w-full panel-card card-hover rounded-[1.6rem] border border-white/[0.06] flex items-center gap-4 px-5 py-4 text-left active:bg-white/[0.05] transition-colors cursor-pointer"
                 >
                   {/* Position */}
                   <div
