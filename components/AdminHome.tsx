@@ -40,7 +40,7 @@ interface AdminHomeProps {
 }
 
 const useHomeData = (tenantId?: string, companyId?: string | null) => {
-  const { investments, installments, loading, refetch } = useDashboardData(tenantId, companyId);
+  const { investments, installments, allPaidInstallments, loading, refetch } = useDashboardData(tenantId, companyId);
   const [clientCount, setClientCount] = useState(0);
   const [profiles, setProfiles] = useState<Profile[]>([]);
 
@@ -97,6 +97,7 @@ const useHomeData = (tenantId?: string, companyId?: string | null) => {
   return {
     investments,
     installments,
+    allPaidInstallments,
     loading,
     refetch,
     profiles,
@@ -204,6 +205,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
   const {
     investments,
     installments,
+    allPaidInstallments,
     loading,
     refetch,
     profiles,
@@ -883,7 +885,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
           <button onClick={() => setActiveTab('home')} className="flex items-center gap-2 text-sm font-semibold px-1 py-2 transition-colors" style={{ color: 'var(--text-muted)' }}>
             <ArrowLeft size={16} /> Voltar
           </button>
-          <SalaryDashboard installments={installments} tenant={tenant} onUpdate={refetch} />
+          <SalaryDashboard installments={allPaidInstallments} tenant={tenant} onUpdate={refetch} />
         </div>
       )}
 
