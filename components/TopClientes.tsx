@@ -30,10 +30,17 @@ const maskCPF = (cpf?: string) => {
   return `${cpf.slice(0, 3)}.***.***.${cpf.slice(-2)}`;
 };
 
-const scoreBadge = (score: number) => {
+const scoreBadge = (score: number, hasResolved: boolean) => {
+  if (!hasResolved) return { bg: 'rgba(148,163,184,0.12)', color: '#94a3b8', label: 'Novo' };
   if (score >= 70) return { bg: 'rgba(34,197,94,0.12)', color: '#22c55e', label: 'Pontual' };
   if (score >= 40) return { bg: 'rgba(234,179,8,0.12)', color: '#eab308', label: 'Regular' };
   return { bg: 'rgba(239,68,68,0.12)', color: '#ef4444', label: 'Risco' };
+};
+
+const rankColors: Record<number, { bg: string; color: string }> = {
+  1: { bg: 'rgba(255,215,0,0.18)', color: '#FFD700' },
+  2: { bg: 'rgba(192,192,192,0.18)', color: '#C0C0C0' },
+  3: { bg: 'rgba(205,127,50,0.18)', color: '#CD7F32' },
 };
 
 const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientClick }) => {
@@ -103,21 +110,21 @@ const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientC
           <div className="mb-3 w-fit rounded-2xl p-2.5" style={{ background: 'rgba(202,176,122,0.14)' }}>
             <Target size={18} style={{ color: 'var(--accent-brass)' }} />
           </div>
-          <p className="type-metric-lg text-[color:var(--text-primary)]">{kpis.mediaScore}</p>
+          <p className="type-metric-lg text-[color:var(--text-primary)]">{Math.round(kpis.mediaScore)} <span className="text-xs font-normal text-[color:var(--text-faint)]">/ 100</span></p>
           <p className="type-caption text-[color:var(--text-muted)]">Score Médio</p>
         </div>
         <div className="panel-card card-hover rounded-[2rem] p-4 md:p-5 flex flex-col">
           <div className="mb-3 w-fit rounded-2xl p-2.5" style={{ background: 'rgba(52,211,153,0.12)' }}>
             <ShieldCheck size={18} style={{ color: 'var(--accent-positive)' }} />
           </div>
-          <p className="type-metric-lg text-[color:var(--text-primary)]">{kpis.clientesPontuais}</p>
+          <p className="type-metric-lg text-[color:var(--text-primary)]">{kpis.clientesPontuais} {kpis.totalClientes > 0 && <span className="text-xs font-normal text-[color:var(--text-faint)]">({Math.round(kpis.clientesPontuais / kpis.totalClientes * 100)}%)</span>}</p>
           <p className="type-caption text-[color:var(--text-muted)]">Pontuais (≥70)</p>
         </div>
         <div className="panel-card card-hover rounded-[2rem] p-4 md:p-5 flex flex-col">
           <div className="mb-3 w-fit rounded-2xl p-2.5" style={{ background: 'rgba(248,113,113,0.12)' }}>
             <ShieldAlert size={18} style={{ color: 'var(--accent-danger)' }} />
           </div>
-          <p className="type-metric-lg text-[color:var(--text-primary)]">{kpis.clientesRisco}</p>
+          <p className="type-metric-lg text-[color:var(--text-primary)]">{kpis.clientesRisco} {kpis.totalClientes > 0 && <span className="text-xs font-normal text-[color:var(--text-faint)]">({Math.round(kpis.clientesRisco / kpis.totalClientes * 100)}%)</span>}</p>
           <p className="type-caption text-[color:var(--text-muted)]">Em Risco (&lt;40)</p>
         </div>
       </div>
@@ -149,6 +156,13 @@ const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientC
           ))}
         </div>
 
+        {/* Contagem */}
+        {sorted.length > 0 && (
+          <p className="type-caption text-[color:var(--text-faint)] mb-4">
+            Exibindo {sorted.length} cliente{sorted.length !== 1 ? 's' : ''}
+          </p>
+        )}
+
         {/* Lista */}
         {sorted.length === 0 ? (
           <div className="panel-card rounded-[2rem] px-6 py-10 text-center border border-white/[0.06]">
@@ -158,8 +172,11 @@ const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientC
         ) : (
           <div className="space-y-2">
             {sorted.map((c, idx) => {
-              const badge = scoreBadge(c.score);
+              const badge = scoreBadge(c.score, c.hasResolved);
               const position = idx + 1;
+              const rank = rankColors[position];
+              const punctPct = Math.round(c.punctualityRate * 100);
+              const scoreInt = Math.round(c.score);
               return (
                 <button
                   key={c.profileId}
@@ -170,8 +187,8 @@ const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientC
                   <div
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold"
                     style={{
-                      background: position <= 3 ? 'rgba(202,176,122,0.18)' : 'var(--bg-elevated)',
-                      color: position <= 3 ? 'var(--accent-brass)' : 'var(--text-muted)',
+                      background: rank?.bg || 'var(--bg-elevated)',
+                      color: rank?.color || 'var(--text-muted)',
                     }}
                   >
                     {position <= 3 ? <Crown size={16} /> : position}
@@ -185,16 +202,34 @@ const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientC
                     <p className="type-caption text-[color:var(--text-faint)]">
                       CPF {maskCPF(c.cpf)} · {c.totalContracts} contrato{c.totalContracts !== 1 ? 's' : ''} · {fmtMoney(c.totalPrincipal)}
                     </p>
+                    {c.hasResolved && (
+                      <p className="type-caption mt-0.5">
+                        <span style={{ color: punctPct >= 70 ? '#22c55e' : punctPct >= 40 ? '#eab308' : '#ef4444' }}>
+                          {punctPct}% pontual
+                        </span>
+                        {c.overdue > 0 && (
+                          <span style={{ color: '#ef4444' }}> · {c.overdue} em atraso</span>
+                        )}
+                      </p>
+                    )}
                   </div>
 
-                  {/* Score badge */}
-                  <div className="shrink-0 text-right">
+                  {/* Score badge + progress bar */}
+                  <div className="shrink-0 text-right min-w-[52px]">
                     <span
                       className="inline-block rounded-lg px-2.5 py-1 text-xs font-bold"
                       style={{ background: badge.bg, color: badge.color }}
                     >
-                      {c.score}
+                      {c.hasResolved ? scoreInt : '—'}
                     </span>
+                    {c.hasResolved && (
+                      <div className="mt-1.5 h-[3px] rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${scoreInt}%`, background: badge.color }}
+                        />
+                      </div>
+                    )}
                     <p className="type-caption mt-0.5" style={{ color: badge.color }}>{badge.label}</p>
                   </div>
 

@@ -16,6 +16,7 @@ export interface ClienteScore {
   punctualityRate: number;
   completionRate: number;
   score: number;
+  hasResolved: boolean;
 }
 
 export interface TopClientesKPIs {
@@ -180,6 +181,7 @@ export function useTopClientes(tenantId: string | undefined, companyId?: string 
         punctualityRate,
         completionRate,
         score: Math.round(score * 10) / 10,
+        hasResolved: resolved.length > 0,
       });
     }
 
