@@ -30,6 +30,7 @@ interface ActionSummary {
 import { getSupabase, parseSupabaseError } from '../services/supabase';
 import { logPaymentTransaction, calcBreakdown } from '../services/paymentAudit';
 import ReceiptTemplate from './ReceiptTemplate';
+import { useCompanyContext } from '../services/companyScope';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -428,6 +429,7 @@ interface InstallmentFormScreenProps {
 export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
   action, tenant, payerName, onBack, onSuccess,
 }) => {
+  const { activeCompany } = useCompanyContext();
   const { installment } = action;
   const outstanding = calcOutstanding(installment);
 
@@ -1042,7 +1044,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
           <h2 className="type-subheading text-[color:var(--text-primary)]">Comprovante</h2>
         </div>
         <div className="flex-1 overflow-y-auto" style={{ background: "#0a0a0f" }}>
-          <ReceiptTemplate installment={installment} tenant={tenant}
+          <ReceiptTemplate installment={installment} tenant={tenant} companyName={activeCompany?.name}
             payerName={payerName || (installment as any).investment?.payer?.full_name} onClose={onBack} />
         </div>
       </div>

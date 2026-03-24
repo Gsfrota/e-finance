@@ -455,6 +455,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                     onChange={(event) => setCompanyName(event.target.value)}
                     className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-[color:var(--text-primary)] text-sm outline-none"
                   />
+                  <p className="mt-1.5 text-xs text-[color:var(--text-faint)]">Este nome aparece nos comprovantes de pagamento enviados aos clientes.</p>
                 </div>
                 <div>
                   <label className="block type-label text-[color:var(--text-muted)] mb-2">Fuso horário</label>
