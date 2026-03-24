@@ -579,6 +579,24 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     if (data) setDeferredInstallment(data as any);
   };
 
+  // Re-fetch parcela para evitar pagamento duplicado (dados stale em outra tela)
+  const checkStaleAndRefresh = async (): Promise<boolean> => {
+    const supabase = getSupabase(); if (!supabase) return false;
+    const { data } = await supabase
+      .from('loan_installments')
+      .select('status, amount_paid, amount_total, fine_amount, interest_delay_amount')
+      .eq('id', installment.id)
+      .single();
+    if (!data) return false;
+    const freshOutstanding = Math.max(0,
+      normalizeNum(data.amount_total) + normalizeNum(data.fine_amount) + normalizeNum(data.interest_delay_amount) - normalizeNum(data.amount_paid));
+    if (data.status === 'paid' || freshOutstanding <= 0.01) {
+      setError('Esta parcela já foi quitada (possivelmente em outra tela). Atualize a lista.');
+      return false;
+    }
+    return true;
+  };
+
   const handlePayStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseFloat(amount);
@@ -596,12 +614,14 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
       await loadContext();
       setPayStep(2);
     } else {
+      if (!(await checkStaleAndRefresh())) return;
       await submitPayment(val, null, 0);
     }
   };
 
   const handlePaySurplusStep = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!(await checkStaleAndRefresh())) return;
     setLoading(true); setError(null);
     const supabase = getSupabase(); if (!supabase) return;
     try {
@@ -804,6 +824,8 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
   const submitPayment = async (val: number, action2: 'last' | 'next' | 'new' | null, rate: number) => {
     setLoading(true); setError(null);
     const supabase = getSupabase(); if (!supabase) return;
+    // Verificação anti-duplicidade (caso venha do handlePayStep2 ou handleMissedStep)
+    if (!(await checkStaleAndRefresh())) { setLoading(false); return; }
     try {
       // Se houve falta com juros, aplicar interest_delay_amount antes do pagamento
       if (useMissedInterest && missedInterestRate) {

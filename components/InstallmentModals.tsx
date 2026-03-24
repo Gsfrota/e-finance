@@ -220,6 +220,25 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
     }
   };
 
+  // Re-fetch parcela para evitar pagamento duplicado (dados stale em outra tela)
+  const checkStaleAndRefresh = async (): Promise<boolean> => {
+    if (!installment) return false;
+    const supabase = getSupabase(); if (!supabase) return false;
+    const { data } = await supabase
+      .from('loan_installments')
+      .select('status, amount_paid, amount_total, fine_amount, interest_delay_amount')
+      .eq('id', installment.id)
+      .single();
+    if (!data) return false;
+    const freshOutstanding = Math.max(0,
+      normalizeNumber(data.amount_total) + normalizeNumber(data.fine_amount) + normalizeNumber(data.interest_delay_amount) - normalizeNumber(data.amount_paid));
+    if (data.status === 'paid' || freshOutstanding <= 0.01) {
+      setError('Esta parcela já foi quitada (possivelmente em outra tela). Feche e atualize a lista.');
+      return false;
+    }
+    return true;
+  };
+
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const handleStep1Next = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -235,6 +254,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       setStep2Mode('partial');
       setStep(2);
     } else {
+      if (!(await checkStaleAndRefresh())) return;
       await submitPayment(val, null, 0);
     }
   };
@@ -249,6 +269,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   const handleStep2SurplusConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!installment) return;
+    if (!(await checkStaleAndRefresh())) return;
     setLoading(true);
     setError(null);
     const supabase = getSupabase();
@@ -429,6 +450,8 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
     setError(null);
     const supabase = getSupabase();
     if (!supabase) return;
+    // Verificação anti-duplicidade
+    if (!(await checkStaleAndRefresh())) { setLoading(false); return; }
     try {
       const { error: payErr } = await supabase.rpc('pay_installment', {
         p_installment_id: installment.id,
