@@ -7,6 +7,7 @@ import { X, CheckCircle2, Calendar, DollarSign, Loader2, AlertTriangle, RefreshC
 import { parseSupabaseError } from '../services/supabase';
 import ReceiptTemplate from './ReceiptTemplate';
 import { logPaymentTransaction, calcBreakdown } from '../services/paymentAudit';
+import { useCompanyContext } from '../services/companyScope';
 
 // --- SHARED TYPES & HELPERS ---
 
@@ -81,6 +82,7 @@ interface InstallmentContext {
 }
 
 export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess, installment, tenant, payerName }) => {
+  const { activeCompany } = useCompanyContext();
   // ── Step control ────────────────────────────────────────────────────────────
   const [step, setStep] = useState<1 | 2>(1);
 
@@ -509,7 +511,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   if (isReceiptMode && tenant) {
     return ReactDOM.createPortal(
       <div data-html2canvas-ignore="true" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#0d0d14' }} onClick={(e) => e.stopPropagation()}>
-        <ReceiptTemplate installment={installment} tenant={tenant} payerName={payerName || installment.investment?.payer?.full_name} paymentMethod={paymentMethod} onClose={onClose} />
+        <ReceiptTemplate installment={installment} tenant={tenant} companyName={activeCompany?.name} payerName={payerName || installment.investment?.payer?.full_name} paymentMethod={paymentMethod} onClose={onClose} />
       </div>,
       document.body
     );

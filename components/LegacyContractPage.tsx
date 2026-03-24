@@ -1,12 +1,14 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   ArrowLeft, CheckCircle2, Loader2, AlertTriangle,
   User, UserPlus, Search, X, Key, Mail, Phone, History,
+  Percent, Banknote, Activity, Calendar, CalendarDays, CalendarClock, Zap,
 } from 'lucide-react';
 import { fetchProfileByAuthUserId, getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { Profile, Tenant } from '../types';
 import { useCompanyContext } from '../services/companyScope';
+import { calculateFinancials, formatCurrency, buildFreelancerDates } from '../utils/financials';
 
 interface LegacyContractPageProps {
   onBack: () => void;
@@ -23,6 +25,8 @@ const maskCPF = (v: string) => {
 const inputCls = "w-full min-w-0 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:border-teal-500 outline-none transition-all";
 const labelCls = "type-micro text-[color:var(--text-muted)] block mb-1";
 const sectionCls = "bg-slate-800 rounded-2xl p-4 md:p-6 border border-slate-700 space-y-3 overflow-hidden";
+
+const WEEKDAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSuccess }) => {
   const { activeCompanyId } = useCompanyContext();
@@ -45,16 +49,25 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
 
   // Valores
   const [amountInvested, setAmountInvested] = useState('');
-  const [currentValue, setCurrentValue] = useState('');
-  const [installmentValue, setInstallmentValue] = useState('');
   const [totalInstallments, setTotalInstallments] = useState('12');
+
+  // Modo de cálculo
+  const [calculationMode, setCalculationMode] = useState<'auto' | 'manual' | 'interest_only'>('manual');
+  const [interestRate, setInterestRate] = useState('');
+  const [installmentValue, setInstallmentValue] = useState('');
+  const [bulletPrincipalMode, setBulletPrincipalMode] = useState<'together' | 'separate'>('together');
 
   // Origem
   const [sourceType, setSourceType] = useState<'own' | 'profit'>('own');
 
   // Vencimento
-  const [frequency, setFrequency] = useState<'monthly' | 'weekly' | 'daily'>('monthly');
+  const [frequency, setFrequency] = useState<'monthly' | 'weekly' | 'daily' | 'freelancer'>('monthly');
   const [dueDay, setDueDay] = useState('10');
+  const [weekday, setWeekday] = useState(1);
+  const [skipSaturday, setSkipSaturday] = useState(false);
+  const [skipSunday, setSkipSunday] = useState(false);
+  const [freelancerDates, setFreelancerDates] = useState<string[]>([]);
+  const [freelancerInterval, setFreelancerInterval] = useState(7);
 
   // Dados do contrato antigo
   const [legacyFirstDueDate, setLegacyFirstDueDate] = useState('');
@@ -65,6 +78,24 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [done, setDone] = useState(false);
+
+  // Financials calculados
+  const financials = useMemo(() => {
+    return calculateFinancials(
+      Number(amountInvested) || 0,
+      parseInt(totalInstallments) || 1,
+      Number(interestRate) || 0,
+      calculationMode,
+      Number(installmentValue) || 0,
+      bulletPrincipalMode,
+    );
+  }, [amountInvested, totalInstallments, interestRate, calculationMode, installmentValue, bulletPrincipalMode]);
+
+  const totalParcelasGeradas = useMemo(() => {
+    const n = parseInt(totalInstallments) || 1;
+    if (calculationMode === 'interest_only' && bulletPrincipalMode === 'separate') return n + 1;
+    return n;
+  }, [totalInstallments, calculationMode, bulletPrincipalMode]);
 
   // Carregar dados ao montar
   useEffect(() => {
@@ -114,17 +145,30 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
     if (!investorId) { setCreateError('Nenhum investidor encontrado.'); return; }
 
     const principal = Number(amountInvested) || 0;
-    const total = Number(currentValue) || 0;
-    const parcela = Number(installmentValue) || 0;
     const nParcelas = parseInt(totalInstallments) || 0;
 
-    if (!principal || !total || !parcela || !nParcelas) {
-      setCreateError('Preencha todos os campos de valores.');
+    if (!principal || !nParcelas) {
+      setCreateError('Preencha o valor emprestado e o número de parcelas.');
+      return;
+    }
+
+    if (calculationMode === 'manual' && !financials.installmentValue) {
+      setCreateError('Preencha o valor da parcela.');
+      return;
+    }
+
+    if ((calculationMode === 'auto' || calculationMode === 'interest_only') && !(Number(interestRate) > 0)) {
+      setCreateError('Preencha a taxa de juros.');
       return;
     }
 
     if (!legacyFirstDueDate) {
       setCreateError('Informe a data da 1ª parcela.');
+      return;
+    }
+
+    if (frequency === 'freelancer' && freelancerDates.length !== nParcelas) {
+      setCreateError(`Informe exatamente ${nParcelas} datas para o modo livre.`);
       return;
     }
 
@@ -135,9 +179,6 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
 
     const sourceCapital = sourceType === 'own' ? principal : 0;
     const sourceProfit = sourceType === 'profit' ? principal : 0;
-    const interestRate = principal > 0
-      ? Number((((total - principal) / principal) * 100).toFixed(2))
-      : 0;
 
     const debtorName = matchedDebtor?.full_name || newDebtor.full_name || 'Cliente';
 
@@ -150,16 +191,21 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
         p_amount_invested:    principal,
         p_source_capital:     sourceCapital,
         p_source_profit:      sourceProfit,
-        p_current_value:      total,
-        p_interest_rate:      interestRate,
-        p_installment_value:  parcela,
+        p_current_value:      financials.totalValue,
+        p_interest_rate:      financials.interestRate,
+        p_installment_value:  financials.installmentValue,
         p_total_installments: nParcelas,
         p_frequency:          frequency,
         p_first_due_date:     legacyFirstDueDate,
         p_paid_count:         legacyPaidCount,
-        p_calculation_mode:   'manual',
+        p_calculation_mode:   calculationMode,
         p_original_code:      legacyCode.trim() || null,
         p_company_id:         activeCompanyId || null,
+        p_skip_saturday:      frequency === 'daily' ? skipSaturday : false,
+        p_skip_sunday:        frequency === 'daily' ? skipSunday : false,
+        p_weekday:            frequency === 'weekly' ? weekday : null,
+        p_custom_dates:       frequency === 'freelancer' ? freelancerDates : null,
+        p_bullet_principal_mode: calculationMode === 'interest_only' ? bulletPrincipalMode : null,
       });
       if (error) throw error;
       setDone(true);
@@ -210,20 +256,25 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
     setNewDebtor({ full_name: '', email: '', phone_number: '', cpf: '' });
     setCpfError('');
     setAmountInvested('');
-    setCurrentValue('');
-    setInstallmentValue('');
     setTotalInstallments('12');
+    setCalculationMode('manual');
+    setInterestRate('');
+    setInstallmentValue('');
+    setBulletPrincipalMode('together');
     setSourceType('own');
     setFrequency('monthly');
     setDueDay('10');
+    setWeekday(1);
+    setSkipSaturday(false);
+    setSkipSunday(false);
+    setFreelancerDates([]);
+    setFreelancerInterval(7);
     setLegacyFirstDueDate('');
     setLegacyPaidCount(0);
     setLegacyCode('');
     setCreateError('');
     setDone(false);
   };
-
-  const maxParcelas = parseInt(totalInstallments) || 1;
 
   if (loadingData) {
     return (
@@ -302,7 +353,7 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
         </div>
       </div>
 
-      {/* Seção 1: Devedor */}
+      {/* Secao 1: Devedor */}
       <div className="bg-slate-800 rounded-2xl p-4 md:p-6 border border-slate-700 space-y-3">
         <p className="type-label text-[color:var(--text-muted)]">Devedor</p>
 
@@ -451,34 +502,160 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
         )}
       </div>
 
-      {/* Seção 2: Valores */}
+      {/* Secao 2: Valor Emprestado + Parcelas */}
       <div className={sectionCls}>
         <p className="type-label text-[color:var(--text-muted)]">Valores</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className={labelCls}>Principal (R$)</label>
+            <label className={labelCls}>Valor Emprestado (R$)</label>
             <input type="number" inputMode="decimal" className={inputCls} value={amountInvested}
               onChange={e => setAmountInvested(e.target.value)} placeholder="0.00" />
+            <p className="text-[10px] text-slate-500 mt-0.5">Quanto foi emprestado ao devedor</p>
           </div>
           <div>
-            <label className={labelCls}>Total a Receber (R$)</label>
-            <input type="number" inputMode="decimal" className={inputCls} value={currentValue}
-              onChange={e => setCurrentValue(e.target.value)} placeholder="0.00" />
-          </div>
-          <div>
-            <label className={labelCls}>Valor da Parcela (R$)</label>
-            <input type="number" inputMode="decimal" className={inputCls} value={installmentValue}
-              onChange={e => setInstallmentValue(e.target.value)} placeholder="0.00" />
-          </div>
-          <div>
-            <label className={labelCls}>Nº de Parcelas</label>
+            <label className={labelCls}>N. de Parcelas</label>
             <input type="number" inputMode="numeric" className={inputCls} value={totalInstallments}
               onChange={e => { setTotalInstallments(e.target.value); setLegacyPaidCount(0); }} placeholder="12" />
           </div>
         </div>
       </div>
 
-      {/* Seção 3: Origem do Capital */}
+      {/* Secao 3: Modo de Calculo */}
+      <div className={sectionCls}>
+        <p className="type-label text-[color:var(--text-muted)]">Modo de Calculo</p>
+
+        {/* Seletor de modo */}
+        <div className="bg-slate-900 p-1 rounded-xl border border-slate-700 flex">
+          {([
+            { mode: 'auto' as const, icon: <Percent size={13} />, label: 'Taxa (%)' },
+            { mode: 'manual' as const, icon: <Banknote size={13} />, label: 'Fixo (R$)' },
+            { mode: 'interest_only' as const, icon: <Activity size={13} />, label: 'Bullet' },
+          ]).map(({ mode, icon, label }) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setCalculationMode(mode)}
+              className={`flex-1 py-2 rounded-lg type-label flex items-center justify-center gap-1.5 transition-all text-xs ${
+                calculationMode === mode
+                  ? 'bg-slate-700 text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {icon} {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Modo Auto: input taxa */}
+        {calculationMode === 'auto' && (
+          <div className="space-y-2">
+            <div>
+              <label className={labelCls}>Taxa de Juros (%)</label>
+              <input type="number" inputMode="decimal" step="0.1" className={inputCls}
+                value={interestRate}
+                onChange={e => setInterestRate(e.target.value)}
+                placeholder="Ex: 5" />
+            </div>
+            {financials.installmentValue > 0 && (
+              <div className="text-xs text-slate-400">
+                Parcela estimada: <strong className="text-white">{formatCurrency(financials.installmentValue)}</strong>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Modo Manual: input valor da parcela */}
+        {calculationMode === 'manual' && (
+          <div className="space-y-2">
+            <div>
+              <label className={labelCls}>Valor da Parcela (R$)</label>
+              <input type="number" inputMode="decimal" step="0.01" className={inputCls}
+                value={installmentValue}
+                onChange={e => setInstallmentValue(e.target.value)}
+                placeholder="0.00" />
+            </div>
+            {financials.interestRate > 0 && (
+              <div className="text-xs text-slate-400">
+                Taxa implicita: <strong className="text-white">{financials.interestRate.toFixed(2)}%</strong>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Modo Bullet: taxa + modo de devolucao */}
+        {calculationMode === 'interest_only' && (
+          <div className="space-y-3">
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+              <p className="text-[11px] text-amber-300 leading-relaxed">
+                O devedor paga somente juros por parcela (simples, sobre o principal original). O principal e devolvido no final.
+              </p>
+            </div>
+            <div>
+              <label className={labelCls}>Taxa de Juros (% a.m.)</label>
+              <input type="number" inputMode="decimal" step="0.1" className={inputCls}
+                value={interestRate}
+                onChange={e => setInterestRate(e.target.value)}
+                placeholder="Ex: 3" />
+            </div>
+            {financials.installmentValue > 0 && (
+              <div className="text-xs text-slate-400">
+                Juros por parcela: <strong className="text-amber-400">{formatCurrency(financials.installmentValue)}</strong>
+              </div>
+            )}
+            <div>
+              <p className="type-micro text-[color:var(--text-muted)] mb-1.5">Devolucao do Principal</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBulletPrincipalMode('together')}
+                  className={`p-2.5 rounded-xl border transition-all text-left ${
+                    bulletPrincipalMode === 'together'
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                      : 'bg-slate-900 border-slate-700 text-slate-500 hover:border-slate-600'
+                  }`}
+                >
+                  <p className="text-xs font-bold">Junto</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Ultima parcela = juros + principal</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulletPrincipalMode('separate')}
+                  className={`p-2.5 rounded-xl border transition-all text-left ${
+                    bulletPrincipalMode === 'separate'
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                      : 'bg-slate-900 border-slate-700 text-slate-500 hover:border-slate-600'
+                  }`}
+                >
+                  <p className="text-xs font-bold">Separado</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Parcela extra so para o principal</p>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Resumo calculado */}
+        {(Number(amountInvested) > 0 && financials.totalValue > 0) && (
+          <div className="bg-slate-900 rounded-xl p-3 border border-slate-700 space-y-1">
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-500">Total a receber</span>
+              <span className="text-white font-bold">{formatCurrency(financials.totalValue)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-500">Lucro</span>
+              <span className="text-emerald-400 font-bold">{formatCurrency(financials.totalValue - (Number(amountInvested) || 0))}</span>
+            </div>
+            {calculationMode === 'interest_only' && bulletPrincipalMode === 'separate' && (
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-500">Parcelas geradas</span>
+                <span className="text-amber-400 font-bold">{parseInt(totalInstallments) || 1} juros + 1 principal</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Secao 4: Origem do Capital */}
       <div className={sectionCls}>
         <p className="type-label text-[color:var(--text-muted)]">Origem do Capital</p>
         <div className="flex gap-2">
@@ -487,7 +664,7 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
             onClick={() => setSourceType('own')}
             className={`flex-1 py-2 rounded-xl type-label transition-all ${sourceType === 'own' ? 'bg-teal-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-700 hover:border-slate-600'}`}
           >
-            Capital Próprio
+            Capital Proprio
           </button>
           <button
             type="button"
@@ -499,40 +676,166 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
         </div>
       </div>
 
-      {/* Seção 4: Vencimento */}
+      {/* Secao 5: Vencimento */}
       <div className={sectionCls}>
-        <p className="type-label text-[color:var(--text-muted)]">Vencimento</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls}>Frequência</label>
-            <select
-              className={inputCls}
-              value={frequency}
-              onChange={e => setFrequency(e.target.value as any)}
+        <p className="type-label text-[color:var(--text-muted)]">Frequencia</p>
+
+        {/* Seletor de frequencia - 4 botoes */}
+        <div className="grid grid-cols-4 gap-1.5">
+          {([
+            { freq: 'monthly' as const, icon: <Calendar size={14} />, label: 'Mensal' },
+            { freq: 'weekly' as const, icon: <CalendarDays size={14} />, label: 'Semanal' },
+            { freq: 'daily' as const, icon: <CalendarClock size={14} />, label: 'Diario' },
+            { freq: 'freelancer' as const, icon: <Zap size={14} />, label: 'Livre' },
+          ]).map(({ freq, icon, label }) => (
+            <button
+              key={freq}
+              type="button"
+              onClick={() => setFrequency(freq)}
+              className={`py-2 rounded-xl type-label flex flex-col items-center gap-1 transition-all text-[10px] ${
+                frequency === freq
+                  ? 'bg-teal-600 text-white'
+                  : 'bg-slate-900 text-slate-500 border border-slate-700 hover:border-slate-600'
+              }`}
             >
-              <option value="monthly">Mensal</option>
-              <option value="weekly">Semanal</option>
-              <option value="daily">Diária</option>
+              {icon}
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Mensal: dia do mes */}
+        {frequency === 'monthly' && (
+          <div>
+            <label className={labelCls}>Dia do vencimento</label>
+            <select className={inputCls} value={dueDay} onChange={e => setDueDay(e.target.value)}>
+              {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
             </select>
           </div>
-          {frequency === 'monthly' && (
-            <div>
-              <label className={labelCls}>Dia do mês</label>
-              <input type="number" inputMode="numeric" min="1" max="31" className={inputCls} value={dueDay}
-                placeholder="Ex: 10"
-                onChange={e => setDueDay(e.target.value)} />
+        )}
+
+        {/* Semanal: dia da semana */}
+        {frequency === 'weekly' && (
+          <div>
+            <label className={labelCls}>Dia da semana</label>
+            <select className={inputCls} value={weekday} onChange={e => setWeekday(Number(e.target.value))}>
+              {WEEKDAY_NAMES.map((name, i) => (
+                <option key={i} value={i}>{name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Diario: skip weekends */}
+        {frequency === 'daily' && (
+          <div className="flex gap-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={skipSaturday}
+                onChange={e => setSkipSaturday(e.target.checked)}
+                className="rounded accent-teal-500"
+              />
+              <span className="text-xs text-slate-400">Pular Sabado</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={skipSunday}
+                onChange={e => setSkipSunday(e.target.checked)}
+                className="rounded accent-teal-500"
+              />
+              <span className="text-xs text-slate-400">Pular Domingo</span>
+            </label>
+          </div>
+        )}
+
+        {/* Freelancer: datas customizadas */}
+        {frequency === 'freelancer' && legacyFirstDueDate && (
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2 items-center">
+              {[
+                { label: 'Semanal', days: 7 },
+                { label: 'Quinzenal', days: 15 },
+                { label: 'Mensal', days: 30 },
+              ].map(opt => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => {
+                    setFreelancerInterval(opt.days);
+                    const dates = buildFreelancerDates(parseInt(totalInstallments) || 1, legacyFirstDueDate, opt.days);
+                    setFreelancerDates(dates);
+                  }}
+                  className={`type-label px-3 py-1.5 rounded-lg border transition-all text-xs ${
+                    freelancerInterval === opt.days
+                      ? 'bg-teal-600 border-teal-600 text-white'
+                      : 'bg-slate-900 border-slate-700 text-slate-500 hover:border-slate-600'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+              <div className="flex items-center gap-1 ml-auto">
+                <span className="text-[10px] text-slate-500">A cada</span>
+                <input
+                  type="number"
+                  min={1}
+                  className="w-12 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-center text-white outline-none focus:border-teal-500"
+                  value={freelancerInterval}
+                  onChange={e => setFreelancerInterval(Math.max(1, parseInt(e.target.value) || 1))}
+                />
+                <span className="text-[10px] text-slate-500">dias</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const dates = buildFreelancerDates(parseInt(totalInstallments) || 1, legacyFirstDueDate, freelancerInterval);
+                    setFreelancerDates(dates);
+                  }}
+                  className="type-label px-2 py-1 bg-teal-600 hover:bg-teal-500 text-white rounded-lg transition-all text-xs"
+                >
+                  Aplicar
+                </button>
+              </div>
             </div>
-          )}
-        </div>
+
+            {freelancerDates.length > 0 && (
+              <div className="rounded-xl border border-slate-700 overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 bg-slate-900 border-b border-slate-700">
+                  <span className="text-[10px] text-slate-500">{freelancerDates.length} datas editaveis</span>
+                </div>
+                <div className="max-h-48 overflow-y-auto divide-y divide-slate-800">
+                  {freelancerDates.map((dateStr, idx) => (
+                    <div key={idx} className="flex items-center gap-2 px-3 py-1.5">
+                      <span className="text-[10px] text-slate-600 w-5 text-right">#{idx + 1}</span>
+                      <input
+                        type="date"
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-teal-500"
+                        value={dateStr}
+                        onChange={e => {
+                          const updated = [...freelancerDates];
+                          updated[idx] = e.target.value;
+                          setFreelancerDates(updated);
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Seção 5: Dados do Contrato Antigo */}
+      {/* Secao 6: Dados do Contrato Antigo */}
       <div className={sectionCls}>
         <p className="type-label text-amber-400 flex items-center gap-1.5">
           <History size={12} /> Dados do Contrato Antigo
         </p>
         <div>
-          <label className={labelCls}>Data da 1ª Parcela *</label>
+          <label className={labelCls}>Data da 1a Parcela *</label>
           <input
             type="date"
             value={legacyFirstDueDate}
@@ -545,26 +848,26 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
         {legacyFirstDueDate && (
           <div>
             <label className={labelCls}>
-              Parcelas já recebidas: <span className="text-amber-400">{legacyPaidCount} de {maxParcelas}</span>
+              Parcelas ja recebidas: <span className="text-amber-400">{legacyPaidCount} de {totalParcelasGeradas}</span>
             </label>
             <input
               type="range"
               min={0}
-              max={maxParcelas}
+              max={totalParcelasGeradas}
               value={legacyPaidCount}
               onChange={e => setLegacyPaidCount(Number(e.target.value))}
               className="w-full accent-amber-500"
             />
             {legacyPaidCount > 0 && (
               <p className="text-[10px] text-amber-400 mt-1">
-                Parcelas 1 a {legacyPaidCount} → <strong>PAGAS</strong> · Parcelas {legacyPaidCount + 1} a {maxParcelas} → <strong>PENDENTES</strong>
+                Parcelas 1 a {legacyPaidCount} → <strong>PAGAS</strong> · Parcelas {legacyPaidCount + 1} a {totalParcelasGeradas} → <strong>PENDENTES</strong>
               </p>
             )}
           </div>
         )}
 
         <div>
-          <label className={labelCls}>Código do Contrato Original (opcional)</label>
+          <label className={labelCls}>Codigo do Contrato Original (opcional)</label>
           <input
             type="text"
             value={legacyCode}
@@ -582,7 +885,7 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
         </div>
       )}
 
-      {/* Botão de submissão */}
+      {/* Botao de submissao */}
       <button
         onClick={handleSubmit}
         disabled={creating || (!hasDebtor && !(showNewDebtor && newDebtor.full_name))}

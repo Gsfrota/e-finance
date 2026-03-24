@@ -9,6 +9,7 @@ interface ReceiptTemplateProps {
   tenant: Tenant;
   payerName?: string;
   paymentMethod?: string;
+  companyName?: string;
   onClose?: () => void;
 }
 
@@ -17,6 +18,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
   tenant,
   payerName,
   paymentMethod = 'PIX',
+  companyName,
   onClose,
 }) => {
   const receiptRef = useRef<HTMLDivElement>(null);
@@ -126,7 +128,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
             </p>
           )}
           <p style={{ fontSize: 12, color: '#777', marginTop: 2, marginBottom: 0 }}>
-            {tenant.name}
+            {companyName || tenant.name}
           </p>
         </div>
 
@@ -181,7 +183,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
         {/* Footer */}
         <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 20, paddingTop: 12, textAlign: 'center' }}>
           <p style={{ fontSize: 10, color: '#9ca3af', margin: 0, letterSpacing: '0.05em' }}>
-            {tenant.name} · Juros Certo
+            {companyName || tenant.name} · Juros Certo
           </p>
         </div>
       </div>
