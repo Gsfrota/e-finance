@@ -687,6 +687,9 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
       const supabase = getSupabase();
       if (!supabase) return;
       try {
+          // Deletar registros filhos antes do contrato (FK constraints)
+          await supabase.from('payment_transactions').delete().eq('investment_id', contractToDelete.id);
+          await supabase.from('loan_installments').delete().eq('investment_id', contractToDelete.id);
           const { error } = await supabase.from('investments').delete().eq('id', contractToDelete.id);
           if (error) throw error;
           setIsDeleteConfirmOpen(false);
