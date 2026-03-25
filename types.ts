@@ -152,6 +152,8 @@ export interface Investment {
   start_date?: string | null; // Null se for mensal/semanal (dependendo da lógica)
   calculation_mode?: 'auto' | 'manual' | 'interest_only';
   bullet_principal_mode?: 'together' | 'separate' | null;
+  remaining_balance?: number | null;   // Saldo devedor atual (bullet rotativo)
+  capitalize_interest?: boolean;       // TRUE = juros não pago capitaliza no saldo
 
   // Rastreamento de Origem de Capital (Wealth Management)
   source_capital?: number; // Aporte do Bolso

@@ -493,6 +493,11 @@ const ClientCard: React.FC<{
           {(inst as any).investment?.calculation_mode === 'interest_only' && (
             <span className="ml-1.5 inline-flex items-center px-1.5 py-0 rounded text-[9px] font-bold uppercase" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}>Bullet</span>
           )}
+          {(inst as any).investment?.remaining_balance != null && (
+            <span className="ml-1 text-[9px]" style={{ color: '#f59e0b' }}>
+              · Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number((inst as any).investment.remaining_balance))}
+            </span>
+          )}
         </p>
         <div className="flex items-center justify-between gap-2 mt-0.5">
           <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>Parcela {inst.number}</span>

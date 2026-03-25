@@ -188,6 +188,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
       skip_saturday: false,
       skip_sunday: false,
       bullet_principal_mode: 'together' as 'together' | 'separate',
+      capitalize_interest: true,
   });
 
   const [selectedInvestor, setSelectedInvestor] = useState<Profile | null>(null);
@@ -462,7 +463,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               p_skip_sunday:   formData.frequency === 'daily' ? formData.skip_sunday   : false,
               p_custom_dates:  formData.frequency === 'freelancer' ? freelancerDates : null,
               p_company_id:    activeCompanyId || null,
-              p_bullet_principal_mode: formData.calculation_mode === 'interest_only' ? formData.bullet_principal_mode : null,
+              p_bullet_principal_mode: formData.calculation_mode === 'interest_only' ? null : formData.bullet_principal_mode,
+              p_capitalize_interest: formData.capitalize_interest,
           });
 
           if (rpcError) throw rpcError;
@@ -1145,13 +1147,15 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                     {formData.calculation_mode === 'interest_only' && (
                         <div className="space-y-4 animate-fade-in">
                             <div className="bg-[color:var(--accent-caution-bg)] border border-[color:var(--accent-caution-border)] rounded-2xl p-4">
-                                <p className="type-label text-[color:var(--accent-caution)] mb-2">Juros Apenas (Bullet)</p>
+                                <p className="type-label text-[color:var(--accent-caution)] dark:text-amber-300 text-amber-700 mb-2">Crédito Rotativo (Bullet)</p>
                                 <p className="text-[11px] text-[color:var(--text-secondary)] leading-relaxed">
-                                    O devedor paga somente juros mensais (simples, fixos sobre o principal original). O principal permanece intacto até o vencimento.
+                                    O cliente paga o quanto quiser por período — no mínimo os juros. O contrato fecha quando o saldo devedor zerar. Sem prazo fixo.
                                 </p>
                             </div>
 
                             <div className="space-y-2">
+                                <p className="type-label text-[color:var(--accent-caution)] dark:text-amber-300 text-amber-700">Taxa de Juros</p>
+                                <p className="text-[11px] text-[color:var(--text-secondary)] leading-relaxed -mt-1">Percentual cobrado por período sobre o saldo devedor</p>
                                 <div className="relative">
                                     <input
                                         type="number" inputMode="decimal" step="0.1"
@@ -1162,36 +1166,24 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     <span className="absolute right-6 top-5 text-[color:var(--text-muted)] font-bold">% a.m.</span>
                                 </div>
                                 <div className="text-center text-xs text-[color:var(--text-secondary)]">
-                                    Juros mensal: <strong className="text-[color:var(--accent-caution)]">{formatCurrency(formData.installment_value)}</strong>
+                                    Juros 1ª parcela: <strong className="text-[color:var(--accent-caution)]">{formatCurrency(formData.installment_value)}</strong>
                                 </div>
                             </div>
 
                             <div>
-                                <p className="type-label text-[color:var(--text-muted)] mb-2">Devolução do Principal</p>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button
-                                        onClick={() => updateFormState({ bullet_principal_mode: 'together' })}
-                                        className={`p-3 rounded-2xl border transition-all text-left ${
-                                            formData.bullet_principal_mode === 'together'
-                                                ? 'bg-[color:var(--accent-caution-bg-strong)] border-[color:var(--accent-caution-border)] text-[color:var(--accent-caution)]'
-                                                : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
-                                        }`}
-                                    >
-                                        <p className="type-label font-bold">Junto</p>
-                                        <p className="type-caption text-[color:var(--text-faint)] mt-0.5">Última parcela = juros + principal</p>
-                                    </button>
-                                    <button
-                                        onClick={() => updateFormState({ bullet_principal_mode: 'separate' })}
-                                        className={`p-3 rounded-2xl border transition-all text-left ${
-                                            formData.bullet_principal_mode === 'separate'
-                                                ? 'bg-[color:var(--accent-caution-bg-strong)] border-[color:var(--accent-caution-border)] text-[color:var(--accent-caution)]'
-                                                : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
-                                        }`}
-                                    >
-                                        <p className="type-label font-bold">Separado</p>
-                                        <p className="type-caption text-[color:var(--text-faint)] mt-0.5">Parcela extra só para o principal</p>
-                                    </button>
-                                </div>
+                                <p className="type-label text-[color:var(--accent-caution)] dark:text-amber-300 text-amber-700 mb-1">Capitalizar Juros</p>
+                                <p className="text-[11px] text-[color:var(--text-secondary)] leading-relaxed mb-2">Se ativo, juros não pago é somado ao saldo devedor no próximo mês</p>
+                                <button
+                                    onClick={() => updateFormState({ capitalize_interest: !formData.capitalize_interest })}
+                                    className={`w-full p-3 rounded-2xl border transition-all flex items-center justify-between ${
+                                        formData.capitalize_interest
+                                            ? 'bg-[color:var(--accent-positive-bg)] border-[color:var(--accent-positive-border)] text-[color:var(--accent-positive)]'
+                                            : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)]'
+                                    }`}
+                                >
+                                    <span className="type-label font-bold">{formData.capitalize_interest ? 'Capitalizar (ativo)' : 'Não capitalizar'}</span>
+                                    <span className="text-[11px]">{formData.capitalize_interest ? 'Juros soma ao saldo devedor' : 'Juros fica como multa separada'}</span>
+                                </button>
                             </div>
                         </div>
                     )}
@@ -1302,11 +1294,10 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 <span className="type-label text-[color:var(--accent-caution)] font-bold">Contrato Bullet (Juros Apenas)</span>
                             </div>
                             <div className="text-[11px] text-[color:var(--text-secondary)] space-y-1">
-                                <p>Juros mensal: <strong className="text-[color:var(--accent-caution)]">{formatCurrency(formData.installment_value)}</strong> ({formData.interest_rate}% a.m. sobre {formatCurrency(formData.amount_invested)})</p>
-                                <p>Principal devolvido: <strong className="text-[color:var(--text-primary)]">{formData.bullet_principal_mode === 'together' ? 'Junto na última parcela' : 'Parcela extra separada'}</strong></p>
-                                {formData.bullet_principal_mode === 'separate' && (
-                                    <p className="text-[color:var(--accent-caution)] opacity-70">Total de parcelas: {formData.total_installments} juros + 1 principal = {formData.total_installments + 1}</p>
-                                )}
+                                <p>Juros 1ª parcela: <strong className="text-[color:var(--accent-caution)]">{formatCurrency(formData.installment_value)}</strong> ({formData.interest_rate}% a.m. sobre {formatCurrency(formData.amount_invested)})</p>
+                                <p>Saldo devedor inicial: <strong className="text-[color:var(--text-primary)]">{formatCurrency(formData.amount_invested)}</strong></p>
+                                <p>Capitalização: <strong className="text-[color:var(--text-primary)]">{formData.capitalize_interest ? 'Sim — juros não pago soma ao saldo' : 'Não — juros fica separado'}</strong></p>
+                                <p className="text-[color:var(--accent-caution)] opacity-80">Parcelas seguintes geradas automaticamente a cada período</p>
                             </div>
                         </div>
                     )}
@@ -1724,8 +1715,12 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 <p className="truncate text-sm font-semibold text-[color:var(--text-secondary)]">{formatCurrency(Number(contract.installment_value || 0))}</p>
                             </div>
                             <div className="min-w-0 text-right">
-                                <p className="section-kicker mb-1">Prazo</p>
-                                <p className="truncate text-sm font-semibold text-[color:var(--text-secondary)]">{contract.total_installments}x</p>
+                                <p className="section-kicker mb-1">{contract.calculation_mode === 'interest_only' ? 'Saldo Devedor' : 'Prazo'}</p>
+                                <p className="truncate text-sm font-semibold text-[color:var(--text-secondary)]">
+                                  {contract.calculation_mode === 'interest_only'
+                                    ? (contract.remaining_balance != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(contract.remaining_balance)) : '—')
+                                    : `${contract.total_installments}x`}
+                                </p>
                             </div>
                         </div>
                     </div>
