@@ -84,7 +84,8 @@ export const calculateFinancials = (
   rate: number,
   mode: 'auto' | 'manual' | 'interest_only',
   manualInstallmentValue: number,
-  bulletPrincipalMode: 'together' | 'separate' = 'together'
+  bulletPrincipalMode: 'together' | 'separate' = 'together',
+  remainingBalance?: number | null
 ) => {
   const principal = Number(amount) || 0;
   const count = Math.max(1, Number(installments));
@@ -93,11 +94,12 @@ export const calculateFinancials = (
 
   if (mode === 'interest_only') {
     const r = Number(rate) || 0;
-    const interestPerPeriod = roundCurrency(principal * (r / 100));
-    const totalInterest = roundCurrency(interestPerPeriod * count);
+    // Usa saldo devedor atual se disponível (bullet rotativo), senão usa principal original
+    const base = (remainingBalance != null && remainingBalance > 0) ? Number(remainingBalance) : principal;
+    const interestPerPeriod = roundCurrency(base * (r / 100));
     return {
       installmentValue: interestPerPeriod,
-      totalValue: roundCurrency(principal + totalInterest),
+      totalValue: roundCurrency(base + interestPerPeriod),
       interestRate: r
     };
   } else if (mode === 'auto') {

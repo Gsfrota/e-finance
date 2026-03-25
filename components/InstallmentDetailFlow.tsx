@@ -1009,7 +1009,12 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     setLoading(true); setError(null);
     const supabase = getSupabase(); if (!supabase) return;
     try {
-      const { error: err } = await supabase.rpc('pay_interest_only', { p_installment_id: installment.id, p_interest_amount: val });
+      const { error: err } = await supabase.rpc('process_bullet_payment', {
+        p_installment_id: installment.id,
+        p_amount: val,
+        p_paid_at: new Date().toISOString(),
+        p_payment_method: 'PIX',
+      });
       if (err) throw err;
 
       // Auditoria: log do pagamento de juros
