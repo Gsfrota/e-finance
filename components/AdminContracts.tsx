@@ -196,6 +196,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
   const [previewDateStrings, setPreviewDateStrings] = useState<string[]>([]);
   const [freelancerDates, setFreelancerDates] = useState<string[]>([]);
   const [freelancerInterval, setFreelancerInterval] = useState<number>(7);
+  const [bulletHasFixedDuration, setBulletHasFixedDuration] = useState(false);
   const [viewingContractId, setViewingContractId] = useState<number | null>(null);
   const [viewingContract, setViewingContract] = useState<Investment | null>(null);
   const [contractsSubView, setContractsSubView] = useState<'list' | 'detail' | 'renewal' | 'create' | 'create-client' | 'edit'>(autoOpenCreate ? 'create' : 'list');
@@ -368,6 +369,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
       setPreviewDateStrings([]);
       setFreelancerDates([]);
       setFreelancerInterval(7);
+      setBulletHasFixedDuration(false);
       setStep(1);
       setContractsSubView('create');
   };
@@ -809,6 +811,43 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                         <p className="text-[color:var(--text-secondary)] text-xs mt-1">Detalhes do fluxo de caixa e prazos.</p>
                     </div>
 
+                    <div>
+                        <label className="type-label text-[color:var(--text-muted)] ml-1 mb-3 block">Tipo de Contrato</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                onClick={() => {
+                                    if (formData.calculation_mode === 'interest_only') {
+                                        updateFormState({ calculation_mode: 'auto' });
+                                    }
+                                }}
+                                className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-1.5 ${
+                                    formData.calculation_mode !== 'interest_only'
+                                        ? 'bg-[color:var(--accent-positive)] border-[color:var(--accent-positive)] text-white shadow-lg'
+                                        : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
+                                }`}
+                            >
+                                <Banknote size={20} />
+                                <span className="type-label">Parcelado</span>
+                                <span className="text-[10px] opacity-70 font-medium">Parcelas fixas com juros</span>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setBulletHasFixedDuration(false);
+                                    updateFormState({ calculation_mode: 'interest_only', total_installments: 120 });
+                                }}
+                                className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-1.5 ${
+                                    formData.calculation_mode === 'interest_only'
+                                        ? 'bg-[color:var(--accent-caution)] border-[color:var(--accent-caution)] text-white shadow-lg'
+                                        : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
+                                }`}
+                            >
+                                <Activity size={20} />
+                                <span className="type-label">Juros Simples</span>
+                                <span className="text-[10px] opacity-70 font-medium">Paga só os juros por período</span>
+                            </button>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 gap-6">
                         <div>
                             <label className="type-label text-[color:var(--text-muted)] ml-1 mb-1 block">Nome do Ativo</label>
@@ -880,17 +919,62 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                         </div>
                     </div>
 
-                    <div className="bg-[color:var(--bg-base)]/50 p-5 rounded-3xl border border-[color:var(--border-subtle)]">
-                        <label className="type-label text-[color:var(--text-secondary)] mb-3 block text-center">Duração do Contrato</label>
-                        <div className="flex items-center justify-between bg-[color:var(--bg-base)] rounded-2xl p-1 border border-[color:var(--border-subtle)]">
-                            <button onClick={() => updateFormState({ total_installments: Math.max(1, formData.total_installments - 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Minus size={20}/></button>
-                            <div className="text-center">
-                                <span className="block type-heading text-[color:var(--text-primary)]">{formData.total_installments}</span>
-                                <span className="type-micro text-[color:var(--text-muted)]">Parcelas</span>
+                    {formData.calculation_mode !== 'interest_only' && (
+                        <div className="bg-[color:var(--bg-base)]/50 p-5 rounded-3xl border border-[color:var(--border-subtle)]">
+                            <label className="type-label text-[color:var(--text-secondary)] mb-3 block text-center">Duração do Contrato</label>
+                            <div className="flex items-center justify-between bg-[color:var(--bg-base)] rounded-2xl p-1 border border-[color:var(--border-subtle)]">
+                                <button onClick={() => updateFormState({ total_installments: Math.max(1, formData.total_installments - 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Minus size={20}/></button>
+                                <div className="text-center">
+                                    <span className="block type-heading text-[color:var(--text-primary)]">{formData.total_installments}</span>
+                                    <span className="type-micro text-[color:var(--text-muted)]">Parcelas</span>
+                                </div>
+                                <button onClick={() => updateFormState({ total_installments: Math.min(120, formData.total_installments + 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Plus size={20}/></button>
                             </div>
-                            <button onClick={() => updateFormState({ total_installments: Math.min(120, formData.total_installments + 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Plus size={20}/></button>
                         </div>
-                    </div>
+                    )}
+
+                    {formData.calculation_mode === 'interest_only' && (
+                        <div className="bg-[color:var(--bg-base)]/50 p-5 rounded-3xl border border-[color:var(--border-subtle)]">
+                            <label className="type-label text-[color:var(--text-secondary)] mb-3 block text-center">Prazo</label>
+                            <div className="grid grid-cols-2 gap-2 mb-4">
+                                <button
+                                    onClick={() => {
+                                        setBulletHasFixedDuration(false);
+                                        updateFormState({ total_installments: 120 });
+                                    }}
+                                    className={`py-3 rounded-xl border transition-all type-label ${
+                                        !bulletHasFixedDuration
+                                            ? 'bg-[color:var(--accent-caution)] border-[color:var(--accent-caution)] text-white shadow-md'
+                                            : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
+                                    }`}
+                                >
+                                    Indeterminado
+                                </button>
+                                <button
+                                    onClick={() => setBulletHasFixedDuration(true)}
+                                    className={`py-3 rounded-xl border transition-all type-label ${
+                                        bulletHasFixedDuration
+                                            ? 'bg-[color:var(--accent-caution)] border-[color:var(--accent-caution)] text-white shadow-md'
+                                            : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
+                                    }`}
+                                >
+                                    Determinado
+                                </button>
+                            </div>
+                            {bulletHasFixedDuration ? (
+                                <div className="flex items-center justify-between bg-[color:var(--bg-base)] rounded-2xl p-1 border border-[color:var(--border-subtle)] animate-fade-in">
+                                    <button onClick={() => updateFormState({ total_installments: Math.max(1, formData.total_installments - 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Minus size={20}/></button>
+                                    <div className="text-center">
+                                        <span className="block type-heading text-[color:var(--text-primary)]">{formData.total_installments}</span>
+                                        <span className="type-micro text-[color:var(--text-muted)]">Períodos</span>
+                                    </div>
+                                    <button onClick={() => updateFormState({ total_installments: Math.min(120, formData.total_installments + 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Plus size={20}/></button>
+                                </div>
+                            ) : (
+                                <p className="text-[11px] text-center text-[color:var(--text-muted)]">O contrato se encerra quando o saldo devedor zerar</p>
+                            )}
+                        </div>
+                    )}
 
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -1126,35 +1210,73 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                         </div>
                     )}
 
-                    <div className="bg-[color:var(--bg-base)] p-1.5 rounded-2xl border border-[color:var(--border-subtle)] flex relative">
-                        {(['auto', 'manual', 'interest_only'] as const).map((mode) => (
-                            <button
-                                key={mode}
-                                onClick={() => updateFormState({ calculation_mode: mode })}
-                                className={`type-label flex-1 py-3 relative z-10 flex items-center justify-center gap-2 rounded-xl transition-all ${
-                                    formData.calculation_mode === mode
-                                        ? 'bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)] shadow-md'
-                                        : 'text-[color:var(--text-muted)]'
-                                }`}
-                            >
-                                {mode === 'auto' && <><Percent size={14}/> Taxa</>}
-                                {mode === 'manual' && <><Banknote size={14}/> Fixo</>}
-                                {mode === 'interest_only' && <><Activity size={14}/> Bullet</>}
-                            </button>
-                        ))}
-                    </div>
+                    {formData.calculation_mode !== 'interest_only' && (
+                        <>
+                            <div className="bg-[color:var(--bg-base)] p-1.5 rounded-2xl border border-[color:var(--border-subtle)] flex relative">
+                                <button
+                                    onClick={() => updateFormState({ calculation_mode: 'auto' })}
+                                    className={`type-label flex-1 py-3 relative z-10 flex items-center justify-center gap-2 rounded-xl transition-all ${
+                                        formData.calculation_mode === 'auto'
+                                            ? 'bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)] shadow-md'
+                                            : 'text-[color:var(--text-muted)]'
+                                    }`}
+                                >
+                                    <Percent size={14}/> Definir Taxa %
+                                </button>
+                                <button
+                                    onClick={() => updateFormState({ calculation_mode: 'manual' })}
+                                    className={`type-label flex-1 py-3 relative z-10 flex items-center justify-center gap-2 rounded-xl transition-all ${
+                                        formData.calculation_mode === 'manual'
+                                            ? 'bg-[color:var(--bg-elevated)] text-[color:var(--text-primary)] shadow-md'
+                                            : 'text-[color:var(--text-muted)]'
+                                    }`}
+                                >
+                                    <Banknote size={14}/> Definir Parcela
+                                </button>
+                            </div>
+
+                            {formData.calculation_mode === 'auto' && (
+                                <div className="space-y-2 animate-fade-in">
+                                    <label className="type-label text-[color:var(--text-muted)] ml-1 block">Taxa de Juros</label>
+                                    <div className="relative">
+                                        <input
+                                            type="number" inputMode="decimal" step="0.1"
+                                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-[color:var(--accent-positive)] transition-all text-center"
+                                            value={formData.interest_rate}
+                                            onChange={e => updateFormState({ interest_rate: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                                        />
+                                        <span className="absolute right-6 top-5 text-[color:var(--text-muted)] font-bold">%</span>
+                                    </div>
+                                    <div className="text-center text-xs text-[color:var(--text-secondary)]">
+                                        Parcela Estimada: <strong className="text-[color:var(--text-primary)]">{formatCurrency(formData.installment_value)}</strong>
+                                    </div>
+                                </div>
+                            )}
+
+                            {formData.calculation_mode === 'manual' && (
+                                <div className="space-y-2 animate-fade-in">
+                                    <label className="type-label text-[color:var(--text-muted)] ml-1 block">Valor da Parcela</label>
+                                    <div className="relative">
+                                        <input
+                                            type="number" inputMode="decimal" step="0.01"
+                                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-indigo-500 transition-all text-center"
+                                            value={formData.installment_value}
+                                            onChange={e => updateFormState({ installment_value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                                        />
+                                        <span className="absolute left-6 top-5 text-[color:var(--text-muted)] font-bold">R$</span>
+                                    </div>
+                                    <div className="text-center text-xs text-[color:var(--text-secondary)]">
+                                        Taxa Implícita: <strong className="text-[color:var(--text-primary)]">{(Number(formData.interest_rate) || 0).toFixed(2)}%</strong>
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
 
                     {formData.calculation_mode === 'interest_only' && (
                         <div className="space-y-4 animate-fade-in">
-                            <div className="bg-[color:var(--accent-caution-bg)] border border-[color:var(--accent-caution-border)] rounded-2xl p-4">
-                                <p className="type-label text-[color:var(--accent-caution)] dark:text-amber-300 text-amber-700 mb-2">Crédito Rotativo (Bullet)</p>
-                                <p className="text-[11px] text-[color:var(--text-secondary)] leading-relaxed">
-                                    O cliente paga o quanto quiser por período — no mínimo os juros. O contrato fecha quando o saldo devedor zerar. Sem prazo fixo.
-                                </p>
-                            </div>
-
                             <div className="space-y-2">
-                                <p className="type-label text-[color:var(--accent-caution)] dark:text-amber-300 text-amber-700">Taxa de Juros</p>
+                                <p className="type-label text-[color:var(--text-secondary)]">Taxa de Juros</p>
                                 <p className="text-[11px] text-[color:var(--text-secondary)] leading-relaxed -mt-1">Percentual cobrado por período sobre o saldo devedor</p>
                                 <div className="relative">
                                     <input
@@ -1166,7 +1288,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     <span className="absolute right-6 top-5 text-[color:var(--text-muted)] font-bold">% a.m.</span>
                                 </div>
                                 <div className="text-center text-xs text-[color:var(--text-secondary)]">
-                                    Juros 1ª parcela: <strong className="text-[color:var(--accent-caution)]">{formatCurrency(formData.installment_value)}</strong>
+                                    Juros 1ª cobrança: <strong className="text-[color:var(--accent-caution)]">{formatCurrency(formData.installment_value)}</strong>
                                 </div>
                             </div>
 
@@ -1184,40 +1306,6 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     <span className="type-label font-bold">{formData.capitalize_interest ? 'Capitalizar (ativo)' : 'Não capitalizar'}</span>
                                     <span className="text-[11px]">{formData.capitalize_interest ? 'Juros soma ao saldo devedor' : 'Juros fica como multa separada'}</span>
                                 </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {formData.calculation_mode === 'auto' && (
-                        <div className="space-y-2 animate-fade-in">
-                            <div className="relative">
-                                <input
-                                    type="number" inputMode="decimal" step="0.1"
-                                    className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-[color:var(--accent-positive)] transition-all text-center"
-                                    value={formData.interest_rate}
-                                    onChange={e => updateFormState({ interest_rate: e.target.value === '' ? '' : parseFloat(e.target.value) })}
-                                />
-                                <span className="absolute right-6 top-5 text-[color:var(--text-muted)] font-bold">%</span>
-                            </div>
-                            <div className="text-center text-xs text-[color:var(--text-secondary)]">
-                                Parcela Estimada: <strong className="text-[color:var(--text-primary)]">{formatCurrency(formData.installment_value)}</strong>
-                            </div>
-                        </div>
-                    )}
-
-                    {formData.calculation_mode === 'manual' && (
-                        <div className="space-y-2 animate-fade-in">
-                            <div className="relative">
-                                <input
-                                    type="number" inputMode="decimal" step="0.01"
-                                    className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-indigo-500 transition-all text-center"
-                                    value={formData.installment_value}
-                                    onChange={e => updateFormState({ installment_value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
-                                />
-                                <span className="absolute left-6 top-5 text-[color:var(--text-muted)] font-bold">R$</span>
-                            </div>
-                            <div className="text-center text-xs text-[color:var(--text-secondary)]">
-                                Taxa Implícita: <strong className="text-[color:var(--text-primary)]">{(Number(formData.interest_rate) || 0).toFixed(2)}%</strong>
                             </div>
                         </div>
                     )}
@@ -1255,7 +1343,9 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 <p className="type-label text-[color:var(--text-muted)] mb-1">Fluxo</p>
                                 <p className="text-[color:var(--text-primary)] font-bold">
                                     {formData.calculation_mode === 'interest_only'
-                                        ? `${formData.total_installments}x ${formatCurrency(formData.installment_value)} (juros)`
+                                        ? bulletHasFixedDuration
+                                            ? `${formData.total_installments}x ${formatCurrency(formData.installment_value)} (juros)`
+                                            : `${formatCurrency(formData.installment_value)}/período · Prazo indeterminado`
                                         : `${formData.total_installments}x de ${formatCurrency(formData.installment_value)}`
                                     }
                                 </p>
