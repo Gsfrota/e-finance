@@ -355,7 +355,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
   };
 
   const filteredUsers = displayUsers.filter(u => {
-    const matchesSearch = u.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (u.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) || (u.email || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesTab = activeTab === 'all' || u.role === activeTab || (activeTab === 'pending' && u.status === 'PENDENTE');
     return matchesSearch && matchesTab;
   });

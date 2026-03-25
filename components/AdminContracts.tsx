@@ -36,9 +36,9 @@ const UserSelectionCard: React.FC<{
     const filtered = useMemo(() => {
         if (!searchTerm) return profiles;
         const lower = searchTerm.toLowerCase();
-        return profiles.filter(p => 
-            p.full_name.toLowerCase().includes(lower) || 
-            p.email.toLowerCase().includes(lower)
+        return profiles.filter(p =>
+            (p.full_name || '').toLowerCase().includes(lower) ||
+            (p.email || '').toLowerCase().includes(lower)
         );
     }, [searchTerm, profiles]);
 
@@ -58,7 +58,7 @@ const UserSelectionCard: React.FC<{
                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xl border shadow-inner ${
                         role === 'investor' ? 'bg-[color:var(--accent-positive-subtle)] text-[color:var(--accent-positive)] border-[color:var(--accent-positive-border)]' : 'bg-[color:var(--accent-steel-subtle)] text-[color:var(--accent-steel)] border-[color:var(--accent-steel-border)]'
                     }`}>
-                        {selectedProfile.full_name.charAt(0).toUpperCase()}
+                        {(selectedProfile.full_name || '?').charAt(0).toUpperCase()}
                     </div>
                     <div>
                         <p className={`type-label mb-1 ${role === 'investor' ? 'text-[color:var(--accent-positive)]' : 'text-[color:var(--accent-steel)]'}`}>
@@ -117,7 +117,7 @@ const UserSelectionCard: React.FC<{
                                 >
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 rounded-lg bg-[color:var(--bg-base)] flex items-center justify-center text-xs font-bold text-[color:var(--text-secondary)] border border-[color:var(--border-subtle)]">
-                                            {p.full_name.charAt(0).toUpperCase()}
+                                            {(p.full_name || '?').charAt(0).toUpperCase()}
                                         </div>
                                         <div>
                                             <p className="text-[color:var(--text-primary)] font-bold text-sm group-hover/item:text-[color:var(--accent-positive)] transition-colors">{p.full_name}</p>
@@ -200,6 +200,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
   const [contractsSubView, setContractsSubView] = useState<'list' | 'detail' | 'renewal' | 'create' | 'create-client' | 'edit'>(autoOpenCreate ? 'create' : 'list');
   const [renewalSource, setRenewalSource] = useState<Investment | null>(null);
 
+  const [contractSearchTerm, setContractSearchTerm] = useState('');
+
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [contractToDelete, setContractToDelete] = useState<Investment | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -242,6 +244,17 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
       if (principal <= 0) return 0;
       return roundCurrency(((editCurrentValuePreview / principal) - 1) * 100);
   }, [editContractPrincipal, editCurrentValuePreview]);
+
+  const filteredContracts = useMemo(() => {
+      if (!contractSearchTerm) return contracts;
+      const lower = contractSearchTerm.toLowerCase();
+      return contracts.filter(c =>
+          (c.asset_name || '').toLowerCase().includes(lower) ||
+          (c.payer_name || '').toLowerCase().includes(lower) ||
+          (c.investor_name || '').toLowerCase().includes(lower) ||
+          String(c.id).includes(lower)
+      );
+  }, [contractSearchTerm, contracts]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -1623,8 +1636,17 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
             </button>
         </div>
       </div>
+      {contracts.length > 0 && (
+        <div className="flex items-center gap-3 mt-5 px-1">
+            <div className="relative flex-1 sm:flex-none sm:w-80">
+                <Search className="absolute left-3 top-2.5 text-[color:var(--text-muted)]" size={18} />
+                <input type="text" placeholder="Buscar contrato, credor ou devedor..." value={contractSearchTerm} onChange={(e) => setContractSearchTerm(e.target.value)}
+                    className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-2xl pl-10 pr-4 py-2 text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-teal-500 transition-all font-medium" />
+            </div>
+        </div>
+      )}
       </div>
-      
+
       {loading ? (
         <div className="flex justify-center py-20"><RefreshCw className="animate-spin text-[color:var(--accent-brass)] w-12" /></div>
       ) : contracts.length === 0 ? (
@@ -1635,9 +1657,15 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
             <h3 className="type-title text-[color:var(--text-primary)]">Carteira vazia</h3>
             <p className="mx-auto mt-4 max-w-xs text-sm leading-7 text-[color:var(--text-secondary)]">Nenhum contrato ativo no momento. Inicie um novo empréstimo para começar.</p>
         </div>
+      ) : filteredContracts.length === 0 ? (
+        <div className="panel-card rounded-[2rem] border border-dashed border-white/10 py-16 text-center">
+            <Search size={40} className="mx-auto text-[color:var(--text-faint)] mb-4" />
+            <p className="type-label text-[color:var(--text-secondary)]">Nenhum contrato encontrado</p>
+            {contractSearchTerm && <p className="type-caption text-[color:var(--text-faint)] mt-2">Tente outro termo de busca</p>}
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {contracts.map(contract => (
+            {filteredContracts.map(contract => (
                 <div key={contract.id} className="panel-card relative flex h-full flex-col justify-between rounded-[2rem] p-7 transition-all hover:border-white/15">
                     <div>
                         <div className="flex justify-between items-start mb-6">
