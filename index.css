@@ -74,12 +74,12 @@
   --bg-elevated:  #ffffff;
   --bg-soft:      #e4eaf5;
   --bg-strong:    #d5dfee;
-  --border-subtle: rgba(15, 29, 60, 0.10);
-  --border-strong: rgba(15, 29, 60, 0.20);
+  --border-subtle: rgba(15, 29, 60, 0.14);
+  --border-strong: rgba(15, 29, 60, 0.28);
   --text-primary:   #0d1b2e;
   --text-secondary: #2a3a56;
-  --text-muted:     #5a6a88;
-  --text-faint:     #8a9ab8;
+  --text-muted:     #4a5870;
+  --text-faint:     #6b7a9a;
   --accent-brass:        #c9830e;
   --accent-brass-strong: #d99820;
   --accent-brass-subtle: rgba(201, 131, 14, 0.12);
