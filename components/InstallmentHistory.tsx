@@ -64,7 +64,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
 
   // ── Agrupamento por receipt_id (view "Por Recebimento") ─────────────────────
   const receiptGroups = transactions.reduce<Record<string, PaymentTransaction[]>>((acc, tx) => {
-    const key = tx.receipt_id ?? `legacy_${tx.installment_id}_${tx.created_at.slice(0, 10)}`;
+    const key = tx.receipt_id ?? `legacy_${tx.investment_id}_${tx.created_at.slice(0, 16)}`;
     (acc[key] ??= []).push(tx);
     return acc;
   }, {});
