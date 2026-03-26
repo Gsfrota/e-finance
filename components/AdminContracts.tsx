@@ -197,6 +197,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
   const [freelancerDates, setFreelancerDates] = useState<string[]>([]);
   const [freelancerInterval, setFreelancerInterval] = useState<number>(7);
   const [bulletHasFixedDuration, setBulletHasFixedDuration] = useState(false);
+  const [monthOffset, setMonthOffset] = useState<0 | 1 | undefined>(undefined);
   const [viewingContractId, setViewingContractId] = useState<number | null>(null);
   const [viewingContract, setViewingContract] = useState<Investment | null>(null);
   const [contractsSubView, setContractsSubView] = useState<'list' | 'detail' | 'renewal' | 'create' | 'create-client' | 'edit'>(autoOpenCreate ? 'create' : 'list');
@@ -370,6 +371,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
       setFreelancerDates([]);
       setFreelancerInterval(7);
       setBulletHasFixedDuration(false);
+      setMonthOffset(undefined);
       setStep(1);
       setContractsSubView('create');
   };
@@ -408,6 +410,10 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
           interest_rate: financial.interestRate
       }));
 
+      if (partial.frequency !== undefined && partial.frequency !== 'monthly') {
+          setMonthOffset(undefined);
+      }
+
       if (merged.frequency === 'freelancer') {
           // Para freelancer, recalcular datas se count ou start_date mudou
           const currentInterval = freelancerInterval;
@@ -429,7 +435,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               merged.start_date,
               merged.total_installments,
               merged.skip_saturday,
-              merged.skip_sunday
+              merged.skip_sunday,
+              merged.frequency === 'monthly' ? monthOffset : undefined
           );
           setPreviewDateStrings(dateObjects.map(d =>
               d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })
@@ -1010,6 +1017,45 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                         {Array.from({length: 31}, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
                                     </select>
                                     <div className="px-4 text-[color:var(--text-muted)]"><ChevronRight size={16}/></div>
+                            </div>
+                        )}
+
+                        {formData.frequency === 'monthly' && (
+                            <div className="animate-fade-in">
+                                <div className="type-label text-[color:var(--text-muted)] mb-2">Primeira cobrança</div>
+                                <div className="flex gap-2">
+                                    {([
+                                        { label: 'Este mês', offset: 0 as const },
+                                        { label: 'Próximo mês', offset: 1 as const },
+                                    ] as { label: string; offset: 0 | 1 }[]).map(opt => (
+                                        <button
+                                            key={opt.label}
+                                            onClick={() => {
+                                                setMonthOffset(opt.offset);
+                                                const dates = calculateInstallmentDates(
+                                                    formData.frequency,
+                                                    formData.due_day,
+                                                    formData.weekday,
+                                                    formData.start_date,
+                                                    formData.total_installments,
+                                                    formData.skip_saturday,
+                                                    formData.skip_sunday,
+                                                    opt.offset
+                                                );
+                                                setPreviewDateStrings(dates.map(d =>
+                                                    d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })
+                                                ));
+                                            }}
+                                            className={`type-label flex-1 py-3 rounded-2xl border transition-all ${
+                                                monthOffset === opt.offset
+                                                    ? 'bg-[color:var(--accent-positive)] border-[color:var(--accent-positive)] text-white shadow-lg'
+                                                    : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
+                                            }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         )}
 

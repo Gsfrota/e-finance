@@ -23,7 +23,8 @@ export const calculateInstallmentDates = (
   startDateStr: string,
   count: number,
   skipSaturday: boolean = false,
-  skipSunday: boolean = false
+  skipSunday: boolean = false,
+  monthOffset?: 0 | 1
 ): Date[] => {
   const dates: Date[] = [];
   const now = new Date();
@@ -31,7 +32,10 @@ export const calculateInstallmentDates = (
 
   if (frequency === 'monthly') {
     cursorDate.setDate(dueDay);
-    if (now.getDate() >= dueDay) {
+    const shouldGoNext = monthOffset !== undefined
+      ? monthOffset === 1
+      : now.getDate() >= dueDay;
+    if (shouldGoNext) {
       cursorDate.setMonth(cursorDate.getMonth() + 1);
     }
   } else if (frequency === 'weekly') {
