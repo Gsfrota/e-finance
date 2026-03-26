@@ -330,6 +330,8 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
               total_installments,
               amount_invested,
               installment_value,
+              calculation_mode,
+              remaining_balance,
               investor:profiles!investments_user_id_fkey (role),
               payer:profiles!investments_payer_id_fkey (id, full_name, email, photo_url)
             )

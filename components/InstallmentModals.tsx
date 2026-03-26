@@ -1575,9 +1575,10 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
     const supabase = getSupabase();
     if (!supabase) return;
     try {
-      const { error: rpcError } = await supabase.rpc('pay_interest_only', {
+      const { error: rpcError } = await supabase.rpc('pay_bullet_interest_only', {
         p_installment_id: installment.id,
-        p_interest_amount: val
+        p_paid_at: new Date().toISOString(),
+        p_payment_method: 'PIX'
       });
       if (rpcError) throw rpcError;
 
