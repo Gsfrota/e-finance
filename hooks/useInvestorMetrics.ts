@@ -109,7 +109,10 @@ function computeMetrics(
       totalAllocated += Number(inv.amount_invested || 0);
     }
 
-    const installments = inv.loan_installments || [];
+    // BR-REL-002: omite parcelas fantasmas (deferidas via mark_installment_missed)
+    const installments = (inv.loan_installments || []).filter(
+      i => !(Number(i.amount_total) === 0 && Number(i.amount_paid) === 0 && i.status === 'paid')
+    );
     let hasLatePayment = false;
     const isEnded = installments.length > 0 && installments.every((i) => i.status === 'paid');
     let assetNextPaymentStr: string | undefined = undefined;

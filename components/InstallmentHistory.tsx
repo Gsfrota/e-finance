@@ -101,7 +101,10 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
     });
   };
 
+  // BR-REL-002: omite parcelas fantasmas geradas por mark_installment_missed
+  // (amount_total=0, amount_paid=0, status='paid' — foram deferidas para outra parcela)
   const allInstallments: LoanInstallment[] = (investment.loan_installments || [])
+    .filter(i => !(Number(i.amount_total) === 0 && Number(i.amount_paid) === 0 && i.status === 'paid'))
     .slice()
     .sort((a, b) => a.number - b.number);
 
