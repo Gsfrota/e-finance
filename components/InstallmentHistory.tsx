@@ -72,9 +72,15 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
   const receipts: PaymentReceipt[] = Object.entries(receiptGroups)
     .map(([key, txs]) => {
       const paymentTx = txs.find(t => t.transaction_type === 'payment');
-      const totalReceived = txs
-        .filter(t => t.transaction_type === 'payment')
-        .reduce((s, t) => s + normalizeNum(t.amount), 0);
+      const isLegacy = !txs[0].receipt_id;
+      // Dados com receipt_id: payment record já tem totalPaid (correto)
+      // Dados legados: payment record tem só o outstanding da parcela principal;
+      // somamos payment + surplus_received para melhor estimativa do total recebido
+      const totalReceived = isLegacy
+        ? txs.filter(t => t.transaction_type === 'payment' || t.transaction_type === 'surplus_received')
+            .reduce((s, t) => s + normalizeNum(t.amount), 0)
+        : txs.filter(t => t.transaction_type === 'payment')
+            .reduce((s, t) => s + normalizeNum(t.amount), 0);
       return {
         key,
         receipt_id: txs[0].receipt_id ?? null,
@@ -82,7 +88,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
         total_received: totalReceived,
         payment_method: paymentTx?.payment_method,
         transactions: txs,
-        is_legacy: !txs[0].receipt_id,
+        is_legacy: isLegacy,
       };
     })
     .sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime());
@@ -215,7 +221,6 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                           {uniqueInstallments.length === 1
                             ? `1 parcela afetada`
                             : `${uniqueInstallments.length} parcelas afetadas`}
-                          {txCount > uniqueInstallments.length && ` · ${txCount} transações`}
                         </p>
                       </div>
                       <span style={{ color: 'var(--text-faint)' }}>
@@ -223,37 +228,48 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                       </span>
                     </button>
 
-                    {/* Expanded: transações detalhadas */}
+                    {/* Expanded: por parcela afetada (sem terminologia interna) */}
                     {isExpanded && (
                       <div className="px-4 pb-3 space-y-1.5" style={{ background: 'var(--bg-soft)' }}>
-                        {receipt.transactions.map(tx => {
-                          const meta = TX_META[tx.transaction_type] ?? TX_META.payment;
-                          const instNum = allInstallments.find(i => i.id === tx.installment_id)?.number;
-                          return (
-                            <div key={tx.id} className="flex items-start gap-2 text-[11px]">
-                              <span className="shrink-0 mt-0.5 font-bold" style={{ color: meta.color }}>
-                                {meta.icon}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <span style={{ color: 'var(--text-secondary)' }}>
-                                  {instNum ? `Parc. #${instNum} — ` : ''}
-                                  {meta.label}
-                                </span>
-                                {tx.notes && (
-                                  <span className="ml-1 italic" style={{ color: 'var(--text-faint)' }}>
-                                    {tx.notes}
+                        {(() => {
+                          // Agrupa por installment, ignora surplus_applied (roteamento interno)
+                          const byInst = receipt.transactions
+                            .filter(t => t.transaction_type !== 'surplus_applied')
+                            .reduce<Record<string, PaymentTransaction[]>>((acc, tx) => {
+                              (acc[tx.installment_id] ??= []).push(tx);
+                              return acc;
+                            }, {});
+
+                          return Object.entries(byInst).map(([instId, txs]) => {
+                            const inst = allInstallments.find(i => i.id === instId);
+                            const applied = txs.reduce((s, t) => s + normalizeNum(t.amount), 0);
+                            const status = inst?.status;
+                            const statusLabel = status === 'paid' ? 'Quitada' : status === 'partial' ? 'Parcial' : status === 'late' ? 'Atrasada' : 'Pendente';
+                            const statusColor = status === 'paid' ? 'var(--accent-positive)' : status === 'partial' ? '#42A5F5' : 'var(--accent-danger)';
+
+                            return (
+                              <div key={instId} className="flex items-center gap-2 text-[11px]">
+                                <span style={{ color: statusColor }}>●</span>
+                                <div className="flex-1 min-w-0">
+                                  <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                                    Parcela #{inst?.number ?? '?'}
                                   </span>
-                                )}
-                                <span className="ml-1 text-[10px] tabular-nums" style={{ color: 'var(--text-faint)' }}>
-                                  · {fmtDatetime(tx.created_at)}
+                                  {inst?.due_date && (
+                                    <span className="ml-1" style={{ color: 'var(--text-faint)' }}>
+                                      · venc. {fmtDate(inst.due_date)}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="font-bold tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>
+                                  {fmtMoney(applied)}
+                                </span>
+                                <span className="text-[10px] font-semibold shrink-0 w-14 text-right" style={{ color: statusColor }}>
+                                  {statusLabel}
                                 </span>
                               </div>
-                              <span className="shrink-0 font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>
-                                {fmtMoney(normalizeNum(tx.amount))}
-                              </span>
-                            </div>
-                          );
-                        })}
+                            );
+                          });
+                        })()}
                       </div>
                     )}
                   </div>
