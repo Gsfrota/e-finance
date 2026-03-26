@@ -746,12 +746,14 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         if (payErr) throw payErr;
       }
 
-      const { error: surplusErr } = await supabase.rpc('apply_surplus_action', {
+      const { data: surplusLeftover, error: surplusErr } = await supabase.rpc('apply_surplus_action', {
         p_installment_id: installment.id,
         p_surplus_amount: effectiveSurplus,
         p_action: surplusAction as 'next' | 'last' | 'spread',
+        p_paid_at: paidAtTs,
       });
       if (surplusErr) throw surplusErr;
+      if (surplusLeftover > 0.01) console.warn('[apply_surplus_action] sobra não aplicada:', surplusLeftover);
 
       // Nota e resumo da ação
       const surplusDestNum = surplusAction === 'next' ? context.nextInst?.number : surplusAction === 'last' ? context.lastInst?.number : undefined;
