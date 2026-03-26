@@ -493,7 +493,7 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
                           onPay={() => setInstallmentAction({ type: 'pay', installment: inst })}
                           onRefinance={() => setInstallmentAction({ type: 'refinance', installment: inst })}
                           onEdit={() => setInstallmentAction({ type: 'edit', installment: inst })}
-                          onInterestOnly={inst.investment?.calculation_mode === 'interest_only' ? () => setInstallmentAction({ type: 'interest', installment: inst }) : undefined}
+                          onInterestOnly={normalizeNumber(inst.amount_interest) > 0 ? () => setInstallmentAction({ type: 'interest', installment: inst }) : undefined}
                         />
                       ))
                     )}
