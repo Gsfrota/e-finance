@@ -304,6 +304,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
     const supabase = getSupabase();
     if (!supabase) return;
     try {
+      const receiptId = crypto.randomUUID();
       const paidAtTs = paymentDate + 'T12:00:00';
       const effectiveOvp = overpaymentAmount;
 
@@ -367,6 +368,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         ...breakdown,
         payment_method: paymentMethod,
         notes: actionNote,
+        receipt_id: receiptId,
       });
 
       onSuccess();
@@ -397,6 +399,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
     const supabase = getSupabase();
     if (!supabase) return;
     try {
+      const receiptId = crypto.randomUUID();
       const effectiveSurplus = postLateSurplus !== null ? postLateSurplus : surplus;
       const effectiveAction = surplusAction === 'pay_late' ? 'pay_late' : surplusAction;
       const paidAtTs = paymentDate + 'T12:00:00';
@@ -444,6 +447,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
             related_installment_number: installment.number,
             payment_method: paymentMethod,
             notes: `${formatCurrency(toPay)} recebido via excedente da parcela #${installment.number}`,
+            receipt_id: receiptId,
           });
 
           paidNumbers.push(late.number);
@@ -470,6 +474,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
           ...breakdown,
           payment_method: paymentMethod,
           notes: `Recebido ${formatCurrency(totalPaid)}: parcela ${formatCurrency(outstanding)} + excedente ${formatCurrency(surplus)} → atrasadas #${paidNumbers.join(', #')}`,
+          receipt_id: receiptId,
         });
 
         // Log: excedente aplicado (saindo da parcela atual)
@@ -481,6 +486,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
           amount: surplus,
           payment_method: paymentMethod,
           notes: `Excedente de ${formatCurrency(surplus)} aplicado nas parcelas atrasadas #${paidNumbers.join(', #')}`,
+          receipt_id: receiptId,
         });
 
         // 4. Se sobrou excedente após quitar todas as atrasadas → aplicar no destino escolhido
@@ -504,6 +510,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
             amount: remaining,
             payment_method: paymentMethod,
             notes: `Sobra de ${formatCurrency(remaining)} após quitar atrasadas → ${residualLabel}`,
+            receipt_id: receiptId,
           });
         }
 
@@ -559,6 +566,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
           ...breakdown,
           payment_method: paymentMethod,
           notes: notesArr[0],
+          receipt_id: receiptId,
         });
       }
       logPaymentTransaction({
@@ -569,6 +577,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         amount: effectiveSurplus,
         payment_method: paymentMethod,
         notes: `Excedente de ${formatCurrency(effectiveSurplus)} → ${actionLabel}`,
+        receipt_id: receiptId,
       });
 
       onSuccess();
@@ -592,6 +601,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
     // Verificação anti-duplicidade
     if (!(await checkStaleAndRefresh())) { setLoading(false); return; }
     try {
+      const receiptId = crypto.randomUUID();
       const { error: payErr } = await supabase.rpc('pay_installment', {
         p_installment_id: installment.id,
         p_amount_paid: val,
@@ -628,6 +638,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         notes: isPartialPayment
           ? `Pagamento parcial de ${formatCurrency(val)} na parcela #${installment.number}`
           : `Pagamento integral de ${formatCurrency(val)} na parcela #${installment.number}`,
+        receipt_id: receiptId,
       });
 
       onSuccess();
@@ -1335,6 +1346,7 @@ export const RefinanceModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSu
         amount: val,
         ...rfBreakdown,
         notes: `Refinanciamento: entrada ${formatCurrency(val)}, nova data ${newDate} (parcela #${installment.number})`,
+        receipt_id: crypto.randomUUID(),
       });
 
       onSuccess();
@@ -1578,6 +1590,7 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
         amount: val,
         interest_portion: val,
         notes: `Pagamento só juros ${formatCurrency(val)} (parcela #${installment.number})`,
+        receipt_id: crypto.randomUUID(),
       });
 
       onSuccess();

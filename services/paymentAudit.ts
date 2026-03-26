@@ -25,6 +25,7 @@ export const logPaymentTransaction = async (tx: {
   related_installment_number?: number;
   payment_method?: string;
   notes?: string;
+  receipt_id?: string;
 }) => {
   try {
     const supabase = getSupabase();
