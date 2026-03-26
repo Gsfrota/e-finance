@@ -407,8 +407,10 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
       });
 
       // Todas as parcelas pagas/parciais (sem filtro de mês) para o SalaryDashboard
+      // BR-REL-002: exclui parcelas fantasmas (deferidas via mark_installment_missed)
       const allPaidInstallments: LoanInstallment[] = uniqueInstallments
-        .filter((inst: any) => inst.status === 'paid' || inst.status === 'partial')
+        .filter((inst: any) => (inst.status === 'paid' || inst.status === 'partial') &&
+          !(normalizeNumber(inst.amount_total) === 0 && normalizeNumber(inst.amount_paid) === 0 && inst.status === 'paid'))
         .map((inst: any) => ({
           ...inst,
           amount_total: normalizeNumber(inst.amount_total),
