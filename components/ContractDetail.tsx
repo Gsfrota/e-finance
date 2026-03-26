@@ -449,7 +449,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                   {statusBadge(data.investment.status)}
                   {data.investment.calculation_mode === 'interest_only' && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-400 text-[10px] font-bold uppercase tracking-wider">
-                      Bullet
+                      Juros Simples
                     </span>
                   )}
                   {data.parent && (

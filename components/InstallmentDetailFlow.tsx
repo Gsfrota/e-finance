@@ -1013,14 +1013,12 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
 
   const handleInterest = async (e: React.FormEvent) => {
     e.preventDefault();
-    const val = parseFloat(amount);
-    if (!val || val <= 0) { setError('Informe um valor válido.'); return; }
     setLoading(true); setError(null);
     const supabase = getSupabase(); if (!supabase) return;
+    const interestDue = Math.max(0, normalizeNum(installment.amount_interest) - normalizeNum(installment.interest_payments_total));
     try {
-      const { error: err } = await supabase.rpc('process_bullet_payment', {
+      const { error: err } = await supabase.rpc('pay_bullet_interest_only', {
         p_installment_id: installment.id,
-        p_amount: val,
         p_paid_at: new Date().toISOString(),
         p_payment_method: 'PIX',
       });
@@ -1032,9 +1030,9 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         investment_id: installment.investment_id,
         installment_id: installment.id,
         transaction_type: 'payment',
-        amount: val,
-        interest_portion: val,
-        notes: `Pagamento só juros ${fmtMoney(val)} (parcela #${installment.number})`,
+        amount: interestDue,
+        interest_portion: interestDue,
+        notes: `Pagamento só juros ${fmtMoney(interestDue)} (parcela #${installment.number})`,
       });
 
       onSuccess(); onBack();
@@ -1732,23 +1730,23 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         {action.type === 'interest' && (
           <form onSubmit={handleInterest} className="space-y-4 pt-2">
             <div className="panel-card rounded-2xl p-4">
-              <p className="type-label text-[color:var(--accent-brass)]/80 mb-1">Parcela Original</p>
+              <p className="type-label text-[color:var(--accent-brass)]/80 mb-1">Saldo devedor (principal)</p>
               <p className="type-metric-xl text-[color:var(--text-primary)]">{fmtMoney(outstanding)}</p>
-              <p className="type-label text-[color:var(--accent-brass)]/70 mt-1">Ainda em aberto</p>
+              <p className="type-label text-[color:var(--accent-brass)]/70 mt-1">Continua em aberto após pagamento</p>
             </div>
-            <div>
-              <label className="block type-label text-[color:var(--text-faint)] mb-2">Valor dos Juros (R$)</label>
-              <div className="relative">
-                <Percent size={16} className="absolute left-4 top-4 text-[color:var(--accent-brass)]" />
-                <input type="number" step="0.01" inputMode="decimal" required autoFocus placeholder="0,00"
-                  value={amount} onChange={e => setAmount(e.target.value)}
-                  className={`${inputCls} pl-10 focus:ring-[color:var(--accent-brass)]`} />
+            <div className="panel-card rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p className="type-label text-[color:var(--accent-brass)]/80 mb-0.5">Juros a pagar</p>
+                <p className="type-label text-[color:var(--text-faint)] text-xs">Calculado automaticamente</p>
               </div>
+              <p className="type-metric text-[color:var(--accent-brass)] font-bold">
+                {fmtMoney(Math.max(0, normalizeNum(installment.amount_interest) - normalizeNum(installment.interest_payments_total)))}
+              </p>
             </div>
             <div className="p-3 rounded-xl bg-[rgba(202,176,122,0.08)] border border-[rgba(202,176,122,0.18)] flex gap-2.5 items-start">
               <AlertTriangle size={14} className="text-[color:var(--accent-brass)] shrink-0 mt-0.5" />
               <p className="type-caption text-[color:var(--text-secondary)] leading-relaxed">
-                O valor da parcela <strong>não será descontado</strong>. Ela continua em aberto.
+                O principal <strong>não será descontado</strong>. A parcela continua em aberto após este registro.
               </p>
             </div>
             {errorBlock}
