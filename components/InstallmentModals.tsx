@@ -110,6 +110,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   }>>([]);
   const [showLatePreview, setShowLatePreview] = useState(false);
   const [postLateSurplus, setPostLateSurplus] = useState<number | null>(null);
+  const [postLateAction, setPostLateAction] = useState<SurplusAction>('next');
 
   // ── Shared state ─────────────────────────────────────────────────────────────
   const [loading, setLoading]         = useState(false);
@@ -163,6 +164,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       setLateInstallments([]);
       setShowLatePreview(false);
       setPostLateSurplus(null);
+      setPostLateAction('next');
       setIsReceiptMode(installment.status === 'paid');
       if (installment.status !== 'paid') setAmount(outstanding.toFixed(2));
     }
@@ -271,7 +273,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   const handleStep2SurplusConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!installment) return;
-    if (!(await checkStaleAndRefresh())) return;
+    if (postLateSurplus === null && !(await checkStaleAndRefresh())) return;
     setLoading(true);
     setError(null);
     const supabase = getSupabase();
@@ -363,13 +365,26 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
           notes: `Excedente de ${formatCurrency(surplus)} aplicado nas parcelas atrasadas #${paidNumbers.join(', #')}`,
         });
 
-        // 4. Se sobrou excedente após quitar todas as atrasadas → perguntar destino
+        // 4. Se sobrou excedente após quitar todas as atrasadas → aplicar no destino escolhido
         if (remaining > 0.01) {
-          setPostLateSurplus(remaining);
-          setLateInstallments([]);
-          setSurplusAction('next');
-          setLoading(false);
-          return; // Volta ao step 2 sem pay_late, com surplus reduzido
+          const { error: residualErr } = await supabase.rpc('apply_surplus_action', {
+            p_installment_id: installment.id,
+            p_surplus_amount: remaining,
+            p_action: postLateAction as 'next' | 'last' | 'spread',
+          });
+          if (residualErr) throw residualErr;
+
+          const residualLabel = postLateAction === 'next' ? 'próxima parcela'
+            : postLateAction === 'last' ? 'última parcela' : 'distribuído';
+          logPaymentTransaction({
+            tenant_id: installment.tenant_id,
+            investment_id: installment.investment_id,
+            installment_id: installment.id,
+            transaction_type: 'surplus_applied',
+            amount: remaining,
+            payment_method: paymentMethod,
+            notes: `Sobra de ${formatCurrency(remaining)} após quitar atrasadas → ${residualLabel}`,
+          });
         }
 
         // 5. Finalizar
@@ -855,6 +870,41 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
             )}
           </div>
 
+          {/* Seção: destino da sobra residual (quando pay_late cobre tudo e ainda sobra) */}
+          {surplusAction === 'pay_late' && lateSurplusLeftover > 0.01 && (
+            <div className="border border-amber-700/40 bg-amber-950/20 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                  <CheckCircle2 size={13}/> Todas as atrasadas cobertas
+                </p>
+                <span className="text-xs font-mono text-emerald-300">{formatCurrency(latePaymentTotal)}</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-amber-800/30 pt-2">
+                <p className="text-xs font-semibold text-amber-400">Sobra restante</p>
+                <span className="text-xs font-mono text-amber-300">{formatCurrency(lateSurplusLeftover)}</span>
+              </div>
+              <p className="text-xs text-[color:var(--text-muted)]">Para onde vai a sobra?</p>
+              <div className="space-y-2">
+                {([
+                  { id: 'next' as const, label: 'Próxima parcela', sublabel: context.nextInst ? `Parcela #${context.nextInst.number}` : 'Parcela seguinte' },
+                  { id: 'last' as const, label: 'Última parcela', sublabel: context.lastInst ? `Parcela #${context.lastInst.number}` : 'Última parcela' },
+                  { id: 'spread' as const, label: 'Diminuir contrato', sublabel: pendingInstallments.length > 0 ? `${pendingInstallments.length} parcelas · ${formatCurrency(lateSurplusLeftover / pendingInstallments.length)} cada` : 'Distribuir proporcionalmente' },
+                ] as const).map(opt => (
+                  <button key={opt.id} type="button" onClick={() => setPostLateAction(opt.id)}
+                    className={`w-full p-2.5 rounded-xl border text-left transition-all flex items-center gap-3 ${postLateAction === opt.id ? 'border-amber-500/50 bg-amber-900/20' : 'border-slate-700 bg-slate-900/40 hover:border-slate-600'}`}>
+                    <div className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 flex items-center justify-center ${postLateAction === opt.id ? 'border-amber-400' : 'border-slate-600'}`}>
+                      {postLateAction === opt.id && <div className="h-1.5 w-1.5 rounded-full bg-amber-400"/>}
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`text-xs font-bold ${postLateAction === opt.id ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)]'}`}>{opt.label}</p>
+                      <p className="text-xs text-[color:var(--text-muted)]">{opt.sublabel}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
               <AlertTriangle size={14}/> {error}
@@ -876,7 +926,9 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
                 {surplusAction === 'next' && (surplusNextInst ? `Parcela #${surplusNextInst.number}` : 'Próxima')}
                 {surplusAction === 'last' && (surplusLastInst ? `Parcela #${surplusLastInst.number}` : 'Última')}
                 {surplusAction === 'spread' && `${pendingInstallments.length} parcelas`}
-                {surplusAction === 'pay_late' && `${latePaymentPreview.length} parcela(s) atrasada(s)`}
+                {surplusAction === 'pay_late' && (lateSurplusLeftover > 0.01
+                  ? `${latePaymentPreview.length} atrasada(s) + sobra → ${postLateAction === 'next' ? 'próxima' : postLateAction === 'last' ? 'última' : 'distribuída'}`
+                  : `${latePaymentPreview.length} parcela(s) atrasada(s)`)}
               </span>
             </div>
           </div>
