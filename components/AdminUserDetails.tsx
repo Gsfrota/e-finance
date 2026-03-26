@@ -67,7 +67,7 @@ interface InstallmentCardProps {
   onPay: () => void;
   onRefinance: () => void;
   onEdit: () => void;
-  onInterestOnly: () => void;
+  onInterestOnly?: () => void;
 }
 
 const InstallmentCard: React.FC<InstallmentCardProps> = ({
@@ -161,12 +161,14 @@ const InstallmentCard: React.FC<InstallmentCardProps> = ({
           >
             ↗ Reneg.
           </button>
+          {onInterestOnly && (
           <button
             onClick={onInterestOnly}
             className="flex-1 rounded-xl bg-[rgba(202,176,122,0.12)] px-2 py-2.5 type-label text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)] active:scale-95 transition-all"
           >
-            % Juros
+            Baixa de Juros
           </button>
+          )}
           <button
             onClick={onEdit}
             className="rounded-xl bg-[color:var(--bg-soft)] px-3 py-2.5 text-[color:var(--text-muted)] ring-1 ring-[color:var(--border-subtle)] active:scale-95 transition-all"
@@ -491,7 +493,7 @@ const AdminUserDetails: React.FC<AdminUserDetailsProps> = ({ userId, onBack }) =
                           onPay={() => setInstallmentAction({ type: 'pay', installment: inst })}
                           onRefinance={() => setInstallmentAction({ type: 'refinance', installment: inst })}
                           onEdit={() => setInstallmentAction({ type: 'edit', installment: inst })}
-                          onInterestOnly={() => setInstallmentAction({ type: 'interest', installment: inst })}
+                          onInterestOnly={inst.investment?.calculation_mode === 'interest_only' ? () => setInstallmentAction({ type: 'interest', installment: inst }) : undefined}
                         />
                       ))
                     )}
