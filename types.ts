@@ -124,6 +124,7 @@ export interface PaymentTransaction {
   related_installment_number?: number;
   payment_method?: string;
   notes?: string;
+  receipt_id?: string;
   created_at: string;
 }
 
