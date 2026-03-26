@@ -111,6 +111,11 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   const [showLatePreview, setShowLatePreview] = useState(false);
   const [postLateSurplus, setPostLateSurplus] = useState<number | null>(null);
   const [postLateAction, setPostLateAction] = useState<SurplusAction>('next');
+  // ── Overpayment state (valor > dívida total do contrato) ─────────────────────
+  const [totalOtherUnpaidOutstanding, setTotalOtherUnpaidOutstanding] = useState(0);
+  const [lastUnpaidInstallmentId, setLastUnpaidInstallmentId] = useState<string | null>(null);
+  const [lastUnpaidNumber, setLastUnpaidNumber] = useState<number>(0);
+  const [overpaymentAction, setOverpaymentAction] = useState<'discard' | 'add_to_last'>('discard');
 
   // ── Shared state ─────────────────────────────────────────────────────────────
   const [loading, setLoading]         = useState(false);
@@ -145,6 +150,10 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   }, [surplus, lateInstallments]);
   const latePaymentTotal = latePaymentPreview.reduce((s, p) => s + p.willPay, 0);
   const lateSurplusLeftover = Math.max(0, surplus - latePaymentTotal);
+  // Overpayment: valor digitado supera a dívida total do contrato
+  const totalContractRemaining = outstanding + totalOtherUnpaidOutstanding;
+  const overpaymentAmount = Math.max(0, surplus - totalOtherUnpaidOutstanding);
+  const isOverpayment = hasExcedente && surplus > totalOtherUnpaidOutstanding + 0.01;
 
   // ── Reset on open ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -165,6 +174,10 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       setShowLatePreview(false);
       setPostLateSurplus(null);
       setPostLateAction('next');
+      setTotalOtherUnpaidOutstanding(0);
+      setLastUnpaidInstallmentId(null);
+      setLastUnpaidNumber(0);
+      setOverpaymentAction('discard');
       setIsReceiptMode(installment.status === 'paid');
       if (installment.status !== 'paid') setAmount(outstanding.toFixed(2));
     }
@@ -179,11 +192,11 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   }, [isReceiptMode]);
 
   // ── Load adjacent installments for step 2 ───────────────────────────────────
-  const loadContext = async () => {
-    if (!installment) return;
+  const loadContext = async (): Promise<{ totalOtherUnpaid: number }> => {
+    if (!installment) return { totalOtherUnpaid: 0 };
     setLoadingContext(true);
     const supabase = getSupabase();
-    if (!supabase) { setLoadingContext(false); return; }
+    if (!supabase) { setLoadingContext(false); return { totalOtherUnpaid: 0 }; }
     try {
       const { data } = await supabase
         .from('loan_installments')
@@ -218,10 +231,24 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         if (lateWithOutstanding.length > 0) setSurplusAction('pay_late');
         else if (nextInst) setSurplusAction('next');
         else setSurplusAction('last');
+        // Overpayment: total outstanding das outras parcelas não pagas
+        const totalOtherUnpaid = pending.reduce((sum, r) => {
+          const ost = Math.max(0,
+            (normalizeNumber(r.amount_total) + normalizeNumber(r.fine_amount || 0) + normalizeNumber(r.interest_delay_amount || 0))
+            - normalizeNumber(r.amount_paid || 0)
+          );
+          return sum + ost;
+        }, 0);
+        setTotalOtherUnpaidOutstanding(totalOtherUnpaid);
+        const lastUnpaid = pending.length ? pending[pending.length - 1] : null;
+        setLastUnpaidInstallmentId(lastUnpaid?.id ?? null);
+        setLastUnpaidNumber(lastUnpaid?.number ?? 0);
+        return { totalOtherUnpaid };
       }
     } finally {
       setLoadingContext(false);
     }
+    return { totalOtherUnpaid: 0 };
   };
 
   // Re-fetch parcela para evitar pagamento duplicado (dados stale em outra tela)
@@ -250,8 +277,9 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
     if (isNaN(val) || val <= 0) { setError('O valor deve ser maior que zero.'); return; }
     setError(null);
     if (hasExcedente) {
-      await loadContext();
-      setStep2Mode('surplus');
+      const { totalOtherUnpaid } = await loadContext();
+      const over = (val - outstanding) > totalOtherUnpaid + 0.01;
+      setStep2Mode(over ? 'overpayment' : 'surplus');
       setStep(2);
     } else if (isPartial) {
       await loadContext();
@@ -260,6 +288,90 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
     } else {
       if (!(await checkStaleAndRefresh())) return;
       await submitPayment(val, null, 0);
+    }
+  };
+
+  const handleStep2OverpaymentConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!installment) return;
+    if (!(await checkStaleAndRefresh())) return;
+    setLoading(true);
+    setError(null);
+    const supabase = getSupabase();
+    if (!supabase) return;
+    try {
+      const paidAtTs = paymentDate + 'T12:00:00';
+      const effectiveOvp = overpaymentAmount;
+
+      // 1. Se add_to_last: aumentar amount_total da última parcela antes de pagar
+      if (overpaymentAction === 'add_to_last' && lastUnpaidInstallmentId) {
+        const { data: lastInst } = await supabase
+          .from('loan_installments')
+          .select('amount_total, amount_principal')
+          .eq('id', lastUnpaidInstallmentId)
+          .single();
+        if (lastInst) {
+          await supabase.from('loan_installments').update({
+            amount_total: normalizeNumber(lastInst.amount_total) + effectiveOvp,
+            amount_principal: normalizeNumber(lastInst.amount_principal) + effectiveOvp,
+            updated_at: new Date().toISOString(),
+          }).eq('id', lastUnpaidInstallmentId);
+        }
+      }
+
+      // 2. Paga a parcela atual
+      const { error: payErr } = await supabase.rpc('pay_installment', {
+        p_installment_id: installment.id,
+        p_amount_paid: outstanding,
+        p_paid_at: paidAtTs,
+      });
+      if (payErr) throw payErr;
+
+      // 3. Aplica o excedente (cobre exatamente todas as outras, ou + overpayment se add_to_last)
+      const surplusToApply = overpaymentAction === 'add_to_last'
+        ? totalOtherUnpaidOutstanding + effectiveOvp
+        : totalOtherUnpaidOutstanding;
+
+      if (surplusToApply > 0.01) {
+        const { error: applyErr } = await supabase.rpc('apply_surplus_action', {
+          p_installment_id: installment.id,
+          p_surplus_amount: surplusToApply,
+          p_action: 'next',
+        });
+        if (applyErr) throw applyErr;
+      }
+
+      // 4. Atualiza notes e método da parcela atual
+      const actionNote = overpaymentAction === 'discard'
+        ? `Contrato quitado — excedente de ${formatCurrency(effectiveOvp)} descartado`
+        : `Contrato quitado — ${formatCurrency(effectiveOvp)} adicionados ao montante final (parcela #${lastUnpaidNumber})`;
+      await supabase.from('loan_installments')
+        .update({ notes: actionNote, payment_method: paymentMethod })
+        .eq('id', installment.id);
+
+      // 5. Audit log
+      const breakdown = calcBreakdown(installment, outstanding);
+      const totalReceived = overpaymentAction === 'add_to_last' ? outstanding + surplusToApply : outstanding + totalOtherUnpaidOutstanding;
+      logPaymentTransaction({
+        tenant_id: installment.tenant_id,
+        investment_id: installment.investment_id,
+        installment_id: installment.id,
+        transaction_type: 'payment',
+        amount: totalReceived,
+        ...breakdown,
+        payment_method: paymentMethod,
+        notes: actionNote,
+      });
+
+      onSuccess();
+      installment.amount_paid = (installment.amount_paid || 0) + outstanding;
+      installment.status = 'paid';
+      installment.paid_at = paidAtTs;
+      setIsReceiptMode(true);
+    } catch (err: any) {
+      setError(err.message || 'Erro ao processar pagamento.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -693,6 +805,68 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       </form>
     </ModalBackdrop>
   );
+
+  // ── Step 2 — Overpayment (valor > dívida total do contrato) ─────────────────
+  if (step === 2 && step2Mode === 'overpayment') {
+    return (
+      <div className="flex flex-col h-full">
+        <ModalHeader title="Pagamento excede a dívida" subtitle={`Contrato será encerrado · sobra ${formatCurrency(overpaymentAmount)}`} onClose={onClose}/>
+        <form onSubmit={handleStep2OverpaymentConfirm} className="p-5 space-y-4 overflow-y-auto max-h-[70vh]">
+          <div className="bg-amber-950/30 border border-amber-700/40 rounded-2xl p-4 space-y-1">
+            <p className="text-sm font-bold text-amber-300">Valor excede a dívida total do contrato</p>
+            <p className="text-xs text-[color:var(--text-muted)]">
+              Dívida total: <span className="font-mono text-[color:var(--text-secondary)]">{formatCurrency(totalContractRemaining)}</span>
+              {' · '}Excedente: <span className="font-mono text-amber-300">{formatCurrency(overpaymentAmount)}</span>
+            </p>
+          </div>
+          <p className="text-xs text-[color:var(--text-muted)]">O que fazer com o excedente de <span className="font-semibold text-amber-300">{formatCurrency(overpaymentAmount)}</span>?</p>
+          <div className="space-y-2">
+            {([
+              {
+                id: 'discard' as const,
+                label: 'Desconsiderar excedente',
+                sublabel: `Receber exatamente ${formatCurrency(totalContractRemaining)} e encerrar o contrato`,
+              },
+              {
+                id: 'add_to_last' as const,
+                label: 'Adicionar ao montante final',
+                sublabel: lastUnpaidNumber
+                  ? `Parcela #${lastUnpaidNumber} recebe ${formatCurrency(overpaymentAmount)} a mais · total recebido ${formatCurrency(totalContractRemaining + overpaymentAmount)}`
+                  : `Parcela final recebe ${formatCurrency(overpaymentAmount)} a mais`,
+              },
+            ] as const).map(opt => (
+              <button key={opt.id} type="button" onClick={() => setOverpaymentAction(opt.id)}
+                className={`w-full p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${overpaymentAction === opt.id ? 'border-amber-500/50 bg-amber-900/20 ring-1 ring-amber-500/20' : 'border-slate-700 bg-slate-900/40 hover:border-slate-600'}`}>
+                <div className={`h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center ${overpaymentAction === opt.id ? 'border-amber-400' : 'border-slate-600'}`}>
+                  {overpaymentAction === opt.id && <div className="h-2 w-2 rounded-full bg-amber-400"/>}
+                </div>
+                <div className="min-w-0">
+                  <p className={`text-sm font-bold ${overpaymentAction === opt.id ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)]'}`}>{opt.label}</p>
+                  <p className="text-xs text-[color:var(--text-muted)] mt-0.5">{opt.sublabel}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+          {error && (
+            <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+              <AlertTriangle size={14}/> {error}
+            </div>
+          )}
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={() => setStep(1)}
+              className="flex-1 bg-[color:var(--bg-elevated)] hover:bg-[color:var(--bg-soft)] text-[color:var(--text-secondary)] py-3.5 rounded-xl type-label flex items-center justify-center gap-1.5 transition-colors">
+              <ChevronLeft size={14}/> Voltar
+            </button>
+            <button type="submit" disabled={loading}
+              className="flex-[2] bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3.5 rounded-xl type-label flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]">
+              {loading ? <Loader2 className="animate-spin" size={16}/> : <CheckCircle2 size={16}/>}
+              {loading ? 'Processando...' : 'Encerrar contrato'}
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  }
 
   // ── Step 2 — Surplus ─────────────────────────────────────────────────────────
   if (step === 2 && step2Mode === 'surplus') {
