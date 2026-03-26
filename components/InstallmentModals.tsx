@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { LoanInstallment, Tenant } from '../types';
 import { getSupabase } from '../services/supabase';
@@ -1550,50 +1550,176 @@ export const EditModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess
 };
 
 // --- 4. INTEREST ONLY MODAL (Pagar Só Juros) ---
+// Suporta contratos bullet (calculation_mode === 'interest_only') e contratos regulares.
+// - Bullet: chama pay_bullet_interest_only, principal permanece em remaining_balance.
+// - Regular: input editável, chama pay_installment + apply_remainder_action('last').
 
 export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess, installment }) => {
   const today = new Date().toISOString().split('T')[0];
-  const [paymentDate, setPaymentDate] = useState(today);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  const [paymentDate, setPaymentDate]   = useState(today);
+  const [interestAmount, setInterestAmount] = useState('');
+  const [isEdited, setIsEdited]         = useState(false);
+  const [newDueDate, setNewDueDate]     = useState('');
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState<string | null>(null);
+  const originalInterestRef             = useRef(0);
+
+  const isBullet      = installment?.investment?.calculation_mode === 'interest_only';
+  const outstanding   = calculateOutstanding(installment);
+  const totalInterestPaid = normalizeNumber(installment?.interest_payments_total);
+  const principalAmount   = normalizeNumber(installment?.amount_principal);
+
+  // Calcula data padrão para próxima parcela: vencimento atual + 1 mês
+  const defaultNextDueDate = (dueDateStr: string | undefined): string => {
+    if (!dueDateStr) return '';
+    const d = new Date(dueDateStr + 'T12:00:00');
+    d.setMonth(d.getMonth() + 1);
+    return d.toISOString().split('T')[0];
+  };
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && installment) {
       setPaymentDate(today);
       setError(null);
+      setIsEdited(false);
+      const defaultVal = Math.max(0,
+        normalizeNumber(installment.amount_interest) - normalizeNumber(installment.interest_payments_total)
+      );
+      setInterestAmount(defaultVal.toFixed(2));
+      originalInterestRef.current = defaultVal;
+      setNewDueDate(defaultNextDueDate(installment.due_date));
     }
-  }, [isOpen]);
+  }, [isOpen, installment]);
 
-  const outstanding = calculateOutstanding(installment);
-  const totalInterestPaid = normalizeNumber(installment?.interest_payments_total);
-  const interestDue = Math.max(0, normalizeNumber(installment?.amount_interest) - totalInterestPaid);
+  const handleInterestChange = (val: string) => {
+    setInterestAmount(val);
+    setIsEdited(Math.abs((parseFloat(val) || 0) - originalInterestRef.current) > 0.01);
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ── Submit bullet: paga juros, gera próxima parcela com data escolhida ──────
+  const handleSubmitBullet = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!installment) return;
+    const parsedAmount = parseFloat(interestAmount) || 0;
+    if (parsedAmount <= 0) { setError('O valor deve ser maior que zero.'); return; }
+    if (!newDueDate) { setError('Informe o vencimento da próxima parcela.'); return; }
+
     setLoading(true);
     setError(null);
     const supabase = getSupabase();
     if (!supabase) return;
     try {
-      const paidAtTs = paymentDate ? new Date(paymentDate + 'T12:00:00').toISOString() : new Date().toISOString();
+      const paidAtTs = paymentDate + 'T12:00:00';
+      const receiptId = crypto.randomUUID();
+
+      // Se editou os juros, atualiza a parcela antes do RPC (o RPC usa o valor gravado)
+      if (isEdited) {
+        const { error: updateErr } = await supabase.from('loan_installments').update({
+          amount_interest: parsedAmount,
+          amount_total: principalAmount + parsedAmount,
+        }).eq('id', installment.id);
+        if (updateErr) throw updateErr;
+      }
+
+      // Paga juros e gera próxima parcela automaticamente
       const { error: rpcError } = await supabase.rpc('pay_bullet_interest_only', {
         p_installment_id: installment.id,
         p_paid_at: paidAtTs,
-        p_payment_method: 'PIX'
+        p_payment_method: 'PIX',
       });
       if (rpcError) throw rpcError;
 
-      // Auditoria: log do pagamento de juros
+      // Atualiza due_date da parcela recém-gerada (a pendente de maior número)
+      const { data: nextInst } = await supabase
+        .from('loan_installments')
+        .select('id')
+        .eq('investment_id', installment.investment_id)
+        .eq('status', 'pending')
+        .order('number', { ascending: false })
+        .limit(1)
+        .single();
+      if (nextInst) {
+        await supabase.from('loan_installments')
+          .update({ due_date: newDueDate })
+          .eq('id', nextInst.id);
+      }
+
+      const editNote = isEdited
+        ? `Só juros (editado: ${formatCurrency(originalInterestRef.current)} → ${formatCurrency(parsedAmount)})`
+        : `Só juros ${formatCurrency(parsedAmount)}`;
+
       logPaymentTransaction({
         tenant_id: installment.tenant_id,
         investment_id: installment.investment_id,
         installment_id: installment.id,
         transaction_type: 'payment',
-        amount: interestDue,
-        interest_portion: interestDue,
-        notes: `Pagamento só juros ${formatCurrency(interestDue)} (parcela #${installment.number})`,
-        receipt_id: crypto.randomUUID(),
+        amount: parsedAmount,
+        interest_portion: parsedAmount,
+        principal_portion: 0,
+        extras_portion: 0,
+        notes: `${editNote} — próximo vencimento ${newDueDate} (parcela #${installment.number})`,
+        receipt_id: receiptId,
+      });
+
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      setError(parseSupabaseError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Submit regular: paga juros, move principal para última parcela ───────────
+  const handleSubmitRegular = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!installment) return;
+    const parsedAmount = parseFloat(interestAmount) || 0;
+    if (parsedAmount <= 0) { setError('O valor deve ser maior que zero.'); return; }
+    if (parsedAmount > outstanding + 0.01) { setError('Valor não pode exceder o saldo devedor.'); return; }
+
+    setLoading(true);
+    setError(null);
+    const supabase = getSupabase();
+    if (!supabase) return;
+    try {
+      const paidAtTs = paymentDate + 'T12:00:00';
+      const receiptId = crypto.randomUUID();
+      const editNote = isEdited
+        ? `Só juros (editado: ${formatCurrency(originalInterestRef.current)} → ${formatCurrency(parsedAmount)})`
+        : `Só juros ${formatCurrency(parsedAmount)}`;
+      const fullNote = `${editNote} (parcela #${installment.number})`;
+
+      const { error: payErr } = await supabase.rpc('pay_installment', {
+        p_installment_id: installment.id,
+        p_amount_paid: parsedAmount,
+        p_paid_at: paidAtTs,
+      });
+      if (payErr) throw payErr;
+
+      const { error: deferErr } = await supabase.rpc('apply_remainder_action', {
+        p_installment_id: installment.id,
+        p_action: 'last',
+        p_interest_rate: 0,
+      });
+      if (deferErr) throw deferErr;
+
+      await supabase.from('loan_installments')
+        .update({ payment_method: 'PIX', notes: fullNote })
+        .eq('id', installment.id);
+
+      logPaymentTransaction({
+        tenant_id: installment.tenant_id,
+        investment_id: installment.investment_id,
+        installment_id: installment.id,
+        transaction_type: 'payment',
+        amount: parsedAmount,
+        interest_portion: parsedAmount,
+        principal_portion: 0,
+        extras_portion: 0,
+        notes: fullNote,
+        receipt_id: receiptId,
       });
 
       onSuccess();
@@ -1607,6 +1733,8 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
 
   if (!isOpen || !installment) return null;
 
+  const inputClass = "w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3.5 text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-[color:var(--accent-caution)] focus:border-transparent transition-all";
+
   return (
     <ModalBackdrop onClose={onClose}>
       <Header
@@ -1617,60 +1745,140 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
         colorClass="text-[color:var(--accent-caution)]"
       />
 
-      <form onSubmit={handleSubmit} className="p-8 space-y-5">
-        <div className="bg-[color:var(--accent-caution-bg)] border border-[color:var(--accent-caution-border)] p-4 rounded-2xl">
-          <p className="type-label text-[color:var(--accent-caution)] mb-1 opacity-80">Saldo devedor (principal)</p>
-          <p className="type-metric-xl text-[color:var(--text-primary)]">{formatCurrency(outstanding)}</p>
-          <p className="type-label text-[color:var(--accent-caution)] mt-1 opacity-70">Continua em aberto após pagamento</p>
-        </div>
+      {/* ── Bullet: paga juros + escolhe nova data ───────────────────────────── */}
+      {isBullet && (
+        <form onSubmit={handleSubmitBullet} className="p-6 space-y-4">
+          {/* Saldo devedor */}
+          <div className="bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] p-4 rounded-2xl flex items-center justify-between">
+            <div>
+              <p className="type-label text-[color:var(--text-muted)] mb-0.5">Saldo devedor</p>
+              <p className="type-caption text-[color:var(--text-faint)]">Renova para o próximo vencimento</p>
+            </div>
+            <p className="text-[color:var(--text-primary)] font-bold font-mono text-lg">{formatCurrency(principalAmount)}</p>
+          </div>
 
-        <div className="bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] p-4 rounded-2xl flex items-center justify-between">
+          {/* Juros editável */}
           <div>
-            <p className="type-label text-[color:var(--text-muted)] mb-0.5">Juros a pagar</p>
-            <p className="type-caption text-[color:var(--text-faint)]">Calculado automaticamente</p>
+            <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">
+              Juros a cobrar agora
+            </label>
+            <input
+              type="number" required min="0.01" step="0.01"
+              value={interestAmount}
+              onChange={e => handleInterestChange(e.target.value)}
+              className={inputClass + ' font-mono text-lg text-right'}
+            />
           </div>
-          <p className="text-[color:var(--accent-caution)] font-bold text-lg font-mono">{formatCurrency(interestDue)}</p>
-        </div>
 
-        {totalInterestPaid > 0 && (
-          <div className="bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] p-3 rounded-xl flex justify-between items-center">
-            <span className="type-label text-[color:var(--text-muted)]">Juros já cobrados</span>
-            <span className="text-[color:var(--accent-caution)] font-semibold text-sm">{formatCurrency(totalInterestPaid)}</span>
+          {/* Aviso de edição */}
+          {isEdited && (
+            <div className="bg-amber-900/15 border border-amber-500/20 p-3 rounded-xl flex gap-2.5 items-start">
+              <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5"/>
+              <p className="type-caption text-amber-300/80 leading-relaxed">
+                Valor editado. Original: <strong>{formatCurrency(originalInterestRef.current)}</strong>. Registrado no histórico.
+              </p>
+            </div>
+          )}
+
+          {/* Data do pagamento */}
+          <div>
+            <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">Data do recebimento</label>
+            <input type="date" required value={paymentDate} onChange={e => setPaymentDate(e.target.value)} className={inputClass}/>
           </div>
-        )}
 
-        <div>
-          <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">
-            Data do pagamento
-          </label>
-          <input
-            type="date" required
-            value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
-            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3.5 text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-[color:var(--accent-caution)] focus:border-transparent transition-all"
-          />
-        </div>
-
-        <div className="bg-[color:var(--accent-caution-bg)] border border-[color:var(--accent-caution-border)] p-3 rounded-xl flex gap-2.5 items-start">
-          <AlertTriangle size={14} className="text-[color:var(--accent-caution)] shrink-0 mt-0.5"/>
-          <p className="type-caption text-[color:var(--text-secondary)] leading-relaxed font-medium">
-            O principal <strong>não será descontado</strong>. A parcela continua em aberto após este registro.
-          </p>
-        </div>
-
-        {error && (
-          <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
-            <AlertTriangle size={14}/> {error}
+          {/* Nova data de vencimento */}
+          <div>
+            <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">
+              Próximo vencimento
+            </label>
+            <input type="date" required value={newDueDate} onChange={e => setNewDueDate(e.target.value)} className={inputClass}/>
+            <p className="type-caption text-[color:var(--text-faint)] mt-1.5 ml-1">Padrão: 1 mês após o vencimento atual</p>
           </div>
-        )}
 
-        <button
-          type="submit" disabled={loading}
-          className="w-full bg-[color:var(--accent-caution-btn)] hover:bg-[color:var(--accent-caution-btn-hover)] text-white py-4 rounded-xl type-label flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]"
-        >
-          {loading ? <Loader2 className="animate-spin" size={18}/> : <Percent size={18}/>}
-          {loading ? 'Registrando...' : 'Registrar Pagamento de Juros'}
-        </button>
-      </form>
+          {error && (
+            <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+              <AlertTriangle size={14}/> {error}
+            </div>
+          )}
+
+          <button
+            type="submit" disabled={loading}
+            className="w-full bg-[color:var(--accent-caution-btn)] hover:bg-[color:var(--accent-caution-btn-hover)] text-white py-4 rounded-xl type-label flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]"
+          >
+            {loading ? <Loader2 className="animate-spin" size={18}/> : <Percent size={18}/>}
+            {loading ? 'Registrando...' : `Cobrar juros e renovar para ${newDueDate ? new Date(newDueDate + 'T12:00:00').toLocaleDateString('pt-BR') : '…'}`}
+          </button>
+        </form>
+      )}
+
+      {/* ── Regular: juros editável + principal vai para última parcela ──────── */}
+      {!isBullet && (
+        <form onSubmit={handleSubmitRegular} className="p-6 space-y-4">
+          {/* Resumo */}
+          <div className="bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] p-4 rounded-2xl">
+            <p className="type-label text-[color:var(--text-muted)] mb-2">Composição da parcela</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="type-label text-[color:var(--text-faint)] mb-0.5">Principal</p>
+                <p className="text-[color:var(--text-primary)] font-bold font-mono text-base">{formatCurrency(principalAmount)}</p>
+              </div>
+              <div>
+                <p className="type-label text-[color:var(--text-faint)] mb-0.5">Juros</p>
+                <p className="text-[color:var(--accent-caution)] font-bold font-mono text-base">{formatCurrency(normalizeNumber(installment.amount_interest))}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Juros editável */}
+          <div>
+            <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">Valor dos juros a pagar</label>
+            <input
+              type="number" required min="0.01" step="0.01"
+              value={interestAmount}
+              onChange={e => handleInterestChange(e.target.value)}
+              className={inputClass + ' font-mono text-lg text-right'}
+            />
+          </div>
+
+          {/* Aviso de edição */}
+          {isEdited && (
+            <div className="bg-amber-900/15 border border-amber-500/20 p-3 rounded-xl flex gap-2.5 items-start">
+              <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5"/>
+              <p className="type-caption text-amber-300/80 leading-relaxed">
+                Valor editado. Original: <strong>{formatCurrency(originalInterestRef.current)}</strong>. Registrado no histórico.
+              </p>
+            </div>
+          )}
+
+          {/* Data do pagamento */}
+          <div>
+            <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">Data do recebimento</label>
+            <input type="date" required value={paymentDate} onChange={e => setPaymentDate(e.target.value)} className={inputClass}/>
+          </div>
+
+          {/* Info destino do principal */}
+          <div className="bg-teal-900/15 border border-teal-500/20 p-3 rounded-xl flex gap-2.5 items-start">
+            <ArrowDownToLine size={14} className="text-teal-400 shrink-0 mt-0.5"/>
+            <p className="type-caption text-teal-300/80 leading-relaxed">
+              O principal de <strong>{formatCurrency(principalAmount)}</strong> será transferido para a última parcela do contrato.
+            </p>
+          </div>
+
+          {error && (
+            <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+              <AlertTriangle size={14}/> {error}
+            </div>
+          )}
+
+          <button
+            type="submit" disabled={loading}
+            className="w-full bg-[color:var(--accent-caution-btn)] hover:bg-[color:var(--accent-caution-btn-hover)] text-white py-4 rounded-xl type-label flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]"
+          >
+            {loading ? <Loader2 className="animate-spin" size={18}/> : <Percent size={18}/>}
+            {loading ? 'Registrando...' : 'Registrar Pagamento de Juros'}
+          </button>
+        </form>
+      )}
     </ModalBackdrop>
   );
 };

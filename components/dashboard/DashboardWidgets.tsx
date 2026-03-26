@@ -883,7 +883,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                               >
                                 ↺ RENEGOCIAR
                               </button>
-                              {installment.investment?.calculation_mode === 'interest_only' && (
+                              {Number(installment.amount_interest) > 0 && (
                               <button
                                 onClick={() => openAction('interest_only', installment)}
                                 className="rounded-lg border border-[rgba(200,154,85,0.3)] bg-[rgba(200,154,85,0.1)] px-4 py-2.5 text-sm font-bold text-[color:var(--accent-warning)] transition-colors hover:bg-[rgba(200,154,85,0.2)]"
@@ -972,7 +972,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                         >
                           ↺ RENEG.
                         </button>
-                        {installment.investment?.calculation_mode === 'interest_only' && (
+                        {Number(installment.amount_interest) > 0 && (
                         <button
                           onClick={() => openAction('interest_only', installment)}
                           className="min-h-[48px] rounded-xl border border-[rgba(200,154,85,0.3)] bg-[rgba(200,154,85,0.1)] py-3 text-sm font-bold text-[color:var(--accent-warning)] transition-colors hover:bg-[rgba(200,154,85,0.2)]"
