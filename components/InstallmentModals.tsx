@@ -130,7 +130,11 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   const hasExcedente = surplus > 0.01;
   const interestAmt = useInterest && interestPercent ? remainder * (parseFloat(interestPercent) || 0) / 100 : 0;
   const remainderWithInterest = remainder + interestAmt;
-  const discountPerInstallment = pendingInstallments.length > 0 ? surplus / pendingInstallments.length : 0;
+  // Spread proporcional: cota de cada parcela baseada no seu amount_total (proxy do saldo)
+  const spreadTotalAmount = pendingInstallments.reduce((sum, inst) => sum + inst.amount_total, 0);
+  const spreadShares: Record<string, number> = spreadTotalAmount > 0.01
+    ? Object.fromEntries(pendingInstallments.map(inst => [inst.id, surplus * (inst.amount_total / spreadTotalAmount)]))
+    : {};
 
   // Detecção de pagamento atrasado
   const isLatePayment = installment?.due_date && paymentDate > installment.due_date.split('T')[0];
@@ -333,12 +337,14 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         : totalOtherUnpaidOutstanding;
 
       if (surplusToApply > 0.01) {
-        const { error: applyErr } = await supabase.rpc('apply_surplus_action', {
+        const { data: ovpLeftover, error: applyErr } = await supabase.rpc('apply_surplus_action', {
           p_installment_id: installment.id,
           p_surplus_amount: surplusToApply,
           p_action: 'next',
+          p_paid_at: paidAtTs,
         });
         if (applyErr) throw applyErr;
+        if (ovpLeftover > 0.01) console.warn('[apply_surplus_action] sobra não aplicada:', ovpLeftover);
       }
 
       // 4. Atualiza notes e método da parcela atual
@@ -479,12 +485,14 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
 
         // 4. Se sobrou excedente após quitar todas as atrasadas → aplicar no destino escolhido
         if (remaining > 0.01) {
-          const { error: residualErr } = await supabase.rpc('apply_surplus_action', {
+          const { data: residualLeftover, error: residualErr } = await supabase.rpc('apply_surplus_action', {
             p_installment_id: installment.id,
             p_surplus_amount: remaining,
             p_action: postLateAction as 'next' | 'last' | 'spread',
+            p_paid_at: paidAtTs,
           });
           if (residualErr) throw residualErr;
+          if (residualLeftover > 0.01) console.warn('[apply_surplus_action] sobra residual não aplicada:', residualLeftover);
 
           const residualLabel = postLateAction === 'next' ? 'próxima parcela'
             : postLateAction === 'last' ? 'última parcela' : 'distribuído';
@@ -520,12 +528,14 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       }
 
       // 2. Aplica o excedente na ação escolhida
-      const { error: surplusErr } = await supabase.rpc('apply_surplus_action', {
+      const { data: surplusLeftover, error: surplusErr } = await supabase.rpc('apply_surplus_action', {
         p_installment_id: installment.id,
         p_surplus_amount: effectiveSurplus,
         p_action: surplusAction as 'next' | 'last' | 'spread',
+        p_paid_at: paidAtTs,
       });
       if (surplusErr) throw surplusErr;
+      if (surplusLeftover > 0.01) console.warn('[apply_surplus_action] sobra não aplicada:', surplusLeftover);
 
       // 3. Persiste método de pagamento e notes
       const actionLabel = surplusAction === 'next' ? 'próxima parcela' : surplusAction === 'last' ? 'última parcela' : 'distribuído';
@@ -928,7 +938,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
                 <span className="font-mono">
                   {formatCurrency(inst.amount_total)}
                   <span className="text-slate-500 mx-1">→</span>
-                  <span className="text-emerald-300">{formatCurrency(Math.max(0, inst.amount_total - discountPerInstallment))}</span>
+                  <span className="text-emerald-300">{formatCurrency(Math.max(0, inst.amount_total - (spreadShares[inst.id] ?? 0)))}</span>
                 </span>
               </div>
             ))}
@@ -990,7 +1000,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
               icon={<Layers size={16}/>}
               label="Diminuir contrato"
               sublabel={pendingInstallments.length > 0
-                ? `${pendingInstallments.length} parcelas restantes · desconto de ${formatCurrency(discountPerInstallment)} cada`
+                ? `${pendingInstallments.length} parcelas restantes · proporcional ao saldo de cada uma`
                 : 'Distribuir proporcionalmente entre parcelas restantes'}
               active={surplusAction === 'spread'}
               onClick={() => { setSurplusAction('spread'); }}
@@ -1062,7 +1072,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
                 {([
                   { id: 'next' as const, label: 'Próxima parcela', sublabel: context.nextInst ? `Parcela #${context.nextInst.number}` : 'Parcela seguinte' },
                   { id: 'last' as const, label: 'Última parcela', sublabel: context.lastInst ? `Parcela #${context.lastInst.number}` : 'Última parcela' },
-                  { id: 'spread' as const, label: 'Diminuir contrato', sublabel: pendingInstallments.length > 0 ? `${pendingInstallments.length} parcelas · ${formatCurrency(lateSurplusLeftover / pendingInstallments.length)} cada` : 'Distribuir proporcionalmente' },
+                  { id: 'spread' as const, label: 'Diminuir contrato', sublabel: pendingInstallments.length > 0 ? `${pendingInstallments.length} parcelas · proporcional ao saldo de cada uma` : 'Distribuir proporcionalmente' },
                 ] as const).map(opt => (
                   <button key={opt.id} type="button" onClick={() => setPostLateAction(opt.id)}
                     className={`w-full p-2.5 rounded-xl border text-left transition-all flex items-center gap-3 ${postLateAction === opt.id ? 'border-amber-500/50 bg-amber-900/20' : 'border-slate-700 bg-slate-900/40 hover:border-slate-600'}`}>
