@@ -197,6 +197,9 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
   const [freelancerDates, setFreelancerDates] = useState<string[]>([]);
   const [freelancerInterval, setFreelancerInterval] = useState<number>(7);
   const [bulletHasFixedDuration, setBulletHasFixedDuration] = useState(false);
+  const [installmentsInput, setInstallmentsInput] = useState(String(formData.total_installments));
+  const [rateInput, setRateInput] = useState(String(formData.interest_rate));
+  const [installmentValueInput, setInstallmentValueInput] = useState(String(formData.installment_value));
   const [monthOffset, setMonthOffset] = useState<0 | 1 | undefined>(undefined);
   const [viewingContractId, setViewingContractId] = useState<number | null>(null);
   const [viewingContract, setViewingContract] = useState<Investment | null>(null);
@@ -930,12 +933,25 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                         <div className="bg-[color:var(--bg-base)]/50 p-5 rounded-3xl border border-[color:var(--border-subtle)]">
                             <label className="type-label text-[color:var(--text-secondary)] mb-3 block text-center">Duração do Contrato</label>
                             <div className="flex items-center justify-between bg-[color:var(--bg-base)] rounded-2xl p-1 border border-[color:var(--border-subtle)]">
-                                <button onClick={() => updateFormState({ total_installments: Math.max(1, formData.total_installments - 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Minus size={20}/></button>
+                                <button onClick={() => { const v = Math.max(1, formData.total_installments - 1); updateFormState({ total_installments: v }); setInstallmentsInput(String(v)); }} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Minus size={20}/></button>
                                 <div className="text-center">
-                                    <span className="block type-heading text-[color:var(--text-primary)]">{formData.total_installments}</span>
-                                    <span className="type-micro text-[color:var(--text-muted)]">Parcelas</span>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        className="w-16 bg-transparent text-center type-heading text-[color:var(--text-primary)] border-b border-transparent focus:border-[color:var(--accent-positive)] outline-none transition-colors cursor-text"
+                                        value={installmentsInput}
+                                        onChange={e => setInstallmentsInput(e.target.value.replace(/\D/g, ''))}
+                                        onBlur={() => {
+                                            const v = Math.min(120, Math.max(1, parseInt(installmentsInput) || 1));
+                                            setInstallmentsInput(String(v));
+                                            updateFormState({ total_installments: v });
+                                        }}
+                                        onFocus={e => e.target.select()}
+                                        aria-label="Número de parcelas"
+                                    />
+                                    <span className="type-micro text-[color:var(--text-muted)] block">Parcelas</span>
                                 </div>
-                                <button onClick={() => updateFormState({ total_installments: Math.min(120, formData.total_installments + 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Plus size={20}/></button>
+                                <button onClick={() => { const v = Math.min(120, formData.total_installments + 1); updateFormState({ total_installments: v }); setInstallmentsInput(String(v)); }} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Plus size={20}/></button>
                             </div>
                         </div>
                     )}
@@ -970,12 +986,25 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                             </div>
                             {bulletHasFixedDuration ? (
                                 <div className="flex items-center justify-between bg-[color:var(--bg-base)] rounded-2xl p-1 border border-[color:var(--border-subtle)] animate-fade-in">
-                                    <button onClick={() => updateFormState({ total_installments: Math.max(1, formData.total_installments - 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Minus size={20}/></button>
+                                    <button onClick={() => { const v = Math.max(1, formData.total_installments - 1); updateFormState({ total_installments: v }); setInstallmentsInput(String(v)); }} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Minus size={20}/></button>
                                     <div className="text-center">
-                                        <span className="block type-heading text-[color:var(--text-primary)]">{formData.total_installments}</span>
-                                        <span className="type-micro text-[color:var(--text-muted)]">Períodos</span>
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            className="w-16 bg-transparent text-center type-heading text-[color:var(--text-primary)] border-b border-transparent focus:border-[color:var(--accent-caution)] outline-none transition-colors cursor-text"
+                                            value={installmentsInput}
+                                            onChange={e => setInstallmentsInput(e.target.value.replace(/\D/g, ''))}
+                                            onBlur={() => {
+                                                const v = Math.min(120, Math.max(1, parseInt(installmentsInput) || 1));
+                                                setInstallmentsInput(String(v));
+                                                updateFormState({ total_installments: v });
+                                            }}
+                                            onFocus={e => e.target.select()}
+                                            aria-label="Número de períodos"
+                                        />
+                                        <span className="type-micro text-[color:var(--text-muted)] block">Períodos</span>
                                     </div>
-                                    <button onClick={() => updateFormState({ total_installments: Math.min(120, formData.total_installments + 1) })} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Plus size={20}/></button>
+                                    <button onClick={() => { const v = Math.min(120, formData.total_installments + 1); updateFormState({ total_installments: v }); setInstallmentsInput(String(v)); }} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Plus size={20}/></button>
                                 </div>
                             ) : (
                                 <p className="text-[11px] text-center text-[color:var(--text-muted)]">O contrato se encerra quando o saldo devedor zerar</p>
@@ -1286,10 +1315,21 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     <label className="type-label text-[color:var(--text-muted)] ml-1 block">Taxa de Juros</label>
                                     <div className="relative">
                                         <input
-                                            type="number" inputMode="decimal" step="0.1"
+                                            type="text" inputMode="decimal"
                                             className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-[color:var(--accent-positive)] transition-all text-center"
-                                            value={formData.interest_rate}
-                                            onChange={e => updateFormState({ interest_rate: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                                            value={rateInput}
+                                            onChange={e => setRateInput(e.target.value)}
+                                            onFocus={e => { setRateInput(String(parseFloat(rateInput.replace(',', '.')) || '')); e.target.select(); }}
+                                            onBlur={() => {
+                                                const parsed = parseFloat(rateInput.replace(',', '.'));
+                                                if (!isNaN(parsed) && parsed > 0) {
+                                                    const rounded = Math.round(parsed * 100) / 100;
+                                                    setRateInput(String(rounded));
+                                                    updateFormState({ interest_rate: rounded });
+                                                } else {
+                                                    setRateInput(String(formData.interest_rate));
+                                                }
+                                            }}
                                         />
                                         <span className="absolute right-6 top-5 text-[color:var(--text-muted)] font-bold">%</span>
                                     </div>
@@ -1304,10 +1344,21 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     <label className="type-label text-[color:var(--text-muted)] ml-1 block">Valor da Parcela</label>
                                     <div className="relative">
                                         <input
-                                            type="number" inputMode="decimal" step="0.01"
+                                            type="text" inputMode="decimal"
                                             className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-indigo-500 transition-all text-center"
-                                            value={formData.installment_value}
-                                            onChange={e => updateFormState({ installment_value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                                            value={installmentValueInput}
+                                            onChange={e => setInstallmentValueInput(e.target.value)}
+                                            onFocus={e => { setInstallmentValueInput(String(parseFloat(installmentValueInput.replace(',', '.')) || '')); e.target.select(); }}
+                                            onBlur={() => {
+                                                const parsed = parseFloat(installmentValueInput.replace(',', '.'));
+                                                if (!isNaN(parsed) && parsed > 0) {
+                                                    const rounded = Math.round(parsed * 100) / 100;
+                                                    setInstallmentValueInput(String(rounded));
+                                                    updateFormState({ installment_value: rounded });
+                                                } else {
+                                                    setInstallmentValueInput(String(formData.installment_value));
+                                                }
+                                            }}
                                         />
                                         <span className="absolute left-6 top-5 text-[color:var(--text-muted)] font-bold">R$</span>
                                     </div>
@@ -1326,10 +1377,21 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 <p className="text-[11px] text-[color:var(--text-secondary)] leading-relaxed -mt-1">Percentual cobrado por período sobre o saldo devedor</p>
                                 <div className="relative">
                                     <input
-                                        type="number" inputMode="decimal" step="0.1"
+                                        type="text" inputMode="decimal"
                                         className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-[color:var(--accent-caution)] transition-all text-center"
-                                        value={formData.interest_rate}
-                                        onChange={e => updateFormState({ interest_rate: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                                        value={rateInput}
+                                        onChange={e => setRateInput(e.target.value)}
+                                        onFocus={e => { setRateInput(String(parseFloat(rateInput.replace(',', '.')) || '')); e.target.select(); }}
+                                        onBlur={() => {
+                                            const parsed = parseFloat(rateInput.replace(',', '.'));
+                                            if (!isNaN(parsed) && parsed > 0) {
+                                                const rounded = Math.round(parsed * 100) / 100;
+                                                setRateInput(String(rounded));
+                                                updateFormState({ interest_rate: rounded });
+                                            } else {
+                                                setRateInput(String(formData.interest_rate));
+                                            }
+                                        }}
                                     />
                                     <span className="absolute right-6 top-5 text-[color:var(--text-muted)] font-bold">% a.m.</span>
                                 </div>
