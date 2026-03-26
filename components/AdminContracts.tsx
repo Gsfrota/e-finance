@@ -1869,7 +1869,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                             <span className="section-kicker">Contrato #{contract.id}</span>
                             {contract.calculation_mode === 'interest_only' && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[color:var(--accent-caution-bg)] text-[color:var(--accent-caution)] text-[10px] font-bold uppercase tracking-wider">
-                                    <Activity size={10}/> Bullet
+                                    <Activity size={10}/> Juros Simples
                                 </span>
                             )}
                         </div>

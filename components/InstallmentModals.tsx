@@ -1552,32 +1552,34 @@ export const EditModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess
 // --- 4. INTEREST ONLY MODAL (Pagar Só Juros) ---
 
 export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess, installment }) => {
-  const [amount, setAmount] = useState('');
+  const today = new Date().toISOString().split('T')[0];
+  const [paymentDate, setPaymentDate] = useState(today);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      setAmount('');
+      setPaymentDate(today);
       setError(null);
     }
   }, [isOpen]);
 
   const outstanding = calculateOutstanding(installment);
   const totalInterestPaid = normalizeNumber(installment?.interest_payments_total);
+  const interestDue = Math.max(0, normalizeNumber(installment?.amount_interest) - totalInterestPaid);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const val = parseFloat(amount);
-    if (!val || val <= 0 || !installment) { setError('Informe um valor válido.'); return; }
+    if (!installment) return;
     setLoading(true);
     setError(null);
     const supabase = getSupabase();
     if (!supabase) return;
     try {
+      const paidAtTs = paymentDate ? new Date(paymentDate + 'T12:00:00').toISOString() : new Date().toISOString();
       const { error: rpcError } = await supabase.rpc('pay_bullet_interest_only', {
         p_installment_id: installment.id,
-        p_paid_at: new Date().toISOString(),
+        p_paid_at: paidAtTs,
         p_payment_method: 'PIX'
       });
       if (rpcError) throw rpcError;
@@ -1588,9 +1590,9 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
         investment_id: installment.investment_id,
         installment_id: installment.id,
         transaction_type: 'payment',
-        amount: val,
-        interest_portion: val,
-        notes: `Pagamento só juros ${formatCurrency(val)} (parcela #${installment.number})`,
+        amount: interestDue,
+        interest_portion: interestDue,
+        notes: `Pagamento só juros ${formatCurrency(interestDue)} (parcela #${installment.number})`,
         receipt_id: crypto.randomUUID(),
       });
 
@@ -1617,9 +1619,17 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
 
       <form onSubmit={handleSubmit} className="p-8 space-y-5">
         <div className="bg-[color:var(--accent-caution-bg)] border border-[color:var(--accent-caution-border)] p-4 rounded-2xl">
-          <p className="type-label text-[color:var(--accent-caution)] mb-1 opacity-80">Parcela Original</p>
+          <p className="type-label text-[color:var(--accent-caution)] mb-1 opacity-80">Saldo devedor (principal)</p>
           <p className="type-metric-xl text-[color:var(--text-primary)]">{formatCurrency(outstanding)}</p>
-          <p className="type-label text-[color:var(--accent-caution)] mt-1 opacity-70">Ainda em aberto</p>
+          <p className="type-label text-[color:var(--accent-caution)] mt-1 opacity-70">Continua em aberto após pagamento</p>
+        </div>
+
+        <div className="bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] p-4 rounded-2xl flex items-center justify-between">
+          <div>
+            <p className="type-label text-[color:var(--text-muted)] mb-0.5">Juros a pagar</p>
+            <p className="type-caption text-[color:var(--text-faint)]">Calculado automaticamente</p>
+          </div>
+          <p className="text-[color:var(--accent-caution)] font-bold text-lg font-mono">{formatCurrency(interestDue)}</p>
         </div>
 
         {totalInterestPaid > 0 && (
@@ -1631,23 +1641,19 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
 
         <div>
           <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">
-            Valor dos Juros (R$)
+            Data do pagamento
           </label>
-          <div className="relative">
-            <Percent size={16} className="absolute left-4 top-4 text-[color:var(--accent-caution)]"/>
-            <input
-              type="number" step="0.01" required autoFocus
-              value={amount} onChange={e => setAmount(e.target.value)}
-              placeholder="0,00"
-              className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-4 py-3.5 text-[color:var(--text-primary)] font-mono text-lg outline-none focus:ring-2 focus:ring-[color:var(--accent-caution)] focus:border-transparent transition-all"
-            />
-          </div>
+          <input
+            type="date" required
+            value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
+            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3.5 text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-[color:var(--accent-caution)] focus:border-transparent transition-all"
+          />
         </div>
 
         <div className="bg-[color:var(--accent-caution-bg)] border border-[color:var(--accent-caution-border)] p-3 rounded-xl flex gap-2.5 items-start">
           <AlertTriangle size={14} className="text-[color:var(--accent-caution)] shrink-0 mt-0.5"/>
           <p className="type-caption text-[color:var(--text-secondary)] leading-relaxed font-medium">
-            O valor da parcela <strong>não será descontado</strong>. A parcela continua em aberto após este registro.
+            O principal <strong>não será descontado</strong>. A parcela continua em aberto após este registro.
           </p>
         </div>
 
