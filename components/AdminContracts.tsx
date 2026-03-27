@@ -424,9 +424,10 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
       if (merged.frequency === 'freelancer') {
           // Para freelancer, recalcular datas se count ou start_date mudou
           const currentInterval = freelancerInterval;
-          // Bullet indeterminado usa 120 como placeholder técnico — não gerar 120 datas livres
-          const isBulletIndeterminate = merged.calculation_mode === 'interest_only' && !bulletHasFixedDuration;
-          const effectiveCount = isBulletIndeterminate ? Math.min(merged.total_installments, 12) : merged.total_installments;
+          // Bullet indeterminado: total_installments=120 é placeholder técnico.
+          // Frequência Livre não faz sentido para bullet indeterminado — gera apenas 1 data.
+          const isBulletIndeterminate = merged.calculation_mode === 'interest_only' && merged.total_installments >= 100;
+          const effectiveCount = isBulletIndeterminate ? 1 : merged.total_installments;
           setFreelancerDates(prev => {
               const newCount = effectiveCount;
               const startChanged = partial.start_date !== undefined;
@@ -1196,8 +1197,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                             onClick={() => {
                                                 setFreelancerInterval(opt.days);
                                                 if (freelancerDates.length > 0) {
-                                                    const isBulletIndeterminate = formData.calculation_mode === 'interest_only' && !bulletHasFixedDuration;
-                                                    const effectiveCount = isBulletIndeterminate ? Math.min(formData.total_installments, 12) : formData.total_installments;
+                                                    const isBulletIndeterminate = formData.calculation_mode === 'interest_only' && formData.total_installments >= 100;
+                                                    const effectiveCount = isBulletIndeterminate ? 1 : formData.total_installments;
                                                     const newDates = buildFreelancerDates(effectiveCount, freelancerDates[0], opt.days);
                                                     setFreelancerDates(newDates);
                                                 }
@@ -1224,8 +1225,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                         <button
                                             onClick={() => {
                                                 if (freelancerDates.length > 0) {
-                                                    const isBulletIndeterminate = formData.calculation_mode === 'interest_only' && !bulletHasFixedDuration;
-                                                    const effectiveCount = isBulletIndeterminate ? Math.min(formData.total_installments, 12) : formData.total_installments;
+                                                    const isBulletIndeterminate = formData.calculation_mode === 'interest_only' && formData.total_installments >= 100;
+                                                    const effectiveCount = isBulletIndeterminate ? 1 : formData.total_installments;
                                                     const newDates = buildFreelancerDates(effectiveCount, freelancerDates[0], freelancerInterval);
                                                     setFreelancerDates(newDates);
                                                 }
