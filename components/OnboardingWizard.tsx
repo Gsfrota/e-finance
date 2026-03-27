@@ -210,7 +210,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
             )}
             <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold transition-all ${
               isActive
-                ? 'bg-[color:var(--accent-brass)] text-black'
+                ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)]'
                 : isDone
                 ? 'bg-[rgba(202,176,122,0.3)] text-[color:var(--accent-brass)]'
                 : 'border border-[color:var(--border-strong)] text-[color:var(--text-faint)]'
