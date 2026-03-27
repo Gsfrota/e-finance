@@ -368,7 +368,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
               <select
                 value={form.frequency}
                 onChange={(e) => set('frequency', e.target.value)}
-                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 transition-all [color-scheme:dark]"
+                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 transition-all"
               >
                 <option value="monthly">Mensal</option>
                 <option value="weekly">Semanal</option>
