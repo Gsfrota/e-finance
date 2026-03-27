@@ -314,7 +314,7 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
                   </span>
                   {i.status === 'partial' && (
                     <span className="text-[10px] px-1 py-0.5 rounded font-semibold"
-                      style={{ background: 'rgba(66, 165, 245, 0.12)', color: '#42A5F5' }}>
+                      style={{ background: 'rgba(66, 165, 245, 0.12)', color: 'var(--accent-steel)' }}>
                       Parcial
                     </span>
                   )}
@@ -404,7 +404,7 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
                   </span>
                   {i.status === 'partial' && (
                     <span className="text-[10px] px-1 py-0.5 rounded font-semibold"
-                      style={{ background: 'rgba(66, 165, 245, 0.12)', color: '#42A5F5' }}>
+                      style={{ background: 'rgba(66, 165, 245, 0.12)', color: 'var(--accent-steel)' }}>
                       Parcial
                     </span>
                   )}
@@ -433,7 +433,7 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
             const partialCount = filtered.filter(i => i.status === 'partial').length;
             return <>
               {paidCount} paga{paidCount !== 1 ? 's' : ''}
-              {partialCount > 0 && <span style={{ color: '#42A5F5' }}> + {partialCount} parcial{partialCount !== 1 ? 'is' : ''}</span>}
+              {partialCount > 0 && <span style={{ color: 'var(--accent-steel)' }}> + {partialCount} parcial{partialCount !== 1 ? 'is' : ''}</span>}
             </>;
           })()}
         </p>

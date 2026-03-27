@@ -455,10 +455,10 @@ const ClientCard: React.FC<{
       className="group w-full flex items-center gap-2.5 rounded-2xl px-3.5 py-3.5 text-left transition-all hover:shadow-md active:scale-[0.98]"
       style={{
         background: 'var(--bg-elevated)',
-        border: isAnomaly ? '1.5px solid #EF5350'
-              : isPartial ? '1.5px solid #42A5F5'
-              : isOverdue ? '1.5px solid var(--accent-danger, #f44336)'
-              : '1.5px solid #26a69a',
+        border: isAnomaly ? '1.5px solid var(--accent-danger)'
+              : isPartial ? '1.5px solid var(--accent-steel)'
+              : isOverdue ? '1.5px solid var(--accent-danger)'
+              : '1.5px solid var(--accent-positive)',
       }}
     >
       {/* Avatar */}
@@ -467,7 +467,7 @@ const ClientCard: React.FC<{
         {photoUrl ? (
           <img src={photoUrl} alt={debtorName} className="h-full w-full object-cover" />
         ) : (
-          <User size={24} style={{ color: isAnomaly ? '#EF5350' : isPartial ? '#42A5F5' : isOverdue ? 'var(--accent-danger, #f44336)' : '#26a69a' }} />
+          <User size={24} style={{ color: isAnomaly ? 'var(--accent-danger)' : isPartial ? 'var(--accent-steel)' : isOverdue ? 'var(--accent-danger)' : 'var(--accent-positive)' }} />
         )}
       </div>
 
@@ -482,7 +482,7 @@ const ClientCard: React.FC<{
           )}
           {!modInfo && isPartial && (
             <span className="type-micro px-1.5 py-0.5 rounded-md"
-              style={{ background: 'rgba(66, 165, 245, 0.12)', color: '#42A5F5' }}>
+              style={{ background: 'rgba(66, 165, 245, 0.12)', color: 'var(--accent-steel)' }}>
               Parcial
             </span>
           )}
@@ -491,10 +491,10 @@ const ClientCard: React.FC<{
         <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
           Contrato: {contractId}
           {(inst as any).investment?.calculation_mode === 'interest_only' && (
-            <span className="ml-1.5 inline-flex items-center px-1.5 py-0 rounded text-[9px] font-bold uppercase" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}>Bullet</span>
+            <span className="ml-1.5 inline-flex items-center px-1.5 py-0 rounded text-[9px] font-bold uppercase" style={{ background: 'rgba(245, 158, 11, 0.15)', color: 'var(--accent-caution)' }}>Bullet</span>
           )}
           {(inst as any).investment?.remaining_balance != null && (
-            <span className="ml-1 text-[9px]" style={{ color: '#f59e0b' }}>
+            <span className="ml-1 text-[9px]" style={{ color: 'var(--accent-caution)' }}>
               · Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number((inst as any).investment.remaining_balance))}
             </span>
           )}
@@ -504,7 +504,7 @@ const ClientCard: React.FC<{
           <span className="text-xs shrink-0 tabular-nums" style={{ color: 'var(--text-muted)' }}>Venc. {fmtDate(inst.due_date)}</span>
         </div>
         {isPartial && (
-          <p className="text-xs font-semibold" style={{ color: '#42A5F5' }}>
+          <p className="text-xs font-semibold" style={{ color: 'var(--accent-steel)' }}>
             Recebido: {fmtMoney(Number(inst.amount_paid) || 0)}
           </p>
         )}
@@ -513,7 +513,7 @@ const ClientCard: React.FC<{
       {/* Amount badge + chevron */}
       <div className="flex items-center gap-2 shrink-0">
         <span className="rounded-lg px-2.5 py-1 text-xs font-bold text-white tabular-nums"
-          style={{ background: isPartial ? '#42A5F5' : isOverdue ? 'var(--accent-danger, #f44336)' : '#4CAF50' }}>
+          style={{ background: isPartial ? 'var(--accent-steel)' : isOverdue ? 'var(--accent-danger)' : 'var(--accent-positive)' }}>
           {fmtMoney(outstanding)}
         </span>
         <ChevronRight size={18} style={{ color: 'var(--text-faint)' }} />

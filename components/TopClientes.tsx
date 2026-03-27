@@ -274,11 +274,11 @@ const TopClientes: React.FC<TopClientesProps> = ({ tenant, onNavigate, onClientC
                     </p>
                     {c.hasResolved && (
                       <p className="type-caption mt-0.5">
-                        <span style={{ color: punctPct >= 70 ? '#22c55e' : punctPct >= 40 ? '#eab308' : '#ef4444' }}>
+                        <span style={{ color: punctPct >= 70 ? 'var(--accent-positive)' : punctPct >= 40 ? 'var(--accent-warning)' : 'var(--accent-danger)' }}>
                           {punctPct}% pontual
                         </span>
                         {c.overdue > 0 && (
-                          <span style={{ color: '#ef4444' }}> · {c.overdue} em atraso</span>
+                          <span style={{ color: 'var(--accent-danger)' }}> · {c.overdue} em atraso</span>
                         )}
                       </p>
                     )}

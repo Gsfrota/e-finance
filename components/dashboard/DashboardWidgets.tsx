@@ -157,7 +157,7 @@ export const ResumoGeral: React.FC<ResumoGeralProps> = ({ kpis }) => {
       label: 'RETORNO (ROI)',
       desc: 'Lucro recebido ÷ capital total',
       value: `${roi.replace('.', ',')}%`,
-      color: '#a78bfa',
+      color: 'var(--accent-purple)',
       bg: 'rgba(167,139,250,0.10)',
       ring: 'rgba(167,139,250,0.20)',
       Icon: CircleDollarSign,
