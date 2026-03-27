@@ -269,7 +269,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
             .replace(/(\d{3})(\d{0,3})/, '$1.$2');
   };
 
-  const inputCls = "w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2 text-white text-sm focus:border-teal-500 outline-none transition-all";
+  const inputCls = "w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2 text-white text-sm focus:border-teal-500 outline-none transition-all [color-scheme:dark]";
   const labelCls = "type-micro text-[color:var(--text-muted)] block mb-1";
 
   return (
