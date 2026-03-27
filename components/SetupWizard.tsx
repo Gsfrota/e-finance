@@ -29,8 +29,8 @@ const SetupWizard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 font-sans">
-      <div className="w-full max-w-xl bg-slate-800 rounded-[2.5rem] border border-slate-700 shadow-2xl overflow-hidden animate-fade-in">
+    <div className="min-h-screen bg-[color:var(--bg-base)] flex items-center justify-center p-6 font-sans">
+      <div className="w-full max-w-xl bg-[color:var(--bg-elevated)] rounded-[2.5rem] border border-[color:var(--border-subtle)] shadow-2xl overflow-hidden animate-fade-in">
         <div className="p-10">
           <div className="flex items-center gap-4 mb-8">
             <div className="p-4 bg-teal-600 rounded-2xl text-white shadow-lg shadow-teal-900/40">
@@ -42,8 +42,8 @@ const SetupWizard: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-slate-900/50 border border-slate-700 p-6 rounded-2xl mb-8">
-            <div className="flex gap-3 text-slate-300 text-sm leading-relaxed">
+          <div className="bg-[color:var(--bg-base)]/50 border border-[color:var(--border-subtle)] p-6 rounded-2xl mb-8">
+            <div className="flex gap-3 text-[color:var(--text-secondary)] text-sm leading-relaxed">
                 <Info className="text-teal-400 shrink-0 mt-1" size={18} />
                 <p>
                     As credenciais abaixo foram extraídas do seu ambiente de produção. 
@@ -54,24 +54,24 @@ const SetupWizard: React.FC = () => {
 
           <form onSubmit={handleSave} className="space-y-6">
             <div>
-              <label className="block type-label text-slate-500 mb-2 ml-1">Project URL</label>
+              <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">Project URL</label>
               <input 
                 required 
                 type="url" 
                 value={url}
                 onChange={e => setUrl(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white font-mono text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-white font-mono text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
               />
             </div>
 
             <div>
-              <label className="block type-label text-slate-500 mb-2 ml-1">API Anon Key</label>
+              <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">API Anon Key</label>
               <textarea 
                 required 
                 rows={4}
                 value={key}
                 onChange={e => setKey(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white font-mono text-xs focus:ring-2 focus:ring-teal-500 outline-none transition-all resize-none"
+                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-white font-mono text-xs focus:ring-2 focus:ring-teal-500 outline-none transition-all resize-none"
               />
             </div>
 
@@ -87,8 +87,8 @@ const SetupWizard: React.FC = () => {
             </button>
           </form>
 
-          <div className="mt-8 pt-8 border-t border-slate-700/50 flex flex-col items-center gap-4 text-center">
-            <p className="type-label text-slate-500 flex items-center gap-2">
+          <div className="mt-8 pt-8 border-t border-[color:var(--border-subtle)]/50 flex flex-col items-center gap-4 text-center">
+            <p className="type-label text-[color:var(--text-muted)] flex items-center gap-2">
                 <ShieldCheck size={14} className="text-teal-600"/> Conexão Encriptada | SSL Ativo
             </p>
           </div>

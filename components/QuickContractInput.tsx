@@ -269,16 +269,16 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
             .replace(/(\d{3})(\d{0,3})/, '$1.$2');
   };
 
-  const inputCls = "w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:border-teal-500 outline-none transition-all";
+  const inputCls = "w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2 text-white text-sm focus:border-teal-500 outline-none transition-all";
   const labelCls = "type-micro text-[color:var(--text-muted)] block mb-1";
 
   return (
     <>
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-900 border border-slate-700 rounded-[2rem] w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
+      <div className="bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-[2rem] w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
 
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-800 shrink-0">
+        <div className="flex items-center justify-between p-6 border-b border-[color:var(--border-subtle)] shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-teal-500/10 rounded-xl text-teal-400"><Zap size={20} /></div>
             <div>
@@ -290,7 +290,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
               </p>
             </div>
           </div>
-          <button onClick={resetAndClose} className="text-slate-500 hover:text-white transition-colors">
+          <button onClick={resetAndClose} className="text-[color:var(--text-muted)] hover:text-white transition-colors">
             <X size={22} />
           </button>
         </div>
@@ -303,11 +303,11 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
             <div className="p-6 space-y-5">
               <div className="flex items-center gap-2">
                 <Pencil size={13} className="text-teal-400"/>
-                <p className="text-slate-400 text-xs">Revise e ajuste os dados extraídos:</p>
+                <p className="text-[color:var(--text-secondary)] text-xs">Revise e ajuste os dados extraídos:</p>
               </div>
 
               {/* Devedor */}
-              <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
+              <div className="bg-[color:var(--bg-elevated)] rounded-2xl p-4 border border-[color:var(--border-subtle)] space-y-3">
                 <p className="type-label text-[color:var(--text-muted)]">Devedor</p>
 
                 {/* Cliente selecionado */}
@@ -325,7 +325,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                     <button
                       type="button"
                       onClick={() => { setMatchedDebtor(null); setDebtorSearch(''); setDebtorDropdownOpen(true); setTimeout(() => debtorInputRef.current?.focus(), 50); }}
-                      className="text-slate-500 hover:text-white transition-colors ml-2"
+                      className="text-[color:var(--text-muted)] hover:text-white transition-colors ml-2"
                     >
                       <X size={14}/>
                     </button>
@@ -334,10 +334,10 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                   /* Combobox de busca */
                   <div className="relative">
                     <div className="relative">
-                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"/>
+                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)] pointer-events-none"/>
                       <input
                         ref={debtorInputRef}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600"
+                        className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-8 pr-3 py-2 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]"
                         placeholder="Buscar cliente existente..."
                         value={debtorSearch}
                         onChange={e => { setDebtorSearch(e.target.value); setDebtorDropdownOpen(true); }}
@@ -347,7 +347,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                     </div>
 
                     {debtorDropdownOpen && (
-                      <div className="absolute z-10 mt-1 w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-52 overflow-y-auto">
+                      <div className="absolute z-10 mt-1 w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl shadow-2xl overflow-hidden max-h-52 overflow-y-auto">
                         {/* Clientes filtrados */}
                         {profiles
                           .filter(p => p.role === 'debtor' && (
@@ -367,10 +367,10 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                                 setDebtorSearch('');
                                 setDebtorDropdownOpen(false);
                               }}
-                              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-800 text-left transition-colors"
+                              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[color:var(--bg-elevated)] text-left transition-colors"
                             >
-                              <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
-                                <User size={13} className="text-slate-400"/>
+                              <div className="w-7 h-7 rounded-full bg-[color:var(--bg-soft)] flex items-center justify-center shrink-0">
+                                <User size={13} className="text-[color:var(--text-secondary)]"/>
                               </div>
                               <div>
                                 <p className="text-xs text-white font-semibold">{p.full_name}</p>
@@ -380,7 +380,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                           ))
                         }
                         {profiles.filter(p => p.role === 'debtor').length === 0 && (
-                          <p className="text-xs text-slate-500 px-3 py-2.5">Nenhum cliente cadastrado</p>
+                          <p className="text-xs text-[color:var(--text-muted)] px-3 py-2.5">Nenhum cliente cadastrado</p>
                         )}
                         {/* Opção: criar novo */}
                         <button
@@ -392,7 +392,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                             setCpfError('');
                             setStep('new-debtor');
                           }}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 border-t border-slate-800 hover:bg-slate-800 text-left transition-colors"
+                          className="w-full flex items-center gap-3 px-3 py-2.5 border-t border-[color:var(--border-subtle)] hover:bg-[color:var(--bg-elevated)] text-left transition-colors"
                         >
                           <div className="w-7 h-7 rounded-full bg-teal-500/20 flex items-center justify-center shrink-0">
                             <UserPlus size={13} className="text-teal-400"/>
@@ -408,7 +408,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
               </div>
 
               {/* Valores financeiros */}
-              <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
+              <div className="bg-[color:var(--bg-elevated)] rounded-2xl p-4 border border-[color:var(--border-subtle)] space-y-3">
                 <p className="type-label text-[color:var(--text-muted)]">Valores</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -435,20 +435,20 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
               </div>
 
               {/* Origem do Capital */}
-              <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
+              <div className="bg-[color:var(--bg-elevated)] rounded-2xl p-4 border border-[color:var(--border-subtle)] space-y-3">
                 <p className="type-label text-[color:var(--text-muted)]">Origem do Capital</p>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => setSourceType('own')}
-                    className={`flex-1 py-2 rounded-xl type-label transition-all ${sourceType === 'own' ? 'bg-teal-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-700 hover:border-slate-600'}`}
+                    className={`flex-1 py-2 rounded-xl type-label transition-all ${sourceType === 'own' ? 'bg-teal-600 text-white' : 'bg-[color:var(--bg-base)] text-[color:var(--text-secondary)] border border-[color:var(--border-subtle)] hover:border-[color:var(--border-strong)]'}`}
                   >
                     Capital Próprio
                   </button>
                   <button
                     type="button"
                     onClick={() => setSourceType('profit')}
-                    className={`flex-1 py-2 rounded-xl type-label transition-all ${sourceType === 'profit' ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-700 hover:border-slate-600'}`}
+                    className={`flex-1 py-2 rounded-xl type-label transition-all ${sourceType === 'profit' ? 'bg-emerald-600 text-white' : 'bg-[color:var(--bg-base)] text-[color:var(--text-secondary)] border border-[color:var(--border-subtle)] hover:border-[color:var(--border-strong)]'}`}
                   >
                     Lucro Reinvestido
                   </button>
@@ -456,7 +456,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
               </div>
 
               {/* Datas */}
-              <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
+              <div className="bg-[color:var(--bg-elevated)] rounded-2xl p-4 border border-[color:var(--border-subtle)] space-y-3">
                 <p className="type-label text-[color:var(--text-muted)]">Vencimento</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -483,34 +483,34 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
               </div>
 
               {/* Contrato Legado / Antigo */}
-              <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+              <div className="bg-[color:var(--bg-elevated)] rounded-2xl border border-[color:var(--border-subtle)] overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setLegacyOpen(v => !v)}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-700/50 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-[color:var(--bg-soft)]/50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <History size={14} className={isLegacy ? 'text-amber-400' : 'text-slate-500'} />
-                    <span className={`type-label ${isLegacy ? 'text-amber-300' : 'text-slate-500'}`}>
+                    <History size={14} className={isLegacy ? 'text-amber-400' : 'text-[color:var(--text-muted)]'} />
+                    <span className={`type-label ${isLegacy ? 'text-amber-300' : 'text-[color:var(--text-muted)]'}`}>
                       Contrato Antigo {isLegacy && '(ativo)'}
                     </span>
                   </div>
-                  {legacyOpen ? <ChevronUp size={14} className="text-slate-500"/> : <ChevronDown size={14} className="text-slate-500"/>}
+                  {legacyOpen ? <ChevronUp size={14} className="text-[color:var(--text-muted)]"/> : <ChevronDown size={14} className="text-[color:var(--text-muted)]"/>}
                 </button>
 
                 {legacyOpen && (
-                  <div className="px-4 pb-4 space-y-3 border-t border-slate-700">
+                  <div className="px-4 pb-4 space-y-3 border-t border-[color:var(--border-subtle)]">
                     <p className="type-caption text-[color:var(--text-muted)] pt-3 leading-relaxed">
                       Ative se o contrato foi feito antes de usar a plataforma. As parcelas já recebidas serão marcadas como pagas automaticamente.
                     </p>
 
                     {/* Toggle ativo */}
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-400 font-bold">É um contrato antigo?</span>
+                      <span className="text-xs text-[color:var(--text-secondary)] font-bold">É um contrato antigo?</span>
                       <button
                         type="button"
                         onClick={() => setIsLegacy(v => !v)}
-                        className={`relative w-11 h-6 rounded-full transition-colors ${isLegacy ? 'bg-amber-500' : 'bg-slate-700'}`}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${isLegacy ? 'bg-amber-500' : 'bg-[color:var(--bg-soft)]'}`}
                       >
                         <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${isLegacy ? 'translate-x-6' : 'translate-x-1'}`}/>
                       </button>
@@ -577,7 +577,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
               <div className="flex gap-3 pb-1">
                 <button
                   onClick={resetAndClose}
-                  className="flex-1 py-3 rounded-2xl border border-slate-700 text-slate-400 hover:text-white type-label flex items-center justify-center gap-2 transition-all hover:bg-slate-800"
+                  className="flex-1 py-3 rounded-2xl border border-[color:var(--border-subtle)] text-[color:var(--text-secondary)] hover:text-white type-label flex items-center justify-center gap-2 transition-all hover:bg-[color:var(--bg-elevated)]"
                 >
                   <ArrowLeft size={14}/> Cancelar
                 </button>
@@ -608,7 +608,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                 <CheckCircle2 size={36} className="text-emerald-400" />
               </div>
               <h3 className="type-subheading text-[color:var(--text-primary)]">Contrato Criado!</h3>
-              <p className="text-slate-400 text-sm">As parcelas foram geradas automaticamente.</p>
+              <p className="text-[color:var(--text-secondary)] text-sm">As parcelas foram geradas automaticamente.</p>
               <button
                 onClick={() => { resetAndClose(); onSuccess(); }}
                 className="bg-teal-600 hover:bg-teal-500 text-white px-8 py-3 rounded-2xl type-label transition-all"
@@ -626,17 +626,17 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
     {step === 'new-debtor' && (
       <div className="fixed inset-0 z-[60] flex justify-end">
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setStep('confirm'); setCpfError(''); }} />
-        <div className="relative z-10 flex h-full w-full max-w-lg flex-col bg-slate-900 shadow-2xl border-l border-slate-700 animate-slide-in-right">
+        <div className="relative z-10 flex h-full w-full max-w-lg flex-col bg-[color:var(--bg-base)] shadow-2xl border-l border-[color:var(--border-subtle)] animate-slide-in-right">
           {/* Header fixo */}
-          <div className="shrink-0 flex items-center gap-3 px-6 py-5 border-b border-slate-800">
-            <button type="button" onClick={() => { setStep('confirm'); setCpfError(''); }} className="text-slate-400 hover:text-white transition-colors">
+          <div className="shrink-0 flex items-center gap-3 px-6 py-5 border-b border-[color:var(--border-subtle)]">
+            <button type="button" onClick={() => { setStep('confirm'); setCpfError(''); }} className="text-[color:var(--text-secondary)] hover:text-white transition-colors">
               <ArrowLeft size={18} />
             </button>
             <div className="flex-1">
               <h3 className="type-subheading uppercase text-[color:var(--text-primary)]">Novo Devedor</h3>
               <p className="type-label text-[color:var(--text-muted)]">Dados do cliente</p>
             </div>
-            <button type="button" onClick={resetAndClose} className="text-slate-500 hover:text-white transition-colors">
+            <button type="button" onClick={resetAndClose} className="text-[color:var(--text-muted)] hover:text-white transition-colors">
               <X size={20} />
             </button>
           </div>
@@ -644,38 +644,38 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
           <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
             <form onSubmit={handleCreateDebtorAndConfirm} className="space-y-4">
               {/* Identificação */}
-              <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
+              <div className="bg-[color:var(--bg-elevated)] rounded-2xl p-4 border border-[color:var(--border-subtle)] space-y-3">
                 <p className="type-label text-[color:var(--text-muted)]">Identificação</p>
                 <div>
                   <label className="type-label text-[color:var(--text-muted)] block mb-1">Nome Completo *</label>
                   <div className="relative">
-                    <User size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                    <input required type="text" value={newDebtor.full_name} onChange={e => setNewDebtor({ ...newDebtor, full_name: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600" placeholder="Nome completo" />
+                    <User size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)] pointer-events-none" />
+                    <input required type="text" value={newDebtor.full_name} onChange={e => setNewDebtor({ ...newDebtor, full_name: e.target.value })} className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" placeholder="Nome completo" />
                   </div>
                 </div>
                 <div>
                   <label className="type-label text-[color:var(--text-muted)] block mb-1">E-mail</label>
                   <div className="relative">
-                    <Mail size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                    <input type="email" value={newDebtor.email} onChange={e => setNewDebtor({ ...newDebtor, email: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600" placeholder="email@exemplo.com (opcional)" />
+                    <Mail size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)] pointer-events-none" />
+                    <input type="email" value={newDebtor.email} onChange={e => setNewDebtor({ ...newDebtor, email: e.target.value })} className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" placeholder="email@exemplo.com (opcional)" />
                   </div>
                 </div>
                 <div>
                   <label className="type-label text-[color:var(--text-muted)] block mb-1">Telefone</label>
                   <div className="relative">
-                    <Phone size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                    <input type="tel" value={newDebtor.phone_number} onChange={e => setNewDebtor({ ...newDebtor, phone_number: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600" placeholder="(11) 99999-9999 (opcional)" />
+                    <Phone size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)] pointer-events-none" />
+                    <input type="tel" value={newDebtor.phone_number} onChange={e => setNewDebtor({ ...newDebtor, phone_number: e.target.value })} className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" placeholder="(11) 99999-9999 (opcional)" />
                   </div>
                 </div>
               </div>
               {/* Documento */}
-              <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
+              <div className="bg-[color:var(--bg-elevated)] rounded-2xl p-4 border border-[color:var(--border-subtle)] space-y-3">
                 <p className="type-label text-[color:var(--text-muted)]">Documento</p>
                 <div>
                   <label className="type-label text-[color:var(--text-muted)] block mb-1">CPF</label>
                   <div className="relative">
-                    <Key size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                    <input type="text" value={newDebtor.cpf} onChange={e => { setCpfError(''); setNewDebtor({ ...newDebtor, cpf: maskCPF(e.target.value) }); }} className={`w-full bg-slate-950 border rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-slate-600 ${cpfError ? 'border-red-500' : 'border-slate-700'}`} placeholder="000.000.000-00 (opcional)" maxLength={14} />
+                    <Key size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)] pointer-events-none" />
+                    <input type="text" value={newDebtor.cpf} onChange={e => { setCpfError(''); setNewDebtor({ ...newDebtor, cpf: maskCPF(e.target.value) }); }} className={`w-full bg-[color:var(--bg-base)] border rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)] ${cpfError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'}`} placeholder="000.000.000-00 (opcional)" maxLength={14} />
                   </div>
                   {cpfError && <p className="text-red-400 type-caption mt-1 font-bold">{cpfError}</p>}
                 </div>
