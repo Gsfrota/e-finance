@@ -885,6 +885,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                         className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl pl-12 pr-4 py-4 text-2xl font-semibold text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-positive)] transition-all"
                                         value={formData.amount_invested || ''}
                                         onChange={e => updateFormState({ amount_invested: parseFloat(e.target.value) })}
+                                        onWheel={e => e.currentTarget.blur()}
                                         placeholder="0.00"
                                     />
                                 </div>
@@ -1291,12 +1292,27 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                         </div>
                     )}
 
-                    {/* Card resumo para bullet indeterminado */}
+                    {/* Preview de parcela para bullet indeterminado */}
                     {formData.calculation_mode === 'interest_only' && !bulletHasFixedDuration && formData.installment_value > 0 && (
-                        <div className="rounded-2xl border border-[color:var(--accent-caution-border)] bg-[color:var(--accent-caution-bg)] p-5 text-center animate-fade-in">
-                            <span className="type-label text-[color:var(--text-muted)] block mb-1">Juros por período</span>
-                            <p className="text-2xl font-bold text-[color:var(--accent-caution)]">{formatCurrency(formData.installment_value)}</p>
-                            <p className="text-[11px] text-[color:var(--text-muted)] mt-2">Prazo indeterminado — parcelas geradas automaticamente a cada período</p>
+                        <div className="rounded-2xl border border-[color:var(--accent-caution-border)] overflow-hidden animate-fade-in">
+                            <div className="flex items-center justify-between px-4 py-3 bg-[color:var(--accent-caution-bg)] border-b border-[color:var(--accent-caution-border)]">
+                                <span className="type-label text-[color:var(--accent-caution)]">Exemplo da próxima cobrança</span>
+                                <span className="text-[10px] font-bold text-[color:var(--text-muted)]">Prazo indeterminado</span>
+                            </div>
+                            <div className="flex items-center justify-between px-4 py-3 bg-[color:var(--bg-base)]">
+                                <div className="flex items-center gap-3">
+                                    <span className="type-micro text-[color:var(--text-faint)] w-6 text-right">1</span>
+                                    <span className="text-xs font-bold text-[color:var(--text-primary)] font-mono">
+                                        {previewDateStrings[0] ?? '—'}
+                                    </span>
+                                </div>
+                                <span className="text-xs font-bold text-[color:var(--accent-caution)]">
+                                    {formatCurrency(formData.installment_value)}
+                                </span>
+                            </div>
+                            <div className="px-4 py-2 bg-[color:var(--accent-caution-bg)]/50 border-t border-[color:var(--accent-caution-border)]">
+                                <p className="text-[10px] text-[color:var(--text-muted)] text-center">Parcelas seguintes geradas automaticamente a cada período</p>
+                            </div>
                         </div>
                     )}
 
@@ -1395,7 +1411,13 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                         type="text" inputMode="decimal"
                                         className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-[color:var(--accent-caution)] transition-all text-center"
                                         value={rateInput}
-                                        onChange={e => setRateInput(e.target.value)}
+                                        onChange={e => {
+                                            setRateInput(e.target.value);
+                                            const parsed = parseFloat(e.target.value.replace(',', '.'));
+                                            if (!isNaN(parsed) && parsed > 0) {
+                                                updateFormState({ interest_rate: Math.round(parsed * 100) / 100 });
+                                            }
+                                        }}
                                         onFocus={e => { setRateInput(String(parseFloat(rateInput.replace(',', '.')) || '')); e.target.select(); }}
                                         onBlur={() => {
                                             const parsed = parseFloat(rateInput.replace(',', '.'));
