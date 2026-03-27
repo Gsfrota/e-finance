@@ -94,7 +94,7 @@ export const calculateFinancials = (
   const principal = Number(amount) || 0;
   const count = Math.max(1, Number(installments));
 
-  if (principal <= 0) return { installmentValue: 0, totalValue: 0, interestRate: 0 };
+  if (principal <= 0) return { installmentValue: 0, totalValue: 0, interestRate: Number(rate) || 0 };
 
   if (mode === 'interest_only') {
     const r = Number(rate) || 0;
