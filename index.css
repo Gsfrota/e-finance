@@ -1,4 +1,6 @@
 :root {
+  color-scheme: dark;
+
   /* ── Header azul (BossCash style) ── */
   --header-blue: #2196F3;
   --header-blue-dark: #1976D2;
@@ -71,6 +73,8 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
+
   --header-blue: #2196F3;
   --header-blue-dark: #1976D2;
 

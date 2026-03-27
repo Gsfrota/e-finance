@@ -1052,7 +1052,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 <select
                                         value={formData.due_day}
                                         onChange={e => updateFormState({ due_day: parseInt(e.target.value) })}
-                                        className="flex-1 bg-transparent text-[color:var(--text-primary)] font-bold text-center outline-none cursor-pointer text-lg [color-scheme:dark]"
+                                        className="flex-1 bg-transparent text-[color:var(--text-primary)] font-bold text-center outline-none cursor-pointer text-lg"
                                     >
                                         {Array.from({length: 31}, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
                                     </select>
@@ -1105,7 +1105,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 <select
                                     value={formData.weekday}
                                     onChange={e => updateFormState({ weekday: parseInt(e.target.value) })}
-                                    className="flex-1 bg-transparent text-[color:var(--text-primary)] font-bold text-center outline-none cursor-pointer text-lg [color-scheme:dark]"
+                                    className="flex-1 bg-transparent text-[color:var(--text-primary)] font-bold text-center outline-none cursor-pointer text-lg"
                                 >
                                     {['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map((day, idx) => (
                                         <option key={idx} value={idx}>{day}</option>
