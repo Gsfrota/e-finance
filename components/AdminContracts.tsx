@@ -358,6 +358,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
           skip_saturday: false,
           skip_sunday: false,
           bullet_principal_mode: 'together',
+          capitalize_interest: true,
       });
 
       let defaultInvestor = null;
@@ -375,6 +376,9 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
       setFreelancerInterval(7);
       setBulletHasFixedDuration(false);
       setMonthOffset(undefined);
+      setInstallmentsInput('12');
+      setRateInput('10');
+      setInstallmentValueInput('0');
       setStep(1);
       setContractsSubView('create');
   };
@@ -827,7 +831,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                             <button
                                 onClick={() => {
                                     if (formData.calculation_mode === 'interest_only') {
-                                        updateFormState({ calculation_mode: 'auto' });
+                                        setInstallmentsInput('12');
+                                        updateFormState({ calculation_mode: 'auto', total_installments: 12 });
                                     }
                                 }}
                                 className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-1.5 ${
@@ -1255,7 +1260,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                         </div>
                     )}
 
-                    {previewDateStrings.length > 0 && (
+                    {/* Preview de parcelas: oculto para bullet indeterminado (120 datas fictícias) */}
+                    {previewDateStrings.length > 0 && !(formData.calculation_mode === 'interest_only' && !bulletHasFixedDuration) && (
                         <div className="rounded-2xl border border-[color:var(--border-subtle)] overflow-hidden animate-fade-in">
                             <div className="flex items-center justify-between px-4 py-3 bg-[color:var(--bg-base)] border-b border-[color:var(--border-subtle)]">
                                 <span className="type-label text-[color:var(--text-muted)]">
@@ -1282,6 +1288,15 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     </div>
                                 ))}
                             </div>
+                        </div>
+                    )}
+
+                    {/* Card resumo para bullet indeterminado */}
+                    {formData.calculation_mode === 'interest_only' && !bulletHasFixedDuration && formData.installment_value > 0 && (
+                        <div className="rounded-2xl border border-[color:var(--accent-caution-border)] bg-[color:var(--accent-caution-bg)] p-5 text-center animate-fade-in">
+                            <span className="type-label text-[color:var(--text-muted)] block mb-1">Juros por período</span>
+                            <p className="text-2xl font-bold text-[color:var(--accent-caution)]">{formatCurrency(formData.installment_value)}</p>
+                            <p className="text-[11px] text-[color:var(--text-muted)] mt-2">Prazo indeterminado — parcelas geradas automaticamente a cada período</p>
                         </div>
                     )}
 
@@ -1432,14 +1447,23 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
 
                         <div className="flex flex-wrap justify-between items-end gap-y-2 border-b border-[color:var(--border-subtle)] pb-6 mb-6">
                             <div className="min-w-0">
-                                <p className="type-label text-[color:var(--text-muted)] mb-1">Total a Receber</p>
-                                <p className="type-title text-[color:var(--text-primary)] truncate">{formatCurrency(formData.current_value)}</p>
+                                <p className="type-label text-[color:var(--text-muted)] mb-1">
+                                    {formData.calculation_mode === 'interest_only' ? 'Saldo Devedor Inicial' : 'Total a Receber'}
+                                </p>
+                                <p className="type-title text-[color:var(--text-primary)] truncate">
+                                    {formData.calculation_mode === 'interest_only'
+                                        ? formatCurrency(formData.amount_invested)
+                                        : formatCurrency(formData.current_value)
+                                    }
+                                </p>
                             </div>
-                            <div className="text-right">
-                                <div className="bg-[color:var(--accent-positive-subtle)] border border-[color:var(--accent-positive-border)] text-[color:var(--accent-positive)] px-3 py-1 rounded-lg text-xs font-bold inline-block mb-1">
-                                    +{formatCurrency(formData.current_value - formData.amount_invested)} Lucro
+                            {formData.calculation_mode !== 'interest_only' && (
+                                <div className="text-right">
+                                    <div className="bg-[color:var(--accent-positive-subtle)] border border-[color:var(--accent-positive-border)] text-[color:var(--accent-positive)] px-3 py-1 rounded-lg text-xs font-bold inline-block mb-1">
+                                        +{formatCurrency(formData.current_value - formData.amount_invested)} Lucro
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-y-6 gap-x-4 text-sm mb-4">
@@ -1515,7 +1539,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
             )}
 
             {step < 3 ? (
-                <button onClick={() => setStep(s => s + 1)} disabled={(step === 1 && (!selectedInvestor || !selectedPayer)) || (step === 2 && formData.amount_invested <= 0)} className="flex-[2] bg-[color:var(--accent-positive)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-2xl type-label flex items-center justify-center gap-2 transition-all shadow-lg shadow-[0_4px_16px_var(--accent-positive-subtle)]">
+                <button onClick={() => setStep(s => s + 1)} disabled={(step === 1 && (!selectedInvestor || !selectedPayer)) || (step === 2 && !(formData.amount_invested > 0))} className="flex-[2] bg-[color:var(--accent-positive)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-2xl type-label flex items-center justify-center gap-2 transition-all shadow-lg shadow-[0_4px_16px_var(--accent-positive-subtle)]">
                     Próximo <ChevronRight size={16}/>
                 </button>
             ) : (
