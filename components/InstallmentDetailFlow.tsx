@@ -341,7 +341,19 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
       </div>
 
       {/* ── Action Buttons (fixed bottom, ícone acima + texto abaixo) ────── */}
-      <div className="shrink-0 flex items-stretch gap-2 px-4 py-3" style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border-subtle)' }}>
+      <div className="shrink-0 flex flex-col gap-2 px-4 py-3" style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border-subtle)' }}>
+        {/* Botão Só Juros — visível quando parcela tem juros e não está paga */}
+        {!isPaid && normalizeNum(activeInst.amount_interest) > 0 && (
+          <button
+            onClick={() => onAction({ type: 'interest', installment: activeInst })}
+            className="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 font-bold active:scale-95 transition-all"
+            style={{ background: 'rgba(202,176,122,0.15)', color: 'var(--accent-brass)', border: '1px solid rgba(202,176,122,0.30)' }}
+          >
+            <Percent size={16} />
+            <span className="text-[0.7rem] font-bold">Só o Juros — {fmtMoney(Math.max(0, normalizeNum(activeInst.amount_interest) - normalizeNum(activeInst.interest_payments_total)))}</span>
+          </button>
+        )}
+        <div className="flex items-stretch gap-2">
         {!isPaid ? (
           <>
             <button
@@ -389,6 +401,7 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
             </button>
           </>
         )}
+        </div>
       </div>
     </div>
   );
