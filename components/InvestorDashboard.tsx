@@ -219,13 +219,13 @@ const InvestorDashboard: React.FC = () => {
                   cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                   formatter={(value: number, name: string) => [formatCurrency(value), name === 'projected' ? 'Projetado' : 'Recebido']}
                   contentStyle={{
-                    background: '#151922',
+                    background: 'var(--bg-elevated)',
                     borderRadius: 16,
-                    border: '1px solid rgba(245,239,226,0.08)',
-                    color: '#f5efe2',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-primary)',
                   }}
-                  labelStyle={{ color: '#f5efe2' }}
-                  itemStyle={{ color: '#f5efe2' }}
+                  labelStyle={{ color: 'var(--text-primary)' }}
+                  itemStyle={{ color: 'var(--text-secondary)' }}
                 />
                 <Bar dataKey="projected" name="Projetado" fill="#4a6585" radius={[10, 10, 0, 0]} />
                 <Bar dataKey="received" name="Recebido" fill="#8fb39d" radius={[10, 10, 0, 0]} />

@@ -671,7 +671,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                             {isMissed
                               ? <span className="chip chip-late">Falta</span>
                               : isAbsorbed
-                              ? <span className="chip" style={{ background: 'rgba(117,117,117,0.12)', color: '#757575' }}>Absorvida</span>
+                              ? <span className="chip" style={{ background: 'var(--bg-soft)', color: 'var(--text-muted)' }}>Absorvida</span>
                               : installmentStatusBadge(i.status)}
                             <ChevronRight size={14} className="text-[color:var(--text-faint)]" />
                           </div>

@@ -25,11 +25,11 @@ interface PaymentReceipt {
 // ── Mapeamento de tipos de transação → exibição PT-BR ────────────────────────
 const TX_META: Record<string, { icon: string; label: string; color: string }> = {
   payment:          { icon: '●', label: 'Pagamento',           color: 'var(--accent-positive)' },
-  surplus_applied:  { icon: '▸', label: 'Surplus aplicado',    color: '#FFB74D' },
-  surplus_received: { icon: '◆', label: 'Recebido via surplus', color: '#CE93D8' },
-  deferred:         { icon: '⇢', label: 'Postergado',           color: '#FFB74D' },
-  missed:           { icon: '⚠', label: 'Falta registrada',    color: '#FF8A65' },
-  reversal:         { icon: '✕', label: 'Estorno',              color: '#EF5350' },
+  surplus_applied:  { icon: '▸', label: 'Surplus aplicado',    color: 'var(--accent-caution)' },
+  surplus_received: { icon: '◆', label: 'Recebido via surplus', color: 'var(--accent-purple)' },
+  deferred:         { icon: '⇢', label: 'Postergado',           color: 'var(--accent-caution)' },
+  missed:           { icon: '⚠', label: 'Falta registrada',    color: 'var(--accent-warning)' },
+  reversal:         { icon: '✕', label: 'Estorno',              color: 'var(--accent-danger)' },
 };
 
 const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
@@ -135,7 +135,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
 
       {/* ── Debtor Info ──────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 px-4 py-3" style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-subtle)' }}>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200 overflow-hidden">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full overflow-hidden" style={{ background: 'var(--bg-soft)' }}>
           {photoUrl ? (
             <img src={photoUrl} alt={debtorName} className="h-full w-full object-cover" />
           ) : (
@@ -248,7 +248,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                             const applied = txs.reduce((s, t) => s + normalizeNum(t.amount), 0);
                             const status = inst?.status;
                             const statusLabel = status === 'paid' ? 'Quitada' : status === 'partial' ? 'Parcial' : status === 'late' ? 'Atrasada' : 'Pendente';
-                            const statusColor = status === 'paid' ? 'var(--accent-positive)' : status === 'partial' ? '#42A5F5' : 'var(--accent-danger)';
+                            const statusColor = status === 'paid' ? 'var(--accent-positive)' : status === 'partial' ? 'var(--accent-steel)' : 'var(--accent-danger)';
 
                             return (
                               <div key={instId} className="flex items-center gap-2 text-[11px]">
@@ -306,14 +306,14 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                   paid:    { label: 'Liquidada', color: 'var(--accent-positive)' },
                   pending: { label: 'Pendente',  color: 'var(--accent-brass)' },
                   late:    { label: 'Atrasada',  color: 'var(--accent-danger)' },
-                  partial: { label: 'Parcial',   color: '#42A5F5' },
+                  partial: { label: 'Parcial',   color: 'var(--accent-steel)' },
                 };
                 let st = statusMap[inst.status] ?? statusMap.pending;
                 const modInfo = getInstallmentModInfo(inst);
                 if (modInfo) {
                   const modColorMap: Record<string, string> = {
-                    absorbed: '#9E9E9E', surplus_zeroed: '#EF5350', surplus_paid: '#CE93D8',
-                    surplus_reduced: '#CE93D8', deferred_target: '#FFB74D',
+                    absorbed: 'var(--text-muted)', surplus_zeroed: 'var(--accent-danger)', surplus_paid: 'var(--accent-purple)',
+                    surplus_reduced: 'var(--accent-purple)', deferred_target: 'var(--accent-caution)',
                   };
                   st = { label: modInfo.label, color: modColorMap[modInfo.type] || st.color };
                 } else if ((inst as any).missed_at && inst.status !== 'paid') {
@@ -364,7 +364,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                           );
                         })()}
                         {(inst as any).notes && (
-                          <p className="text-[10px] italic mt-0.5" style={{ color: modInfo ? modInfo.chipClass.includes('anomaly') ? '#EF5350' : '#CE93D8' : 'var(--text-faint)' }}>
+                          <p className="text-[10px] italic mt-0.5" style={{ color: modInfo ? modInfo.chipClass.includes('anomaly') ? 'var(--accent-danger)' : 'var(--accent-purple)' : 'var(--text-faint)' }}>
                             {(inst as any).notes}
                           </p>
                         )}

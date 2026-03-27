@@ -103,7 +103,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
   ];
 
   return (
-    <div className="flex flex-col bg-white" style={{ minHeight: '100%' }}>
+    <div className="flex flex-col" style={{ minHeight: '100%', background: 'var(--bg-base)' }}>
 
       {/* Área capturada como imagem */}
       <div
@@ -189,7 +189,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
       </div>
 
       {/* Botões de ação (fora da imagem) */}
-      <div data-html2canvas-ignore className="flex gap-2 px-4 py-3 border-t bg-white" style={{ maxWidth: 380, margin: '0 auto', width: '100%' }}>
+      <div data-html2canvas-ignore className="flex gap-2 px-4 py-3 border-t" style={{ maxWidth: 380, margin: '0 auto', width: '100%', background: 'var(--bg-elevated)', borderColor: 'var(--border-subtle)' }}>
         <button
           onClick={handleShare}
           disabled={sharing || !shareBlob}
@@ -203,7 +203,7 @@ const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
         {onClose && (
           <button
             onClick={onClose}
-            className="px-4 py-3 rounded-xl transition-colors flex items-center justify-center cursor-pointer text-gray-400 hover:text-gray-600"
+            className="px-4 py-3 rounded-xl transition-colors flex items-center justify-center cursor-pointer text-[color:var(--text-muted)] hover:text-[color:var(--text-secondary)]"
             aria-label="Fechar comprovante"
           >
             <X size={18} />

@@ -91,7 +91,7 @@ const InstallmentCard: React.FC<InstallmentCardProps> = ({
     : isPaid ? 'Pago' : isLate ? 'Atrasado' : isPartial ? 'Parcial' : 'A Vencer';
 
   return (
-    <div className={`panel-card rounded-2xl p-4 ${modInfo?.type === 'surplus_zeroed' ? 'ring-1 ring-[#EF5350]/20' : isLate ? 'ring-1 ring-[color:var(--accent-danger)]/20' : ''}`}
+    <div className={`panel-card rounded-2xl p-4 ${modInfo?.type === 'surplus_zeroed' ? 'ring-1 ring-[color:var(--accent-danger)]/20' : isLate ? 'ring-1 ring-[color:var(--accent-danger)]/20' : ''}`}
       title={modInfo?.tooltip || undefined}>
       {/* Topo: número + status */}
       <div className="flex items-center justify-between mb-3">

@@ -37,6 +37,7 @@
   --gradient-accent: linear-gradient(135deg, #f0b429 0%, #f5c842 60%, #d49a18 100%);
 
   /* ── Sutis semânticos — extraídos de valores hardcoded ── */
+  --accent-danger-strong:   #ff5252; /* vermelho mais vivo — atrasos severos (≥30d) */
   --accent-danger-subtle:   rgba(248, 113, 113, 0.10);
   --accent-danger-border:   rgba(248, 113, 113, 0.18);
   --accent-danger-hover:    rgba(248, 113, 113, 0.20);
@@ -64,6 +65,9 @@
   --accent-caution-border:   rgba(120, 53, 15, 0.30);
   --accent-caution-btn:      #d97706;
   --accent-caution-btn-hover:#f59e0b;
+
+  /* ── Purple (surplus, reinvestimento, parcial especial) ── */
+  --accent-purple:           #c084fc;
 }
 
 [data-theme="light"] {
@@ -103,6 +107,7 @@
   --gradient-accent: linear-gradient(135deg, #c9830e 0%, #d99820 60%, #b07010 100%);
 
   /* Sutis semânticos ajustados para fundo claro */
+  --accent-danger-strong:   #991b1b; /* vermelho escuro — atrasos severos (≥30d) */
   --accent-danger-subtle:   rgba(220, 38,  38,  0.08);
   --accent-danger-border:   rgba(220, 38,  38,  0.20);
   --accent-danger-hover:    rgba(220, 38,  38,  0.15);
@@ -130,6 +135,9 @@
   --accent-caution-border:   rgba(180, 83, 9, 0.20);
   --accent-caution-btn:      #92400e;
   --accent-caution-btn-hover:#b45309;
+
+  /* ── Purple — versão light ── */
+  --accent-purple:           #7c3aed;
 }
 
 *,

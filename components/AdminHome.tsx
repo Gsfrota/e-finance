@@ -720,9 +720,8 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
     }, 0);
 
     const severityColor = (days: number) => {
-      if (days >= 60) return '#991b1b';
-      if (days >= 30) return '#dc2626';
-      return '#ef4444';
+      if (days >= 30) return 'var(--accent-danger-strong)';
+      return 'var(--accent-danger)';
     };
 
     return (
@@ -946,31 +945,31 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
                 {
                   label: 'Renovados',
                   value: contratosHoje.length,
-                  color: '#0D47A1',
+                  color: 'var(--accent-steel)',
                   onClick: () => setSubView('contratos-hoje'),
                 },
                 {
                   label: 'Vigentes',
                   value: activeInvestments.length,
-                  color: '#2196F3',
+                  color: 'var(--accent-steel)',
                   onClick: () => setSubView('contratos-vigentes'),
                 },
                 {
                   label: 'Vencendo (3d)',
                   value: parcelasVencendo,
-                  color: '#FF9800',
+                  color: 'var(--accent-caution)',
                   onClick: () => setSubView('parcelas-vencendo'),
                 },
                 {
                   label: 'Atrasados',
                   value: parcelasAtrasadas,
-                  color: '#FF9800',
+                  color: 'var(--accent-caution)',
                   onClick: () => setSubView('parcelas-atrasadas'),
                 },
                 {
                   label: 'Inadimplentes',
                   value: parcelasInadimplentes,
-                  color: '#D32F2F',
+                  color: 'var(--accent-danger)',
                   onClick: () => setSubView('parcelas-inadimplentes'),
                 },
               ].map(stat => (

@@ -375,7 +375,7 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
             <button
               onClick={() => onAction({ type: 'refinance', installment: activeInst })}
               className="flex-1 flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 font-bold active:scale-95 transition-all"
-              style={{ background: '#B0BEC5', color: '#37474F' }}
+              style={{ background: 'var(--bg-soft)', color: 'var(--text-secondary)' }}
             >
               <Calendar size={18} />
               <span className="text-[0.65rem] font-bold text-center leading-tight">Agendar</span>
