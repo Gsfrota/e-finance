@@ -980,7 +980,12 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     Indeterminado
                                 </button>
                                 <button
-                                    onClick={() => setBulletHasFixedDuration(true)}
+                                    onClick={() => {
+                                        setBulletHasFixedDuration(true);
+                                        const v = parseInt(installmentsInput) || 12;
+                                        setInstallmentsInput(String(v));
+                                        updateFormState({ total_installments: v });
+                                    }}
                                     className={`py-3 rounded-xl border transition-all type-label ${
                                         bulletHasFixedDuration
                                             ? 'bg-[color:var(--accent-caution)] border-[color:var(--accent-caution)] text-white shadow-md'
