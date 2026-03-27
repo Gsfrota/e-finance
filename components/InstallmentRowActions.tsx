@@ -61,7 +61,7 @@ const InstallmentRowActions: React.FC<InstallmentRowActionsProps> = ({
   const MenuContent = (
     <div 
         id={`action-menu-${installment.id}`}
-        className="fixed z-[9999] w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden animate-fade-in-down"
+        className="fixed z-[9999] w-48 bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl shadow-2xl overflow-hidden animate-fade-in-down"
         style={{ top: coords.top, left: coords.left }}
         onClick={(e) => e.stopPropagation()}
     >
@@ -72,7 +72,7 @@ const InstallmentRowActions: React.FC<InstallmentRowActionsProps> = ({
             <>
                 <button
                     onClick={() => { onPay(installment); setIsOpen(false); }}
-                    className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-emerald-900/10 group transition-colors border-b border-slate-700/50"
+                    className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-emerald-900/10 group transition-colors border-b border-[color:var(--border-subtle)]/50"
                 >
                     <CheckCircle2 size={14} className="text-emerald-500 group-hover:scale-110 transition-transform"/>
                     <span className="type-label text-emerald-400">Baixar (Pagar)</span>
@@ -80,7 +80,7 @@ const InstallmentRowActions: React.FC<InstallmentRowActionsProps> = ({
 
                 <button
                     onClick={() => { onRefinance(installment); setIsOpen(false); }}
-                    className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-purple-900/10 group transition-colors border-b border-slate-700/50"
+                    className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-purple-900/10 group transition-colors border-b border-[color:var(--border-subtle)]/50"
                 >
                     <Banknote size={14} className="text-purple-400 group-hover:scale-110 transition-transform"/>
                     <span className="type-label text-purple-300">Refinanciar</span>
@@ -89,7 +89,7 @@ const InstallmentRowActions: React.FC<InstallmentRowActionsProps> = ({
                 {onInterestOnly && (
                     <button
                         onClick={() => { onInterestOnly(installment); setIsOpen(false); }}
-                        className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-[color:var(--accent-caution-bg)] group transition-colors border-b border-slate-700/50"
+                        className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-[color:var(--accent-caution-bg)] group transition-colors border-b border-[color:var(--border-subtle)]/50"
                     >
                         <Percent size={14} className="text-[color:var(--accent-caution)] group-hover:scale-110 transition-transform"/>
                         <span className="type-label text-[color:var(--accent-caution)]">Pagar Só Juros</span>
@@ -102,7 +102,7 @@ const InstallmentRowActions: React.FC<InstallmentRowActionsProps> = ({
         {installment.status === 'paid' && (
              <button
                 onClick={() => { onPay(installment); setIsOpen(false); }} // Reutiliza onPay para abrir modo Recibo
-                className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-white/5 group transition-colors border-b border-slate-700/50"
+                className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-white/5 group transition-colors border-b border-[color:var(--border-subtle)]/50"
             >
                 <FileText size={14} className="text-white group-hover:scale-110 transition-transform"/>
                 <span className="type-label text-white">Ver Comprovante</span>
@@ -126,7 +126,7 @@ const InstallmentRowActions: React.FC<InstallmentRowActionsProps> = ({
       <button 
         ref={buttonRef}
         onClick={toggleMenu}
-        className={`p-2 rounded-lg transition-all ${isOpen ? 'bg-slate-700 text-white' : 'text-slate-500 hover:bg-slate-800 hover:text-white'}`}
+        className={`p-2 rounded-lg transition-all ${isOpen ? 'bg-[color:var(--bg-soft)] text-white' : 'text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)] hover:text-white'}`}
       >
         <MoreVertical size={16} />
       </button>

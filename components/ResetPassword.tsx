@@ -53,8 +53,8 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({ onResetSuccess }) => {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-900 justify-center items-center p-6 font-sans animate-fade-in">
-      <div className="w-full max-w-md space-y-8 bg-slate-800 p-10 rounded-3xl border border-slate-700 shadow-2xl">
+    <div className="flex min-h-screen bg-[color:var(--bg-base)] justify-center items-center p-6 font-sans animate-fade-in">
+      <div className="w-full max-w-md space-y-8 bg-[color:var(--bg-elevated)] p-10 rounded-3xl border border-[color:var(--border-subtle)] shadow-2xl">
         <div className="text-center space-y-2">
             <div className="inline-block p-4 bg-teal-600/10 rounded-2xl border border-teal-500/20 mb-4">
                 <Key className="text-teal-400" size={32} />
@@ -70,7 +70,7 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({ onResetSuccess }) => {
                 value={password} 
                 onChange={(e) => setPassword(e.target.value)} 
                 minLength={6} 
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:border-teal-500 outline-none" 
+                className="w-full bg-[color:var(--bg-base)]/50 border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-sm text-white focus:border-teal-500 outline-none" 
                 placeholder="Nova Senha"
             />
             <input 
@@ -79,7 +79,7 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({ onResetSuccess }) => {
                 value={confirmPassword} 
                 onChange={(e) => setConfirmPassword(e.target.value)} 
                 minLength={6} 
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:border-teal-500 outline-none" 
+                className="w-full bg-[color:var(--bg-base)]/50 border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-sm text-white focus:border-teal-500 outline-none" 
                 placeholder="Confirmar Nova Senha"
             />
 

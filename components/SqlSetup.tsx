@@ -17,7 +17,7 @@ const SqlSetup: React.FC<SqlSetupProps> = ({ onComplete }) => {
 
   return (
     <div className="flex flex-col h-full p-6 space-y-6 max-w-5xl mx-auto w-full animate-fade-in">
-      <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-2xl">
+      <div className="bg-[color:var(--bg-elevated)] p-8 rounded-3xl border border-[color:var(--border-subtle)] shadow-2xl">
         <div className="flex items-center gap-3 mb-4">
             <div className="p-3 bg-indigo-900/30 rounded-2xl text-indigo-400">
                 <Wrench size={24} />
@@ -25,11 +25,11 @@ const SqlSetup: React.FC<SqlSetupProps> = ({ onComplete }) => {
             <h2 className="type-heading uppercase text-white">Reparo de Permissões (Erro 42501)</h2>
         </div>
         
-        <p className="text-slate-300 mb-6 leading-relaxed text-sm">
+        <p className="text-[color:var(--text-secondary)] mb-6 leading-relaxed text-sm">
           Identificamos um erro de permissão (Permission Denied for table users/profiles).
           <br/>
           Este novo script realiza um <strong>Reparo Profundo</strong>:
-          <ul className="list-disc ml-4 mt-2 text-xs text-slate-400 space-y-1">
+          <ul className="list-disc ml-4 mt-2 text-xs text-[color:var(--text-secondary)] space-y-1">
             <li>Define explicitamente o caminho de busca (search_path) para schemas de autenticação.</li>
             <li>Concede permissão de leitura explícita na tabela Profiles.</li>
             <li>Remove TODAS as políticas antigas (loop de limpeza) para evitar conflitos.</li>
@@ -47,16 +47,16 @@ const SqlSetup: React.FC<SqlSetupProps> = ({ onComplete }) => {
               {copied ? 'Copiado!' : 'Copiar Script de Reparo'}
             </button>
           </div>
-          <pre className="bg-slate-950 p-6 rounded-2xl overflow-x-auto text-[10px] text-slate-400 font-mono border border-slate-700 h-96 custom-scrollbar shadow-inner leading-relaxed">
+          <pre className="bg-[color:var(--bg-base)] p-6 rounded-2xl overflow-x-auto text-[10px] text-[color:var(--text-secondary)] font-mono border border-[color:var(--border-subtle)] h-96 custom-scrollbar shadow-inner leading-relaxed">
             <code>{SUPABASE_SQL_SCRIPT}</code>
           </pre>
         </div>
 
-        <div className="mt-8 flex justify-between items-center border-t border-slate-700 pt-6">
+        <div className="mt-8 flex justify-between items-center border-t border-[color:var(--border-subtle)] pt-6">
             <p className="type-label text-[color:var(--text-muted)]">Execute no SQL Editor do Supabase</p>
             <button 
                 onClick={onComplete}
-                className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-3 rounded-xl transition-colors type-label"
+                className="bg-[color:var(--bg-soft)] hover:bg-[color:var(--bg-strong)] text-white px-8 py-3 rounded-xl transition-colors type-label"
             >
                 Voltar para Login
             </button>

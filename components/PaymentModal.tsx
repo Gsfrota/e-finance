@@ -73,17 +73,17 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
 
   return (
     <div data-testid="payment-modal" className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in transition-opacity duration-200">
-      <div className="bg-slate-800 border border-slate-700 rounded-3xl w-full max-w-md shadow-2xl flex flex-col relative overflow-hidden">
+      <div className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-3xl w-full max-w-md shadow-2xl flex flex-col relative overflow-hidden">
         
         {/* Header */}
-        <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-900/50">
+        <div className="p-6 border-b border-[color:var(--border-subtle)] flex justify-between items-center bg-[color:var(--bg-base)]/50">
           <div>
               <h3 className="type-subheading uppercase text-[color:var(--text-primary)] flex items-center gap-2">
                  <ShieldCheck className="text-teal-500" size={20}/> Pagamento Seguro
               </h3>
-              <p className="text-xs text-slate-400 font-bold">{installment.contract_name} - Parc. {installment.number}</p>
+              <p className="text-xs text-[color:var(--text-secondary)] font-bold">{installment.contract_name} - Parc. {installment.number}</p>
           </div>
-          <button data-testid="close-modal-btn" onClick={onClose} aria-label="Fechar modal de pagamento" className="p-3 min-h-[44px] min-w-[44px] bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors flex items-center justify-center">
+          <button data-testid="close-modal-btn" onClick={onClose} aria-label="Fechar modal de pagamento" className="p-3 min-h-[44px] min-w-[44px] bg-[color:var(--bg-elevated)] rounded-full text-[color:var(--text-secondary)] hover:text-white transition-colors flex items-center justify-center">
             <X size={20} />
           </button>
         </div>
@@ -94,7 +94,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
             <div className="w-full">
                 <p className="type-label text-[color:var(--text-muted)] mb-1">Valor Final</p>
                 {loading ? (
-                    <div className="h-10 w-32 bg-slate-700/50 rounded animate-pulse mx-auto mb-2"></div>
+                    <div className="h-10 w-32 bg-[color:var(--bg-soft)]/50 rounded animate-pulse mx-auto mb-2"></div>
                 ) : (
                     <div className="type-metric-xl text-[color:var(--text-primary)]">{formatCurrency(displayAmount)}</div>
                 )}
@@ -106,7 +106,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
 
             {/* Beneficiary Card */}
             {beneficiary && (
-                <div className="w-full bg-slate-900/50 border border-slate-700 rounded-2xl p-4 flex items-center justify-between gap-3 animate-fade-in">
+                <div className="w-full bg-[color:var(--bg-base)]/50 border border-[color:var(--border-subtle)] rounded-2xl p-4 flex items-center justify-between gap-3 animate-fade-in">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-teal-900/30 text-teal-400 rounded-lg">
                             <Building2 size={16} />
@@ -117,7 +117,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
                         </div>
                     </div>
                     <div className="text-right">
-                         <div className="flex items-center justify-end gap-1 text-slate-500">
+                         <div className="flex items-center justify-end gap-1 text-[color:var(--text-muted)]">
                             <MapPin size={10} />
                             <span className="type-micro">{beneficiary.city}</span>
                          </div>
@@ -131,7 +131,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
                     <Loader2 size={48} className="animate-spin"/>
                     <div className="flex flex-col items-center gap-1">
                         <p className="type-label animate-pulse">Gerando Pix Dinâmico...</p>
-                        <p className="text-[9px] text-slate-500 font-medium">Conectando à Edge Function</p>
+                        <p className="text-[9px] text-[color:var(--text-muted)] font-medium">Conectando à Edge Function</p>
                     </div>
                 </div>
             ) : error ? (
@@ -148,7 +148,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
                 <>
                     {/* QR Code Area */}
                     <div data-testid="qr-code" role="img" aria-label="QR Code PIX para pagamento" className="bg-white p-4 rounded-2xl shadow-lg shadow-black/50 relative group">
-                         <div className="absolute -top-3 -right-3 bg-green-500 text-white p-1 rounded-full shadow-lg border-2 border-slate-800 z-10" title="Validado pelo Servidor">
+                         <div className="absolute -top-3 -right-3 bg-green-500 text-white p-1 rounded-full shadow-lg border-2 border-[color:var(--border-subtle)] z-10" title="Validado pelo Servidor">
                              <CheckCircle2 size={16} />
                          </div>
                         <QRCodeCanvas value={data.payload} size={256} level={"H"} />
@@ -157,11 +157,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
                     {/* Pix Key Copy */}
                     <div className="w-full">
                         <label className="type-label text-[color:var(--text-muted)] mb-2 block text-left">Pix Copia e Cola</label>
-                        <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-1 flex items-center gap-2">
+                        <div className="bg-[color:var(--bg-base)]/50 border border-[color:var(--border-subtle)] rounded-xl p-1 flex items-center gap-2">
                             <input 
                                 readOnly 
                                 value={data.payload} 
-                                className="bg-transparent w-full text-[10px] text-slate-400 font-mono px-3 outline-none truncate"
+                                className="bg-transparent w-full text-[10px] text-[color:var(--text-secondary)] font-mono px-3 outline-none truncate"
                             />
                             <button
                                 data-testid="copy-pix-btn"
@@ -193,9 +193,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-700 bg-slate-900/30 text-center">
-            <p className="text-slate-500 text-[10px] font-medium leading-relaxed">
-                ID da Transação: <span className="font-mono text-slate-400">{data?.request_id ? data.request_id.split('-')[0] : '...'}</span> &bull; 
+        <div className="p-4 border-t border-[color:var(--border-subtle)] bg-[color:var(--bg-base)]/30 text-center">
+            <p className="text-[color:var(--text-muted)] text-[10px] font-medium leading-relaxed">
+                ID da Transação: <span className="font-mono text-[color:var(--text-secondary)]">{data?.request_id ? data.request_id.split('-')[0] : '...'}</span> &bull; 
                 Ambiente: <span className="text-teal-500">Edge Function Secure</span>
             </p>
         </div>

@@ -474,7 +474,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                     <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); }} />
                   </label>
                   {inviteForm.photo_url && (
-                    <img src={inviteForm.photo_url} alt="Preview" className="w-12 h-12 rounded-xl object-cover border border-slate-600 shrink-0" />
+                    <img src={inviteForm.photo_url} alt="Preview" className="w-12 h-12 rounded-xl object-cover border border-[color:var(--border-strong)] shrink-0" />
                   )}
                 </div>
                 {uploadError && <p className="text-red-400 text-xs pl-1">{uploadError}</p>}
@@ -502,7 +502,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
           </button>
           <div className="flex items-center gap-3 min-w-0">
             {selectedUserForEdit.photo_url ? (
-              <img src={selectedUserForEdit.photo_url} alt={selectedUserForEdit.fullName} className="w-9 h-9 rounded-xl object-cover border border-slate-600 shrink-0" />
+              <img src={selectedUserForEdit.photo_url} alt={selectedUserForEdit.fullName} className="w-9 h-9 rounded-xl object-cover border border-[color:var(--border-strong)] shrink-0" />
             ) : (
               <div className="w-9 h-9 rounded-xl bg-teal-900/40 text-teal-400 flex items-center justify-center font-semibold text-sm shrink-0">
                 {selectedUserForEdit.fullName?.charAt(0).toUpperCase()}
@@ -608,7 +608,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                   <input type="file" accept="image/*" className="hidden" disabled={editUploading} onChange={e => { const f = e.target.files?.[0]; if (f) handleEditPhotoUpload(f); }} />
                 </label>
                 {editForm.photo_url && (
-                  <img src={editForm.photo_url} alt="Preview" className="w-12 h-12 rounded-xl object-cover border border-slate-600 shrink-0" />
+                  <img src={editForm.photo_url} alt="Preview" className="w-12 h-12 rounded-xl object-cover border border-[color:var(--border-strong)] shrink-0" />
                 )}
               </div>
               {editUploadError && <p className="text-red-400 text-xs pl-1">{editUploadError}</p>}

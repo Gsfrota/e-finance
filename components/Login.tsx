@@ -193,8 +193,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             >
               {loading ? (
                 <>
-                  <Activity className="animate-spin text-gray-500" size={18} />
-                  <span className="text-gray-500">Redirecionando para Google...</span>
+                  <Activity className="animate-spin text-[color:var(--text-muted)]" size={18} />
+                  <span className="text-[color:var(--text-muted)]">Redirecionando para Google...</span>
                 </>
               ) : (
                 <>

@@ -44,7 +44,7 @@ const ModalBackdrop: React.FC<{ children: React.ReactNode, onClose: () => void }
     onClick={onClose}
   >
     <div 
-      className="bg-slate-800 border border-slate-700 rounded-[2rem] w-full max-w-md shadow-2xl relative overflow-hidden animate-fade-in-up"
+      className="bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-[2rem] w-full max-w-md shadow-2xl relative overflow-hidden animate-fade-in-up"
       onClick={(e) => e.stopPropagation()}
     >
       {children}
@@ -55,7 +55,7 @@ const ModalBackdrop: React.FC<{ children: React.ReactNode, onClose: () => void }
 const Header: React.FC<{ title: string, subtitle: string, icon: React.ReactNode, onClose: () => void, colorClass: string }> = ({ 
   title, subtitle, icon, onClose, colorClass 
 }) => (
-  <div className="p-6 border-b border-slate-700 bg-slate-900/30 flex justify-between items-start">
+  <div className="p-6 border-b border-[color:var(--border-subtle)] bg-[color:var(--bg-base)]/30 flex justify-between items-start">
     <div className="flex items-center gap-3">
       <div className={`p-3 rounded-xl bg-opacity-20 ${colorClass.replace('text-', 'bg-')} ${colorClass}`}>
         {icon}
@@ -65,7 +65,7 @@ const Header: React.FC<{ title: string, subtitle: string, icon: React.ReactNode,
         <p className="type-label text-[color:var(--text-secondary)]">{subtitle}</p>
       </div>
     </div>
-    <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-slate-700 rounded-full">
+    <button onClick={onClose} className="text-[color:var(--text-muted)] hover:text-white transition-colors p-2 hover:bg-[color:var(--bg-soft)] rounded-full">
       <X size={20} />
     </button>
   </div>
@@ -686,12 +686,12 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       className={`w-full p-4 rounded-2xl border text-left transition-all duration-150 ${
         active
           ? 'border-emerald-500/50 bg-emerald-900/20 ring-1 ring-emerald-500/20'
-          : 'border-slate-700 bg-slate-900/40 hover:border-slate-600 hover:bg-slate-900/60'
+          : 'border-[color:var(--border-subtle)] bg-[color:var(--bg-base)]/40 hover:border-[color:var(--border-strong)] hover:bg-[color:var(--bg-base)]/60'
       }`}
     >
       <div className="flex items-start gap-3">
         {/* Radio dot */}
-        <div className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${active ? 'border-emerald-400' : 'border-slate-600'}`}>
+        <div className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${active ? 'border-emerald-400' : 'border-[color:var(--border-strong)]'}`}>
           {active && <div className="h-2 w-2 rounded-full bg-emerald-400"/>}
         </div>
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -750,7 +750,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
               <input
                 type="number" step="0.01" inputMode="decimal" required autoFocus
                 value={amount} onChange={e => { setAmount(e.target.value); setError(null); }}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
               />
             </div>
             {/* Aviso parcial em tempo real */}
@@ -781,7 +781,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
             <div className="relative">
               <Calendar size={16} className="absolute left-4 top-4 text-[color:var(--text-muted)]"/>
               <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all" />
+                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all" />
             </div>
           </div>
           {isLatePayment && installment && (
@@ -857,8 +857,8 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
               },
             ] as const).map(opt => (
               <button key={opt.id} type="button" onClick={() => setOverpaymentAction(opt.id)}
-                className={`w-full p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${overpaymentAction === opt.id ? 'border-amber-500/50 bg-amber-900/20 ring-1 ring-amber-500/20' : 'border-slate-700 bg-slate-900/40 hover:border-slate-600'}`}>
-                <div className={`h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center ${overpaymentAction === opt.id ? 'border-amber-400' : 'border-slate-600'}`}>
+                className={`w-full p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${overpaymentAction === opt.id ? 'border-amber-500/50 bg-amber-900/20 ring-1 ring-amber-500/20' : 'border-[color:var(--border-subtle)] bg-[color:var(--bg-base)]/40 hover:border-[color:var(--border-strong)]'}`}>
+                <div className={`h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center ${overpaymentAction === opt.id ? 'border-amber-400' : 'border-[color:var(--border-strong)]'}`}>
                   {overpaymentAction === opt.id && <div className="h-2 w-2 rounded-full bg-amber-400"/>}
                 </div>
                 <div className="min-w-0">
@@ -900,11 +900,11 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       <div className={`w-full rounded-2xl border text-left transition-all duration-150 ${
         active
           ? 'border-emerald-500/50 bg-emerald-900/20 ring-1 ring-emerald-500/20'
-          : 'border-slate-700 bg-slate-900/40'
+          : 'border-[color:var(--border-subtle)] bg-[color:var(--bg-base)]/40'
       }`}>
         <button type="button" onClick={onClick} className="w-full p-4 text-left">
           <div className="flex items-start gap-3">
-            <div className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${active ? 'border-emerald-400' : 'border-slate-600'}`}>
+            <div className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${active ? 'border-emerald-400' : 'border-[color:var(--border-strong)]'}`}>
               {active && <div className="h-2 w-2 rounded-full bg-emerald-400"/>}
             </div>
             <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -938,23 +938,23 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
           {showSpreadPreview ? 'Ocultar detalhes' : 'Ver detalhes por parcela'}
         </button>
         {showSpreadPreview && (
-          <div className="bg-slate-900/60 border border-slate-700 rounded-xl p-3 space-y-1 text-xs">
-            <div className="flex justify-between text-slate-500 pb-1 border-b border-slate-700 font-semibold">
+          <div className="bg-[color:var(--bg-base)]/60 border border-[color:var(--border-subtle)] rounded-xl p-3 space-y-1 text-xs">
+            <div className="flex justify-between text-[color:var(--text-muted)] pb-1 border-b border-[color:var(--border-subtle)] font-semibold">
               <span>Parcela</span>
               <span>Antes → Depois</span>
             </div>
             {pendingInstallments.map(inst => (
-              <div key={inst.id} className="flex justify-between text-slate-300">
-                <span className="text-slate-400">#{inst.number}</span>
+              <div key={inst.id} className="flex justify-between text-[color:var(--text-secondary)]">
+                <span className="text-[color:var(--text-secondary)]">#{inst.number}</span>
                 <span className="font-mono">
                   {formatCurrency(inst.amount_total)}
-                  <span className="text-slate-500 mx-1">→</span>
+                  <span className="text-[color:var(--text-muted)] mx-1">→</span>
                   <span className="text-emerald-300">{formatCurrency(Math.max(0, inst.amount_total - (spreadShares[inst.id] ?? 0)))}</span>
                 </span>
               </div>
             ))}
             {pendingInstallments.length === 0 && (
-              <p className="text-slate-500 text-center py-1">Nenhuma parcela pendente após a atual.</p>
+              <p className="text-[color:var(--text-muted)] text-center py-1">Nenhuma parcela pendente após a atual.</p>
             )}
           </div>
         )}
@@ -1086,8 +1086,8 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
                   { id: 'spread' as const, label: 'Diminuir contrato', sublabel: pendingInstallments.length > 0 ? `${pendingInstallments.length} parcelas · proporcional ao saldo de cada uma` : 'Distribuir proporcionalmente' },
                 ] as const).map(opt => (
                   <button key={opt.id} type="button" onClick={() => setPostLateAction(opt.id)}
-                    className={`w-full p-2.5 rounded-xl border text-left transition-all flex items-center gap-3 ${postLateAction === opt.id ? 'border-amber-500/50 bg-amber-900/20' : 'border-slate-700 bg-slate-900/40 hover:border-slate-600'}`}>
-                    <div className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 flex items-center justify-center ${postLateAction === opt.id ? 'border-amber-400' : 'border-slate-600'}`}>
+                    className={`w-full p-2.5 rounded-xl border text-left transition-all flex items-center gap-3 ${postLateAction === opt.id ? 'border-amber-500/50 bg-amber-900/20' : 'border-[color:var(--border-subtle)] bg-[color:var(--bg-base)]/40 hover:border-[color:var(--border-strong)]'}`}>
+                    <div className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 flex items-center justify-center ${postLateAction === opt.id ? 'border-amber-400' : 'border-[color:var(--border-strong)]'}`}>
                       {postLateAction === opt.id && <div className="h-1.5 w-1.5 rounded-full bg-amber-400"/>}
                     </div>
                     <div className="min-w-0">
@@ -1210,11 +1210,11 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
             </span>
             <div className="flex rounded-lg overflow-hidden border border-[color:var(--border-subtle)] type-label uppercase">
               <button type="button" onClick={() => { setUseInterest(false); setInterestPercent(''); }}
-                className={`px-3 py-1.5 transition-colors ${!useInterest ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                className={`px-3 py-1.5 transition-colors ${!useInterest ? 'bg-[color:var(--bg-strong)] text-white' : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-secondary)]'}`}>
                 Sem juros
               </button>
               <button type="button" onClick={() => setUseInterest(true)}
-                className={`px-3 py-1.5 transition-colors ${useInterest ? 'bg-amber-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                className={`px-3 py-1.5 transition-colors ${useInterest ? 'bg-amber-600 text-white' : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-secondary)]'}`}>
                 Com juros
               </button>
             </div>
@@ -1230,14 +1230,14 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
                     value={interestPercent}
                     onChange={e => setInterestPercent(e.target.value)}
                     placeholder="ex: 2,5"
-                    className="w-full bg-slate-800 border border-amber-700/40 rounded-xl pl-9 pr-4 py-2.5 text-white font-mono text-sm outline-none focus:ring-2 focus:ring-amber-500 transition-all"
+                    className="w-full bg-[color:var(--bg-elevated)] border border-amber-700/40 rounded-xl pl-9 pr-4 py-2.5 text-white font-mono text-sm outline-none focus:ring-2 focus:ring-amber-500 transition-all"
                   />
                 </div>
-                <span className="text-xs text-slate-400 shrink-0">% ao mês</span>
+                <span className="text-xs text-[color:var(--text-secondary)] shrink-0">% ao mês</span>
               </div>
               {interestAmt > 0 && (
                 <div className="flex items-center justify-between bg-amber-900/20 border border-amber-800/30 rounded-xl px-3 py-2 text-xs">
-                  <span className="text-slate-400">{formatCurrency(remainder)} + {interestPercent}%</span>
+                  <span className="text-[color:var(--text-secondary)]">{formatCurrency(remainder)} + {interestPercent}%</span>
                   <span className="text-amber-300 font-semibold">{formatCurrency(remainderWithInterest)}</span>
                 </div>
               )}
@@ -1388,7 +1388,7 @@ export const RefinanceModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSu
                 <input
                   type="number" step="0.01" inputMode="decimal" required
                   value={payAmount} onChange={e => setPayAmount(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                  className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-purple-500 transition-all"
                 />
             </div>
           </div>
@@ -1398,11 +1398,11 @@ export const RefinanceModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSu
               Nova Data de Vencimento
             </label>
             <div className="relative">
-                <Calendar size={16} className="absolute left-4 top-4 text-slate-500"/>
+                <Calendar size={16} className="absolute left-4 top-4 text-[color:var(--text-muted)]"/>
                 <input 
                   type="date" required
                   value={newDate} onChange={e => setNewDate(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3.5 text-white font-sans text-sm outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                  className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-4 py-3.5 text-white font-sans text-sm outline-none focus:ring-2 focus:ring-purple-500 transition-all"
                 />
             </div>
           </div>
@@ -1507,11 +1507,11 @@ export const EditModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess
               Nova Data de Vencimento
             </label>
             <div className="relative">
-                <Calendar size={16} className="absolute left-4 top-4 text-slate-500"/>
+                <Calendar size={16} className="absolute left-4 top-4 text-[color:var(--text-muted)]"/>
                 <input 
                   type="date" required
                   value={dueDate} onChange={e => setDueDate(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3.5 text-white font-sans text-sm outline-none focus:ring-2 focus:ring-sky-500 transition-all"
+                  className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-4 py-3.5 text-white font-sans text-sm outline-none focus:ring-2 focus:ring-sky-500 transition-all"
                 />
             </div>
           </div>
@@ -1521,11 +1521,11 @@ export const EditModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess
               Novo Valor Total (Principal + Juros)
             </label>
             <div className="relative">
-                <DollarSign size={16} className="absolute left-4 top-4 text-slate-500"/>
+                <DollarSign size={16} className="absolute left-4 top-4 text-[color:var(--text-muted)]"/>
                 <input
                   type="number" step="0.01" inputMode="decimal" required
                   value={totalAmount} onChange={e => setTotalAmount(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-sky-500 transition-all"
+                  className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-sky-500 transition-all"
                 />
             </div>
           </div>

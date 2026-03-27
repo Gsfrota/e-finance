@@ -54,11 +54,11 @@ const DebtorDashboard: React.FC = () => {
   if (metrics.contracts.length === 0) {
       return (
           <div className="h-full flex flex-col items-center justify-center text-center p-8 animate-fade-in">
-              <div className="bg-slate-800 p-8 rounded-full mb-6 border border-slate-700 shadow-2xl">
+              <div className="bg-[color:var(--bg-elevated)] p-8 rounded-full mb-6 border border-[color:var(--border-subtle)] shadow-2xl">
                   <ShieldCheck size={48} className="text-teal-500" />
               </div>
               <h1 className="type-title text-[color:var(--text-primary)] mb-2">Tudo Limpo!</h1>
-              <p className="text-slate-400 max-w-md mb-8 leading-relaxed">
+              <p className="text-[color:var(--text-secondary)] max-w-md mb-8 leading-relaxed">
                   Você não possui pendências ou contratos ativos no momento.
               </p>
           </div>
@@ -78,7 +78,7 @@ const DebtorDashboard: React.FC = () => {
         className={`p-6 md:p-8 rounded-[2.5rem] border shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden transition-all duration-500 ${
           metrics.hasLatePayment
             ? 'bg-red-900/20 border-red-500/30 shadow-red-900/20'
-            : 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 shadow-teal-900/10'
+            : 'bg-gradient-to-br from-slate-800 to-slate-900 border-[color:var(--border-subtle)] shadow-teal-900/10'
       }`}>
           {/* Background Decor */}
           <div className={`absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl opacity-20 pointer-events-none -mr-16 -mt-16 ${metrics.hasLatePayment ? 'bg-red-600' : 'bg-teal-600'}`}></div>
@@ -91,7 +91,7 @@ const DebtorDashboard: React.FC = () => {
                   {metrics.hasLatePayment ? 'Atenção Necessária' : 'Situação Regular'}
               </div>
               <h1 className="type-title text-[color:var(--text-primary)] mb-2">Olá, {metrics.userName}</h1>
-              <p className={`text-sm font-medium max-w-lg ${metrics.hasLatePayment ? 'text-red-200' : 'text-slate-400'}`}>
+              <p className={`text-sm font-medium max-w-lg ${metrics.hasLatePayment ? 'text-red-200' : 'text-[color:var(--text-secondary)]'}`}>
                   {metrics.hasLatePayment 
                     ? 'Identificamos pagamentos pendentes. Selecione o contrato abaixo para regularizar.' 
                     : 'Seus pagamentos estão em dia. Seu score financeiro está excelente!'}
@@ -100,14 +100,14 @@ const DebtorDashboard: React.FC = () => {
 
           {/* NEXT PAYMENT HIGHLIGHT CARD */}
           {metrics.nextPayment && (
-              <div data-testid="next-payment-card" className="relative z-10 bg-slate-950/60 backdrop-blur-md border border-white/10 p-6 rounded-3xl w-full md:w-80 shadow-lg transform hover:scale-[1.02] transition-transform">
+              <div data-testid="next-payment-card" className="relative z-10 bg-[color:var(--bg-base)]/60 backdrop-blur-md border border-white/10 p-6 rounded-3xl w-full md:w-80 shadow-lg transform hover:scale-[1.02] transition-transform">
                   <div className="flex justify-between items-start mb-4">
                       <div>
                           <p className="type-label text-[color:var(--text-muted)] mb-1">Próximo Vencimento</p>
                           <div className="flex items-center gap-2 text-white font-bold text-sm">
                               <Calendar size={14} className="text-teal-400"/> {formatDate(metrics.nextPayment.due_date)}
                           </div>
-                          <div className="text-[10px] text-slate-500 capitalize mt-0.5">
+                          <div className="text-[10px] text-[color:var(--text-muted)] capitalize mt-0.5">
                               {fmtWeekday(metrics.nextPayment.due_date)}
                           </div>
                       </div>
@@ -117,7 +117,7 @@ const DebtorDashboard: React.FC = () => {
                   </div>
                   <div className="mb-6">
                       <span className="type-metric-xl text-[color:var(--text-primary)] block">{formatCurrency(metrics.nextPayment.amount_total)}</span>
-                      <span className="text-[10px] text-slate-500 font-mono uppercase truncate block">{metrics.nextPayment.contract_name}</span>
+                      <span className="text-[10px] text-[color:var(--text-muted)] font-mono uppercase truncate block">{metrics.nextPayment.contract_name}</span>
                   </div>
                   <button
                     onClick={() => handlePay(metrics.nextPayment)}
@@ -136,7 +136,7 @@ const DebtorDashboard: React.FC = () => {
       {/* 2. CONTRACTS LIST (Accordion) */}
       <div className="space-y-6">
           <div className="flex items-center gap-3 px-2">
-              <Package className="text-slate-500" size={20} />
+              <Package className="text-[color:var(--text-muted)]" size={20} />
               <h3 className="type-subheading uppercase text-[color:var(--text-primary)]">Meus Contratos Ativos</h3>
           </div>
 
@@ -144,14 +144,14 @@ const DebtorDashboard: React.FC = () => {
               const isOpen = expandedContractId === contract.id;
               
               return (
-                  <div data-testid="contract-item" key={contract.id} className={`bg-slate-800 rounded-[2rem] border transition-all duration-300 overflow-hidden ${
-                      contract.status === 'late' ? 'border-red-900/50 shadow-red-900/10 hover:border-red-700/60' : 'border-slate-700 shadow-lg hover:border-slate-500'
+                  <div data-testid="contract-item" key={contract.id} className={`bg-[color:var(--bg-elevated)] rounded-[2rem] border transition-all duration-300 overflow-hidden ${
+                      contract.status === 'late' ? 'border-red-900/50 shadow-red-900/10 hover:border-red-700/60' : 'border-[color:var(--border-subtle)] shadow-lg hover:border-[color:var(--border-strong)]'
                   }`}>
                       
                       {/* HEADER (Clickable) */}
                       <div 
                         onClick={() => toggleAccordion(contract.id)}
-                        className="p-6 md:p-8 cursor-pointer hover:bg-slate-700/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-6"
+                        className="p-6 md:p-8 cursor-pointer hover:bg-[color:var(--bg-soft)]/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-6"
                       >
                           <div className="flex items-start gap-4">
                               <div className={`p-3 rounded-2xl ${contract.status === 'late' ? 'bg-red-900/20 text-red-400' : 'bg-teal-900/20 text-teal-400'}`}>
@@ -182,7 +182,7 @@ const DebtorDashboard: React.FC = () => {
                                        <span>Progresso</span>
                                        <span>{contract.progress.toFixed(0)}%</span>
                                    </div>
-                                   <div className="h-2 bg-slate-900 rounded-full overflow-hidden">
+                                   <div className="h-2 bg-[color:var(--bg-base)] rounded-full overflow-hidden">
                                        <div 
                                         className={`h-full rounded-full ${contract.status === 'late' ? 'bg-red-500' : 'bg-teal-500'}`} 
                                         style={{width: `${contract.progress}%`}}
@@ -190,7 +190,7 @@ const DebtorDashboard: React.FC = () => {
                                    </div>
                               </div>
 
-                              <div className={`p-2 rounded-full bg-slate-900 text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
+                              <div className={`p-2 rounded-full bg-[color:var(--bg-base)] text-[color:var(--text-secondary)] transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
                                   <ChevronDown size={20} />
                               </div>
                           </div>
@@ -198,11 +198,11 @@ const DebtorDashboard: React.FC = () => {
 
                       {/* BODY (Installments List) */}
                       {isOpen && (
-                          <div className="max-h-[60vh] overflow-y-auto border-t border-slate-700/50 bg-slate-900/30 p-4 animate-fade-in-down md:p-6">
+                          <div className="max-h-[60vh] overflow-y-auto border-t border-[color:var(--border-subtle)]/50 bg-[color:var(--bg-base)]/30 p-4 animate-fade-in-down md:p-6">
                               <div className="overflow-x-auto">
                                   <table className="w-full text-left text-sm whitespace-nowrap">
                                       <thead>
-                                          <tr className="type-label text-[color:var(--text-muted)] border-b border-slate-700/50">
+                                          <tr className="type-label text-[color:var(--text-muted)] border-b border-[color:var(--border-subtle)]/50">
                                               <th className="pb-3 pl-4">Vencimento</th>
                                               <th className="pb-3 text-right">Valor</th>
                                               <th className="pb-3 text-center hidden sm:table-cell">Status</th>
@@ -211,11 +211,11 @@ const DebtorDashboard: React.FC = () => {
                                       </thead>
                                       <tbody className="divide-y divide-slate-700/30">
                                           {contract.installments.map(inst => (
-                                              <tr data-testid="installment-row" key={inst.id} className="hover:bg-slate-800/50 transition-colors">
+                                              <tr data-testid="installment-row" key={inst.id} className="hover:bg-[color:var(--bg-elevated)]/50 transition-colors">
                                                   <td className="py-4 pl-4">
                                                       <div className="flex flex-col">
                                                           <span className="type-micro text-[color:var(--text-muted)] capitalize">{fmtWeekday(inst.due_date)}</span>
-                                                          <span className={`font-bold font-mono ${inst.is_late ? 'text-red-400' : 'text-slate-300'}`}>
+                                                          <span className={`font-bold font-mono ${inst.is_late ? 'text-red-400' : 'text-[color:var(--text-secondary)]'}`}>
                                                               {formatDate(inst.due_date)}
                                                           </span>
                                                           <span className="type-micro text-[color:var(--text-muted)]">Parc. {inst.number}</span>

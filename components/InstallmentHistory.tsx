@@ -139,7 +139,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
           {photoUrl ? (
             <img src={photoUrl} alt={debtorName} className="h-full w-full object-cover" />
           ) : (
-            <User size={20} className="text-gray-400" />
+            <User size={20} className="text-[color:var(--text-secondary)]" />
           )}
         </div>
         <div>

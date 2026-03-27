@@ -493,7 +493,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                     />
                   </label>
                   {logoUrl && (
-                    <img src={logoUrl} alt="Logo preview" className="w-12 h-12 rounded-xl object-cover border border-[color:var(--border-subtle)] shrink-0 bg-slate-800" />
+                    <img src={logoUrl} alt="Logo preview" className="w-12 h-12 rounded-xl object-cover border border-[color:var(--border-subtle)] shrink-0 bg-[color:var(--bg-elevated)]" />
                   )}
                 </div>
               </div>
