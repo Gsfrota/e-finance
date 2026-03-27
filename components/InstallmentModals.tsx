@@ -100,8 +100,10 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   const [loadingContext, setLoadingContext] = useState(false);
   // ── Surplus state ────────────────────────────────────────────────────────────
   const [surplusAction, setSurplusAction] = useState<SurplusAction>('next');
-  const [pendingInstallments, setPendingInstallments] = useState<Array<{id: string; number: number; amount_total: number}>>([]);
+  const [pendingInstallments, setPendingInstallments] = useState<Array<{id: string; number: number; amount_total: number; amount_paid: number; fine_amount: number; interest_delay_amount: number}>>([]);
   const [showSpreadPreview, setShowSpreadPreview] = useState(false);
+  const [showNextPreview, setShowNextPreview] = useState(false);
+  const [showLastPreview, setShowLastPreview] = useState(false);
   // ── Late installments state ─────────────────────────────────────────────────
   const [lateInstallments, setLateInstallments] = useState<Array<{
     id: string; number: number; amount_total: number;
@@ -154,6 +156,36 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   }, [surplus, lateInstallments]);
   const latePaymentTotal = latePaymentPreview.reduce((s, p) => s + p.willPay, 0);
   const lateSurplusLeftover = Math.max(0, surplus - latePaymentTotal);
+
+  // Previews para next e last (múltiplas parcelas)
+  const nextPreview = React.useMemo(() => {
+    let rem = activeSurplus;
+    const result: Array<{ id: string; number: number; outstanding: number; willPay: number; willFullyPay: boolean }> = [];
+    for (const inst of pendingInstallments) {
+      if (rem <= 0.009) break;
+      const ost = Math.max(0, inst.amount_total + inst.fine_amount + inst.interest_delay_amount - inst.amount_paid);
+      if (ost <= 0.009) continue;
+      const willPay = Math.min(rem, ost);
+      result.push({ id: inst.id, number: inst.number, outstanding: ost, willPay, willFullyPay: willPay >= ost - 0.009 });
+      rem -= willPay;
+    }
+    return result;
+  }, [pendingInstallments, activeSurplus]);
+
+  const lastPreview = React.useMemo(() => {
+    let rem = activeSurplus;
+    const result: Array<{ id: string; number: number; outstanding: number; willPay: number; willFullyPay: boolean }> = [];
+    for (const inst of [...pendingInstallments].reverse()) {
+      if (rem <= 0.009) break;
+      const ost = Math.max(0, inst.amount_total + inst.fine_amount + inst.interest_delay_amount - inst.amount_paid);
+      if (ost <= 0.009) continue;
+      const willPay = Math.min(rem, ost);
+      result.push({ id: inst.id, number: inst.number, outstanding: ost, willPay, willFullyPay: willPay >= ost - 0.009 });
+      rem -= willPay;
+    }
+    return result;
+  }, [pendingInstallments, activeSurplus]);
+
   // Overpayment: valor digitado supera a dívida total do contrato
   const totalContractRemaining = outstanding + totalOtherUnpaidOutstanding;
   const overpaymentAmount = Math.max(0, surplus - totalOtherUnpaidOutstanding);
@@ -220,7 +252,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         else setDeferAction('new');
         // Parcelas pendentes para surplus 'spread'
         const pendingAfter = pending.filter(r => r.number > installment.number);
-        setPendingInstallments(pendingAfter.map(r => ({ id: r.id, number: r.number, amount_total: r.amount_total })));
+        setPendingInstallments(pendingAfter.map(r => ({ id: r.id, number: r.number, amount_total: r.amount_total, amount_paid: r.amount_paid || 0, fine_amount: r.fine_amount || 0, interest_delay_amount: r.interest_delay_amount || 0 })));
         // Parcelas atrasadas para surplus 'pay_late'
         const lateRows = rows.filter(r => r.status === 'late');
         const lateWithOutstanding = lateRows.map(r => {
@@ -989,22 +1021,94 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
             <SurplusCard
               id="next"
               icon={<ArrowRight size={16}/>}
-              label="Próxima parcela"
-              sublabel={surplusNextInst
-                ? `Parcela #${surplusNextInst.number} · ${formatCurrency(surplusNextInst.amount_total)} → ${formatCurrency(Math.max(0, surplusNextInst.amount_total - surplus))}`
-                : 'Descontar da parcela seguinte'}
+              label={nextPreview.length > 1 ? 'Próximas parcelas' : 'Próxima parcela'}
+              sublabel={nextPreview.length > 1
+                ? `${nextPreview.filter(p => p.willFullyPay).length} quitadas · ${pendingInstallments.length - nextPreview.filter(p => p.willFullyPay).length} restantes`
+                : surplusNextInst
+                  ? `Parcela #${surplusNextInst.number} · ${formatCurrency(surplusNextInst.amount_total)} → ${formatCurrency(Math.max(0, surplusNextInst.amount_total - surplus))}`
+                  : 'Descontar da parcela seguinte'}
               active={surplusAction === 'next'}
               onClick={() => setSurplusAction('next')}
+              previewContent={nextPreview.length > 1 ? (
+                <div className="mt-1">
+                  <button type="button" onClick={() => setShowNextPreview(v => !v)}
+                    className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors mb-2">
+                    {showNextPreview ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
+                    {showNextPreview ? 'Ocultar detalhes' : 'Ver detalhes por parcela'}
+                  </button>
+                  {showNextPreview && (
+                    <div className="bg-[color:var(--bg-base)]/60 border border-[color:var(--border-subtle)] rounded-xl p-3 space-y-1 text-xs">
+                      <div className="flex justify-between text-[color:var(--text-muted)] pb-1 border-b border-[color:var(--border-subtle)] font-semibold">
+                        <span>Parcela</span><span>Devendo → Resultado</span>
+                      </div>
+                      {nextPreview.map(inst => (
+                        <div key={inst.id} className="flex justify-between text-[color:var(--text-secondary)]">
+                          <span className="text-[color:var(--text-muted)]">#{inst.number}</span>
+                          <span className="font-mono">
+                            {formatCurrency(inst.outstanding)}
+                            <span className="text-[color:var(--text-muted)] mx-1">→</span>
+                            <span className={inst.willFullyPay ? 'text-emerald-300' : 'text-amber-300'}>
+                              {inst.willFullyPay ? 'Quitada' : `${formatCurrency(inst.outstanding - inst.willPay)} restante`}
+                            </span>
+                          </span>
+                        </div>
+                      ))}
+                      {pendingInstallments.length - nextPreview.filter(p => p.willFullyPay).length > 0 && (
+                        <div className="flex justify-between text-[color:var(--text-muted)] pt-1 border-t border-[color:var(--border-subtle)]">
+                          <span>Restam</span>
+                          <span>{pendingInstallments.length - nextPreview.filter(p => p.willFullyPay).length} parcelas</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : undefined}
             />
             <SurplusCard
               id="last"
               icon={<ArrowDownToLine size={16}/>}
-              label="Última parcela"
-              sublabel={surplusLastInst
-                ? `Parcela #${surplusLastInst.number} · ${formatCurrency(surplusLastInst.amount_total)} → ${formatCurrency(Math.max(0, surplusLastInst.amount_total - surplus))}`
-                : 'Descontar da última parcela do contrato'}
+              label={lastPreview.length > 1 ? 'Últimas parcelas' : 'Última parcela'}
+              sublabel={lastPreview.length > 1
+                ? `${lastPreview.filter(p => p.willFullyPay).length} quitadas · ${pendingInstallments.length - lastPreview.filter(p => p.willFullyPay).length} restantes`
+                : surplusLastInst
+                  ? `Parcela #${surplusLastInst.number} · ${formatCurrency(surplusLastInst.amount_total)} → ${formatCurrency(Math.max(0, surplusLastInst.amount_total - surplus))}`
+                  : 'Descontar da última parcela do contrato'}
               active={surplusAction === 'last'}
               onClick={() => setSurplusAction('last')}
+              previewContent={lastPreview.length > 1 ? (
+                <div className="mt-1">
+                  <button type="button" onClick={() => setShowLastPreview(v => !v)}
+                    className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors mb-2">
+                    {showLastPreview ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
+                    {showLastPreview ? 'Ocultar detalhes' : 'Ver detalhes por parcela'}
+                  </button>
+                  {showLastPreview && (
+                    <div className="bg-[color:var(--bg-base)]/60 border border-[color:var(--border-subtle)] rounded-xl p-3 space-y-1 text-xs">
+                      <div className="flex justify-between text-[color:var(--text-muted)] pb-1 border-b border-[color:var(--border-subtle)] font-semibold">
+                        <span>Parcela</span><span>Devendo → Resultado</span>
+                      </div>
+                      {lastPreview.map(inst => (
+                        <div key={inst.id} className="flex justify-between text-[color:var(--text-secondary)]">
+                          <span className="text-[color:var(--text-muted)]">#{inst.number}</span>
+                          <span className="font-mono">
+                            {formatCurrency(inst.outstanding)}
+                            <span className="text-[color:var(--text-muted)] mx-1">→</span>
+                            <span className={inst.willFullyPay ? 'text-emerald-300' : 'text-amber-300'}>
+                              {inst.willFullyPay ? 'Quitada' : `${formatCurrency(inst.outstanding - inst.willPay)} restante`}
+                            </span>
+                          </span>
+                        </div>
+                      ))}
+                      {pendingInstallments.length - lastPreview.filter(p => p.willFullyPay).length > 0 && (
+                        <div className="flex justify-between text-[color:var(--text-muted)] pt-1 border-t border-[color:var(--border-subtle)]">
+                          <span>Restam</span>
+                          <span>{pendingInstallments.length - lastPreview.filter(p => p.willFullyPay).length} parcelas</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : undefined}
             />
             <SurplusCard
               id="spread"

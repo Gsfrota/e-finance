@@ -140,6 +140,17 @@ Categorias:
 - **Status:** ativa
 - **Stories:** fix 86c4410
 
+### BR-PAG-010: Preview dinâmico de alocação múltipla de excedente
+- **Descrição:** Quando o valor excedente de um pagamento cobre mais de uma parcela via ação `next` ou `last`, a interface deve exibir label no plural e preview expansível listando quais parcelas serão quitadas, qual terá pagamento parcial, e quantas restam após a alocação
+- **Condição:** Tela de alocação de excedente (`InstallmentModals`, `InstallmentDetailFlow`) quando `nextPreview.length > 1` ou `lastPreview.length > 1`
+- **Resultado:** Label "Próximas parcelas" / "Últimas parcelas" com sublabel "N quitadas · M restantes" e preview expansível por parcela
+- **Exceções:** Quando cobre apenas uma parcela, manter comportamento singular atual
+- **Tabelas:** Nenhuma (frontend only)
+- **Status:** ativa
+- **Stories:** fix/br-pag-010-surplus-multi-preview (27/03/2026)
+
+---
+
 ### BR-PAG-008: Pagamento via PIX usa código gerado pelo serviço pix.ts
 - **Descrição:** Todo pagamento via PIX deve usar o código gerado por `services/pix.ts`, nunca string hardcodada
 - **Condição:** Qualquer componente que exibe QR Code ou chave PIX
