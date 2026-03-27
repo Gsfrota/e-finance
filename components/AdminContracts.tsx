@@ -838,7 +838,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-1.5 ${
                                     formData.calculation_mode !== 'interest_only'
                                         ? 'bg-[color:var(--accent-positive)] border-[color:var(--accent-positive)] text-white shadow-lg'
-                                        : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
+                                        : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-elevated)]'
                                 }`}
                             >
                                 <Banknote size={20} />
@@ -853,7 +853,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-1.5 ${
                                     formData.calculation_mode === 'interest_only'
                                         ? 'bg-[color:var(--accent-caution)] border-[color:var(--accent-caution)] text-white shadow-lg'
-                                        : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
+                                        : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-elevated)]'
                                 }`}
                             >
                                 <Activity size={20} />
@@ -974,7 +974,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     className={`py-3 rounded-xl border transition-all type-label ${
                                         !bulletHasFixedDuration
                                             ? 'bg-[color:var(--accent-caution)] border-[color:var(--accent-caution)] text-white shadow-md'
-                                            : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
+                                            : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-elevated)]'
                                     }`}
                                 >
                                     Indeterminado
@@ -989,7 +989,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     className={`py-3 rounded-xl border transition-all type-label ${
                                         bulletHasFixedDuration
                                             ? 'bg-[color:var(--accent-caution)] border-[color:var(--accent-caution)] text-white shadow-md'
-                                            : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
+                                            : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-elevated)]'
                                     }`}
                                 >
                                     Determinado
@@ -1037,7 +1037,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all gap-1.5 ${
                                         formData.frequency === opt.id
                                         ? 'bg-[color:var(--accent-positive)] border-[color:var(--accent-positive)] text-white shadow-lg'
-                                        : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
+                                        : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-elevated)]'
                                     }`}
                                 >
                                     <opt.icon size={18} />
@@ -1089,7 +1089,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                             className={`type-label flex-1 py-3 rounded-2xl border transition-all ${
                                                 monthOffset === opt.offset
                                                     ? 'bg-[color:var(--accent-positive)] border-[color:var(--accent-positive)] text-white shadow-lg'
-                                                    : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
+                                                    : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-elevated)]'
                                             }`}
                                         >
                                             {opt.label}
@@ -1165,7 +1165,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                             className={`type-label flex-1 py-3 rounded-2xl border transition-all ${
                                                 formData.start_date === val
                                                     ? 'bg-[color:var(--accent-positive)] border-[color:var(--accent-positive)] text-white shadow-lg'
-                                                    : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-elevated)]'
+                                                    : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-elevated)]'
                                             }`}
                                         >
                                             {opt.label}
@@ -1200,7 +1200,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                             className={`type-label px-4 py-2 rounded-xl border transition-all ${
                                                 freelancerInterval === opt.days
                                                     ? 'bg-[color:var(--accent-positive)] border-[color:var(--accent-positive)] text-white'
-                                                    : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:bg-[color:var(--bg-soft)]'
+                                                    : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-soft)]'
                                             }`}
                                         >
                                             {opt.label}
