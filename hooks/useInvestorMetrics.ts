@@ -31,6 +31,8 @@ export interface InvestorMetrics {
 }
 
 interface RawInstallment {
+  id: string;
+  number: number;
   due_date: string;
   amount_total: number;
   amount_interest: number;
@@ -309,8 +311,9 @@ export function computeMonthlyView(invData: RawInvestment[], targetMonth: Date):
     });
 
     const instRows = monthInstallments.map((inst) => ({
-      id: (inst as any).id ?? `${inv.id}-${inst.due_date}`,
-      number: (inst as any).number ?? 0,
+      id: inst.id ?? `${inv.id}-${inst.due_date}`,
+      investment_id: inv.id,
+      number: inst.number ?? 0,
       due_date: inst.due_date,
       amount_total: Number(inst.amount_total || 0),
       amount_paid: Number(inst.amount_paid || 0),
@@ -433,6 +436,8 @@ export const useInvestorMetrics = (filter: InvestorFilter = defaultFilter) => {
               *,
               payer:profiles!investments_payer_id_fkey(id, full_name),
               loan_installments (
+                id,
+                number,
                 due_date,
                 amount_total,
                 amount_interest,

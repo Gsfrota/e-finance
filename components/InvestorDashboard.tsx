@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useInvestorMetrics, InvestorFilter, InvestorPeriod, monthKeyToDate, dateToMonthKey } from '../hooks/useInvestorMetrics';
 import MonthlyInvestorView from './investor/MonthlyInvestorView';
+import { InstallmentDetailScreen, type InstallmentAction } from './InstallmentDetailFlow';
+import { LoanInstallment } from '../types';
+import { getSupabase } from '../services/supabase';
 import {
   ArrowUpRight,
   Landmark,
@@ -35,6 +38,19 @@ const InvestorDashboard: React.FC<InvestorDashboardProps> = ({ defaultTab = 'por
   const [filter, setFilter] = useState<InvestorFilter>({ period: 'month' });
   const [activeTab, setActiveTab] = useState<InvestorTab>(defaultTab);
   const { metrics, investments, loading, isStale, monthlyView, selectedMonthKey, setSelectedMonthKey } = useInvestorMetrics(filter);
+  const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
+  const [installmentAction, setInstallmentAction] = useState<InstallmentAction>(null);
+
+  const handleInstallmentClick = async (installmentId: string, investmentId: number) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    const { data } = await supabase
+      .from('loan_installments')
+      .select('*, investment:investments(*, payer:profiles!investments_payer_id_fkey(id, full_name), loan_installments(*))')
+      .eq('id', installmentId)
+      .single();
+    if (data) setSelectedInstallment(data as unknown as LoanInstallment);
+  };
 
   const handlePrevMonth = () => {
     const d = monthKeyToDate(selectedMonthKey);
@@ -56,6 +72,16 @@ const InvestorDashboard: React.FC<InvestorDashboardProps> = ({ defaultTab = 'por
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
   const getWhatsappLink = () => 'https://wa.link/22e0gd';
+
+  if (selectedInstallment && !installmentAction) {
+    return (
+      <InstallmentDetailScreen
+        installment={selectedInstallment}
+        onBack={() => setSelectedInstallment(null)}
+        onAction={(action) => setInstallmentAction(action)}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -145,6 +171,7 @@ const InvestorDashboard: React.FC<InvestorDashboardProps> = ({ defaultTab = 'por
           selectedMonthKey={selectedMonthKey}
           onPrevMonth={handlePrevMonth}
           onNextMonth={handleNextMonth}
+          onInstallmentClick={handleInstallmentClick}
         />
       )}
 

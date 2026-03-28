@@ -8,6 +8,7 @@ interface MonthlyInvestorViewProps {
   selectedMonthKey: string;
   onPrevMonth: () => void;
   onNextMonth: () => void;
+  onInstallmentClick?: (installmentId: string, investmentId: number) => void;
 }
 
 const fmtMoney = (v: number) =>
@@ -36,7 +37,10 @@ const statusClass: Record<string, string> = {
   pending: 'text-[color:var(--text-secondary)]',
 };
 
-const InstallmentTable: React.FC<{ installments: MonthlyInstallmentRow[] }> = ({ installments }) => (
+const InstallmentTable: React.FC<{
+  installments: MonthlyInstallmentRow[];
+  onInstallmentClick?: (installmentId: string, investmentId: number) => void;
+}> = ({ installments, onInstallmentClick }) => (
   <div className="mt-3 overflow-hidden rounded-lg border border-white/8">
     <table className="w-full text-xs">
       <thead>
@@ -51,8 +55,13 @@ const InstallmentTable: React.FC<{ installments: MonthlyInstallmentRow[] }> = ({
       <tbody>
         {installments.map((inst, i) => {
           const hasExtra = inst.fine_amount > 0 || inst.interest_delay_amount > 0;
+          const isClickable = !!onInstallmentClick && !!inst.id;
           return (
-            <tr key={inst.id || i} className="border-b border-white/5 last:border-0">
+            <tr
+              key={inst.id || i}
+              className={`border-b border-white/5 last:border-0 ${isClickable ? 'cursor-pointer hover:bg-white/[0.04] transition-colors' : ''}`}
+              onClick={isClickable ? () => onInstallmentClick!(inst.id, inst.investment_id) : undefined}
+            >
               <td className="px-3 py-2 text-[color:var(--text-secondary)]">
                 #{inst.number}
                 {inst.contractName && (
@@ -83,7 +92,7 @@ const InstallmentTable: React.FC<{ installments: MonthlyInstallmentRow[] }> = ({
 );
 
 const MonthlyInvestorView: React.FC<MonthlyInvestorViewProps> = ({
-  monthlyView, selectedMonthKey, onPrevMonth, onNextMonth,
+  monthlyView, selectedMonthKey, onPrevMonth, onNextMonth, onInstallmentClick,
 }) => {
   const [expandedDebtor, setExpandedDebtor] = useState<string | null>(null);
 
@@ -265,7 +274,7 @@ const MonthlyInvestorView: React.FC<MonthlyInvestorViewProps> = ({
 
                   {isOpen && debtor.installments.length > 0 && (
                     <div className="border-t border-white/8 px-4 pb-4">
-                      <InstallmentTable installments={debtor.installments} />
+                      <InstallmentTable installments={debtor.installments} onInstallmentClick={onInstallmentClick} />
                     </div>
                   )}
                 </div>
