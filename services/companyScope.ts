@@ -78,8 +78,13 @@ export const getCompanyAccessMode = (
 export const canUseAggregateScope = (tenant?: Tenant | null, profile?: Profile | null) =>
   profile?.role === 'admin' && canAccessMultiCompany(tenant);
 
-export const isFreePlanLocked = (tenant?: Tenant | null): boolean =>
-  tenant?.plan === 'free' && !isTrialActive(tenant);
+// BR-SUB-004: O proprietário da plataforma tem acesso irrestrito permanente
+const PLATFORM_OWNER_EMAIL = 'guifrotasouza@gmail.com';
+
+export const isFreePlanLocked = (tenant?: Tenant | null): boolean => {
+  if (tenant?.owner_email === PLATFORM_OWNER_EMAIL) return false;
+  return tenant?.plan === 'free' && !isTrialActive(tenant);
+};
 
 export const FREE_PLAN_BLOCKED_VIEWS: ReadonlySet<AppView> = new Set([
   AppView.HOME,

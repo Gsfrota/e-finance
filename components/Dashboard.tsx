@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useDashboardData } from '../hooks/useDashboardData';
 import {
   KPICards, OverviewCharts, ResumoGeral,
@@ -9,16 +9,19 @@ import {
   LayoutDashboard,
   FileText,
   Phone,
+  CalendarRange,
   AlertCircle,
   WalletCards,
   Clock,
   WifiOff,
 } from 'lucide-react';
-import { AppView, UserRole, Tenant } from '../types';
+import { AppView, UserRole, Tenant, MonthlyViewData } from '../types';
 import { useCompanyContext } from '../services/companyScope';
 import InvestorDashboard from './InvestorDashboard';
 import DebtorDashboard from './DebtorDashboard';
 import { CollectionDashboard } from './dashboard/CollectionDashboard';
+import MonthlyInvestorView from './investor/MonthlyInvestorView';
+import { computeMonthlyView, monthKeyToDate, dateToMonthKey } from '../hooks/useInvestorMetrics';
 
 interface DashboardProps {
     targetUserId?: string;
@@ -26,7 +29,7 @@ interface DashboardProps {
     onNavigate?: (view: AppView) => void;
     userRole?: UserRole;
     tenant?: Tenant | null;
-    defaultTab?: 'overview' | 'receivables' | 'collection';
+    defaultTab?: 'overview' | 'receivables' | 'collection' | 'monthly';
     investorDefaultTab?: 'portfolio' | 'monthly';
 }
 
@@ -61,10 +64,75 @@ const DashboardSkeleton: React.FC = () => (
 );
 
 // Sub-component for Admin View
-const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultTab?: 'overview' | 'receivables' | 'collection'; onNavigate?: (view: AppView) => void }> = ({ tenant, defaultTab = 'overview', onNavigate }) => {
+const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultTab?: 'overview' | 'receivables' | 'collection' | 'monthly'; onNavigate?: (view: AppView) => void }> = ({ tenant, defaultTab = 'overview', onNavigate }) => {
   const { activeCompanyId } = useCompanyContext();
-  const { stats, detailedKPIs, investments, installments, loading, isStale, error, refetch } = useDashboardData(tenant?.id, activeCompanyId);
-  const [activeTab, setActiveTab] = useState<'overview' | 'receivables' | 'collection'>(defaultTab);
+  const { stats, detailedKPIs, investments, installments, allPaidInstallments, loading, isStale, error, refetch } = useDashboardData(tenant?.id, activeCompanyId);
+  const [activeTab, setActiveTab] = useState<'overview' | 'receivables' | 'collection' | 'monthly'>(defaultTab);
+
+  // Visão Mensal — mês selecionado
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>(() => dateToMonthKey(new Date()));
+
+  // Reconstrói RawInvestment[] combinando todas as parcelas (pagas históricas + pendentes/atrasadas)
+  // para que a visão mensal funcione em qualquer mês navegado
+  const rawInvestmentsForMonthly = useMemo(() => {
+    const map = new Map<number, any>();
+    // Índice rápido de investment por id
+    const invIndex = new Map<number, any>();
+    investments.forEach((inv: any) => invIndex.set(inv.id, inv));
+
+    const processInst = (inst: any) => {
+      const inv = inst.investment ?? invIndex.get(inst.investment_id);
+      if (!inv) return;
+      const id = inst.investment_id;
+      if (!map.has(id)) {
+        map.set(id, {
+          id,
+          asset_name: inv.asset_name,
+          amount_invested: inv.amount_invested ?? 0,
+          payer: inv.payer ?? null,
+          loan_installments: [],
+        });
+      }
+      map.get(id).loan_installments.push(inst);
+    };
+
+    // Todas as parcelas pagas (histórico completo)
+    allPaidInstallments.forEach(processInst);
+    // Parcelas pendentes/atrasadas (que não estão em allPaidInstallments)
+    installments.forEach((inst: any) => {
+      if (inst.status !== 'paid' && inst.status !== 'partial') processInst(inst);
+    });
+
+    // Garante que contratos sem parcelas apareçam no capital alocado
+    investments.forEach((inv: any) => {
+      if (!map.has(inv.id)) {
+        map.set(inv.id, {
+          id: inv.id,
+          asset_name: inv.asset_name,
+          amount_invested: inv.amount_invested ?? 0,
+          payer: inv.payer ?? null,
+          loan_installments: [],
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [allPaidInstallments, installments, investments]);
+
+  const monthlyView: MonthlyViewData | null = useMemo(() => {
+    if (rawInvestmentsForMonthly.length === 0) return null;
+    return computeMonthlyView(rawInvestmentsForMonthly, monthKeyToDate(selectedMonthKey));
+  }, [rawInvestmentsForMonthly, selectedMonthKey]);
+
+  const handlePrevMonth = () => {
+    const d = monthKeyToDate(selectedMonthKey);
+    d.setMonth(d.getMonth() - 1);
+    setSelectedMonthKey(dateToMonthKey(d));
+  };
+  const handleNextMonth = () => {
+    const d = monthKeyToDate(selectedMonthKey);
+    d.setMonth(d.getMonth() + 1);
+    setSelectedMonthKey(dateToMonthKey(d));
+  };
 
   // Relógio em tempo real
   const [time, setTime] = useState(() =>
@@ -137,7 +205,7 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-3 gap-1.5 rounded-full border border-white/10 bg-black/10 p-1.5">
+        <div className="mt-6 grid grid-cols-4 gap-1.5 rounded-full border border-white/10 bg-black/10 p-1.5">
           <button onClick={() => setActiveTab('overview')} className={tabClass('overview')}>
             <LayoutDashboard size={14} />
             <span className="hidden sm:inline">Visão Geral</span>
@@ -148,6 +216,9 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
           </button>
           <button onClick={() => setActiveTab('collection')} className={tabClass('collection')}>
             <Phone size={14} /> Cobranças
+          </button>
+          <button onClick={() => setActiveTab('monthly')} className={tabClass('monthly')}>
+            <CalendarRange size={14} /> Mensal
           </button>
         </div>
       </div>
@@ -179,6 +250,17 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
         {activeTab === 'collection' && (
           <div className="animate-fade-in">
             <CollectionDashboard installments={installments} onUpdate={refetch} tenant={tenant} />
+          </div>
+        )}
+
+        {activeTab === 'monthly' && monthlyView && (
+          <div className="animate-fade-in">
+            <MonthlyInvestorView
+              monthlyView={monthlyView}
+              selectedMonthKey={selectedMonthKey}
+              onPrevMonth={handlePrevMonth}
+              onNextMonth={handleNextMonth}
+            />
           </div>
         )}
 
