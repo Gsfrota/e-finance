@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useInvestorMetrics, InvestorFilter, InvestorPeriod } from '../hooks/useInvestorMetrics';
+import { useInvestorMetrics, InvestorFilter, InvestorPeriod, monthKeyToDate, dateToMonthKey } from '../hooks/useInvestorMetrics';
 import MonthlyInvestorView from './investor/MonthlyInvestorView';
 import {
   ArrowUpRight,
@@ -22,6 +22,8 @@ import {
 
 type InvestorTab = 'portfolio' | 'monthly';
 
+interface InvestorDashboardProps { defaultTab?: InvestorTab; }
+
 const PERIOD_LABELS: { key: InvestorPeriod; label: string }[] = [
   { key: 'month', label: 'Este mês' },
   { key: 'last_month', label: 'Mês anterior' },
@@ -29,20 +31,25 @@ const PERIOD_LABELS: { key: InvestorPeriod; label: string }[] = [
   { key: 'all', label: 'Tudo' },
 ];
 
-const InvestorDashboard: React.FC = () => {
+const InvestorDashboard: React.FC<InvestorDashboardProps> = ({ defaultTab = 'portfolio' }) => {
   const [filter, setFilter] = useState<InvestorFilter>({ period: 'month' });
-  const [activeTab, setActiveTab] = useState<InvestorTab>('portfolio');
-  const { metrics, investments, loading, isStale, monthlyView, selectedMonth, setSelectedMonth } = useInvestorMetrics(filter);
+  const [activeTab, setActiveTab] = useState<InvestorTab>(defaultTab);
+  const { metrics, investments, loading, isStale, monthlyView, selectedMonthKey, setSelectedMonthKey } = useInvestorMetrics(filter);
 
   const handlePrevMonth = () => {
-    setSelectedMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1));
+    const d = monthKeyToDate(selectedMonthKey);
+    d.setMonth(d.getMonth() - 1);
+    setSelectedMonthKey(dateToMonthKey(d));
   };
 
   const handleNextMonth = () => {
-    const next = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1);
+    const d = monthKeyToDate(selectedMonthKey);
+    d.setMonth(d.getMonth() + 1);
     const now = new Date();
-    const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    if (next <= currentMonth) setSelectedMonth(next);
+    if (d.getFullYear() < now.getFullYear() ||
+        (d.getFullYear() === now.getFullYear() && d.getMonth() <= now.getMonth())) {
+      setSelectedMonthKey(dateToMonthKey(d));
+    }
   };
 
   const formatCurrency = (value: number) =>
@@ -135,7 +142,7 @@ const InvestorDashboard: React.FC = () => {
       {activeTab === 'monthly' && monthlyView && (
         <MonthlyInvestorView
           monthlyView={monthlyView}
-          selectedMonth={selectedMonth}
+          selectedMonthKey={selectedMonthKey}
           onPrevMonth={handlePrevMonth}
           onNextMonth={handleNextMonth}
         />

@@ -67,3 +67,43 @@ All data fetching goes through custom hooks (`hooks/`) which call `services/supa
 ### Language
 
 UI strings and comments are in **Portuguese (Brazilian)**. Error messages from `parseSupabaseError` are in PT-BR. Keep this consistent when modifying existing components.
+
+## Development Workflow (OBRIGATÓRIO)
+
+**Toda** solicitação de mudança, feature, bug ou melhoria DEVE seguir o fluxo definido em `.claude/rules/e-finance-dev-workflow.md`.
+
+### Resumo do Fluxo
+
+```
+Solicitação → @po BR Gate → @sm Draft → @po Validate → @dev Implement → @qa Gate → @devops Push
+```
+
+### Regra Principal
+
+Antes de escrever qualquer linha de código:
+1. **@po** verifica se há Business Rule em `docs/business-rules/e-finance-br.md`
+2. Se não houver, **@po** elabora proposta e apresenta ao usuário
+3. Usuário aprova ou ajusta a BR
+4. Só então o desenvolvimento começa
+
+### Exceção: Perguntas e Análises
+
+Mensagens classificadas como QUESTION (como funciona X, explicar Y, analisar Z)
+não ativam o fluxo — são respondidas diretamente.
+
+### Gates de Banco de Dados
+
+Para qualquer mudança em schema ou RPC:
+1. Inspecionar schema real com `scripts/claude-agent.sh`
+2. Obter confirmação explícita do usuário antes de aplicar
+3. Validar após aplicação
+
+**Claude é o guardião do banco.** Nunca aplicar migration sem acordo explícito.
+
+### Referência Completa
+
+Ver `.claude/rules/e-finance-dev-workflow.md` para:
+- Tabela completa de triggers por tipo de mensagem
+- Paralelismo permitido vs sequencial obrigatório
+- Gates específicos do domínio financeiro (pagamentos, multi-tenant)
+- Formato de documentação de novas BRs
