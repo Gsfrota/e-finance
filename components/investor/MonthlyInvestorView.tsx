@@ -1,10 +1,11 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight, AlertTriangle, Users, TrendingUp, Landmark, CheckCircle } from 'lucide-react';
 import { MonthlyViewData } from '../../types';
+import { monthKeyToDate } from '../../hooks/useInvestorMetrics';
 
 interface MonthlyInvestorViewProps {
   monthlyView: MonthlyViewData;
-  selectedMonth: Date;
+  selectedMonthKey: string;
   onPrevMonth: () => void;
   onNextMonth: () => void;
 }
@@ -28,11 +29,12 @@ const progressTextColor = (pct: number) =>
 
 const MonthlyInvestorView: React.FC<MonthlyInvestorViewProps> = ({
   monthlyView,
-  selectedMonth,
+  selectedMonthKey,
   onPrevMonth,
   onNextMonth,
 }) => {
   const now = new Date();
+  const selectedMonth = monthKeyToDate(selectedMonthKey);
   const isFutureMonth =
     selectedMonth.getFullYear() > now.getFullYear() ||
     (selectedMonth.getFullYear() === now.getFullYear() && selectedMonth.getMonth() > now.getMonth());

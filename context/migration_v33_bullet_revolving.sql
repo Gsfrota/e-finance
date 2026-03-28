@@ -1,6 +1,11 @@
 -- ============================================================================
 -- Migration V33: Bullet Revolving Credit (Crédito Rotativo)
 -- ============================================================================
+-- REGRA ANTI-RECORRÊNCIA (aprendido com bug v34):
+-- CREATE OR REPLACE FUNCTION com assinatura diferente NÃO substitui o overload anterior
+-- no PostgreSQL — cria um novo. Sempre incluir DROP FUNCTION IF EXISTS para todas as
+-- versões anteriores ANTES do CREATE OR REPLACE ao adicionar novos parâmetros a uma RPC.
+-- ============================================================================
 -- Substitui o modelo bullet antigo (parcelas fixas) pelo modelo rotativo:
 -- - Cliente paga qualquer valor por período (mín. juros)
 -- - Juros calculado sobre o saldo devedor atual (não o principal original)

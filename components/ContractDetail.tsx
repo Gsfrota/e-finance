@@ -140,6 +140,8 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
   const [amount, setAmount]     = useState('');
   const [dateInput, setDate]    = useState(today);
   const [notes, setNotes]       = useState('');
+  // BR-PAG-014: destino obrigatório do pagamento avulso
+  const [destination, setDestination] = useState<'principal_reduction' | 'penalty_payment' | 'general_credit'>('general_credit');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
 
@@ -173,11 +175,13 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
     if (amountNum <= 0) { setError('Informe um valor válido.'); return; }
     setLoading(true); setError(null);
     try {
+      const destLabel = { principal_reduction: 'Redução de principal', penalty_payment: 'Quitação de encargos', general_credit: 'Crédito geral' }[destination];
+      const fullNotes = `[${destLabel}]${notes.trim() ? ' ' + notes.trim() : ''}`;
       const { error: rpcErr } = await getSupabase().rpc('pay_avulso', {
         p_investment_id: investmentId,
         p_amount: amountNum,
         p_paid_at: new Date(dateInput + 'T12:00:00').toISOString(),
-        p_notes: notes.trim() || null,
+        p_notes: fullNotes,
       });
       if (rpcErr) throw rpcErr;
       onSuccess();
@@ -244,6 +248,17 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
               onChange={e => setDate(e.target.value)}
               className={inputCls}
             />
+          </div>
+
+          {/* Destino BR-PAG-014 */}
+          <div>
+            <label className="block type-label text-[color:var(--text-faint)] mb-2">Destino do pagamento</label>
+            <select value={destination} onChange={e => setDestination(e.target.value as any)}
+              className="w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-strong)] rounded-xl px-4 py-3.5 text-sm text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-[color:var(--accent-brass)] transition-all">
+              <option value="general_credit">Crédito geral</option>
+              <option value="principal_reduction">Redução de principal</option>
+              <option value="penalty_payment">Quitação de encargos</option>
+            </select>
           </div>
 
           {/* Observação */}

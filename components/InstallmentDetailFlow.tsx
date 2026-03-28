@@ -1000,6 +1000,15 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
   };
 
   const handleUnpay = async () => {
+    // BR-PAG-012: reversão permitida apenas dentro de 72h do pagamento
+    if (installment.paid_at) {
+      const paidMs = new Date(installment.paid_at).getTime();
+      const diffH  = (Date.now() - paidMs) / 3600000;
+      if (diffH > 72) {
+        setError('Reversão não permitida após 72 horas do pagamento. Contate o suporte para reversões manuais.');
+        return;
+      }
+    }
     setLoading(true); setError(null);
     const supabase = getSupabase(); if (!supabase) return;
     try {
@@ -1018,6 +1027,12 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     const val = parseFloat(amount);
     if (isNaN(val) || val < 0) { setError('Valor inválido.'); return; }
     if (!newDate) { setError('Selecione uma nova data.'); return; }
+    // BR-PAG-011: pagamento mínimo e data futura obrigatória
+    const outstanding = calcOutstanding(installment);
+    const minPayment = Math.max(1.00, outstanding * 0.01);
+    if (val < minPayment) { setError(`Valor mínimo de entrada: ${fmtMoney(minPayment)} (1% do saldo devedor).`); return; }
+    const today = new Date().toISOString().split('T')[0];
+    if (newDate <= today) { setError('A nova data de vencimento deve ser uma data futura.'); return; }
     setLoading(true); setError(null);
     const supabase = getSupabase(); if (!supabase) return;
     try {
@@ -1046,6 +1061,14 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     const val = parseFloat(totalAmount);
     if (isNaN(val) || val <= 0) { setError('Valor inválido.'); return; }
     if (!dueDate) { setError('Data inválida.'); return; }
+    // BR-PAG-013: data não pode ser passado; delta máximo de 50%
+    const today = new Date().toISOString().split('T')[0];
+    if (dueDate < today) { setError('A data de vencimento não pode ser uma data passada.'); return; }
+    const original = normalizeNum(installment.amount_total);
+    if (original > 0 && Math.abs(val - original) / original > 0.5) {
+      setError(`Alteração de valor excede 50% do original (${fmtMoney(original)}). Reduza a alteração ou contate o suporte.`);
+      return;
+    }
     setLoading(true); setError(null);
     const supabase = getSupabase(); if (!supabase) return;
     try {

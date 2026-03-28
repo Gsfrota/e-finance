@@ -27,6 +27,7 @@ interface DashboardProps {
     userRole?: UserRole;
     tenant?: Tenant | null;
     defaultTab?: 'overview' | 'receivables' | 'collection';
+    investorDefaultTab?: 'portfolio' | 'monthly';
 }
 
 // Skeleton de loading premium
@@ -187,9 +188,9 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
 };
 
 // Main Component acting as Router/Controller based on Role
-const Dashboard: React.FC<DashboardProps> = ({ targetUserId, userRole, tenant, onBack, defaultTab, onNavigate }) => {
+const Dashboard: React.FC<DashboardProps> = ({ targetUserId, userRole, tenant, onBack, defaultTab, onNavigate, investorDefaultTab }) => {
   // If explicitly targeting a user (e.g. Admin viewing specific investor), or if role is Investor/Debtor
-  if (userRole === 'investor' && !targetUserId) return <InvestorDashboard />;
+  if (userRole === 'investor' && !targetUserId) return <InvestorDashboard defaultTab={investorDefaultTab} />;
   if (userRole === 'debtor' && !targetUserId) return <DebtorDashboard />;
 
   // Default to Admin Dashboard
