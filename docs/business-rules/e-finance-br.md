@@ -504,6 +504,15 @@ Categorias:
 - **Tabelas:** `tenants`
 - **Status:** ativa
 
+### BR-SUB-004: Tenant proprietário tem acesso empresarial permanente
+- **Descrição:** O tenant cujo `owner_email` é `guifrotasouza@gmail.com` tem acesso irrestrito a todas as features do plano `empresarial`, independente de qualquer estado de assinatura, trial ou webhook Stripe
+- **Condição:** Verificação de entitlement em `isFreePlanLocked` e demais feature gates
+- **Resultado:** `isFreePlanLocked` retorna `false` imediatamente para este tenant. Nenhuma lógica de paywall, degradação ou cron afeta este tenant
+- **Exceções:** Nenhuma — regra absoluta
+- **Tabelas:** `tenants`
+- **Status:** ativa
+- **Stories:** commit direto (27/03/2026)
+
 ---
 
 ## Bot / Assistente IA (BOT)
