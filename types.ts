@@ -302,6 +302,37 @@ export interface Invite {
   created_by: string;
 }
 
+// BR-REL-007: Visão Mensal do Investidor
+export interface MonthlyDebtorSummary {
+  debtorName: string;
+  totalDue: number;
+  totalPaid: number;
+  installmentCount: number;
+  overdueCount: number;
+  overdueAmount: number;
+}
+
+export interface MonthlyOverdueEntry {
+  debtorName: string;
+  amount: number;
+  daysLate: number;
+}
+
+export interface MonthlyViewData {
+  month: Date;
+  monthLabel: string;
+  totalExpected: number;
+  totalPaid: number;
+  paymentPercent: number;
+  interestReceived: number;
+  interestExpected: number;
+  capitalAllocated: number;
+  overdueCount: number;
+  overdueAmount: number;
+  overdueByDebtor: MonthlyOverdueEntry[];
+  debtors: MonthlyDebtorSummary[];
+}
+
 export enum AppView {
   LOGIN = 'LOGIN',
   HOME = 'HOME',
