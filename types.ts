@@ -303,6 +303,19 @@ export interface Invite {
 }
 
 // BR-REL-007: Visão Mensal do Investidor
+export interface MonthlyInstallmentRow {
+  id: string;
+  number: number;
+  due_date: string;
+  amount_total: number;
+  amount_paid: number;
+  amount_interest: number;
+  fine_amount: number;
+  interest_delay_amount: number;
+  status: string;
+  contractName: string;
+}
+
 export interface MonthlyDebtorSummary {
   debtorName: string;
   totalDue: number;
@@ -310,6 +323,7 @@ export interface MonthlyDebtorSummary {
   installmentCount: number;
   overdueCount: number;
   overdueAmount: number;
+  installments: MonthlyInstallmentRow[];
 }
 
 export interface MonthlyOverdueEntry {
