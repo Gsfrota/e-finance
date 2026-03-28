@@ -842,6 +842,14 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Free plan paywall redirect — must be before early returns to respect Rules of Hooks
+  useEffect(() => {
+    if (isFreeLocked && FREE_PLAN_BLOCKED_VIEWS.has(currentView)) {
+      openSettingsSection('assinatura');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFreeLocked, currentView]);
+
   const handleLogout = async () => {
     clearAllCache();
     clearAppStorageKeys();
@@ -976,13 +984,6 @@ const App: React.FC = () => {
     setSettingsInitialSection(section);
     setCurrentView(AppView.SETTINGS);
   };
-
-  useEffect(() => {
-    if (isFreeLocked && FREE_PLAN_BLOCKED_VIEWS.has(currentView)) {
-      openSettingsSection('assinatura');
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFreeLocked, currentView]);
 
   const requiresCompanySelection =
     profile?.role === 'admin' &&
