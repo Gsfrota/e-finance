@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { AppView } from '../types';
 import type { Company, CompanyAccessMode, CompanyScope, Profile, Tenant } from '../types';
 
 const COMPANY_SCOPE_STORAGE_PREFIX = 'EF_ACTIVE_COMPANY_SCOPE_';
@@ -26,6 +27,7 @@ export interface CompanyContextValue {
   activeCompany: Company | null;
   isEnterpriseTenant: boolean;
   isTrialActive: boolean;
+  isFreePlanLocked: boolean;
   companyAccessMode: CompanyAccessMode | null;
   canManageMultipleCompanies: boolean;
   canUseAggregateScope: boolean;
@@ -44,6 +46,7 @@ const CompanyContext = createContext<CompanyContextValue>({
   activeCompany: null,
   isEnterpriseTenant: false,
   isTrialActive: false,
+  isFreePlanLocked: false,
   companyAccessMode: null,
   canManageMultipleCompanies: false,
   canUseAggregateScope: false,
@@ -74,6 +77,18 @@ export const getCompanyAccessMode = (
 
 export const canUseAggregateScope = (tenant?: Tenant | null, profile?: Profile | null) =>
   profile?.role === 'admin' && canAccessMultiCompany(tenant);
+
+export const isFreePlanLocked = (tenant?: Tenant | null): boolean =>
+  tenant?.plan === 'free' && !isTrialActive(tenant);
+
+export const FREE_PLAN_BLOCKED_VIEWS: ReadonlySet<AppView> = new Set([
+  AppView.HOME,
+  AppView.DASHBOARD,
+  AppView.USER_DETAILS,
+  AppView.COLLECTION,
+  AppView.TOP_CLIENTES,
+  AppView.ASSISTANT,
+]);
 
 export const isAggregateCompanyScope = (scope?: CompanyScope) => scope === 'all';
 export const isAllCompaniesScope = isAggregateCompanyScope;
