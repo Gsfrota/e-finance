@@ -549,6 +549,7 @@ const App: React.FC = () => {
   const [targetUserId, setTargetUserId] = useState<string | undefined>(undefined);
   const [contractAutoNew, setContractAutoNew] = useState(false);
   const [investorDefaultTab, setInvestorDefaultTab] = useState<'portfolio' | 'monthly'>('portfolio');
+  const [adminDashboardDefaultTab, setAdminDashboardDefaultTab] = useState<'overview' | 'receivables' | 'collection' | 'monthly'>('overview');
   const [isLoading, setIsLoading] = useState(true);
   const [loadingPhase, setLoadingPhase] = useState<'init' | 'auth' | 'profile' | 'ready'>(isOAuthCallback() ? 'auth' : 'init');
   const [appError, setAppError] = useState<string | null>(null);
@@ -1063,9 +1064,11 @@ const App: React.FC = () => {
               profile={profile}
               onNavigate={(view) => {
                 if (view !== AppView.DASHBOARD && view !== AppView.USER_DETAILS) setTargetUserId(undefined);
+                if (view === AppView.DASHBOARD) setAdminDashboardDefaultTab('overview');
                 setCurrentView(view);
               }}
               onNewContract={() => { setContractAutoNew(true); setCurrentView(AppView.CONTRACTS); }}
+              onNavigateDashboardMonthly={() => { setAdminDashboardDefaultTab('monthly'); setCurrentView(AppView.DASHBOARD); }}
             />
           )}
           {currentView === AppView.DASHBOARD && !(isFreeLocked && profile?.role === 'admin') && (
@@ -1073,7 +1076,7 @@ const App: React.FC = () => {
                 targetUserId={targetUserId}
                 userRole={profile?.role}
                 tenant={tenant}
-                defaultTab="overview"
+                defaultTab={adminDashboardDefaultTab}
                 investorDefaultTab={investorDefaultTab}
                 onBack={targetUserId ? () => { setTargetUserId(undefined); setCurrentView(AppView.USERS); } : undefined}
                 onNavigate={(view) => {
