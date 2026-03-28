@@ -114,9 +114,11 @@ Deno.serve(async (req: Request) => {
         const invoice = event.data.object as Stripe.Invoice;
         const subId = invoice.subscription as string;
         if (subId) {
+          // BR-SUB-002: grace period de 7 dias antes de degradar para free
+          const gracePeriodEndsAt = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
           await supabase
             .from('tenants')
-            .update({ plan_status: 'past_due', plan_updated_at: new Date().toISOString() })
+            .update({ plan_status: 'past_due', plan_updated_at: new Date().toISOString(), grace_period_ends_at: gracePeriodEndsAt })
             .eq('stripe_subscription_id', subId);
         }
         break;

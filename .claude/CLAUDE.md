@@ -145,6 +145,7 @@ O AIOS carrega regras contextuais de `.claude/rules/` automaticamente. Regras co
 | `mcp-usage.md` | MCP server usage rules and tool selection priority |
 | `story-lifecycle.md` | Story status transitions and quality gates |
 | `workflow-execution.md` | 4 primary workflows (SDC, QA Loop, Spec Pipeline, Brownfield) |
+| `e-finance-dev-workflow.md` | **E-Finance obrigatório:** BR Gate (@po), triggers por tipo de mensagem, paralelismo, gates financeiro/DB/multi-tenant |
 
 > **Diretório:** `.claude/rules/` — rules são carregadas automaticamente pelo Claude Code quando relevantes.
 <!-- AIOS-MANAGED-END: rules-system -->
