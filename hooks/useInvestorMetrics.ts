@@ -58,6 +58,15 @@ interface CachedInvestorData {
 
 // --- Helpers puros ---
 
+export function monthKeyToDate(key: string): Date {
+  const [y, m] = key.split('-').map(Number);
+  return new Date(y, m - 1, 1);
+}
+
+export function dateToMonthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
 function getPeriodBounds(period: InvestorPeriod): { start: Date; end: Date } {
   const now = new Date();
   if (period === 'month') {
@@ -366,11 +375,8 @@ export const useInvestorMetrics = (filter: InvestorFilter = defaultFilter) => {
   const [loading, setLoading] = useState(true);
   const [isStale, setIsStale] = useState(false);
 
-  // Visão Mensal (BR-REL-007)
-  const [selectedMonth, setSelectedMonth] = useState<Date>(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
+  // Visão Mensal (BR-REL-007) — usa string "YYYY-MM" para evitar comparação por referência em deps
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>(() => dateToMonthKey(new Date()));
   const [monthlyView, setMonthlyView] = useState<MonthlyViewData | null>(null);
 
   // Guarda o userId para a chave do cache raw
@@ -436,7 +442,7 @@ export const useInvestorMetrics = (filter: InvestorFilter = defaultFilter) => {
         const result = computeMetrics(rawData.invData, rawData.userName, filter);
         setMetricsState(result.metrics);
         setInvestments(result.investments);
-        setMonthlyView(computeMonthlyView(rawData.invData, selectedMonth));
+        setMonthlyView(computeMonthlyView(rawData.invData, monthKeyToDate(selectedMonthKey)));
         setIsStale(false);
       } catch (err) {
         console.error('Erro ao carregar métricas do investidor:', err);
@@ -467,8 +473,8 @@ export const useInvestorMetrics = (filter: InvestorFilter = defaultFilter) => {
     const rawCacheKey = `investor_raw_${userIdRef.current}`;
     const cachedRaw = getCached<CachedRawData>(rawCacheKey);
     if (!cachedRaw) return;
-    setMonthlyView(computeMonthlyView(cachedRaw.data.invData, selectedMonth));
-  }, [selectedMonth]);
+    setMonthlyView(computeMonthlyView(cachedRaw.data.invData, monthKeyToDate(selectedMonthKey)));
+  }, [selectedMonthKey]);
 
-  return { metrics: metricsState, investments, loading, isStale, monthlyView, selectedMonth, setSelectedMonth };
+  return { metrics: metricsState, investments, loading, isStale, monthlyView, selectedMonthKey, setSelectedMonthKey };
 };
