@@ -305,6 +305,7 @@ export interface Invite {
 // BR-REL-007: Visão Mensal do Investidor
 export interface MonthlyInstallmentRow {
   id: string;
+  investment_id: number;
   number: number;
   due_date: string;
   amount_total: number;

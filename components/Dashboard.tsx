@@ -15,13 +15,15 @@ import {
   Clock,
   WifiOff,
 } from 'lucide-react';
-import { AppView, UserRole, Tenant, MonthlyViewData } from '../types';
+import { AppView, UserRole, Tenant, MonthlyViewData, LoanInstallment } from '../types';
 import { useCompanyContext } from '../services/companyScope';
 import InvestorDashboard from './InvestorDashboard';
 import DebtorDashboard from './DebtorDashboard';
 import { CollectionDashboard } from './dashboard/CollectionDashboard';
 import MonthlyInvestorView from './investor/MonthlyInvestorView';
 import { computeMonthlyView, monthKeyToDate, dateToMonthKey } from '../hooks/useInvestorMetrics';
+import { InstallmentDetailScreen, type InstallmentAction } from './InstallmentDetailFlow';
+import { getSupabase } from '../services/supabase';
 
 interface DashboardProps {
     targetUserId?: string;
@@ -71,6 +73,10 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
 
   // Visão Mensal — mês selecionado
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>(() => dateToMonthKey(new Date()));
+
+  // Detalhe de parcela da visão mensal
+  const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
+  const [installmentAction, setInstallmentAction] = useState<InstallmentAction>(null);
 
   // Reconstrói RawInvestment[] combinando todas as parcelas (pagas históricas + pendentes/atrasadas)
   // para que a visão mensal funcione em qualquer mês navegado
@@ -134,6 +140,17 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
     setSelectedMonthKey(dateToMonthKey(d));
   };
 
+  const handleInstallmentClick = async (installmentId: string, investmentId: number) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    const { data } = await supabase
+      .from('loan_installments')
+      .select('*, investment:investments(*, payer:profiles!investments_payer_id_fkey(id, full_name), loan_installments(*))')
+      .eq('id', installmentId)
+      .single();
+    if (data) setSelectedInstallment(data as unknown as LoanInstallment);
+  };
+
   // Relógio em tempo real
   const [time, setTime] = useState(() =>
     new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -148,6 +165,16 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
 
   // Pass all installments to the table so the internal filters (All/Paid/Pending) work correctly
   const filteredInstallments = installments;
+
+  if (selectedInstallment && !installmentAction) {
+    return (
+      <InstallmentDetailScreen
+        installment={selectedInstallment}
+        onBack={() => setSelectedInstallment(null)}
+        onAction={(action) => setInstallmentAction(action)}
+      />
+    );
+  }
 
   if (loading) {
     return <DashboardSkeleton />;
@@ -260,6 +287,7 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
               selectedMonthKey={selectedMonthKey}
               onPrevMonth={handlePrevMonth}
               onNextMonth={handleNextMonth}
+              onInstallmentClick={handleInstallmentClick}
             />
           </div>
         )}
