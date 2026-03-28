@@ -24,6 +24,7 @@ import {
   CompanyContextProvider,
   canUseAggregateScope as canUseAggregateCompanyScope,
   createFallbackCompany,
+  FREE_PLAN_BLOCKED_VIEWS,
   getCompanyAccessMode,
   getCompanyScopeStorageKey,
   getOperationLabel,
@@ -31,6 +32,7 @@ import {
   getScopedCompanyId,
   isAggregateCompanyScope,
   isEnterpriseTenant as isEnterprisePlan,
+  isFreePlanLocked,
   isTrialActive,
 } from './services/companyScope';
 import {
@@ -50,6 +52,7 @@ import {
   Bot,
   ChevronsLeft,
   ChevronsRight,
+  Lock,
   Sun,
   Moon,
   Clock,
@@ -89,6 +92,7 @@ interface LayoutProps {
   companyScopeDescriptorLabel: string;
   isEnterpriseTenant?: boolean;
   companyAccessMode?: CompanyAccessMode | null;
+  freePlanLocked?: boolean;
   onSelectCompanyScope: (scope: CompanyScope) => void;
   onOpenCompanySettings: (section?: SettingsSection) => void;
   onOpenSubscriptionSettings: () => void;
@@ -108,6 +112,7 @@ const Layout: React.FC<LayoutProps> = ({
   companyScopeLabel,
   companyScopeDescriptorLabel,
   isEnterpriseTenant = false,
+  freePlanLocked = false,
   companyAccessMode = null,
   onSelectCompanyScope,
   onOpenCompanySettings,
@@ -166,7 +171,7 @@ const Layout: React.FC<LayoutProps> = ({
     setMobileMenuOpen(false);
   };
 
-  const NavContent = ({ collapsed = false, showCollapseToggle = true }: { collapsed?: boolean; showCollapseToggle?: boolean }) => {
+  const NavContent = ({ collapsed = false, showCollapseToggle = true, locked = false }: { collapsed?: boolean; showCollapseToggle?: boolean; locked?: boolean }) => {
     const btnBase = `flex w-full items-center rounded-2xl py-3 transition-all`;
     const btnExpanded = `gap-3 px-4 text-left`;
     const btnCollapsed = `justify-center px-3`;
@@ -214,12 +219,15 @@ const Layout: React.FC<LayoutProps> = ({
           <button
             onClick={() => handleViewChange(AppView.HOME)}
             title={collapsed ? 'Início' : undefined}
-            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.HOME ? activeClass : inactiveClass}`}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.HOME ? activeClass : inactiveClass}`}
           >
             <Home size={20} className="shrink-0" />
             {!collapsed && (
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold">Início</div>
+                <div className="flex items-center gap-1.5 text-sm font-semibold">
+                  Início
+                  {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
+                </div>
                 <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Painel de entrada</div>
               </div>
             )}
@@ -228,12 +236,15 @@ const Layout: React.FC<LayoutProps> = ({
           <button
             onClick={() => handleViewChange(AppView.DASHBOARD)}
             title={collapsed ? 'Dashboard' : undefined}
-            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.DASHBOARD ? activeClass : inactiveClass}`}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.DASHBOARD ? activeClass : inactiveClass}`}
           >
             <LayoutDashboard size={20} className="shrink-0" />
             {!collapsed && (
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold">Dashboard</div>
+                <div className="flex items-center gap-1.5 text-sm font-semibold">
+                  Dashboard
+                  {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
+                </div>
                 <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Leitura financeira</div>
               </div>
             )}
@@ -272,12 +283,15 @@ const Layout: React.FC<LayoutProps> = ({
               <button
                 onClick={() => handleViewChange(AppView.COLLECTION)}
                 title={collapsed ? 'Cobranças' : undefined}
-                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.COLLECTION ? activeClass : inactiveClass}`}
+                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.COLLECTION ? activeClass : inactiveClass}`}
               >
                 <PhoneCall size={20} className="shrink-0" />
                 {!collapsed && (
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">Cobranças</div>
+                    <div className="flex items-center gap-1.5 text-sm font-semibold">
+                      Cobranças
+                      {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
+                    </div>
                     <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Agenda do dia</div>
                   </div>
                 )}
@@ -286,12 +300,15 @@ const Layout: React.FC<LayoutProps> = ({
               <button
                 onClick={() => handleViewChange(AppView.TOP_CLIENTES)}
                 title={collapsed ? 'Top Clientes' : undefined}
-                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.TOP_CLIENTES ? activeClass : inactiveClass}`}
+                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.TOP_CLIENTES ? activeClass : inactiveClass}`}
               >
                 <Trophy size={20} className="shrink-0" />
                 {!collapsed && (
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">Top Clientes</div>
+                    <div className="flex items-center gap-1.5 text-sm font-semibold">
+                      Top Clientes
+                      {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
+                    </div>
                     <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Ranking de pagadores</div>
                   </div>
                 )}
@@ -300,12 +317,15 @@ const Layout: React.FC<LayoutProps> = ({
               <button
                 onClick={() => handleViewChange(AppView.ASSISTANT)}
                 title={collapsed ? 'Assistente' : undefined}
-                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.ASSISTANT ? activeClass : inactiveClass}`}
+                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.ASSISTANT ? activeClass : inactiveClass}`}
               >
                 <Bot size={20} className="shrink-0" />
                 {!collapsed && (
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">Assistente</div>
+                    <div className="flex items-center gap-1.5 text-sm font-semibold">
+                      Assistente
+                      {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
+                    </div>
                     <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Automações e conexões</div>
                   </div>
                 )}
@@ -403,7 +423,7 @@ const Layout: React.FC<LayoutProps> = ({
     <div className="flex min-h-screen bg-transparent text-[color:var(--text-primary)] overflow-x-hidden font-sans">
 
       <aside className={`glass-border hidden shrink-0 flex-col border-r md:flex transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-[72px]' : 'w-[280px]'}`}>
-        <NavContent collapsed={sidebarCollapsed} showCollapseToggle />
+        <NavContent collapsed={sidebarCollapsed} showCollapseToggle locked={freePlanLocked} />
       </aside>
 
       {mobileMenuOpen && (
@@ -413,7 +433,7 @@ const Layout: React.FC<LayoutProps> = ({
              <button onClick={() => setMobileMenuOpen(false)} className="absolute right-4 top-4 flex min-h-[44px] min-w-[44px] items-center justify-center text-[color:var(--text-muted)] hover:text-white">
                 <X size={22} />
              </button>
-             <NavContent collapsed={false} showCollapseToggle={false} />
+             <NavContent collapsed={false} showCollapseToggle={false} locked={freePlanLocked} />
           </aside>
         </div>
       )}
@@ -932,6 +952,8 @@ const App: React.FC = () => {
     );
   }
 
+  const isFreeLocked = isFreePlanLocked(tenant) && profile?.role === 'admin';
+
   const companyContextValue = {
     tenant,
     profile,
@@ -941,6 +963,7 @@ const App: React.FC = () => {
     activeCompany,
     isEnterpriseTenant: isEnterprisePlan(tenant),
     isTrialActive: isTrialTenant,
+    isFreePlanLocked: isFreeLocked,
     companyAccessMode,
     canManageMultipleCompanies: canAggregateCompanies,
     canUseAggregateScope: canAggregateCompanies,
@@ -952,6 +975,13 @@ const App: React.FC = () => {
     setSettingsInitialSection(section);
     setCurrentView(AppView.SETTINGS);
   };
+
+  useEffect(() => {
+    if (isFreeLocked && FREE_PLAN_BLOCKED_VIEWS.has(currentView)) {
+      openSettingsSection('assinatura');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFreeLocked, currentView]);
 
   const requiresCompanySelection =
     profile?.role === 'admin' &&
@@ -980,6 +1010,10 @@ const App: React.FC = () => {
         <Layout
           activeView={currentView}
           onChangeView={(view) => {
+              if (isFreeLocked && FREE_PLAN_BLOCKED_VIEWS.has(view)) {
+                openSettingsSection('assinatura');
+                return;
+              }
               if (view !== AppView.HOME && view !== AppView.DASHBOARD && view !== AppView.COLLECTION && view !== AppView.USER_DETAILS) setTargetUserId(undefined);
               setCurrentView(view);
           }}
@@ -993,12 +1027,13 @@ const App: React.FC = () => {
           companyScopeLabel={companyScopeLabel}
           companyScopeDescriptorLabel={companyScopeSummary.label}
           isEnterpriseTenant={isEnterprisePlan(tenant)}
+          freePlanLocked={isFreeLocked}
           companyAccessMode={companyAccessMode}
           onSelectCompanyScope={handleCompanyScopeChange}
           onOpenCompanySettings={openSettingsSection}
           onOpenSubscriptionSettings={() => openSettingsSection('assinatura')}
         >
-          {currentView === AppView.HOME && profile?.role === 'admin' && (
+          {currentView === AppView.HOME && profile?.role === 'admin' && !isFreeLocked && (
             <AdminHome
               tenant={tenant}
               profile={profile}
@@ -1009,7 +1044,7 @@ const App: React.FC = () => {
               onNewContract={() => { setContractAutoNew(true); setCurrentView(AppView.CONTRACTS); }}
             />
           )}
-          {currentView === AppView.DASHBOARD && (
+          {currentView === AppView.DASHBOARD && !(isFreeLocked && profile?.role === 'admin') && (
             <Dashboard
                 targetUserId={targetUserId}
                 userRole={profile?.role}
@@ -1022,10 +1057,10 @@ const App: React.FC = () => {
                 }}
             />
           )}
-          {currentView === AppView.COLLECTION && profile?.role === 'admin' && (
+          {currentView === AppView.COLLECTION && profile?.role === 'admin' && !isFreeLocked && (
             <DailyCollectionView tenant={tenant} />
           )}
-          {currentView === AppView.TOP_CLIENTES && profile?.role === 'admin' && (
+          {currentView === AppView.TOP_CLIENTES && profile?.role === 'admin' && !isFreeLocked && (
             <TopClientes
               tenant={tenant}
               onNavigate={(view) => setCurrentView(view)}
@@ -1038,9 +1073,12 @@ const App: React.FC = () => {
                     'Usuários exigem empresa ativa',
                     'A lista de usuários e convites é operacional e fica isolada por empresa. Escolha uma empresa no topo para continuar.'
                   )
-                : <AdminUsers onViewDashboard={(uid) => { setTargetUserId(uid); setCurrentView(AppView.USER_DETAILS); }} />
+                : <AdminUsers onViewDashboard={(uid) => {
+                    if (isFreeLocked) { openSettingsSection('assinatura'); return; }
+                    setTargetUserId(uid); setCurrentView(AppView.USER_DETAILS);
+                  }} />
           )}
-          {currentView === AppView.USER_DETAILS && profile?.role === 'admin' && targetUserId && (
+          {currentView === AppView.USER_DETAILS && profile?.role === 'admin' && targetUserId && !isFreeLocked && (
               requiresCompanySelection
                 ? companyGate(
                     'Detalhes do cliente exigem empresa ativa',
@@ -1054,7 +1092,11 @@ const App: React.FC = () => {
                     'Contratos exigem empresa ativa',
                     'Criação, edição e leitura operacional de contratos só podem acontecer dentro de uma empresa específica.'
                   )
-                : <AdminContracts autoOpenCreate={contractAutoNew} onNavigate={(view) => setCurrentView(view)} />
+                : <AdminContracts
+                    autoOpenCreate={contractAutoNew}
+                    onNavigate={(view) => setCurrentView(view)}
+                    onPaywallRedirect={isFreeLocked ? () => openSettingsSection('assinatura') : undefined}
+                  />
           )}
           {currentView === AppView.LEGACY_CONTRACT && profile?.role === 'admin' && (
               requiresCompanySelection
