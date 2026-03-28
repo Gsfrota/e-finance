@@ -843,9 +843,11 @@ const App: React.FC = () => {
   }, []);
 
   // Free plan paywall redirect — must be before early returns to respect Rules of Hooks
+  const isFreeLocked = isFreePlanLocked(tenant) && profile?.role === 'admin';
   useEffect(() => {
     if (isFreeLocked && FREE_PLAN_BLOCKED_VIEWS.has(currentView)) {
-      openSettingsSection('assinatura');
+      setSettingsInitialSection('assinatura');
+      setCurrentView(AppView.SETTINGS);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFreeLocked, currentView]);
@@ -960,8 +962,6 @@ const App: React.FC = () => {
       </div>
     );
   }
-
-  const isFreeLocked = isFreePlanLocked(tenant) && profile?.role === 'admin';
 
   const companyContextValue = {
     tenant,
