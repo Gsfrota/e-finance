@@ -308,6 +308,19 @@ export function computeMonthlyView(invData: RawInvestment[], targetMonth: Date):
       }
     });
 
+    const instRows = monthInstallments.map((inst) => ({
+      id: (inst as any).id ?? `${inv.id}-${inst.due_date}`,
+      number: (inst as any).number ?? 0,
+      due_date: inst.due_date,
+      amount_total: Number(inst.amount_total || 0),
+      amount_paid: Number(inst.amount_paid || 0),
+      amount_interest: Number(inst.amount_interest || 0),
+      fine_amount: Number(inst.fine_amount || 0),
+      interest_delay_amount: Number(inst.interest_delay_amount || 0),
+      status: inst.status,
+      contractName: inv.asset_name,
+    }));
+
     const existing = debtorMap.get(debtorName);
     if (existing) {
       existing.totalDue += debtorDue;
@@ -315,6 +328,7 @@ export function computeMonthlyView(invData: RawInvestment[], targetMonth: Date):
       existing.installmentCount += monthInstallments.length;
       existing.overdueCount += debtorOverdueCount;
       existing.overdueAmount += debtorOverdueAmount;
+      existing.installments.push(...instRows);
     } else {
       debtorMap.set(debtorName, {
         debtorName,
@@ -323,6 +337,7 @@ export function computeMonthlyView(invData: RawInvestment[], targetMonth: Date):
         installmentCount: monthInstallments.length,
         overdueCount: debtorOverdueCount,
         overdueAmount: debtorOverdueAmount,
+        installments: instRows,
       });
     }
   });
