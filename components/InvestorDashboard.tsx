@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useInvestorMetrics, InvestorFilter, InvestorPeriod } from '../hooks/useInvestorMetrics';
+import MonthlyInvestorView from './investor/MonthlyInvestorView';
 import {
   ArrowUpRight,
   Landmark,
@@ -19,6 +20,8 @@ import {
   CartesianGrid,
 } from 'recharts';
 
+type InvestorTab = 'portfolio' | 'monthly';
+
 const PERIOD_LABELS: { key: InvestorPeriod; label: string }[] = [
   { key: 'month', label: 'Este mês' },
   { key: 'last_month', label: 'Mês anterior' },
@@ -28,7 +31,19 @@ const PERIOD_LABELS: { key: InvestorPeriod; label: string }[] = [
 
 const InvestorDashboard: React.FC = () => {
   const [filter, setFilter] = useState<InvestorFilter>({ period: 'month' });
-  const { metrics, investments, loading, isStale } = useInvestorMetrics(filter);
+  const [activeTab, setActiveTab] = useState<InvestorTab>('portfolio');
+  const { metrics, investments, loading, isStale, monthlyView, selectedMonth, setSelectedMonth } = useInvestorMetrics(filter);
+
+  const handlePrevMonth = () => {
+    setSelectedMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    const next = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1);
+    const now = new Date();
+    const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (next <= currentMonth) setSelectedMonth(next);
+  };
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -98,6 +113,36 @@ const InvestorDashboard: React.FC = () => {
           </a>
         </div>
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 px-1">
+        {(['portfolio', 'monthly'] as InvestorTab[]).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`rounded-full px-5 py-2 type-label transition-all ${
+              activeTab === tab
+                ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)]'
+                : 'border border-white/10 bg-white/[0.03] text-[color:var(--text-secondary)] hover:bg-white/[0.06]'
+            }`}
+          >
+            {tab === 'portfolio' ? 'Carteira' : 'Visão Mensal'}
+          </button>
+        ))}
+      </div>
+
+      {/* Visão Mensal */}
+      {activeTab === 'monthly' && monthlyView && (
+        <MonthlyInvestorView
+          monthlyView={monthlyView}
+          selectedMonth={selectedMonth}
+          onPrevMonth={handlePrevMonth}
+          onNextMonth={handleNextMonth}
+        />
+      )}
+
+      {/* Conteúdo da Carteira */}
+      {activeTab === 'portfolio' && (<>
 
       {/* Barra de filtros */}
       <div className="flex flex-wrap items-center gap-3 px-1">
@@ -272,6 +317,8 @@ const InvestorDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      </>)}
     </div>
   );
 };
