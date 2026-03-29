@@ -7,6 +7,7 @@ import AdminUsers from './components/AdminUsers';
 import AdminContracts from './components/AdminContracts';
 import AdminAssistant from './components/AdminAssistant';
 import AdminHome from './components/AdminHome';
+import PlatformOwnerPanel from './components/PlatformOwnerPanel';
 import OnboardingWizard from './components/OnboardingWizard';
 import { AssistantPaywall } from './components/SubscriptionTab';
 import AdminUserDetails from './components/AdminUserDetails';
@@ -33,6 +34,7 @@ import {
   isAggregateCompanyScope,
   isEnterpriseTenant as isEnterprisePlan,
   isFreePlanLocked,
+  isPlatformOwner,
   isTrialActive,
 } from './services/companyScope';
 import {
@@ -58,6 +60,7 @@ import {
   Clock,
   PhoneCall,
   Trophy,
+  Crown,
 } from 'lucide-react';
 
 const getTrialDaysLeft = (trial_ends_at: string): number => {
@@ -161,6 +164,7 @@ const Layout: React.FC<LayoutProps> = ({
     [AppView.LEGACY_CONTRACT]: 'Contrato Antigo',
     [AppView.TOP_CLIENTES]: 'Top Clientes',
     [AppView.RESET_PASSWORD]: 'Segurança',
+    [AppView.PLATFORM_OWNER]: 'Painel da Plataforma',
   };
 
   const operationLabel = getOperationLabel(tenant, activeCompany, activeCompanyScope);
@@ -345,6 +349,21 @@ const Layout: React.FC<LayoutProps> = ({
                 )}
               </button>
             </>
+          )}
+          {isPlatformOwner(profile, tenant) && (
+            <button
+              onClick={() => handleViewChange(AppView.PLATFORM_OWNER)}
+              title={collapsed ? 'Plataforma' : undefined}
+              className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.PLATFORM_OWNER ? activeClass : inactiveClass}`}
+            >
+              <Crown size={20} className="shrink-0 text-amber-400" />
+              {!collapsed && (
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold">Plataforma</div>
+                  <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Painel do proprietário</div>
+                </div>
+              )}
+            </button>
           )}
         </nav>
 
@@ -1159,6 +1178,9 @@ const App: React.FC = () => {
               ) : (
                 <AssistantPaywall tenant={tenant} />
               )
+          )}
+          {currentView === AppView.PLATFORM_OWNER && isPlatformOwner(profile, tenant) && (
+            <PlatformOwnerPanel />
           )}
         </Layout>
       </CompanyContextProvider>
