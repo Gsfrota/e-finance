@@ -360,5 +360,34 @@ export enum AppView {
   COLLECTION = 'COLLECTION',
   RESET_PASSWORD = 'RESET_PASSWORD',
   LEGACY_CONTRACT = 'LEGACY_CONTRACT',
-  TOP_CLIENTES = 'TOP_CLIENTES'
+  TOP_CLIENTES = 'TOP_CLIENTES',
+  PLATFORM_OWNER = 'PLATFORM_OWNER'
+}
+
+export interface PlatformTenantRow {
+  id: string;
+  name: string;
+  slug: string | null;
+  owner_name: string | null;
+  owner_email: string | null;
+  plan: string | null;
+  plan_status: string | null;
+  trial_ends_at: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  created_at: string;
+  admin_count: number;
+  investor_count: number;
+  debtor_count: number;
+  total_users: number;
+}
+
+export interface PlatformStats {
+  total_tenants: number;
+  active_subscriptions: number;
+  caderneta_count: number;
+  empresarial_count: number;
+  free_count: number;
+  total_users: number;
+  total_admins: number;
 }

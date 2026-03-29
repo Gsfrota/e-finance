@@ -79,7 +79,12 @@ export const canUseAggregateScope = (tenant?: Tenant | null, profile?: Profile |
   profile?.role === 'admin' && canAccessMultiCompany(tenant);
 
 // BR-SUB-004: O proprietário da plataforma tem acesso irrestrito permanente
-const PLATFORM_OWNER_EMAIL = 'guifrotasouza@gmail.com';
+export const PLATFORM_OWNER_EMAIL = 'guifrotasouza@gmail.com';
+
+export const isPlatformOwner = (profile?: Profile | null, tenant?: Tenant | null): boolean => {
+  if (!profile || !tenant) return false;
+  return tenant.owner_email === PLATFORM_OWNER_EMAIL && profile.role === 'admin';
+};
 
 export const isFreePlanLocked = (tenant?: Tenant | null): boolean => {
   if (tenant?.owner_email === PLATFORM_OWNER_EMAIL) return false;
