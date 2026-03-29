@@ -206,13 +206,23 @@ interface PlanDropdownProps {
 const PlanDropdown: React.FC<PlanDropdownProps> = ({ tenantId, current, onUpdated }) => {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const plans = ['free', 'caderneta', 'empresarial'];
 
   const select = async (plan: string) => {
     if (plan === current) { setOpen(false); return; }
     setSaving(true);
+    setSaveError(false);
     const sb = getSupabase();
-    if (sb) await sb.rpc('platform_update_tenant_plan', { p_tenant_id: tenantId, p_plan: plan });
+    if (sb) {
+      const { error } = await sb.rpc('platform_update_tenant_plan', { p_tenant_id: tenantId, p_plan: plan });
+      if (error) {
+        setSaveError(true);
+        setSaving(false);
+        setOpen(false);
+        return;
+      }
+    }
     setSaving(false);
     setOpen(false);
     onUpdated(tenantId, plan);
@@ -226,7 +236,7 @@ const PlanDropdown: React.FC<PlanDropdownProps> = ({ tenantId, current, onUpdate
         className="flex items-center gap-1.5 cursor-pointer"
       >
         <PlanBadge plan={current} />
-        {saving ? <RefreshCw size={10} className="animate-spin text-[color:var(--text-faint)]" /> : <ChevronDown size={10} className="text-[color:var(--text-faint)]" />}
+        {saving ? <RefreshCw size={10} className="animate-spin text-[color:var(--text-faint)]" /> : saveError ? <AlertCircle size={10} className="text-red-400" /> : <ChevronDown size={10} className="text-[color:var(--text-faint)]" />}
       </button>
       {open && (
         <div className="absolute left-0 top-full mt-1 z-20 panel-card rounded-xl py-1 min-w-[130px] shadow-xl border border-white/[0.08]">
@@ -255,13 +265,23 @@ interface StatusDropdownProps {
 const StatusDropdown: React.FC<StatusDropdownProps> = ({ tenantId, current, onUpdated }) => {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const statuses = ['active', 'inactive', 'past_due', 'canceled'];
 
   const select = async (status: string) => {
     if (status === current) { setOpen(false); return; }
     setSaving(true);
+    setSaveError(false);
     const sb = getSupabase();
-    if (sb) await sb.rpc('platform_update_tenant_plan', { p_tenant_id: tenantId, p_plan_status: status });
+    if (sb) {
+      const { error } = await sb.rpc('platform_update_tenant_plan', { p_tenant_id: tenantId, p_plan_status: status });
+      if (error) {
+        setSaveError(true);
+        setSaving(false);
+        setOpen(false);
+        return;
+      }
+    }
     setSaving(false);
     setOpen(false);
     onUpdated(tenantId, status);
@@ -275,7 +295,7 @@ const StatusDropdown: React.FC<StatusDropdownProps> = ({ tenantId, current, onUp
         className="flex items-center gap-1.5 cursor-pointer"
       >
         <StatusBadge status={current} />
-        {saving ? <RefreshCw size={10} className="animate-spin text-[color:var(--text-faint)]" /> : <ChevronDown size={10} className="text-[color:var(--text-faint)]" />}
+        {saving ? <RefreshCw size={10} className="animate-spin text-[color:var(--text-faint)]" /> : saveError ? <AlertCircle size={10} className="text-red-400" /> : <ChevronDown size={10} className="text-[color:var(--text-faint)]" />}
       </button>
       {open && (
         <div className="absolute left-0 top-full mt-1 z-20 panel-card rounded-xl py-1 min-w-[140px] shadow-xl border border-white/[0.08]">
