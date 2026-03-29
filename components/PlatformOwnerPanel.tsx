@@ -16,7 +16,10 @@ import {
   Clock,
   Ban,
   RefreshCw,
+  CreditCard,
+  Activity,
 } from 'lucide-react';
+import { useAdminMetrics } from '../hooks/useAdminMetrics';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -115,6 +118,24 @@ const TenantDetailOverlay: React.FC<TenantDetailOverlayProps> = ({ tenant, onClo
       .catch(() => setLoading(false));
   }, [tenant.id]);
 
+  const { metricsMap } = useAdminMetrics(tenant.id, null);
+
+  const fmtCurrency = (v: number) => {
+    if (v >= 1_000_000) return `R$${(v / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}M`;
+    if (v >= 1_000) return `R$${(v / 1_000).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}k`;
+    return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 });
+  };
+
+  const fmtDate = (d: string | null) => {
+    if (!d) return 'Nunca';
+    const diff = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+    if (diff === 0) return 'Hoje';
+    if (diff === 1) return 'Ontem';
+    if (diff < 30) return `${diff}d atrás`;
+    if (diff < 365) return `${Math.floor(diff / 30)}m atrás`;
+    return `${Math.floor(diff / 365)}a atrás`;
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
       <div className="panel-card rounded-[2rem] w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
@@ -160,33 +181,59 @@ const TenantDetailOverlay: React.FC<TenantDetailOverlayProps> = ({ tenant, onClo
             <p className="text-sm text-[color:var(--text-secondary)] text-center py-8">Nenhum usuário encontrado.</p>
           ) : (
             <div className="space-y-2">
-              {profiles.map(p => (
-                <div key={p.profile_id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.03] border border-white/[0.04]">
-                  <div className="w-8 h-8 rounded-full bg-slate-700/60 flex items-center justify-center shrink-0">
-                    <span className="text-[0.68rem] font-bold text-[color:var(--text-secondary)]">
-                      {(p.full_name ?? p.email ?? '?').charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-[color:var(--text-primary)] truncate">
-                      {p.full_name ?? '—'}
+              {profiles.map(p => {
+                const isAdmin = p.role === 'admin';
+                const m = isAdmin ? metricsMap.get(p.profile_id) : null;
+                return (
+                  <div key={p.profile_id} className={`rounded-xl border border-white/[0.04] ${isAdmin ? 'p-3' : 'flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.03]'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-700/60 flex items-center justify-center shrink-0">
+                        <span className="text-[0.68rem] font-bold text-[color:var(--text-secondary)]">
+                          {(p.full_name ?? p.email ?? '?').charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-[color:var(--text-primary)] truncate">
+                          {p.full_name ?? '—'}
+                        </div>
+                        <div className="text-[0.7rem] text-[color:var(--text-secondary)] truncate">{p.email}</div>
+                      </div>
+                      <div className="shrink-0 flex items-center gap-2">
+                        {p.cpf && (
+                          <span className="text-[0.65rem] text-[color:var(--text-faint)] font-mono">{p.cpf}</span>
+                        )}
+                        <span className={`text-[0.65rem] font-semibold px-2 py-0.5 rounded-full ${
+                          p.role === 'admin' ? 'bg-violet-900/60 text-violet-300' :
+                          p.role === 'investor' ? 'bg-teal-900/60 text-teal-300' :
+                          'bg-slate-700/60 text-slate-300'
+                        }`}>
+                          {ROLE_LABELS[p.role] ?? p.role}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-[0.7rem] text-[color:var(--text-secondary)] truncate">{p.email}</div>
-                  </div>
-                  <div className="shrink-0 flex items-center gap-2">
-                    {p.cpf && (
-                      <span className="text-[0.65rem] text-[color:var(--text-faint)] font-mono">{p.cpf}</span>
+                    {isAdmin && (
+                      <div className="mt-2.5 grid grid-cols-4 gap-1.5">
+                        <div className="bg-[color:var(--bg-base)] rounded-xl p-2 flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1 text-[color:var(--text-muted)]"><CreditCard size={10}/><span className="text-[0.6rem]">Contratos</span></div>
+                          <span className="text-xs font-bold text-[color:var(--text-primary)]">{m ? m.contracts_created : '—'}</span>
+                        </div>
+                        <div className="bg-[color:var(--bg-base)] rounded-xl p-2 flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1 text-[color:var(--text-muted)]"><DollarSign size={10}/><span className="text-[0.6rem]">Volume</span></div>
+                          <span className="text-xs font-bold text-[color:var(--text-primary)] truncate">{m ? fmtCurrency(m.financial_volume) : '—'}</span>
+                        </div>
+                        <div className="bg-[color:var(--bg-base)] rounded-xl p-2 flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1 text-[color:var(--text-muted)]"><Users size={10}/><span className="text-[0.6rem]">Usuários</span></div>
+                          <span className="text-xs font-bold text-[color:var(--text-primary)]">{m ? m.users_onboarded : '—'}</span>
+                        </div>
+                        <div className="bg-[color:var(--bg-base)] rounded-xl p-2 flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1 text-[color:var(--text-muted)]"><Activity size={10}/><span className="text-[0.6rem]">Último acesso</span></div>
+                          <span className="text-xs font-bold text-[color:var(--text-primary)]">{m ? fmtDate(m.last_sign_in_at) : '—'}</span>
+                        </div>
+                      </div>
                     )}
-                    <span className={`text-[0.65rem] font-semibold px-2 py-0.5 rounded-full ${
-                      p.role === 'admin' ? 'bg-violet-900/60 text-violet-300' :
-                      p.role === 'investor' ? 'bg-teal-900/60 text-teal-300' :
-                      'bg-slate-700/60 text-slate-300'
-                    }`}>
-                      {ROLE_LABELS[p.role] ?? p.role}
-                    </span>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
