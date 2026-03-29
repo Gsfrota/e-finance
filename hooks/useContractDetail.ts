@@ -19,7 +19,7 @@ const calculateOutstanding = (i: LoanInstallment): number => {
   return Math.max(0, total + fine + delay - paid);
 };
 
-function computeMetrics(installments: LoanInstallment[]): ContractMetrics {
+export function computeMetrics(installments: LoanInstallment[]): ContractMetrics {
   let jurosPagos = 0;
   let principalRecuperado = 0;
   let totalRecebido = 0;
