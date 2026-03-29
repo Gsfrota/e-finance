@@ -378,6 +378,24 @@ Categorias:
 - **Tabelas:** `profiles` (via Supabase Auth)
 - **Status:** ativa
 
+### BR-USR-007: Tab Administradores na gestão de usuários
+- **Descrição:** A tela de gestão de usuários deve exibir uma tab "Administradores" que filtra exclusivamente perfis com `role = 'admin'` do tenant ativo
+- **Condição:** Acesso à tela `AdminUsers`, tab "Administradores" selecionada
+- **Resultado:** Somente profiles com `role = 'admin'` são exibidos; investidores e devedores continuam em suas respectivas tabs
+- **Exceções:** Nenhuma
+- **Tabelas:** `profiles`
+- **Status:** ativa
+- **Stories:** Migration v37, `components/AdminUsers.tsx`
+
+### BR-USR-008: Métricas operacionais por administrador
+- **Descrição:** Na tab Administradores, cada card exibe 4 métricas operacionais: (1) Contratos Criados — count de `investments.created_by = admin.id`; (2) Volume Financeiro — soma de `amount_invested` dos contratos criados; (3) Usuários Cadastrados — profiles diretos + invites aceitos com `created_by = admin.id`; (4) Último Acesso — `auth.users.last_sign_in_at`
+- **Condição:** Tab Administradores ativa em `AdminUsers`
+- **Resultado:** Métricas exibidas por card admin via RPC `get_admin_metrics`; dados históricos anteriores à migration v37 mostram `created_by = NULL` (métricas zeradas para contratos/usuários antigos)
+- **Exceções:** Admin sem `auth_user_id` vinculado mostra "Nunca" em último acesso
+- **Tabelas:** `investments`, `profiles`, `invites`, `auth.users`
+- **Status:** ativa
+- **Stories:** Migration v37, `hooks/useAdminMetrics.ts`, `components/AdminUsers.tsx`
+
 ---
 
 ## Multi-tenant e Multi-empresa (TEN)
