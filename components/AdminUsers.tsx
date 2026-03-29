@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { fetchProfileByAuthUserId, getSupabase, logError, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { Profile, UserRole, Tenant, Invite } from '../types';
 import { useCompanyContext } from '../services/companyScope';
+import { useAdminMetrics } from '../hooks/useAdminMetrics';
 import { User, PlusCircle, Search, X, DollarSign, Activity, Users, CreditCard, Pencil, AlertTriangle, FileSearch, RefreshCw, Crown, Shield, Clipboard, Check, Key, Mail, Phone, Briefcase, Send, Trash2, Hourglass, UserPlus, MapPin, Upload, CheckCircle2, ArrowLeft } from 'lucide-react';
 
 // View Model para unificar a exibição
@@ -39,12 +40,12 @@ interface AdminUsersProps {
 
 const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
   const { activeCompanyId } = useCompanyContext();
+  const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
+  const { metricsMap } = useAdminMetrics(currentTenant?.id ?? null, activeCompanyId);
   const [displayUsers, setDisplayUsers] = useState<DisplayUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'investor' | 'debtor' | 'pending'>('all');
-
-  const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
+  const [activeTab, setActiveTab] = useState<'all' | 'investor' | 'debtor' | 'pending' | 'admin'>('all');
 
   const [usersSubView, setUsersSubView] = useState<'list' | 'invite' | 'edit'>('list');
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<DisplayUser | null>(null);
@@ -365,6 +366,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
       investor: displayUsers.filter(u => u.role === 'investor' && u.status === 'REGISTRADO').length,
       debtor: displayUsers.filter(u => u.role === 'debtor' && u.status === 'REGISTRADO').length,
       pending: displayUsers.filter(u => u.status === 'PENDENTE').length,
+      admin: displayUsers.filter(u => u.role === 'admin' && u.status === 'REGISTRADO').length,
   };
 
   if (usersSubView === 'invite') {
@@ -655,6 +657,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
         <button onClick={() => setActiveTab('pending')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'pending' ? 'text-[color:var(--accent-caution)] border-[color:var(--accent-caution)]' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><Hourglass size={16}/> Pendentes ({counts.pending})</button>
         <button onClick={() => setActiveTab('investor')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'investor' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><DollarSign size={16}/> Investidores ({counts.investor})</button>
         <button onClick={() => setActiveTab('debtor')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'debtor' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><CreditCard size={16}/> Devedores ({counts.debtor})</button>
+        <button onClick={() => setActiveTab('admin')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'admin' ? 'text-indigo-400 border-indigo-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><Shield size={16}/> Administradores ({counts.admin})</button>
       </div>
 
        {loading && displayUsers.length === 0 ? (
@@ -726,12 +729,56 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                                         isAdmin ? 'bg-indigo-900/30 text-indigo-400' :
                                         user.role === 'investor' ? 'bg-teal-900/30 text-teal-400' : 'bg-red-900/30 text-red-400'
                                     }`}>
-                                        {isPending ? 'Pendente' : user.role === 'investor' ? 'Investidor' : 'Pagador'}
+                                        {isPending ? 'Pendente' : isOwner ? 'Proprietário' : isAdmin ? 'Admin' : user.role === 'investor' ? 'Investidor' : 'Pagador'}
                                     </span>
                                 </div>
                             </div>
                         </div>
 
+                        {activeTab === 'admin' && isAdmin ? (
+                            (() => {
+                                const m = metricsMap.get(user.id);
+                                const fmtCurrency = (v: number) => {
+                                    if (v >= 1_000_000) return `R$${(v / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}M`;
+                                    if (v >= 1_000) return `R$${(v / 1_000).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}k`;
+                                    return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 });
+                                };
+                                const fmtDate = (d: string | null) => {
+                                    if (!d) return 'Nunca';
+                                    const diff = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+                                    if (diff === 0) return 'Hoje';
+                                    if (diff === 1) return 'Ontem';
+                                    if (diff < 30) return `${diff}d atrás`;
+                                    if (diff < 365) return `${Math.floor(diff / 30)}m atrás`;
+                                    return `${Math.floor(diff / 365)}a atrás`;
+                                };
+                                return (
+                                    <div className="mt-1">
+                                    <div className="mt-3 grid grid-cols-2 gap-2">
+                                        <div className="bg-[color:var(--bg-base)] rounded-2xl p-3 flex flex-col gap-1">
+                                            <div className="flex items-center gap-1.5 text-[color:var(--text-muted)]"><CreditCard size={12}/><span className="type-micro">Contratos</span></div>
+                                            <span className="type-body font-bold text-[color:var(--text-primary)]">{m ? m.contracts_created : '—'}</span>
+                                        </div>
+                                        <div className="bg-[color:var(--bg-base)] rounded-2xl p-3 flex flex-col gap-1">
+                                            <div className="flex items-center gap-1.5 text-[color:var(--text-muted)]"><DollarSign size={12}/><span className="type-micro">Volume</span></div>
+                                            <span className="type-body font-bold text-[color:var(--text-primary)] truncate">{m ? fmtCurrency(m.financial_volume) : '—'}</span>
+                                        </div>
+                                        <div className="bg-[color:var(--bg-base)] rounded-2xl p-3 flex flex-col gap-1">
+                                            <div className="flex items-center gap-1.5 text-[color:var(--text-muted)]"><Users size={12}/><span className="type-micro">Usuários</span></div>
+                                            <span className="type-body font-bold text-[color:var(--text-primary)]">{m ? m.users_onboarded : '—'}</span>
+                                        </div>
+                                        <div className="bg-[color:var(--bg-base)] rounded-2xl p-3 flex flex-col gap-1">
+                                            <div className="flex items-center gap-1.5 text-[color:var(--text-muted)]"><Activity size={12}/><span className="type-micro">Último acesso</span></div>
+                                            <span className="type-body font-bold text-[color:var(--text-primary)]">{m ? fmtDate(m.last_sign_in_at) : '—'}</span>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => onViewDashboard(user.id)} className="mt-3 w-full flex items-center justify-center gap-2 bg-[color:var(--bg-base)] hover:bg-[color:var(--bg-soft)] text-[color:var(--text-primary)] border border-[color:var(--border-subtle)] type-label py-3 rounded-xl transition-colors">
+                                        <FileSearch size={14}/> Ver Perfil
+                                    </button>
+                                    </div>
+                                );
+                            })()
+                        ) : (
                         <div className="grid grid-cols-1 gap-3">
                             {isPending ? (
                                 <button onClick={() => handleSendLink(user.inviteCode!)} className="flex items-center justify-center gap-2 bg-[color:var(--bg-base)] hover:bg-[color:var(--accent-caution-bg-strong)] border border-[color:var(--border-subtle)] hover:border-[color:var(--accent-caution-border)] text-[color:var(--accent-caution)] type-label py-3 rounded-xl transition-colors">
@@ -744,6 +791,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                                 </button>
                             )}
                         </div>
+                        )}
                     </div>
                 );
             })}

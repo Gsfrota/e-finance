@@ -391,3 +391,11 @@ export interface PlatformStats {
   total_users: number;
   total_admins: number;
 }
+
+export interface AdminMetrics {
+  admin_profile_id: string;
+  contracts_created: number;
+  financial_volume: number;
+  users_onboarded: number;
+  last_sign_in_at: string | null;
+}
