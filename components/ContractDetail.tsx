@@ -7,7 +7,7 @@ import {
   Pencil, Save, XCircle, Banknote,
 } from 'lucide-react';
 import { Investment, LoanInstallment, Tenant, AvulsoPayment } from '../types';
-import { useContractDetail } from '../hooks/useContractDetail';
+import { useContractDetail, ContractDetailData } from '../hooks/useContractDetail';
 import { getSupabase, parseSupabaseError } from '../services/supabase';
 import ReceiptTemplate from './ReceiptTemplate';
 import {
@@ -347,17 +347,25 @@ interface ContractDetailProps {
   onRenew?: (investment: Investment) => void;
   onRefreshList?: () => void;
   tenant?: Tenant | null;
+  readOnly?: boolean;
+  externalData?: ContractDetailData | null;
+  externalLoading?: boolean;
+  externalError?: string | null;
 }
 
-const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, onRenew, tenant }) => {
-  const { data, loading, error, refetch } = useContractDetail(investmentId);
+const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, onRenew, tenant, readOnly = false, externalData, externalLoading, externalError }) => {
+  const internal = useContractDetail(externalData !== undefined ? null : investmentId);
+  const data = externalData !== undefined ? externalData : internal.data;
+  const loading = externalData !== undefined ? (externalLoading ?? false) : internal.loading;
+  const error = externalData !== undefined ? (externalError ?? null) : internal.error;
+  const refetch = externalData !== undefined ? () => {} : internal.refetch;
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
   const [installmentAction, setInstallmentAction]     = useState<SharedInstallmentAction>(null);
   const [avulsoOpen, setAvulsoOpen]                   = useState(false);
   const [avulsoPayments, setAvulsoPayments]           = useState<AvulsoPayment[]>([]);
 
   const refreshAvulso = async () => {
-    if (!investmentId) return;
+    if (!investmentId || readOnly) return;
     const { data: ap } = await getSupabase()
       .from('avulso_payments')
       .select('*')
@@ -393,7 +401,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
   }, [data]);
 
   // ── Sub-view: pagamento avulso ──
-  if (avulsoOpen && data) {
+  if (!readOnly && avulsoOpen && data) {
     return (
       <AvulsoPaymentScreen
         investmentId={data.investment.id}
@@ -409,7 +417,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
   }
 
   // ── Sub-view: form de ação ──
-  if (installmentAction !== null) {
+  if (!readOnly && installmentAction !== null) {
     return (
       <InstallmentFormScreen
         action={installmentAction}
@@ -422,7 +430,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
   }
 
   // ── Sub-view: detalhe da parcela ──
-  if (selectedInstallment !== null) {
+  if (!readOnly && selectedInstallment !== null) {
     return (
       <SharedInstallmentDetailScreen
         installment={selectedInstallment}
@@ -507,6 +515,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
               </div>
             </div>
 
+            {!readOnly && (
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 onClick={() => setAvulsoOpen(true)}
@@ -521,6 +530,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                 </button>
               )}
             </div>
+            )}
           </div>
 
           {/* ── Body ── */}
@@ -665,14 +675,14 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                     return (
                       <button
                         key={i.id}
-                        onClick={() => {
+                        onClick={readOnly ? undefined : () => {
                           const enriched = {
                             ...i,
                             investment: { ...data.investment, loan_installments: data.installments },
                           };
                           setSelectedInstallment(enriched as any);
                         }}
-                        className={`w-full panel-card rounded-2xl p-4 text-left transition-all active:scale-[0.98] hover:ring-1 hover:ring-[color:var(--border-strong)] ${
+                        className={`w-full panel-card rounded-2xl p-4 text-left transition-all ${readOnly ? '' : 'active:scale-[0.98] hover:ring-1 hover:ring-[color:var(--border-strong)]'} ${
                           isLate ? 'ring-1 ring-[color:var(--accent-danger)]/30 bg-[rgba(198,126,105,0.04)]' :
                           isPaid ? 'opacity-70' : ''
                         }`}

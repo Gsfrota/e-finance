@@ -20,6 +20,25 @@ import {
   Activity,
 } from 'lucide-react';
 import { useAdminMetrics } from '../hooks/useAdminMetrics';
+import { usePlatformContractDetail } from '../hooks/usePlatformContractDetail';
+import ContractDetail from './ContractDetail';
+
+interface PlatformTenantContract {
+  id: number;
+  asset_name: string;
+  amount_invested: number;
+  current_value: number;
+  total_installments: number;
+  current_installment: number;
+  interest_rate: number;
+  status: string;
+  frequency: string;
+  created_at: string;
+  investor_name: string | null;
+  payer_name: string | null;
+  paid_count: number;
+  late_count: number;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -103,9 +122,27 @@ const ROLE_LABELS: Record<string, string> = {
   debtor: 'Devedor',
 };
 
+const PlatformContractDetailView: React.FC<{ contractId: number; onBack: () => void }> = ({ contractId, onBack }) => {
+  const { data, loading, error } = usePlatformContractDetail(contractId);
+  return (
+    <ContractDetail
+      investmentId={contractId}
+      onBack={onBack}
+      readOnly
+      externalData={data}
+      externalLoading={loading}
+      externalError={error}
+    />
+  );
+};
+
 const TenantDetailOverlay: React.FC<TenantDetailOverlayProps> = ({ tenant, onClose }) => {
   const [profiles, setProfiles] = useState<TenantProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'profiles' | 'contracts'>('profiles');
+  const [contracts, setContracts] = useState<PlatformTenantContract[]>([]);
+  const [contractsLoading, setContractsLoading] = useState(false);
+  const [selectedContractId, setSelectedContractId] = useState<number | null>(null);
 
   useEffect(() => {
     const sb = getSupabase();
@@ -119,6 +156,19 @@ const TenantDetailOverlay: React.FC<TenantDetailOverlayProps> = ({ tenant, onClo
   }, [tenant.id]);
 
   const { metricsMap } = useAdminMetrics(tenant.id, null);
+
+  const loadContracts = async () => {
+    if (contracts.length > 0) return;
+    setContractsLoading(true);
+    const sb = getSupabase();
+    if (!sb) { setContractsLoading(false); return; }
+    const { data } = await sb.rpc('platform_view_tenant_contracts', { p_tenant_id: tenant.id });
+    setContracts((data as PlatformTenantContract[]) ?? []);
+    setContractsLoading(false);
+  };
+
+  const CONTRACT_STATUS_LABEL: Record<string, string> = { active: 'Ativo', completed: 'Concluído', defaulted: 'Inadimplente', renewed: 'Renovado' };
+  const CONTRACT_STATUS_COLOR: Record<string, string> = { active: 'bg-teal-900/60 text-teal-300', completed: 'bg-slate-700/60 text-slate-300', defaulted: 'bg-red-900/60 text-red-400', renewed: 'bg-violet-900/60 text-violet-300' };
 
   const fmtCurrency = (v: number) => {
     if (v >= 1_000_000) return `R$${(v / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}M`;
@@ -171,7 +221,51 @@ const TenantDetailOverlay: React.FC<TenantDetailOverlayProps> = ({ tenant, onClo
           </span>
         </div>
 
-        {/* Profiles list */}
+        {/* Tabs */}
+        <div className="px-6 pt-3 pb-0 border-b border-white/[0.06] flex gap-1">
+          <button onClick={() => setActiveTab('profiles')} className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${activeTab === 'profiles' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}>
+            <Users size={12} className="inline mr-1.5" />Usuários ({profiles.length || tenant.total_users})
+          </button>
+          <button onClick={() => { setActiveTab('contracts'); setSelectedContractId(null); loadContracts(); }} className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${activeTab === 'contracts' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}>
+            <CreditCard size={12} className="inline mr-1.5" />Contratos {contracts.length > 0 ? `(${contracts.length})` : ''}
+          </button>
+        </div>
+
+        {/* Content */}
+        {selectedContractId !== null ? (
+          <div className="flex-1 overflow-hidden">
+            <PlatformContractDetailView contractId={selectedContractId} onBack={() => setSelectedContractId(null)} />
+          </div>
+        ) : activeTab === 'contracts' ? (
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {contractsLoading ? (
+            <div className="flex items-center justify-center py-10"><RefreshCw size={20} className="animate-spin text-[color:var(--text-faint)]" /></div>
+          ) : contracts.length === 0 ? (
+            <p className="text-sm text-[color:var(--text-secondary)] text-center py-8">Nenhum contrato encontrado.</p>
+          ) : (
+            <div className="space-y-2">
+              {contracts.map(c => (
+                <div key={c.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-white/[0.04] hover:bg-white/[0.03]">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-[color:var(--text-primary)] truncate">{c.asset_name}</div>
+                    <div className="text-[0.7rem] text-[color:var(--text-secondary)] truncate">{c.payer_name ?? '—'}</div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-xs font-bold text-[color:var(--text-primary)]">{fmtCurrency(c.amount_invested)}</div>
+                    <div className="text-[0.65rem] text-[color:var(--text-faint)]">{c.current_installment}/{c.total_installments} parc.</div>
+                  </div>
+                  <span className={`shrink-0 text-[0.65rem] font-semibold px-2 py-0.5 rounded-full ${CONTRACT_STATUS_COLOR[c.status] ?? 'bg-slate-700/60 text-slate-300'}`}>
+                    {CONTRACT_STATUS_LABEL[c.status] ?? c.status}
+                  </span>
+                  <button onClick={() => setSelectedContractId(c.id)} className="shrink-0 p-1.5 rounded-lg hover:bg-white/[0.06] text-[color:var(--text-muted)] hover:text-teal-400 transition-colors cursor-pointer">
+                    <Eye size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        ) : (
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {loading ? (
             <div className="flex items-center justify-center py-10">
@@ -237,6 +331,7 @@ const TenantDetailOverlay: React.FC<TenantDetailOverlayProps> = ({ tenant, onClo
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );
