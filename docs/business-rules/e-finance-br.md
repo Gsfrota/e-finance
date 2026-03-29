@@ -396,6 +396,15 @@ Categorias:
 - **Status:** ativa
 - **Stories:** Migration v37, `hooks/useAdminMetrics.ts`, `components/AdminUsers.tsx`
 
+### BR-PLAT-002: Métricas de admin no overlay de visualização de tenant
+- **Descrição:** No overlay "Ver" de um tenant (PlatformOwnerPanel), os perfis com `role = 'admin'` exibem as mesmas 4 métricas operacionais de BR-USR-008 abaixo do nome/email: Contratos Criados, Volume Financeiro, Usuários Cadastrados e Último Acesso.
+- **Condição:** Perfil com `role = 'admin'` no overlay TenantDetailOverlay
+- **Resultado:** Grid 4 colunas com métricas via RPC `get_admin_metrics(p_tenant_id)`. Sem dados → tracinhos (`—`), falha silenciosa.
+- **Exceções:** Nenhuma mudança no banco; reutiliza RPC existente (SECURITY DEFINER).
+- **Tabelas:** `investments`, `profiles`, `invites`, `auth.users`
+- **Status:** ativa
+- **Stories:** `components/PlatformOwnerPanel.tsx`
+
 ---
 
 ## Multi-tenant e Multi-empresa (TEN)
