@@ -190,11 +190,22 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
       const key = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
       map.set(key, (map.get(key) || 0) + Number(inv.amount_invested || 0));
     });
-    return Array.from(map.entries()).sort((a, b) => a[0] - b[0])
-      .map(([key, amount]) => ({
+    if (map.size === 0) return [];
+    // Preenche todos os meses entre o primeiro e o atual com zero
+    const keys = Array.from(map.keys()).sort((a, b) => a - b);
+    const first = new Date(keys[0]);
+    const now = new Date();
+    const result = [];
+    const cur = new Date(first.getFullYear(), first.getMonth(), 1);
+    while (cur <= now) {
+      const key = cur.getTime();
+      result.push({
         name: new Date(key).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-        amount: Math.round(amount * 100) / 100,
-      }));
+        amount: Math.round((map.get(key) || 0) * 100) / 100,
+      });
+      cur.setMonth(cur.getMonth() + 1);
+    }
+    return result;
   }, [investments]);
 
   const interestChartData = useMemo(() => {
