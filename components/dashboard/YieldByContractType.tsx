@@ -278,13 +278,14 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
     <div className="space-y-5 animate-fade-in">
 
       {/* FILTER BAR */}
-      <div className={`${panelClass} flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between`}>
-        {/* Dropdown tipo */}
-        <div className="relative shrink-0">
+      <div className={`${panelClass} flex items-center gap-2 p-3 sm:p-4`}>
+        {/* Dropdown tipo — touch-safe (min 44px, text-base previne zoom iOS) */}
+        <div className="relative min-w-0 flex-1 sm:flex-none sm:shrink-0">
           <select
             value={filter.typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as YieldTypeFilter)}
-            className="w-full appearance-none rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 pr-8 text-sm font-medium text-[color:var(--text-primary)] cursor-pointer focus:outline-none focus:ring-1 focus:ring-[color:var(--accent-brass)]"
+            className="w-full appearance-none rounded-xl border border-white/10 bg-white/[0.06] pl-3 pr-8 text-base sm:text-sm font-medium text-[color:var(--text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-brass)] focus:ring-offset-0 transition-colors hover:bg-white/[0.09]"
+            style={{ minHeight: '44px' }}
             aria-label="Filtrar por tipo de contrato"
           >
             {typeOptions.map((opt, i) => (
@@ -302,9 +303,10 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
           />
         </div>
 
-        {/* Period pills */}
+        {/* Period pills — scroll horizontal em mobile */}
         <div
-          className="flex gap-1 rounded-full border border-white/10 bg-black/10 p-1"
+          className="flex min-w-0 overflow-x-auto gap-1 rounded-xl border border-white/10 bg-black/10 p-1 scrollbar-none"
+          style={{ scrollbarWidth: 'none' }}
           role="radiogroup"
           aria-label="Período de análise"
         >
@@ -314,11 +316,12 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
               role="radio"
               aria-checked={filter.period === value}
               onClick={() => setPeriod(value)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all cursor-pointer ${
+              className={`shrink-0 rounded-lg px-3 text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
                 filter.period === value
                   ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)] shadow-[0_2px_8px_rgba(240,180,41,0.28)]'
-                  : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'
+                  : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] hover:bg-white/[0.05]'
               }`}
+              style={{ minHeight: '36px' }}
             >
               {label}
             </button>
@@ -423,28 +426,23 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
                 <p className="section-kicker mb-1">Portfólio</p>
                 <h3 className="type-title text-[color:var(--text-primary)]">Composição por tipo</h3>
               </div>
-              {/* Toggle Por Categoria / Detalhado */}
-              <div className="flex rounded-full border border-white/10 bg-black/10 p-0.5 shrink-0">
-                <button
-                  onClick={() => setDonutMode('category')}
-                  className={`rounded-full px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
-                    donutMode === 'category'
-                      ? 'bg-white/10 text-[color:var(--text-primary)]'
-                      : 'text-[color:var(--text-muted)]'
-                  }`}
-                >
-                  Categoria
-                </button>
-                <button
-                  onClick={() => setDonutMode('detail')}
-                  className={`rounded-full px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
-                    donutMode === 'detail'
-                      ? 'bg-white/10 text-[color:var(--text-primary)]'
-                      : 'text-[color:var(--text-muted)]'
-                  }`}
-                >
-                  Detalhe
-                </button>
+              {/* Toggle Por Categoria / Detalhado — min 36px touch target */}
+              <div className="flex rounded-xl border border-white/10 bg-black/10 p-0.5 shrink-0">
+                {(['category', 'detail'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setDonutMode(mode)}
+                    className={`rounded-lg px-3 text-xs font-medium transition-all cursor-pointer ${
+                      donutMode === mode
+                        ? 'bg-white/10 text-[color:var(--text-primary)]'
+                        : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-secondary)]'
+                    }`}
+                    style={{ minHeight: '32px' }}
+                    aria-pressed={donutMode === mode}
+                  >
+                    {mode === 'category' ? 'Categoria' : 'Detalhe'}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -454,15 +452,16 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
               </div>
             ) : (
               <>
-                <div className="h-48" aria-label="Gráfico de composição do portfólio por tipo de contrato">
+                {/* Donut — altura maior no mobile para toque confortável */}
+                <div className="h-52 sm:h-48" aria-label="Gráfico de composição do portfólio por tipo de contrato">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={donutMode === 'category' ? compositionData : granularMetrics.filter((m) => m.capitalAllocated > 0).map((m) => ({ name: m.shortLabel, value: m.capitalAllocated, color: m.color }))}
                         cx="50%"
                         cy="50%"
-                        innerRadius={56}
-                        outerRadius={88}
+                        innerRadius={58}
+                        outerRadius={92}
                         paddingAngle={3}
                         dataKey="value"
                         onClick={(d: any) => {
@@ -474,43 +473,56 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
                             setTypeFilter(key as YieldTypeFilter);
                           }
                         }}
+                        isAnimationActive={false}
                       >
                         {(donutMode === 'category' ? compositionData : granularMetrics.filter((m) => m.capitalAllocated > 0).map((m) => ({ name: m.shortLabel, value: m.capitalAllocated, color: m.color }))).map((entry, i) => (
                           <Cell
                             key={`cell-${i}`}
                             fill={entry.color}
-                            opacity={highlightType && !entry.name.toLowerCase().includes(highlightType) ? 0.35 : 1}
-                            style={{ cursor: 'pointer' }}
+                            opacity={highlightType && !entry.name.toLowerCase().includes(highlightType) ? 0.3 : 1}
+                            style={{ cursor: 'pointer', transition: 'opacity 0.2s' }}
                           />
                         ))}
                         <DonutCenterLabel total={totals.capitalAllocated} />
                       </Pie>
                       <Tooltip
-                        formatter={(value: number) => [formatCurrency(value), 'Capital']}
+                        formatter={(value: number, _name: string, props: any) => {
+                          const total = compositionData.reduce((s, c) => s + c.value, 0);
+                          const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
+                          return [`${formatCurrency(value)} (${pct}%)`, props.name || 'Capital'];
+                        }}
                         contentStyle={CHART_STYLE.contentStyle}
                         labelStyle={CHART_STYLE.labelStyle}
                         itemStyle={CHART_STYLE.itemStyle}
+                        wrapperStyle={{ zIndex: 50 }}
                       />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
 
-                {/* Legend */}
-                <div className="mt-3 space-y-1.5">
+                {/* Legend — clicável para filtrar */}
+                <div className="mt-3 space-y-1">
                   {compositionData.map((d) => {
                     const total = compositionData.reduce((s, c) => s + c.value, 0);
                     const pct = total > 0 ? ((d.value / total) * 100).toFixed(1) : '0';
+                    const isActive = filter.typeFilter === 'all' || filter.typeFilter === (d.name === 'Bullet' ? 'bullet' : 'parcelado');
                     return (
-                      <div key={d.name} className="flex items-center justify-between gap-2 type-caption">
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 w-2 shrink-0 rounded-sm" style={{ background: d.color }} />
+                      <button
+                        key={d.name}
+                        onClick={() => setTypeFilter(d.name === 'Bullet' ? 'bullet' : 'parcelado')}
+                        className={`w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left transition-colors cursor-pointer ${isActive ? 'hover:bg-white/[0.04]' : 'opacity-50 hover:opacity-75 hover:bg-white/[0.02]'}`}
+                        style={{ minHeight: '36px' }}
+                        aria-label={`Filtrar por ${d.name}`}
+                      >
+                        <div className="flex items-center gap-2 type-caption">
+                          <div className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: d.color }} />
                           <span className="text-[color:var(--text-secondary)]">{d.name}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-[color:var(--text-faint)]">
-                          <span>{formatCurrency(d.value)}</span>
-                          <span className="opacity-60">{pct}%</span>
+                        <div className="flex items-center gap-2 type-caption text-[color:var(--text-faint)]">
+                          <span className="tabular-nums">{formatCurrency(d.value)}</span>
+                          <span className="opacity-60 tabular-nums">{pct}%</span>
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -538,7 +550,7 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
             </div>
 
             <div
-              className="h-52 min-w-0 md:h-[260px]"
+              className="h-56 min-w-0 sm:h-52 md:h-[268px]"
               aria-label="Gráfico de evolução mensal de juros recebidos"
             >
               {evolutionData.length === 0 ? (
@@ -548,29 +560,38 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={evolutionData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                    <CartesianGrid stroke="rgba(245,239,226,0.05)" vertical={false} />
+                  <BarChart data={evolutionData} margin={{ top: 20, right: 4, left: -4, bottom: 0 }}>
+                    <CartesianGrid stroke="rgba(245,239,226,0.05)" vertical={false} strokeDasharray="3 3" />
                     <XAxis
                       dataKey="name"
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fill: '#8d919a', fontSize: 11, fontWeight: 700 }}
+                      tick={{ fill: '#8d919a', fontSize: 12, fontWeight: 600 }}
+                      dy={4}
                     />
                     <YAxis
                       axisLine={false}
                       tickLine={false}
-                      width={56}
+                      width={48}
                       tick={{ fill: '#8d919a', fontSize: 11 }}
-                      tickFormatter={currencyTick}
+                      tickFormatter={(v) => {
+                        if (!v) return '';
+                        if (Math.abs(v) >= 1000) return `${Math.round(v / 1000)}k`;
+                        return `${Math.round(v)}`;
+                      }}
+                      tickCount={4}
                     />
                     <Tooltip
+                      cursor={{ fill: 'rgba(255,255,255,0.04)', radius: 6 }}
                       formatter={(value: number, name: string) => [
                         formatCurrency(value),
                         name === 'bullet' ? 'Bullet' : 'Parcelado',
                       ]}
+                      labelFormatter={(label) => `Mês: ${label}`}
                       contentStyle={CHART_STYLE.contentStyle}
-                      labelStyle={CHART_STYLE.labelStyle}
+                      labelStyle={{ ...CHART_STYLE.labelStyle, marginBottom: 4, fontWeight: 600 }}
                       itemStyle={CHART_STYLE.itemStyle}
+                      wrapperStyle={{ zIndex: 50 }}
                     />
                     <Bar
                       dataKey="parcelado"
@@ -578,6 +599,7 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
                       fill="#90a0bd"
                       radius={[0, 0, 4, 4]}
                       name="parcelado"
+                      isAnimationActive={false}
                     />
                     <Bar
                       dataKey="bullet"
@@ -585,6 +607,28 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
                       fill="#cab07a"
                       radius={[4, 4, 0, 0]}
                       name="bullet"
+                      isAnimationActive={false}
+                      label={{
+                        position: 'top',
+                        content: ({ x, y, width, index }: any) => {
+                          if (index == null || !evolutionData[index]) return null;
+                          const total = (evolutionData[index].bullet ?? 0) + (evolutionData[index].parcelado ?? 0);
+                          if (!total) return null;
+                          const label = total >= 1000 ? `${(total / 1000).toFixed(1)}k` : `${Math.round(total)}`;
+                          return (
+                            <text
+                              x={(x ?? 0) + (width ?? 0) / 2}
+                              y={(y ?? 0) - 4}
+                              textAnchor="middle"
+                              fill="#8d919a"
+                              fontSize={10}
+                              fontWeight={600}
+                            >
+                              {label}
+                            </text>
+                          );
+                        },
+                      }}
                     />
                   </BarChart>
                 </ResponsiveContainer>
