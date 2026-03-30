@@ -26,6 +26,8 @@ export interface InvestorMetrics {
   nextPaymentDate: string | null;
   nextPaymentValue: number;
   chartData: { name: string; projected: number; received: number; rawDate: number }[];
+  lendingChartData: { name: string; amount: number; rawDate: number }[];
+  interestChartData: { name: string; amount: number; rawDate: number }[];
   activeContracts: number;
   userName: string;
 }
@@ -113,12 +115,26 @@ function computeMetrics(
   let nextPayment: { date: Date; val: number } | null = null;
 
   const chartMap = new Map<string, { projected: number; received: number; sortDate: number }>();
+  const lendingMap = new Map<string, { amount: number; sortDate: number }>();
+  const interestReceivedMap = new Map<string, { amount: number; sortDate: number }>();
 
   const enrichedInvestments: EnrichedInvestment[] = invData.map((inv: RawInvestment) => {
     const matchesContract = !filter.investmentId || String(inv.id) === filter.investmentId;
 
     if (matchesContract) {
       totalAllocated += Number(inv.amount_invested || 0);
+
+      // Gráfico de empréstimos por mês (BR-REL-008)
+      if (inv.created_at) {
+        const createdDate = new Date(inv.created_at);
+        const lendingMonthKey = new Date(createdDate.getFullYear(), createdDate.getMonth(), 1).getTime();
+        const existing = lendingMap.get(String(lendingMonthKey));
+        if (existing) {
+          existing.amount += Number(inv.amount_invested || 0);
+        } else {
+          lendingMap.set(String(lendingMonthKey), { amount: Number(inv.amount_invested || 0), sortDate: lendingMonthKey });
+        }
+      }
     }
 
     // BR-REL-002: omite parcelas fantasmas (deferidas via mark_installment_missed)
@@ -168,6 +184,21 @@ function computeMetrics(
           interestProfit += (amountPaid / amountTotal) * amountInterest;
         }
 
+        // Gráfico de juros recebidos por mês (BR-REL-008)
+        if ((inst.status === 'paid' || inst.status === 'partial') && inst.paid_at) {
+          const paidDate = new Date(inst.paid_at);
+          const intSortKey = new Date(paidDate.getFullYear(), paidDate.getMonth(), 1).getTime();
+          const intPortionReceived = inst.status === 'paid'
+            ? amountInterest
+            : (amountPaid / amountTotal) * amountInterest;
+          const existingInt = interestReceivedMap.get(String(intSortKey));
+          if (existingInt) {
+            existingInt.amount += intPortionReceived;
+          } else {
+            interestReceivedMap.set(String(intSortKey), { amount: intPortionReceived, sortDate: intSortKey });
+          }
+        }
+
         // Previsto no Período: respeita período selecionado pelo filtro
         if ((inst.status === 'pending' || inst.status === 'late') && inPeriod(inst.due_date + 'T00:00:00', bounds)) {
           expectedThisMonth += Number(inst.amount_total || 0);
@@ -207,6 +238,22 @@ function computeMetrics(
       rawDate: item.sortDate,
     }));
 
+  const lendingChartArray = Array.from(lendingMap.values())
+    .sort((a, b) => a.sortDate - b.sortDate)
+    .map((item) => ({
+      name: new Date(item.sortDate).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+      amount: Math.round(item.amount * 100) / 100,
+      rawDate: item.sortDate,
+    }));
+
+  const interestChartArray = Array.from(interestReceivedMap.values())
+    .sort((a, b) => a.sortDate - b.sortDate)
+    .map((item) => ({
+      name: new Date(item.sortDate).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+      amount: Math.round(item.amount * 100) / 100,
+      rawDate: item.sortDate,
+    }));
+
   const newMetrics: InvestorMetrics = {
     totalAllocated,
     grossReceived: Math.round(grossReceived * 100) / 100,
@@ -216,6 +263,8 @@ function computeMetrics(
     nextPaymentDate: nextPayment ? (nextPayment as { date: Date; val: number }).date.toLocaleDateString('pt-BR') : null,
     nextPaymentValue: nextPayment ? (nextPayment as { date: Date; val: number }).val : 0,
     chartData: chartArray,
+    lendingChartData: lendingChartArray,
+    interestChartData: interestChartArray,
     activeContracts: enrichedInvestments.length,
     userName,
   };
@@ -387,7 +436,7 @@ export const useInvestorMetrics = (filter: InvestorFilter = defaultFilter) => {
   const [metricsState, setMetricsState] = useState<InvestorMetrics>(() => ({
     totalAllocated: 0, grossReceived: 0, interestProfit: 0, expectedThisMonth: 0,
     totalProjectedProfit: 0, nextPaymentDate: null, nextPaymentValue: 0,
-    chartData: [], activeContracts: 0, userName: '',
+    chartData: [], lendingChartData: [], interestChartData: [], activeContracts: 0, userName: '',
   }));
   const [investments, setInvestments] = useState<EnrichedInvestment[]>([]);
   const [loading, setLoading] = useState(true);
