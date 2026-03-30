@@ -335,6 +335,15 @@ Categorias:
 - **Status:** ativa
 - **Stories:** implementa BR-REL-008 em 30/03/2026
 
+### BR-REL-009: Rendimento mensal por tipo de contrato (Admin)
+- **Descrição:** O dashboard admin deve exibir uma aba "Rendimento" com análise de rendimento mensal separada por tipo de contrato, com dois níveis de agrupamento: (1) geral — Bullet (todos) vs Parcelado (todos); (2) granular — combinação de `calculation_mode × frequency` (ex: Bullet Mensal, Parcelado Diário)
+- **Condição:** Aba "Rendimento" no `AdminDashboardView`; acesso exclusivo ao perfil `admin`
+- **Resultado:** Métricas exibidas por tipo: juros recebidos (porção de interesse das parcelas pagas/parciais no período), capital alocado (soma de `amount_invested` de contratos ativos), contratos ativos, rendimento projetado (soma de `amount_interest` de parcelas pendentes). Filtro de tipo via dropdown (Todos / Bullet / Parcelado / tipos granulares). Filtro de período (mês atual / mês anterior / ano / tudo). Tipos sem contratos são omitidos dinamicamente. Para parcelas `partial`, usar porção proporcional: `(amount_paid / amount_total) * amount_interest`
+- **Exceções:** Contratos com `status = 'completed' | 'defaulted'` não entram no cálculo de capital ativo, mas seus juros recebidos históricos contam. Parcelas fantasmas (BR-REL-002) são excluídas. Tipos de contrato são derivados dos campos existentes `calculation_mode` e `frequency` — sem alteração de schema
+- **Tabelas:** `investments` (leitura: `calculation_mode`, `frequency`, `amount_invested`, `status`), `loan_installments` (leitura: `amount_paid`, `amount_total`, `amount_interest`, `paid_at`, `status`)
+- **Status:** ativa
+- **Stories:** implementa BR-REL-009 em 30/03/2026
+
 ---
 
 ## Usuários e Perfis (USR)

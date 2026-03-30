@@ -32,6 +32,7 @@ import InvestorDashboard from './InvestorDashboard';
 import DebtorDashboard from './DebtorDashboard';
 import { CollectionDashboard } from './dashboard/CollectionDashboard';
 import MonthlyInvestorView from './investor/MonthlyInvestorView';
+import YieldByContractType from './dashboard/YieldByContractType';
 import { computeMonthlyView, monthKeyToDate, dateToMonthKey } from '../hooks/useInvestorMetrics';
 import { InstallmentDetailScreen, type InstallmentAction } from './InstallmentDetailFlow';
 import { getSupabase } from '../services/supabase';
@@ -42,7 +43,7 @@ interface DashboardProps {
     onNavigate?: (view: AppView) => void;
     userRole?: UserRole;
     tenant?: Tenant | null;
-    defaultTab?: 'overview' | 'receivables' | 'collection' | 'monthly';
+    defaultTab?: 'overview' | 'receivables' | 'collection' | 'monthly' | 'yield';
     investorDefaultTab?: 'portfolio' | 'monthly';
 }
 
@@ -77,10 +78,10 @@ const DashboardSkeleton: React.FC = () => (
 );
 
 // Sub-component for Admin View
-const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultTab?: 'overview' | 'receivables' | 'collection' | 'monthly'; onNavigate?: (view: AppView) => void }> = ({ tenant, defaultTab = 'overview', onNavigate }) => {
+const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultTab?: 'overview' | 'receivables' | 'collection' | 'monthly' | 'yield'; onNavigate?: (view: AppView) => void }> = ({ tenant, defaultTab = 'overview', onNavigate }) => {
   const { activeCompanyId } = useCompanyContext();
   const { stats, detailedKPIs, investments, installments, allPaidInstallments, loading, isStale, error, refetch } = useDashboardData(tenant?.id, activeCompanyId);
-  const [activeTab, setActiveTab] = useState<'overview' | 'receivables' | 'collection' | 'monthly'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'overview' | 'receivables' | 'collection' | 'monthly' | 'yield'>(defaultTab);
 
   // Visão Mensal — mês selecionado
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>(() => dateToMonthKey(new Date()));
@@ -293,20 +294,31 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-4 gap-1.5 rounded-full border border-white/10 bg-black/10 p-1.5">
+        <div className="mt-6 grid grid-cols-5 gap-1.5 rounded-full border border-white/10 bg-black/10 p-1.5">
           <button onClick={() => setActiveTab('overview')} className={tabClass('overview')}>
             <LayoutDashboard size={14} />
             <span className="hidden sm:inline">Visão Geral</span>
             <span className="sm:hidden">Visão</span>
           </button>
           <button onClick={() => setActiveTab('receivables')} className={tabClass('receivables')}>
-            <FileText size={14} /> Parcelas
+            <FileText size={14} />
+            <span className="hidden sm:inline">Parcelas</span>
+            <span className="sm:hidden">Parc.</span>
           </button>
           <button onClick={() => setActiveTab('collection')} className={tabClass('collection')}>
-            <Phone size={14} /> Cobranças
+            <Phone size={14} />
+            <span className="hidden sm:inline">Cobranças</span>
+            <span className="sm:hidden">Cobr.</span>
           </button>
           <button onClick={() => setActiveTab('monthly')} className={tabClass('monthly')}>
-            <CalendarRange size={14} /> Mensal
+            <CalendarRange size={14} />
+            <span className="hidden sm:inline">Mensal</span>
+            <span className="sm:hidden">Mens.</span>
+          </button>
+          <button onClick={() => setActiveTab('yield')} className={tabClass('yield')}>
+            <TrendingUp size={14} />
+            <span className="hidden sm:inline">Rendimento</span>
+            <span className="sm:hidden">Rend.</span>
           </button>
         </div>
       </div>
@@ -412,6 +424,16 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
               onPrevMonth={handlePrevMonth}
               onNextMonth={handleNextMonth}
               onInstallmentClick={handleInstallmentClick}
+            />
+          </div>
+        )}
+
+        {activeTab === 'yield' && (
+          <div className="animate-fade-in">
+            <YieldByContractType
+              investments={investments}
+              allPaidInstallments={allPaidInstallments}
+              pendingInstallments={installments}
             />
           </div>
         )}
