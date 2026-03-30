@@ -277,14 +277,14 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
   return (
     <div className="space-y-5 animate-fade-in">
 
-      {/* FILTER BAR */}
-      <div className={`${panelClass} flex items-center gap-2 p-3 sm:p-4`}>
-        {/* Dropdown tipo — touch-safe (min 44px, text-base previne zoom iOS) */}
-        <div className="relative min-w-0 flex-1 sm:flex-none sm:shrink-0">
+      {/* FILTER BAR — 2 linhas no mobile, 1 linha no desktop */}
+      <div className={`${panelClass} flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4`}>
+        {/* Linha 1 (mobile) / Esquerda (desktop): Dropdown tipo */}
+        <div className="relative w-full sm:w-auto sm:shrink-0 sm:min-w-[200px]">
           <select
             value={filter.typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as YieldTypeFilter)}
-            className="w-full appearance-none rounded-xl border border-white/10 bg-white/[0.06] pl-3 pr-8 text-base sm:text-sm font-medium text-[color:var(--text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-brass)] focus:ring-offset-0 transition-colors hover:bg-white/[0.09]"
+            className="w-full appearance-none rounded-xl border border-white/10 bg-white/[0.06] pl-3 pr-8 text-base sm:text-sm font-medium text-[color:var(--text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-brass)] transition-colors hover:bg-white/[0.09]"
             style={{ minHeight: '44px' }}
             aria-label="Filtrar por tipo de contrato"
           >
@@ -303,10 +303,9 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
           />
         </div>
 
-        {/* Period pills — scroll horizontal em mobile */}
+        {/* Linha 2 (mobile) / Direita (desktop): Period pills — ocupam toda a largura mobile */}
         <div
-          className="flex min-w-0 overflow-x-auto gap-1 rounded-xl border border-white/10 bg-black/10 p-1 scrollbar-none"
-          style={{ scrollbarWidth: 'none' }}
+          className="flex gap-1 rounded-xl border border-white/10 bg-black/10 p-1"
           role="radiogroup"
           aria-label="Período de análise"
         >
@@ -316,12 +315,12 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
               role="radio"
               aria-checked={filter.period === value}
               onClick={() => setPeriod(value)}
-              className={`shrink-0 rounded-lg px-3 text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex-1 sm:flex-none rounded-lg px-3 text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
                 filter.period === value
                   ? 'bg-[color:var(--accent-brass)] text-[color:var(--text-on-accent)] shadow-[0_2px_8px_rgba(240,180,41,0.28)]'
                   : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] hover:bg-white/[0.05]'
               }`}
-              style={{ minHeight: '36px' }}
+              style={{ minHeight: '40px' }}
             >
               {label}
             </button>
@@ -464,15 +463,6 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
                         outerRadius={92}
                         paddingAngle={3}
                         dataKey="value"
-                        onClick={(d: any) => {
-                          const key = donutMode === 'category'
-                            ? (d.name === 'Bullet' ? 'bullet' : 'parcelado')
-                            : granularMetrics.find((m) => m.shortLabel === d.name)?.key;
-                          if (key) {
-                            highlightRow(key as string);
-                            setTypeFilter(key as YieldTypeFilter);
-                          }
-                        }}
                         isAnimationActive={false}
                       >
                         {(donutMode === 'category' ? compositionData : granularMetrics.filter((m) => m.capitalAllocated > 0).map((m) => ({ name: m.shortLabel, value: m.capitalAllocated, color: m.color }))).map((entry, i) => (
@@ -480,7 +470,6 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
                             key={`cell-${i}`}
                             fill={entry.color}
                             opacity={highlightType && !entry.name.toLowerCase().includes(highlightType) ? 0.3 : 1}
-                            style={{ cursor: 'pointer', transition: 'opacity 0.2s' }}
                           />
                         ))}
                         <DonutCenterLabel total={totals.capitalAllocated} />
@@ -582,7 +571,7 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
                       tickCount={4}
                     />
                     <Tooltip
-                      cursor={{ fill: 'rgba(255,255,255,0.04)', radius: 6 }}
+                      cursor={{ fill: 'rgba(255,255,255,0.03)' }}
                       formatter={(value: number, name: string) => [
                         formatCurrency(value),
                         name === 'bullet' ? 'Bullet' : 'Parcelado',
