@@ -70,6 +70,7 @@ interface YieldByContractTypeProps {
   investments: Investment[];
   allPaidInstallments: LoanInstallment[];
   pendingInstallments: LoanInstallment[];
+  onInstallmentClick?: (installmentId: string, investmentId: number) => void;
 }
 
 // --- MINI SPARKLINE ---
@@ -180,6 +181,7 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
   investments,
   allPaidInstallments,
   pendingInstallments,
+  onInstallmentClick,
 }) => {
   const [filter, setFilter] = useState<YieldFilter>({ typeFilter: 'all', period: 'month' });
   const [donutMode, setDonutMode] = useState<'category' | 'detail'>('category');
@@ -907,26 +909,33 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
                                       </tr>
                                     </thead>
                                     <tbody>
-                                      {contract.installments.map((inst) => (
-                                        <tr key={inst.id} className="border-b border-white/[0.05] last:border-0">
-                                          <td className="px-3 py-2 text-[color:var(--text-secondary)]">#{inst.number}</td>
-                                          <td className="px-3 py-2 text-[color:var(--text-secondary)]">{fmtDate(inst.due_date)}</td>
-                                          <td className="px-3 py-2 text-right tabular-nums text-[color:var(--text-primary)]">
-                                            {formatCurrency(inst.amount_total)}
-                                            {(inst.fine_amount > 0 || inst.interest_delay_amount > 0) && (
-                                              <div className="text-[10px] text-[color:var(--accent-danger)]">
-                                                +{formatCurrency(inst.fine_amount + inst.interest_delay_amount)}
-                                              </div>
-                                            )}
-                                          </td>
-                                          <td className="px-3 py-2 text-right tabular-nums text-[color:var(--text-primary)]">
-                                            {inst.amount_paid > 0 ? formatCurrency(inst.amount_paid) : '—'}
-                                          </td>
-                                          <td className={`px-3 py-2 text-right font-semibold ${INST_STATUS_CLASS[inst.status] ?? 'text-[color:var(--text-secondary)]'}`}>
-                                            {INST_STATUS_LABEL[inst.status] ?? inst.status}
-                                          </td>
-                                        </tr>
-                                      ))}
+                                      {contract.installments.map((inst) => {
+                                        const isClickable = !!onInstallmentClick && !!inst.id;
+                                        return (
+                                          <tr
+                                            key={inst.id}
+                                            className={`border-b border-white/[0.05] last:border-0 transition-colors ${isClickable ? 'cursor-pointer hover:bg-white/[0.06] active:bg-white/[0.09]' : ''}`}
+                                            onClick={isClickable ? () => onInstallmentClick!(inst.id, inst.investment_id) : undefined}
+                                          >
+                                            <td className="px-3 py-2.5 text-[color:var(--text-secondary)]">#{inst.number}</td>
+                                            <td className="px-3 py-2.5 text-[color:var(--text-secondary)]">{fmtDate(inst.due_date)}</td>
+                                            <td className="px-3 py-2.5 text-right tabular-nums text-[color:var(--text-primary)]">
+                                              {formatCurrency(inst.amount_total)}
+                                              {(inst.fine_amount > 0 || inst.interest_delay_amount > 0) && (
+                                                <div className="text-[10px] text-[color:var(--accent-danger)]">
+                                                  +{formatCurrency(inst.fine_amount + inst.interest_delay_amount)}
+                                                </div>
+                                              )}
+                                            </td>
+                                            <td className="px-3 py-2.5 text-right tabular-nums text-[color:var(--text-primary)]">
+                                              {inst.amount_paid > 0 ? formatCurrency(inst.amount_paid) : '—'}
+                                            </td>
+                                            <td className={`px-3 py-2.5 text-right font-semibold ${INST_STATUS_CLASS[inst.status] ?? 'text-[color:var(--text-secondary)]'}`}>
+                                              {INST_STATUS_LABEL[inst.status] ?? inst.status}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
                                     </tbody>
                                   </table>
                                 </div>

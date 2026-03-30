@@ -434,6 +434,7 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
               investments={investments}
               allPaidInstallments={allPaidInstallments}
               pendingInstallments={installments}
+              onInstallmentClick={handleInstallmentClick}
             />
           </div>
         )}
