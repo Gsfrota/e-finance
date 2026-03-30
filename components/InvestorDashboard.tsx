@@ -17,6 +17,8 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -350,6 +352,83 @@ const InvestorDashboard: React.FC<InvestorDashboardProps> = ({ defaultTab = 'por
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Gráficos de evolução mensal (BR-REL-008) */}
+      <div className="grid grid-cols-1 gap-3 md:gap-5 xl:grid-cols-2">
+
+        {/* Empréstimos por mês */}
+        <div className="panel-card rounded-[1.8rem] p-4 md:p-6">
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <p className="section-kicker mb-1">Evolução</p>
+              <h3 className="type-title font-display text-[color:var(--text-primary)]">Empréstimos por mês</h3>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]">
+              <Landmark size={18} />
+            </div>
+          </div>
+          <div className="h-52 min-w-0 md:h-[280px]">
+            {metrics.lendingChartData.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2">
+                <Landmark size={22} className="text-[color:var(--text-faint)]" />
+                <p className="type-label text-[color:var(--text-faint)]">Nenhum contrato registrado ainda</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <LineChart data={metrics.lendingChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(245,239,226,0.05)" vertical={false} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#8d919a', fontSize: 11, fontWeight: 700 }} />
+                  <YAxis axisLine={false} tickLine={false} width={56} tick={{ fill: '#8d919a', fontSize: 11 }} tickFormatter={(v) => v >= 1000 ? `R$ ${Math.round(v / 1000)}k` : `R$ ${v}`} />
+                  <Tooltip
+                    formatter={(value: number) => [formatCurrency(value), 'Emprestado']}
+                    contentStyle={{ background: 'var(--bg-elevated)', borderRadius: 16, border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                    labelStyle={{ color: 'var(--text-primary)' }}
+                    itemStyle={{ color: 'var(--text-secondary)' }}
+                  />
+                  <Line type="monotone" dataKey="amount" name="Emprestado" stroke="#cab07a" strokeWidth={2.5} dot={{ r: 4, fill: '#cab07a' }} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        {/* Juros recebidos por mês */}
+        <div className="panel-card rounded-[1.8rem] p-4 md:p-6">
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <p className="section-kicker mb-1">Rendimento</p>
+              <h3 className="type-title font-display text-[color:var(--text-primary)]">Juros recebidos por mês</h3>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(143,179,157,0.14)] text-[color:var(--accent-positive)] ring-1 ring-[rgba(143,179,157,0.16)]">
+              <TrendingUp size={18} />
+            </div>
+          </div>
+          <div className="h-52 min-w-0 md:h-[280px]">
+            {metrics.interestChartData.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2">
+                <TrendingUp size={22} className="text-[color:var(--text-faint)]" />
+                <p className="type-label text-[color:var(--text-faint)]">Nenhum juros recebido ainda</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <LineChart data={metrics.interestChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(245,239,226,0.05)" vertical={false} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#8d919a', fontSize: 11, fontWeight: 700 }} />
+                  <YAxis axisLine={false} tickLine={false} width={56} tick={{ fill: '#8d919a', fontSize: 11 }} tickFormatter={(v) => v >= 1000 ? `R$ ${Math.round(v / 1000)}k` : `R$ ${v}`} />
+                  <Tooltip
+                    formatter={(value: number) => [formatCurrency(value), 'Juros']}
+                    contentStyle={{ background: 'var(--bg-elevated)', borderRadius: 16, border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                    labelStyle={{ color: 'var(--text-primary)' }}
+                    itemStyle={{ color: 'var(--text-secondary)' }}
+                  />
+                  <Line type="monotone" dataKey="amount" name="Juros" stroke="#8fb39d" strokeWidth={2.5} dot={{ r: 4, fill: '#8fb39d' }} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
       </div>
 
       </>)}

@@ -326,6 +326,15 @@ Categorias:
 - **Status:** ativa
 - **Stories:** implementa feature visão mensal 28/03/2026
 
+### BR-REL-008: Gráficos de evolução mensal do investidor
+- **Descrição:** O dashboard do investidor deve exibir dois gráficos de linha na aba "Carteira": (1) volume emprestado por mês — soma de `amount_invested` dos contratos criados no mês; (2) juros recebidos por mês — soma da porção de juros das parcelas pagas/parciais no mês
+- **Condição:** Tela "Carteira" no `InvestorDashboard` (tab principal)
+- **Resultado:** Ambos gráficos respeitam filtro de contrato selecionado. Não são filtrados por período (exibem timeline completa, consistente com gráfico de barras existente). Parcelas fantasmas (BR-REL-002) são excluídas. Para parcelas `partial`, usar porção proporcional: `(amount_paid / amount_total) * amount_interest`
+- **Exceções:** Meses sem atividade são omitidos (sem zero-fill). Gráfico de juros usa `paid_at` para agrupar (não `due_date`)
+- **Tabelas:** `investments` (leitura via `created_at`, `amount_invested`), `loan_installments` (leitura via `paid_at`, `amount_interest`)
+- **Status:** ativa
+- **Stories:** implementa BR-REL-008 em 30/03/2026
+
 ---
 
 ## Usuários e Perfis (USR)
