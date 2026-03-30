@@ -239,13 +239,24 @@ function computeMetrics(
       rawDate: item.sortDate,
     }));
 
-  const lendingChartArray = Array.from(lendingMap.values())
-    .sort((a, b) => a.sortDate - b.sortDate)
-    .map((item) => ({
-      name: new Date(item.sortDate).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-      amount: Math.round(item.amount * 100) / 100,
-      rawDate: item.sortDate,
-    }));
+  const lendingChartArray = (() => {
+    if (lendingMap.size === 0) return [];
+    const keys = Array.from(lendingMap.keys()).map(Number).sort((a, b) => a - b);
+    const first = new Date(keys[0]);
+    const now = new Date();
+    const result: { name: string; amount: number; rawDate: number }[] = [];
+    const cur = new Date(first.getFullYear(), first.getMonth(), 1);
+    while (cur <= now) {
+      const key = cur.getTime();
+      result.push({
+        name: new Date(key).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+        amount: Math.round((lendingMap.get(String(key))?.amount || 0) * 100) / 100,
+        rawDate: key,
+      });
+      cur.setMonth(cur.getMonth() + 1);
+    }
+    return result;
+  })();
 
   const interestChartArray = Array.from(interestReceivedMap.values())
     .sort((a, b) => a.sortDate - b.sortDate)
