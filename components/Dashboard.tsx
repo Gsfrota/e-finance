@@ -14,7 +14,18 @@ import {
   WalletCards,
   Clock,
   WifiOff,
+  Landmark,
+  TrendingUp,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from 'recharts';
 import { AppView, UserRole, Tenant, MonthlyViewData, LoanInstallment } from '../types';
 import { useCompanyContext } from '../services/companyScope';
 import InvestorDashboard from './InvestorDashboard';
@@ -166,6 +177,44 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
   // Pass all installments to the table so the internal filters (All/Paid/Pending) work correctly
   const filteredInstallments = installments;
 
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
+  // Gráficos de evolução mensal (BR-REL-008)
+  const lendingChartData = useMemo(() => {
+    const map = new Map<number, number>();
+    investments.forEach((inv: any) => {
+      if (!inv.created_at) return;
+      const d = new Date(inv.created_at);
+      const key = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+      map.set(key, (map.get(key) || 0) + Number(inv.amount_invested || 0));
+    });
+    return Array.from(map.entries()).sort((a, b) => a[0] - b[0])
+      .map(([key, amount]) => ({
+        name: new Date(key).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+        amount: Math.round(amount * 100) / 100,
+      }));
+  }, [investments]);
+
+  const interestChartData = useMemo(() => {
+    const map = new Map<number, number>();
+    allPaidInstallments.forEach((inst: any) => {
+      if (!inst.paid_at) return;
+      const d = new Date(inst.paid_at);
+      const key = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+      const amountPaid = Number(inst.amount_paid || 0);
+      const amountTotal = Number(inst.amount_total || 1);
+      const amountInterest = Number(inst.amount_interest || 0);
+      const portion = inst.status === 'paid' ? amountInterest : (amountPaid / amountTotal) * amountInterest;
+      map.set(key, (map.get(key) || 0) + portion);
+    });
+    return Array.from(map.entries()).sort((a, b) => a[0] - b[0])
+      .map(([key, amount]) => ({
+        name: new Date(key).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+        amount: Math.round(amount * 100) / 100,
+      }));
+  }, [allPaidInstallments]);
+
   if (selectedInstallment && !installmentAction) {
     return (
       <InstallmentDetailScreen
@@ -257,6 +306,69 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
             <KPICards stats={stats} kpis={detailedKPIs} installments={installments} onGoToCollection={() => setActiveTab('collection')} />
 
             <OverviewCharts kpis={detailedKPIs} installments={installments} />
+
+            {/* Gráficos de evolução mensal (BR-REL-008) */}
+            <div className="grid grid-cols-1 gap-3 md:gap-5 xl:grid-cols-2">
+              <div className="panel-card rounded-[1.8rem] p-4 md:p-6">
+                <div className="mb-5 flex items-start justify-between gap-4">
+                  <div>
+                    <p className="section-kicker mb-1">Evolução</p>
+                    <h3 className="type-title font-display text-[color:var(--text-primary)]">Empréstimos por mês</h3>
+                  </div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]">
+                    <Landmark size={18} />
+                  </div>
+                </div>
+                <div className="h-52 min-w-0 md:h-[260px]">
+                  {lendingChartData.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-2">
+                      <Landmark size={22} className="text-[color:var(--text-faint)]" />
+                      <p className="type-label text-[color:var(--text-faint)]">Nenhum contrato registrado ainda</p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                      <LineChart data={lendingChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                        <CartesianGrid stroke="rgba(245,239,226,0.05)" vertical={false} />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} padding={{ left: 20, right: 20 }} tick={{ fill: '#8d919a', fontSize: 11, fontWeight: 700 }} />
+                        <YAxis axisLine={false} tickLine={false} width={56} tick={{ fill: '#8d919a', fontSize: 11 }} tickFormatter={(v) => v >= 1000 ? `R$ ${Math.round(v / 1000)}k` : `R$ ${v}`} />
+                        <Tooltip formatter={(value: number) => [formatCurrency(value), 'Emprestado']} contentStyle={{ background: 'var(--bg-elevated)', borderRadius: 16, border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }} labelStyle={{ color: 'var(--text-primary)' }} itemStyle={{ color: 'var(--text-secondary)' }} />
+                        <Line type="monotone" dataKey="amount" stroke="#cab07a" strokeWidth={2.5} dot={{ r: 4, fill: '#cab07a' }} activeDot={{ r: 6 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+
+              <div className="panel-card rounded-[1.8rem] p-4 md:p-6">
+                <div className="mb-5 flex items-start justify-between gap-4">
+                  <div>
+                    <p className="section-kicker mb-1">Rendimento</p>
+                    <h3 className="type-title font-display text-[color:var(--text-primary)]">Juros recebidos por mês</h3>
+                  </div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(143,179,157,0.14)] text-[color:var(--accent-positive)] ring-1 ring-[rgba(143,179,157,0.16)]">
+                    <TrendingUp size={18} />
+                  </div>
+                </div>
+                <div className="h-52 min-w-0 md:h-[260px]">
+                  {interestChartData.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-2">
+                      <TrendingUp size={22} className="text-[color:var(--text-faint)]" />
+                      <p className="type-label text-[color:var(--text-faint)]">Nenhum juros recebido ainda</p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                      <LineChart data={interestChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                        <CartesianGrid stroke="rgba(245,239,226,0.05)" vertical={false} />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} padding={{ left: 20, right: 20 }} tick={{ fill: '#8d919a', fontSize: 11, fontWeight: 700 }} />
+                        <YAxis axisLine={false} tickLine={false} width={56} tick={{ fill: '#8d919a', fontSize: 11 }} tickFormatter={(v) => v >= 1000 ? `R$ ${Math.round(v / 1000)}k` : `R$ ${v}`} />
+                        <Tooltip formatter={(value: number) => [formatCurrency(value), 'Juros']} contentStyle={{ background: 'var(--bg-elevated)', borderRadius: 16, border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }} labelStyle={{ color: 'var(--text-primary)' }} itemStyle={{ color: 'var(--text-secondary)' }} />
+                        <Line type="monotone" dataKey="amount" stroke="#8fb39d" strokeWidth={2.5} dot={{ r: 4, fill: '#8fb39d' }} activeDot={{ r: 6 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+            </div>
 
             <div>
               <div className="mb-4 pl-1">
