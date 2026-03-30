@@ -184,8 +184,9 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
   const lendingChartData = useMemo(() => {
     const map = new Map<number, number>();
     investments.forEach((inv: any) => {
-      if (!inv.created_at) return;
-      const d = new Date(inv.created_at);
+      const dateStr = inv.start_date || inv.created_at;
+      if (!dateStr) return;
+      const d = new Date(dateStr);
       const key = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
       map.set(key, (map.get(key) || 0) + Number(inv.amount_invested || 0));
     });

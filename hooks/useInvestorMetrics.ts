@@ -124,9 +124,10 @@ function computeMetrics(
     if (matchesContract) {
       totalAllocated += Number(inv.amount_invested || 0);
 
-      // Gráfico de empréstimos por mês (BR-REL-008)
-      if (inv.created_at) {
-        const createdDate = new Date(inv.created_at);
+      // Gráfico de empréstimos por mês (BR-REL-008) — usa start_date (início real do contrato)
+      const lendingDateStr = (inv as any).start_date || inv.created_at;
+      if (lendingDateStr) {
+        const createdDate = new Date(lendingDateStr);
         const lendingMonthKey = new Date(createdDate.getFullYear(), createdDate.getMonth(), 1).getTime();
         const existing = lendingMap.get(String(lendingMonthKey));
         if (existing) {
