@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Investment, LoanInstallment } from '../../types';
 import {
   useYieldMetrics,
   buildTypeFilterOptions,
+  classifyContract,
   YieldFilter,
   YieldPeriod,
   YieldTypeFilter,
@@ -28,6 +29,9 @@ import {
   Users,
   CalendarRange,
   ChevronDown,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
 } from 'lucide-react';
 
 const formatCurrency = (value: number) =>
@@ -105,6 +109,71 @@ const DonutCenterLabel: React.FC<{ total: number }> = ({ total }) => (
   </text>
 );
 
+// --- TYPES: CLIENT LIST ---
+
+interface ClientContract {
+  investmentId: number;
+  contractName: string;
+  typeKey: string;
+  typeLabel: string;
+  typeColor: string;
+  paidCount: number;
+  lateCount: number;
+  pendingCount: number;
+  totalDue: number;
+  totalPaid: number;
+  installments: LoanInstallment[];
+}
+
+interface ClientByType {
+  payerName: string;
+  payerId?: string;
+  contracts: ClientContract[];
+  totalLate: number;
+  totalPaid: number;
+  totalPending: number;
+}
+
+// --- CLIENT STATUS BADGE ---
+const StatusBadge: React.FC<{ lateCount: number; pendingCount: number; paidCount: number; total: number }> = ({
+  lateCount, pendingCount, paidCount, total,
+}) => {
+  if (total === 0) return null;
+  if (lateCount > 0)
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(220,80,80,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--accent-danger)]">
+        <AlertTriangle size={9} /> {lateCount} atrasada{lateCount > 1 ? 's' : ''}
+      </span>
+    );
+  if (paidCount === total)
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(143,179,157,0.14)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--accent-positive)]">
+        <CheckCircle size={9} /> Em dia
+      </span>
+    );
+  if (pendingCount > 0)
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(144,160,189,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--text-secondary)]">
+        <Clock size={9} /> {pendingCount} pendente{pendingCount > 1 ? 's' : ''}
+      </span>
+    );
+  return null;
+};
+
+// Status label para parcela individual
+const INST_STATUS_LABEL: Record<string, string> = {
+  paid: 'Pago', partial: 'Parcial', late: 'Atrasado', pending: 'Pendente',
+};
+const INST_STATUS_CLASS: Record<string, string> = {
+  paid: 'text-[color:var(--accent-positive)]',
+  partial: 'text-[color:var(--accent-warning,#d4a017)]',
+  late: 'text-[color:var(--accent-danger)]',
+  pending: 'text-[color:var(--text-secondary)]',
+};
+
+const fmtDate = (d: string) =>
+  new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+
 // --- MAIN COMPONENT ---
 
 const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
@@ -115,10 +184,69 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
   const [filter, setFilter] = useState<YieldFilter>({ typeFilter: 'all', period: 'month' });
   const [donutMode, setDonutMode] = useState<'category' | 'detail'>('category');
   const [highlightType, setHighlightType] = useState<string | null>(null);
+  const [expandedClient, setExpandedClient] = useState<string | null>(null);
+  const [expandedClientContract, setExpandedClientContract] = useState<number | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
+  const clientsRef = useRef<HTMLDivElement>(null);
 
   const metrics = useYieldMetrics(investments, allPaidInstallments, pendingInstallments, filter);
   const { summaryMetrics, granularMetrics, totals, evolutionData, compositionData } = metrics;
+
+  // --- Clientes por tipo ---
+  const clientsByType = useMemo<ClientByType[]>(() => {
+    const allInsts = [...allPaidInstallments, ...pendingInstallments];
+    const instMap = new Map<number, LoanInstallment[]>();
+    allInsts.forEach((i) => {
+      const arr = instMap.get(i.investment_id) ?? [];
+      arr.push(i);
+      instMap.set(i.investment_id, arr);
+    });
+
+    const activeInvs = investments.filter(
+      (inv) => !inv.status || inv.status === 'active',
+    );
+
+    const filtered = activeInvs.filter((inv) => {
+      if (filter.typeFilter === 'all') return true;
+      const cls = classifyContract(inv.calculation_mode, inv.frequency);
+      return filter.typeFilter === cls.category || filter.typeFilter === cls.key;
+    });
+
+    const byPayer = new Map<string, ClientByType>();
+    filtered.forEach((inv) => {
+      const payerKey = inv.payer_id || inv.payer_name || `inv_${inv.id}`;
+      const payerName = inv.payer_name || 'Devedor desconhecido';
+      const cls = classifyContract(inv.calculation_mode, inv.frequency);
+      const insts = (instMap.get(inv.id) ?? []).sort((a, b) => a.number - b.number);
+
+      const paidCount = insts.filter((i) => i.status === 'paid' || i.status === 'partial').length;
+      const lateCount = insts.filter((i) => i.status === 'late').length;
+      const pendingCount = insts.filter((i) => i.status === 'pending').length;
+      const totalDue = insts.reduce((s, i) => s + i.amount_total, 0);
+      const totalPaid = insts.reduce((s, i) => s + i.amount_paid, 0);
+
+      const entry = byPayer.get(payerKey) ?? { payerName, payerId: inv.payer_id, contracts: [], totalLate: 0, totalPaid: 0, totalPending: 0 };
+      entry.contracts.push({
+        investmentId: inv.id,
+        contractName: inv.asset_name,
+        typeKey: cls.key,
+        typeLabel: cls.label,
+        typeColor: cls.color,
+        paidCount,
+        lateCount,
+        pendingCount,
+        totalDue,
+        totalPaid,
+        installments: insts,
+      });
+      entry.totalLate += lateCount;
+      entry.totalPaid += paidCount;
+      entry.totalPending += pendingCount;
+      byPayer.set(payerKey, entry);
+    });
+
+    return Array.from(byPayer.values()).sort((a, b) => b.totalLate - a.totalLate || b.totalPending - a.totalPending);
+  }, [investments, allPaidInstallments, pendingInstallments, filter.typeFilter]);
 
   const typeOptions = buildTypeFilterOptions(summaryMetrics, granularMetrics);
 
@@ -593,6 +721,193 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
           >
             Ver todos os tipos
           </button>
+        </div>
+      )}
+
+      {/* CLIENTES POR TIPO */}
+      {clientsByType.length > 0 && (
+        <div ref={clientsRef} className={`${panelClass} overflow-hidden`}>
+          <div className="p-4 md:p-6 border-b border-white/[0.06]">
+            <p className="section-kicker mb-1">Carteira</p>
+            <h3 className="type-title text-[color:var(--text-primary)]">
+              Clientes por Tipo
+              {filter.typeFilter !== 'all' && (
+                <span className="ml-2 text-sm font-normal text-[color:var(--text-faint)]">
+                  — {typeOptions.find(o => o.value === filter.typeFilter)?.label ?? filter.typeFilter}
+                </span>
+              )}
+            </h3>
+          </div>
+
+          <div className="divide-y divide-white/[0.05]">
+            {clientsByType.map((client) => {
+              const clientKey = client.payerId || client.payerName;
+              const isOpen = expandedClient === clientKey;
+              const totalContracts = client.contracts.length;
+              const allInstCount = client.contracts.reduce((s, c) => s + c.installments.length, 0);
+              const totalDueAll = client.contracts.reduce((s, c) => s + c.totalDue, 0);
+              const totalPaidAll = client.contracts.reduce((s, c) => s + c.totalPaid, 0);
+              const payPct = totalDueAll > 0 ? Math.min(100, (totalPaidAll / totalDueAll) * 100) : 0;
+
+              return (
+                <div key={clientKey} className="overflow-hidden">
+                  {/* Header — clicável */}
+                  <button
+                    onClick={() => setExpandedClient(isOpen ? null : clientKey)}
+                    className="w-full p-4 text-left cursor-pointer hover:bg-white/[0.03] transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-2.5">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-[color:var(--text-primary)] truncate">{client.payerName}</div>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          {/* Type badges (um por contrato) */}
+                          {client.contracts.slice(0, 3).map((c) => (
+                            <span
+                              key={c.investmentId}
+                              className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                              style={{ background: `${c.typeColor}22`, color: c.typeColor }}
+                            >
+                              {c.typeLabel}
+                            </span>
+                          ))}
+                          {client.contracts.length > 3 && (
+                            <span className="text-[10px] text-[color:var(--text-faint)]">+{client.contracts.length - 3}</span>
+                          )}
+                          <span className="text-[10px] text-[color:var(--text-faint)]">
+                            · {totalContracts} contrato{totalContracts > 1 ? 's' : ''} · {allInstCount} parcela{allInstCount > 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <StatusBadge
+                          lateCount={client.totalLate}
+                          pendingCount={client.totalPending}
+                          paidCount={client.totalPaid}
+                          total={client.totalLate + client.totalPaid + client.totalPending}
+                        />
+                        <ChevronDown
+                          size={14}
+                          className={`text-[color:var(--text-faint)] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          client.totalLate > 0
+                            ? 'bg-[color:var(--accent-danger)]'
+                            : payPct >= 80
+                            ? 'bg-[color:var(--accent-positive)]'
+                            : 'bg-[color:var(--accent-warning,#d4a017)]'
+                        }`}
+                        style={{ width: `${payPct}%` }}
+                      />
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-[color:var(--text-faint)]">Previsto </span>
+                        <span className="font-semibold text-[color:var(--text-primary)]">{formatCurrency(totalDueAll)}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[color:var(--text-faint)]">Pago </span>
+                        <span className={`font-semibold ${payPct >= 100 ? 'text-[color:var(--accent-positive)]' : 'text-[color:var(--text-primary)]'}`}>
+                          {formatCurrency(totalPaidAll)}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Expanded: contratos deste cliente */}
+                  {isOpen && (
+                    <div className="border-t border-white/[0.06] bg-white/[0.02] divide-y divide-white/[0.04]">
+                      {client.contracts.map((contract) => {
+                        const cKey = contract.investmentId;
+                        const cOpen = expandedClientContract === cKey;
+                        return (
+                          <div key={cKey}>
+                            <button
+                              onClick={() => setExpandedClientContract(cOpen ? null : cKey)}
+                              className="w-full px-5 py-3 text-left cursor-pointer hover:bg-white/[0.03] transition-colors"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div className="h-2 w-2 shrink-0 rounded-sm" style={{ background: contract.typeColor }} />
+                                  <span className="text-xs font-medium text-[color:var(--text-primary)] truncate">{contract.contractName}</span>
+                                  <span className="text-[10px] text-[color:var(--text-faint)] shrink-0">{contract.typeLabel}</span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {contract.lateCount > 0 && (
+                                    <span className="text-[10px] font-semibold text-[color:var(--accent-danger)]">
+                                      {contract.lateCount} atrasada{contract.lateCount > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                  {contract.lateCount === 0 && contract.pendingCount > 0 && (
+                                    <span className="text-[10px] text-[color:var(--text-secondary)]">
+                                      {contract.pendingCount} pendente{contract.pendingCount > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                  {contract.lateCount === 0 && contract.pendingCount === 0 && (
+                                    <span className="text-[10px] font-semibold text-[color:var(--accent-positive)]">Em dia</span>
+                                  )}
+                                  <ChevronDown
+                                    size={12}
+                                    className={`text-[color:var(--text-faint)] transition-transform duration-200 ${cOpen ? 'rotate-180' : ''}`}
+                                  />
+                                </div>
+                              </div>
+                            </button>
+
+                            {/* Installments table */}
+                            {cOpen && contract.installments.length > 0 && (
+                              <div className="px-5 pb-4">
+                                <div className="overflow-hidden rounded-lg border border-white/[0.08]">
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="border-b border-white/[0.08] bg-white/[0.03]">
+                                        <th className="px-3 py-2 text-left font-medium text-[color:var(--text-faint)]">#</th>
+                                        <th className="px-3 py-2 text-left font-medium text-[color:var(--text-faint)]">Venc.</th>
+                                        <th className="px-3 py-2 text-right font-medium text-[color:var(--text-faint)]">Total</th>
+                                        <th className="px-3 py-2 text-right font-medium text-[color:var(--text-faint)]">Pago</th>
+                                        <th className="px-3 py-2 text-right font-medium text-[color:var(--text-faint)]">Status</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {contract.installments.map((inst) => (
+                                        <tr key={inst.id} className="border-b border-white/[0.05] last:border-0">
+                                          <td className="px-3 py-2 text-[color:var(--text-secondary)]">#{inst.number}</td>
+                                          <td className="px-3 py-2 text-[color:var(--text-secondary)]">{fmtDate(inst.due_date)}</td>
+                                          <td className="px-3 py-2 text-right tabular-nums text-[color:var(--text-primary)]">
+                                            {formatCurrency(inst.amount_total)}
+                                            {(inst.fine_amount > 0 || inst.interest_delay_amount > 0) && (
+                                              <div className="text-[10px] text-[color:var(--accent-danger)]">
+                                                +{formatCurrency(inst.fine_amount + inst.interest_delay_amount)}
+                                              </div>
+                                            )}
+                                          </td>
+                                          <td className="px-3 py-2 text-right tabular-nums text-[color:var(--text-primary)]">
+                                            {inst.amount_paid > 0 ? formatCurrency(inst.amount_paid) : '—'}
+                                          </td>
+                                          <td className={`px-3 py-2 text-right font-semibold ${INST_STATUS_CLASS[inst.status] ?? 'text-[color:var(--text-secondary)]'}`}>
+                                            {INST_STATUS_LABEL[inst.status] ?? inst.status}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

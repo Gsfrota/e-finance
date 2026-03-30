@@ -39,6 +39,7 @@ interface AdminHomeProps {
   onNavigate: (view: AppView) => void;
   onNewContract: () => void;
   onNavigateDashboardMonthly?: () => void;
+  onNavigateDashboardYield?: () => void;
 }
 
 const useHomeData = (tenantId?: string, companyId?: string | null) => {
@@ -202,7 +203,7 @@ const daysOverdue = (dueDate: string): number => {
   return diff > 0 ? Math.floor(diff / (1000 * 60 * 60 * 24)) : 0;
 };
 
-const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNewContract, onNavigateDashboardMonthly }) => {
+const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNewContract, onNavigateDashboardMonthly, onNavigateDashboardYield }) => {
   const { activeCompanyId } = useCompanyContext();
   const {
     investments,
@@ -847,6 +848,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
     { icon: Wallet,        label: 'Recebimentos',         onClick: () => { setCollectionBucket('today'); setCollectionKey(k => k + 1); setActiveTab('collection'); },         variant: 'default' as const },
     { icon: BarChart3,     label: 'Relatórios',           onClick: () => onNavigate(AppView.DASHBOARD),                                                                      variant: 'default' as const },
     { icon: CalendarRange, label: 'Análise Mensal',       onClick: () => onNavigateDashboardMonthly?.(),                                                                     variant: 'default' as const },
+    { icon: BarChart3,     label: 'Por Tipos',            onClick: () => onNavigateDashboardYield?.(),                                                                        variant: 'default' as const },
     { icon: Bot,           label: 'Assistente',           onClick: () => onNavigate(AppView.ASSISTANT),                                                                      variant: 'default' as const },
     { icon: Calendar,      label: 'Cobranças',            onClick: () => onNavigate(AppView.COLLECTION),                                                                       variant: 'default' as const },
     { icon: AlertTriangle, label: 'Inadimplentes',        onClick: () => setSubView('parcelas-inadimplentes'),                                                               variant: 'danger'  as const },

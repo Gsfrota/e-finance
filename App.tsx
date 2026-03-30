@@ -568,7 +568,7 @@ const App: React.FC = () => {
   const [targetUserId, setTargetUserId] = useState<string | undefined>(undefined);
   const [contractAutoNew, setContractAutoNew] = useState(false);
   const [investorDefaultTab, setInvestorDefaultTab] = useState<'portfolio' | 'monthly'>('portfolio');
-  const [adminDashboardDefaultTab, setAdminDashboardDefaultTab] = useState<'overview' | 'receivables' | 'collection' | 'monthly'>('overview');
+  const [adminDashboardDefaultTab, setAdminDashboardDefaultTab] = useState<'overview' | 'receivables' | 'collection' | 'monthly' | 'yield'>('overview');
   const [isLoading, setIsLoading] = useState(true);
   const [loadingPhase, setLoadingPhase] = useState<'init' | 'auth' | 'profile' | 'ready'>(isOAuthCallback() ? 'auth' : 'init');
   const [appError, setAppError] = useState<string | null>(null);
@@ -1088,6 +1088,7 @@ const App: React.FC = () => {
               }}
               onNewContract={() => { setContractAutoNew(true); setCurrentView(AppView.CONTRACTS); }}
               onNavigateDashboardMonthly={() => { setAdminDashboardDefaultTab('monthly'); setCurrentView(AppView.DASHBOARD); }}
+              onNavigateDashboardYield={() => { setAdminDashboardDefaultTab('yield'); setCurrentView(AppView.DASHBOARD); }}
             />
           )}
           {currentView === AppView.DASHBOARD && !(isFreeLocked && profile?.role === 'admin') && (
