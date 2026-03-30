@@ -430,12 +430,13 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
   }
 
   // ── Sub-view: detalhe da parcela ──
-  if (!readOnly && selectedInstallment !== null) {
+  if (selectedInstallment !== null) {
     return (
       <SharedInstallmentDetailScreen
         installment={selectedInstallment}
         onBack={() => setSelectedInstallment(null)}
         onAction={(action) => setInstallmentAction(action)}
+        readOnly={readOnly}
       />
     );
   }
@@ -675,14 +676,14 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                     return (
                       <button
                         key={i.id}
-                        onClick={readOnly ? undefined : () => {
+                        onClick={() => {
                           const enriched = {
                             ...i,
                             investment: { ...data.investment, loan_installments: data.installments },
                           };
                           setSelectedInstallment(enriched as any);
                         }}
-                        className={`w-full panel-card rounded-2xl p-4 text-left transition-all ${readOnly ? '' : 'active:scale-[0.98] hover:ring-1 hover:ring-[color:var(--border-strong)]'} ${
+                        className={`w-full panel-card rounded-2xl p-4 text-left transition-all active:scale-[0.98] hover:ring-1 hover:ring-[color:var(--border-strong)] ${
                           isLate ? 'ring-1 ring-[color:var(--accent-danger)]/30 bg-[rgba(198,126,105,0.04)]' :
                           isPaid ? 'opacity-70' : ''
                         }`}

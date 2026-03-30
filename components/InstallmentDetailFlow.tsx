@@ -136,10 +136,11 @@ interface InstallmentDetailScreenProps {
   installment: LoanInstallment;
   onBack: () => void;
   onAction: (action: NonNullable<InstallmentAction>) => void;
+  readOnly?: boolean;
 }
 
 export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = ({
-  installment, onBack, onAction,
+  installment, onBack, onAction, readOnly = false,
 }) => {
   const [showHistory, setShowHistory] = useState(false);
   const [activeInst, setActiveInst] = useState(installment);
@@ -340,7 +341,8 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
         </div>
       </div>
 
-      {/* ── Action Buttons (fixed bottom, ícone acima + texto abaixo) ────── */}
+      {/* ── Action Buttons — ocultos em modo somente leitura ────────────── */}
+      {!readOnly && (
       <div className="shrink-0 flex flex-col gap-2 px-4 py-3" style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border-subtle)' }}>
         {/* Botão Só Juros — visível quando parcela tem juros e não está paga */}
         {!isPaid && normalizeNum(activeInst.amount_interest) > 0 && (
@@ -403,6 +405,7 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
         )}
         </div>
       </div>
+      )}
     </div>
   );
 };

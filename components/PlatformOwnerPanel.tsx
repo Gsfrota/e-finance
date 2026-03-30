@@ -265,7 +265,7 @@ const TenantDetailOverlay: React.FC<TenantDetailOverlayProps> = ({ tenant, onClo
                   </div>
                   <div className="shrink-0 text-right">
                     <div className="text-xs font-bold text-[color:var(--text-primary)]">{fmtCurrency(c.amount_invested)}</div>
-                    <div className="text-[0.65rem] text-[color:var(--text-faint)]">{c.current_installment}/{c.total_installments} parc.</div>
+                    <div className="text-[0.65rem] text-[color:var(--text-faint)]">{c.paid_count}/{c.total_installments} parc.</div>
                   </div>
                   <span className={`shrink-0 text-[0.65rem] font-semibold px-2 py-0.5 rounded-full ${CONTRACT_STATUS_COLOR[c.status] ?? 'bg-slate-700/60 text-slate-300'}`}>
                     {CONTRACT_STATUS_LABEL[c.status] ?? c.status}
