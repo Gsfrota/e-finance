@@ -18,6 +18,7 @@ import {
   RefreshCw,
   CreditCard,
   Activity,
+  ChevronRight,
 } from 'lucide-react';
 import { useAdminMetrics } from '../hooks/useAdminMetrics';
 import { usePlatformContractDetail } from '../hooks/usePlatformContractDetail';
@@ -188,7 +189,7 @@ const TenantDetailOverlay: React.FC<TenantDetailOverlayProps> = ({ tenant, onClo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
-      <div className="panel-card rounded-[2rem] w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+      <div className={`panel-card rounded-[2rem] w-full flex flex-col overflow-hidden transition-all duration-300 ${selectedContractId !== null ? 'max-w-5xl max-h-[95vh]' : 'max-w-2xl max-h-[85vh]'}`}>
         {/* Header */}
         <div className="px-6 py-5 border-b border-white/[0.06] flex items-start justify-between gap-4">
           <div>
@@ -209,31 +210,43 @@ const TenantDetailOverlay: React.FC<TenantDetailOverlayProps> = ({ tenant, onClo
           </button>
         </div>
 
-        {/* Tenant meta */}
-        <div className="px-6 py-4 border-b border-white/[0.06] flex items-center gap-4 flex-wrap">
-          <PlanBadge plan={tenant.plan} />
-          <StatusBadge status={tenant.plan_status} />
-          <span className="text-[0.72rem] text-[color:var(--text-secondary)]">
-            {tenant.total_users} usuário{tenant.total_users !== 1 ? 's' : ''}
-          </span>
-          <span className="text-[0.72rem] text-[color:var(--text-secondary)]">
-            Criado em {formatDate(tenant.created_at)}
-          </span>
-        </div>
+        {/* Tenant meta — oculto quando contrato aberto */}
+        {selectedContractId === null && (
+          <div className="px-6 py-4 border-b border-white/[0.06] flex items-center gap-4 flex-wrap">
+            <PlanBadge plan={tenant.plan} />
+            <StatusBadge status={tenant.plan_status} />
+            <span className="text-[0.72rem] text-[color:var(--text-secondary)]">
+              {tenant.total_users} usuário{tenant.total_users !== 1 ? 's' : ''}
+            </span>
+            <span className="text-[0.72rem] text-[color:var(--text-secondary)]">
+              Criado em {formatDate(tenant.created_at)}
+            </span>
+          </div>
+        )}
 
-        {/* Tabs */}
-        <div className="px-6 pt-3 pb-0 border-b border-white/[0.06] flex gap-1">
-          <button onClick={() => setActiveTab('profiles')} className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${activeTab === 'profiles' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}>
-            <Users size={12} className="inline mr-1.5" />Usuários ({profiles.length || tenant.total_users})
-          </button>
-          <button onClick={() => { setActiveTab('contracts'); setSelectedContractId(null); loadContracts(); }} className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${activeTab === 'contracts' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}>
-            <CreditCard size={12} className="inline mr-1.5" />Contratos {contracts.length > 0 ? `(${contracts.length})` : ''}
-          </button>
-        </div>
+        {/* Tabs — ocultas quando contrato aberto; breadcrumb de navegação no lugar */}
+        {selectedContractId === null ? (
+          <div className="px-6 pt-3 pb-0 border-b border-white/[0.06] flex gap-1">
+            <button onClick={() => setActiveTab('profiles')} className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${activeTab === 'profiles' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}>
+              <Users size={12} className="inline mr-1.5" />Usuários ({profiles.length || tenant.total_users})
+            </button>
+            <button onClick={() => { setActiveTab('contracts'); setSelectedContractId(null); loadContracts(); }} className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${activeTab === 'contracts' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}>
+              <CreditCard size={12} className="inline mr-1.5" />Contratos {contracts.length > 0 ? `(${contracts.length})` : ''}
+            </button>
+          </div>
+        ) : (
+          <div className="px-6 py-2.5 border-b border-white/[0.06] flex items-center gap-2 text-xs">
+            <button onClick={() => setSelectedContractId(null)} className="text-[color:var(--text-muted)] hover:text-teal-400 transition-colors">
+              Contratos
+            </button>
+            <ChevronRight size={12} className="text-[color:var(--text-faint)]" />
+            <span className="text-[color:var(--text-secondary)]">Detalhe do contrato</span>
+          </div>
+        )}
 
         {/* Content */}
         {selectedContractId !== null ? (
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
             <PlatformContractDetailView contractId={selectedContractId} onBack={() => setSelectedContractId(null)} />
           </div>
         ) : activeTab === 'contracts' ? (
