@@ -18,8 +18,12 @@ import { runPolicyCheck } from './policy-engine';
 import { getWorkingState } from './working-state-store';
 import type {
   ActionPlan,
+  CapabilityExecuteResult,
+  CapabilityResolveResult,
+  CapabilityRuntimeContext,
   ConversationWorkingState,
   ResolvedTimeWindow,
+  StructuredResponse,
   ToolExecutionResult,
 } from './contracts';
 import type { Session } from '../session/session-manager';
@@ -28,10 +32,13 @@ interface ToolExecutorContext {
   session: Session;
   tenantId: string;
   profileId: string;
-  role: string;
+  role: 'admin' | 'investor' | 'debtor';
   requestId: string;
   channel: 'telegram' | 'whatsapp';
+  rawText: string;
   confirmed?: boolean;
+  idempotencyKey?: string;
+  confirmationId?: string;
 }
 
 interface ToolExecutorDeps {
@@ -134,9 +141,17 @@ function buildStatePatch(
   extra: Partial<ConversationWorkingState> = {},
 ): Partial<ConversationWorkingState> {
   return {
+    lastUserIntent: plan.intent,
+    lastCapability: plan.capability,
     lastAction: plan.capability,
     pendingCapability: plan.capability,
-    pendingMissingFields: plan.missingFields,
+    missingSlots: [...plan.missingArgs],
+    pendingMissingFields: [...plan.missingFields],
+    lastResolution: {
+      source: plan.source,
+      confidence: plan.confidence,
+      evidence: [...plan.evidence],
+    },
     ...extra,
   };
 }
@@ -151,11 +166,291 @@ function withActiveCompanyLabel(message: string, activeCompanyLabel?: string): s
   return `🏢 Empresa ativa: *${activeCompanyLabel}*\n\n${message}`;
 }
 
+function structuredResponseToText(response: StructuredResponse): string {
+  const lines = [response.title, ...response.facts];
+  if (response.nextActions?.length) {
+    lines.push(...response.nextActions);
+  }
+  return lines.filter(Boolean).join('\n');
+}
+
+function mergeStatePatch(
+  plan: ActionPlan,
+  ...patches: Array<Partial<ConversationWorkingState> | undefined>
+): Partial<ConversationWorkingState> {
+  return patches.reduce(
+    (acc, patch) => ({ ...acc, ...(patch || {}) }),
+    buildStatePatch(plan),
+  );
+}
+
+function isReplayMutation(
+  state: ConversationWorkingState,
+  capability: ActionPlan['capability'],
+  idempotencyKey?: string,
+  confirmationId?: string,
+): boolean {
+  if (!state.lastMutation) return false;
+  if (state.lastMutation.capability !== capability) return false;
+  if (idempotencyKey && state.lastMutation.idempotencyKey === idempotencyKey) return true;
+  if (confirmationId && state.lastMutation.confirmationId === confirmationId) return true;
+  return false;
+}
+
+function buildCapabilityRuntimeContext(
+  context: ToolExecutorContext,
+  workingState: ConversationWorkingState,
+): CapabilityRuntimeContext {
+  return {
+    session: context.session,
+    tenantId: context.tenantId,
+    profileId: context.profileId,
+    role: context.role,
+    requestId: context.requestId,
+    channel: context.channel,
+    rawText: context.rawText,
+    confirmed: context.confirmed,
+    idempotencyKey: context.idempotencyKey,
+    confirmationId: context.confirmationId,
+    workingState,
+  };
+}
+
+async function executeRegistryCapability(
+  plan: ActionPlan,
+  context: ToolExecutorContext,
+): Promise<ToolExecutionResult | null> {
+  const definition = getCapabilityDefinition(plan.capability);
+  if (!definition.resolve && !definition.execute) {
+    return null;
+  }
+
+  const parsedInput = definition.inputSchema.safeParse(plan.args);
+  if (!parsedInput.success) {
+    return {
+      status: 'needs_clarification',
+      safeUserMessage: plan.userFacingQuestion || 'Ainda faltam dados para eu executar essa ação com segurança.',
+      audit: {
+        requestId: context.requestId,
+        capability: plan.capability,
+        tenantId: context.tenantId,
+        confirmed: !!context.confirmed,
+        executor: 'tool-executor',
+      },
+      workingStatePatch: buildStatePatch(plan),
+    };
+  }
+
+  const workingState = getWorkingState(context.session.context);
+  const runtimeContext = buildCapabilityRuntimeContext(context, workingState);
+
+  let resolvedInput = parsedInput.data as Record<string, unknown>;
+  let resolvePatch: Partial<ConversationWorkingState> | undefined;
+  let confirmationPreview = plan.userFacingQuestion;
+
+  if (definition.resolve) {
+    const resolveResult = await definition.resolve(runtimeContext, parsedInput.data as never) as CapabilityResolveResult<Record<string, unknown>>;
+    if (resolveResult.status !== 'ready') {
+      return {
+        status: resolveResult.status === 'error' ? 'error' : 'needs_clarification',
+        safeUserMessage: resolveResult.safeUserMessage,
+        structuredResponse: resolveResult.structuredResponse,
+        audit: {
+          requestId: context.requestId,
+          capability: plan.capability,
+          tenantId: context.tenantId,
+          confirmed: !!context.confirmed,
+          executor: 'capability-resolve',
+        },
+        workingStatePatch: mergeStatePatch(plan, resolveResult.workingStatePatch),
+      };
+    }
+
+    resolvedInput = resolveResult.input as Record<string, unknown>;
+    resolvePatch = resolveResult.workingStatePatch;
+    confirmationPreview = resolveResult.confirmationPreview || confirmationPreview;
+  }
+
+  const policy = runPolicyCheck({
+    tenantId: context.tenantId,
+    profileId: context.profileId,
+    role: context.role,
+    requestId: context.requestId,
+    channel: context.channel,
+    capability: plan.capability,
+    args: resolvedInput,
+    confirmed: context.confirmed,
+    idempotencyKey: context.idempotencyKey,
+  });
+
+  if (!policy.allowed) {
+    return {
+      status: 'forbidden',
+      safeUserMessage: 'Essa ação não está disponível para o seu perfil neste chat.',
+      audit: {
+        requestId: context.requestId,
+        capability: plan.capability,
+        tenantId: context.tenantId,
+        confirmed: !!context.confirmed,
+        executor: 'policy-engine',
+      },
+      workingStatePatch: mergeStatePatch(plan, resolvePatch),
+    };
+  }
+
+  if (policy.requiresConfirmation) {
+    const confirmation = await createPendingConfirmation(
+      context.session,
+      plan.capability,
+      resolvedInput,
+      confirmationPreview || `Confirma a ação ${plan.capability}?`,
+    );
+
+    return {
+      status: 'needs_confirmation',
+      safeUserMessage: confirmation.safeUserMessage,
+      audit: {
+        requestId: context.requestId,
+        capability: plan.capability,
+        tenantId: context.tenantId,
+        confirmed: false,
+        executor: 'confirmation-store',
+      },
+      workingStatePatch: mergeStatePatch(plan, resolvePatch, {
+        pendingOperationInput: resolvedInput,
+      }),
+    };
+  }
+
+  if (context.confirmed && isReplayMutation(workingState, plan.capability, policy.idempotencyKey, context.confirmationId)) {
+    const structuredResponse = {
+      status: 'ok' as const,
+      title: 'Essa ação já foi executada neste chat.',
+      facts: [],
+      safePreview: 'Essa ação já foi executada neste chat.',
+    };
+    return {
+      status: 'ok',
+      safeUserMessage: structuredResponse.title,
+      structuredResponse,
+      audit: {
+        requestId: context.requestId,
+        capability: plan.capability,
+        tenantId: context.tenantId,
+        confirmed: true,
+        executor: 'idempotency-guard',
+      },
+      workingStatePatch: mergeStatePatch(plan, resolvePatch),
+    };
+  }
+
+  try {
+    if (definition.authorize) {
+      await definition.authorize(
+        buildCapabilityRuntimeContext(context, getWorkingState(context.session.context)),
+        resolvedInput as never,
+      );
+    }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    const blocked = reason === 'role_forbidden' || reason === 'missing_tenant' || reason === 'missing_profile';
+    return {
+      status: blocked ? 'forbidden' : 'error',
+      safeUserMessage: blocked
+        ? 'Essa ação não está disponível para o seu perfil neste chat.'
+        : 'Não consegui validar essa ação agora.',
+      audit: {
+        requestId: context.requestId,
+        capability: plan.capability,
+        tenantId: context.tenantId,
+        confirmed: !!context.confirmed,
+        executor: 'capability-authorize',
+      },
+      workingStatePatch: mergeStatePatch(plan, resolvePatch),
+    };
+  }
+
+  if (!definition.execute) {
+    return null;
+  }
+
+  const executionResult = await definition.execute(
+    buildCapabilityRuntimeContext(context, getWorkingState(context.session.context)),
+    resolvedInput as never,
+  ) as CapabilityExecuteResult<unknown> | unknown;
+
+  if (
+    executionResult
+    && typeof executionResult === 'object'
+    && 'status' in executionResult
+    && executionResult.status !== 'ok'
+  ) {
+    const controlledResult = executionResult as Extract<CapabilityExecuteResult<unknown>, { status: 'needs_clarification' | 'error' }>;
+    return {
+      status: controlledResult.status === 'error' ? 'error' : 'needs_clarification',
+      safeUserMessage: controlledResult.safeUserMessage,
+      structuredResponse: controlledResult.structuredResponse,
+      audit: {
+        requestId: context.requestId,
+        capability: plan.capability,
+        tenantId: context.tenantId,
+        confirmed: !!context.confirmed,
+        executor: 'capability-execute',
+      },
+      workingStatePatch: mergeStatePatch(plan, resolvePatch, controlledResult.workingStatePatch),
+    };
+  }
+
+  const controlledSuccess = (
+    executionResult
+    && typeof executionResult === 'object'
+    && 'status' in executionResult
+    && executionResult.status === 'ok'
+  ) ? executionResult as Extract<CapabilityExecuteResult<unknown>, { status: 'ok' }> : null;
+
+  const output = controlledSuccess ? controlledSuccess.output : executionResult;
+  const structuredResponse = definition.formatResult
+    ? definition.formatResult(output as never, buildCapabilityRuntimeContext(context, getWorkingState(context.session.context)), resolvedInput as never)
+    : undefined;
+  const successPatch = controlledSuccess?.workingStatePatch;
+
+  return {
+    status: 'ok',
+    safeUserMessage: structuredResponse ? structuredResponseToText(structuredResponse) : 'Ação concluída.',
+    structuredResponse,
+    audit: {
+      requestId: context.requestId,
+      capability: plan.capability,
+      tenantId: context.tenantId,
+      confirmed: !!context.confirmed,
+      executor: 'capability-runtime',
+    },
+    workingStatePatch: mergeStatePatch(plan, resolvePatch, successPatch, {
+      pendingCapability: undefined,
+      pendingMissingFields: [],
+      missingSlots: [],
+      lastMutation: definition.kind === 'mutation'
+        ? {
+            capability: plan.capability,
+            idempotencyKey: policy.idempotencyKey,
+            completedAt: new Date().toISOString(),
+            confirmationId: context.confirmationId,
+          }
+        : undefined,
+    }),
+  };
+}
+
 export async function executeActionPlan(
   plan: ActionPlan,
   context: ToolExecutorContext,
   deps: ToolExecutorDeps,
 ): Promise<ToolExecutionResult> {
+  const registryExecution = await executeRegistryCapability(plan, context);
+  if (registryExecution) {
+    return registryExecution;
+  }
+
   const activeCompany = getActiveAdminCompany(context.session, context.role);
   const activeCompanyId = activeCompany?.id;
   const activeCompanyLabel = activeCompany?.label;
@@ -434,9 +729,11 @@ export async function executeActionPlan(
           executor: 'tool-executor',
         },
         workingStatePatch: buildStatePatch(plan, {
+          candidateSets: { debtors: candidates },
           lastDebtorCandidates: candidates,
           pendingCapability: 'query_debtor_balance',
           pendingMissingFields: ['debtor_choice'],
+          missingSlots: ['debtor_choice'],
         }),
       };
     }
@@ -454,10 +751,13 @@ export async function executeActionPlan(
         executor: 'tool-executor',
       },
       workingStatePatch: buildStatePatch(plan, {
+        focusedEntity: { type: 'debtor', id: selected.id, label: selected.label },
         lastEntity: { type: 'debtor', id: selected.id, label: selected.label },
+        candidateSets: { debtors: candidates },
         lastDebtorCandidates: candidates,
         pendingCapability: undefined,
         pendingMissingFields: [],
+        missingSlots: [],
       }),
     };
   }
@@ -621,18 +921,18 @@ export async function executeActionPlan(
   }
 
   if (plan.capability === 'help') {
-    const reply = await deps.executeLegacyIntent(getCapabilityDefinition('help').legacyIntent!, {});
+    const safeUserMessage = 'Posso te ajudar com dashboard, recebíveis, cobranças do dia e por período, busca de cliente, criação de contrato, baixa de pagamento, relatório, convite e desconexão do bot.';
     return {
       status: 'ok',
-      safeUserMessage: reply,
+      safeUserMessage,
       audit: {
         requestId: context.requestId,
         capability: plan.capability,
         tenantId: context.tenantId,
         confirmed: false,
-        executor: 'legacy-dispatch',
+        executor: 'tool-executor',
       },
-      workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [] }),
+      workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [], missingSlots: [] }),
     };
   }
 

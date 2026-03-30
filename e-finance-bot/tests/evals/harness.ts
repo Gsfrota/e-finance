@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => ({
   disconnectBot: vi.fn(),
   getContractOpenInstallments: vi.fn(),
   getContractOpenInstallmentByNumber: vi.fn(),
+  getContractOpenInstallmentByMonth: vi.fn(),
   getInstallmentByDebtorAndMonth: vi.fn(),
   listCompaniesByTenant: vi.fn(),
 
@@ -102,6 +103,7 @@ vi.mock('../../src/actions/admin-actions', () => ({
   disconnectBot: mocks.disconnectBot,
   getContractOpenInstallments: mocks.getContractOpenInstallments,
   getContractOpenInstallmentByNumber: mocks.getContractOpenInstallmentByNumber,
+  getContractOpenInstallmentByMonth: mocks.getContractOpenInstallmentByMonth,
   getInstallmentByDebtorAndMonth: mocks.getInstallmentByDebtorAndMonth,
   listCompaniesByTenant: mocks.listCompaniesByTenant,
   normalizeCpf: (value?: string | null) => {
@@ -283,6 +285,15 @@ function applyDefaults(state: AgentEvalHarnessState) {
     hasMore: false,
   });
   mocks.getContractOpenInstallmentByNumber.mockResolvedValue({
+    id: 'inst-2',
+    number: 2,
+    contractId: 123,
+    debtorName: 'Carlos',
+    amount: 900,
+    dueDate: '2026-04-10',
+    status: 'pending',
+  });
+  mocks.getContractOpenInstallmentByMonth.mockResolvedValue({
     id: 'inst-2',
     number: 2,
     contractId: 123,

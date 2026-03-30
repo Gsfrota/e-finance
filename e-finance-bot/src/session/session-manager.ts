@@ -1,7 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../config';
 import { logStructuredMessage } from '../observability/logger';
-import type { ConversationWorkingState } from '../assistant/contracts';
+import type { ConversationWorkingState, WorkingStateV2 } from '../assistant/contracts';
 
 let _supabase: SupabaseClient | null = null;
 function db(): SupabaseClient {
@@ -37,6 +37,7 @@ export interface SessionContext {
   pendingActionAt?: string;
   lastIntent?: string;
   workingState?: ConversationWorkingState;
+  workingStateV2?: WorkingStateV2;
 }
 
 export interface Session {

@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   disconnectBot: vi.fn(),
   getContractOpenInstallments: vi.fn(),
   getContractOpenInstallmentByNumber: vi.fn(),
+  getContractOpenInstallmentByMonth: vi.fn(),
   getInstallmentByDebtorAndMonth: vi.fn(),
   listCompaniesByTenant: vi.fn(),
 
@@ -86,6 +87,7 @@ vi.mock('../src/actions/admin-actions', () => ({
   disconnectBot: mocks.disconnectBot,
   getContractOpenInstallments: mocks.getContractOpenInstallments,
   getContractOpenInstallmentByNumber: mocks.getContractOpenInstallmentByNumber,
+  getContractOpenInstallmentByMonth: mocks.getContractOpenInstallmentByMonth,
   getInstallmentByDebtorAndMonth: mocks.getInstallmentByDebtorAndMonth,
   listCompaniesByTenant: mocks.listCompaniesByTenant,
   normalizeCpf: (value?: string | null) => {
@@ -254,6 +256,15 @@ beforeEach(() => {
     dueDate: '2026-04-10',
     status: 'pending',
   });
+  mocks.getContractOpenInstallmentByMonth.mockResolvedValue({
+    id: 'inst-2',
+    number: 2,
+    contractId: 123,
+    debtorName: 'Carlos',
+    amount: 900,
+    dueDate: '2026-04-10',
+    status: 'pending',
+  });
   mocks.getInstallmentByDebtorAndMonth.mockResolvedValue(null);
   mocks.transcribeAudioDetailed.mockResolvedValue({
     text: 'audio transcrito',
@@ -286,7 +297,7 @@ describe('handleMessage', () => {
     expect(mocks.getDashboardSummary).not.toHaveBeenCalled();
   });
 
-  it('fluxo criar contrato exige CPF quando não veio nas entidades', async () => {
+  it('fluxo create_contract exige CPF sem criar pendingAction legado', async () => {
     mocks.routeIntent.mockResolvedValue({
       intent: 'criar_contrato',
       entities: {},
@@ -310,13 +321,19 @@ describe('handleMessage', () => {
     });
 
     expect(out.text).toContain('CPF do devedor');
-    expect(mocks.updateSessionContext).toHaveBeenCalledWith(
-      'session-1',
-      expect.objectContaining({ pendingAction: 'criar_contrato', pendingStep: 11 })
-    );
+    const updatedContext = mocks.updateSessionContext.mock.calls.at(-1)?.[1] as any;
+    expect(updatedContext.pendingAction).toBeUndefined();
+    expect(updatedContext.workingStateV2 || updatedContext.workingState).toEqual(expect.objectContaining({
+      pendingCapability: 'create_contract',
+      pendingMissingFields: ['debtor_cpf'],
+      pendingOperationInput: expect.objectContaining({
+        debtor_name: 'João Silva',
+        amount: 5000,
+      }),
+    }));
   });
 
-  it('entra na confirmação de contrato quando entidades completas incluem CPF', async () => {
+  it('entra na confirmação de contrato sem criar pendingAction legado', async () => {
     mocks.routeIntent.mockResolvedValue({
       intent: 'criar_contrato',
       entities: {},
@@ -341,25 +358,34 @@ describe('handleMessage', () => {
       text: 'cria contrato',
     });
 
-    expect(out.text).toContain('Confirma?');
-    expect(mocks.updateSessionContext).toHaveBeenCalledWith(
-      'session-1',
-      expect.objectContaining({ pendingAction: 'criar_contrato', pendingStep: 2 })
-    );
+    expect(out.text).toContain('Resumo do Contrato');
+    expect(out.text).toContain('responda *sim*');
+    const updatedContext = mocks.updateSessionContext.mock.calls.at(-1)?.[1] as any;
+    expect(updatedContext.pendingAction).toBeUndefined();
+    expect(updatedContext.workingStateV2 || updatedContext.workingState).toEqual(expect.objectContaining({
+      pendingCapability: 'create_contract',
+      pendingConfirmation: expect.anything(),
+      pendingOperationInput: expect.objectContaining({
+        debtor_name: 'João Silva',
+        debtor_cpf: '52998224725',
+      }),
+    }));
   });
 
-  it('captura CPF em step 11 e avança para confirmação', async () => {
+  it('continua create_contract via WorkingStateV2 e avança para confirmação', async () => {
     mocks.getOrCreateSession.mockResolvedValue(buildAdminSession({
       context: {
-        pendingAction: 'criar_contrato',
-        pendingStep: 11,
-        pendingData: {
-          debtor_name: 'Maria',
-          amount: 3000,
-          rate: 2,
-          installments: 6,
-          frequency: 'monthly',
-          due_day: 10,
+        workingStateV2: {
+          version: 2,
+          pendingCapability: 'create_contract',
+          pendingOperationInput: {
+            debtor_name: 'Maria',
+            amount: 3000,
+            rate: 2,
+            installments: 6,
+            frequency: 'monthly',
+            due_day: 10,
+          },
         },
       },
     }));
@@ -372,39 +398,49 @@ describe('handleMessage', () => {
       text: 'CPF 529.982.247-25',
     });
 
-    expect(out.text).toContain('Confirma?');
-    expect(mocks.updateSessionContext).toHaveBeenCalledWith(
-      'session-1',
-      expect.objectContaining({
-        pendingAction: 'criar_contrato',
-        pendingStep: 2,
-        pendingData: expect.objectContaining({ debtor_cpf: '52998224725' }),
-      })
-    );
+    expect(out.text).toContain('Resumo do Contrato');
+    expect(out.text).toContain('responda *sim*');
+    const updatedContext = mocks.updateSessionContext.mock.calls.at(-1)?.[1] as any;
+    expect(updatedContext.pendingAction).toBeUndefined();
+    expect(updatedContext.workingStateV2 || updatedContext.workingState).toEqual(expect.objectContaining({
+      pendingCapability: 'create_contract',
+      pendingConfirmation: expect.anything(),
+      pendingOperationInput: expect.objectContaining({ debtor_cpf: '52998224725' }),
+    }));
   });
 
-  it('quando há conflito CPF/nome entra no estado resolver_nome_cpf', async () => {
+  it('rejeita confirmação expirada de create_contract sem executar mutação', async () => {
+    mocks.routeIntent.mockResolvedValue({
+      intent: 'confirmar',
+      entities: {},
+      normalizedEntities: {},
+      confidence: 'high',
+      source: 'rule',
+    });
+
     mocks.getOrCreateSession.mockResolvedValue(buildAdminSession({
       context: {
-        pendingAction: 'criar_contrato',
-        pendingStep: 2,
-        pendingData: {
-          debtor_name: 'Novo Nome',
-          debtor_cpf: '52998224725',
-          amount: 3000,
-          rate: 2,
-          installments: 6,
-          frequency: 'monthly',
+        workingStateV2: {
+          version: 2,
+          pendingCapability: 'create_contract',
+          pendingConfirmation: {
+            confirmationId: 'create_contract:1',
+            capability: 'create_contract',
+            expiresAt: new Date(Date.now() - 60_000).toISOString(),
+            idempotencyKey: 'session:create_contract:expired',
+            argsSnapshot: {
+              debtor_name: 'Novo Nome',
+              debtor_cpf: '52998224725',
+              amount: 3000,
+              rate: 2,
+              installments: 6,
+              frequency: 'monthly',
+            },
+            safePreview: 'preview',
+          },
         },
       },
     }));
-
-    mocks.createContract.mockResolvedValueOnce({
-      status: 'conflict_name',
-      debtorCpf: '52998224725',
-      existingName: 'Nome Antigo',
-      requestedName: 'Novo Nome',
-    });
 
     const out = await handleMessage({
       messageId: 'm-conflict',
@@ -414,56 +450,45 @@ describe('handleMessage', () => {
       text: 'sim',
     });
 
-    expect(out.text).toContain('CPF já cadastrado');
-    expect(out.text).toContain('Usar nome cadastrado');
-    expect(mocks.updateSessionContext).toHaveBeenCalledWith(
-      'session-1',
-      expect.objectContaining({ pendingAction: 'resolver_nome_cpf', pendingStep: 1 })
-    );
+    expect(out.text).toContain('Não há uma confirmação pendente agora');
+    expect(mocks.createContract).not.toHaveBeenCalled();
   });
 
-  it('em falha transitória ao criar contrato mantém contexto e oferece retry', async () => {
+  it('aguarda sim ou não em confirmação pendente de mark_installment_paid', async () => {
     mocks.getOrCreateSession.mockResolvedValue(buildAdminSession({
       context: {
-        pendingAction: 'criar_contrato',
-        pendingStep: 2,
-        pendingData: {
-          debtor_name: 'Novo Nome',
-          debtor_cpf: '52998224725',
-          amount: 3000,
-          rate: 2,
-          installments: 6,
-          frequency: 'monthly',
+        workingStateV2: {
+          version: 2,
+          pendingCapability: 'mark_installment_paid',
+          pendingConfirmation: {
+            confirmationId: 'mark_installment_paid:1',
+            capability: 'mark_installment_paid',
+            expiresAt: new Date(Date.now() + 60_000).toISOString(),
+            idempotencyKey: 'session:mark_installment_paid:1',
+            argsSnapshot: {
+              contract_id: 123,
+              installment_number: 2,
+              installment_id: 'inst-2',
+            },
+            safePreview: 'Confirma a baixa desta parcela?',
+          },
         },
       },
     }));
-
-    mocks.createContract.mockResolvedValueOnce({
-      status: 'error',
-      reason: 'rpc_failed',
-    });
 
     const out = await handleMessage({
       messageId: 'm-retry-contract',
       channel: 'telegram',
       channelUserId: 'chat-1',
       senderName: 'User',
-      text: 'sim',
+      text: 'talvez',
     });
 
-    expect(out.text).toContain('Falhou por instabilidade');
-    expect(mocks.updateSessionContext).toHaveBeenCalledWith(
-      'session-1',
-      expect.objectContaining({
-        pendingAction: 'criar_contrato',
-        pendingStep: 2,
-        pendingData: expect.objectContaining({ retryCount: 1 }),
-      })
-    );
-    expect(mocks.clearSessionContext).not.toHaveBeenCalled();
+    expect(out.text).toContain('Se quiser seguir, responda *sim*');
+    expect(mocks.markInstallmentPaid).not.toHaveBeenCalled();
   });
 
-  it('baixar contrato com parcela explícita vai direto para confirmação', async () => {
+  it('baixar contrato com parcela explícita vai para confirmação sem pendingAction legado', async () => {
     mocks.routeIntent.mockResolvedValue({
       intent: 'marcar_pagamento',
       entities: {},
@@ -484,10 +509,15 @@ describe('handleMessage', () => {
     });
 
     expect(out.text).toContain('Confirma a baixa desta parcela?');
-    expect(mocks.updateSessionContext).toHaveBeenCalledWith(
-      'session-1',
-      expect.objectContaining({ pendingAction: 'marcar_pagamento_contrato', pendingStep: 2 })
-    );
+    const updatedContext = mocks.updateSessionContext.mock.calls.at(-1)?.[1] as any;
+    expect(updatedContext.pendingAction).toBeUndefined();
+    expect(updatedContext.workingStateV2 || updatedContext.workingState).toEqual(expect.objectContaining({
+      pendingCapability: 'mark_installment_paid',
+      pendingConfirmation: expect.anything(),
+      candidateSets: expect.objectContaining({
+        installments: expect.any(Array),
+      }),
+    }));
   });
 
   it('fluxo mostrar mais em baixa por contrato mantém paginação', async () => {
@@ -797,13 +827,12 @@ describe('handleMessage', () => {
 
     expect(out.text).toContain('Entendi do áudio');
     expect(out.text).toContain('Confirma a baixa desta parcela?');
-    expect(mocks.updateSessionContext).toHaveBeenCalledWith(
-      'session-1',
-      expect.objectContaining({
-        pendingAction: 'marcar_pagamento_por_mes',
-        pendingStep: 2,
-      })
-    );
+    const updatedContext = mocks.updateSessionContext.mock.calls.at(-1)?.[1] as any;
+    expect(updatedContext.pendingAction).toBeUndefined();
+    expect(updatedContext.workingStateV2 || updatedContext.workingState).toEqual(expect.objectContaining({
+      pendingCapability: 'mark_installment_paid',
+      pendingConfirmation: expect.anything(),
+    }));
   });
   it('responde recebíveis por janela com total previsto', async () => {
     mocks.routeIntent.mockResolvedValue({

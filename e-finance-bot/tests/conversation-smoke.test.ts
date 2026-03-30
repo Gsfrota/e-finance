@@ -335,7 +335,8 @@ describe('conversation smoke (falando com o bot)', () => {
     expect(r4).toContain('dia do mês');
 
     const r5 = await ask('10', 'smk-5');
-    expect(r5).toContain('Confirma?');
+    expect(r5).toContain('Resumo do Contrato');
+    expect(r5).toContain('responda *sim*');
 
     const r6 = await ask('sim', 'smk-6');
     expect(r6).toContain('Contrato #123');

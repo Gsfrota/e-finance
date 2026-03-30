@@ -2,11 +2,12 @@ import type { ConversationWorkingState } from './contracts';
 import type { Session, SessionContext } from '../session/session-manager';
 import { config } from '../config';
 import { updateSessionContext } from '../session/session-manager';
+import { mirrorWorkingStateToContext, normalizeWorkingState } from './legacy-state-adapter';
 
-const EMPTY_STATE: ConversationWorkingState = {};
+const EMPTY_STATE: ConversationWorkingState = { version: 2 };
 
 function cloneState(state?: ConversationWorkingState | null): ConversationWorkingState {
-  return state ? { ...state } : { ...EMPTY_STATE };
+  return state ? structuredClone(state) : structuredClone(EMPTY_STATE);
 }
 
 function isExpired(state: ConversationWorkingState): boolean {
@@ -19,13 +20,15 @@ function isExpired(state: ConversationWorkingState): boolean {
 function withTimestamp(state: ConversationWorkingState): ConversationWorkingState {
   return {
     ...state,
+    version: 2,
     updatedAt: new Date().toISOString(),
+    turnId: state.turnId || `${Date.now()}`,
   };
 }
 
 export function getWorkingState(context?: SessionContext | null): ConversationWorkingState {
-  const state = cloneState(context?.workingState);
-  if (isExpired(state)) return {};
+  const state = cloneState(normalizeWorkingState(context));
+  if (isExpired(state)) return { version: 2 };
 
   if (state.pendingConfirmation?.expiresAt) {
     const expiresAt = new Date(state.pendingConfirmation.expiresAt).getTime();
@@ -34,6 +37,9 @@ export function getWorkingState(context?: SessionContext | null): ConversationWo
       delete state.pendingConfirmation;
       if (state.pendingCapability === expiredCapability) {
         delete state.pendingCapability;
+      }
+      if (state.missingSlots?.length) {
+        state.pendingMissingFields = [...state.missingSlots];
       }
     }
   }
@@ -45,10 +51,7 @@ export function buildContextWithWorkingState(
   context: SessionContext,
   nextState: ConversationWorkingState,
 ): SessionContext {
-  return {
-    ...context,
-    workingState: withTimestamp(nextState),
-  };
+  return mirrorWorkingStateToContext(context, withTimestamp(nextState));
 }
 
 export async function patchWorkingState(
@@ -62,9 +65,8 @@ export async function patchWorkingState(
     ...patch,
   });
   const nextContext = {
-    ...session.context,
+    ...mirrorWorkingStateToContext(session.context, next),
     ...extraContext,
-    workingState: next,
   };
   await updateSessionContext(session.id, nextContext);
   session.context = nextContext;
@@ -77,9 +79,8 @@ export async function replaceWorkingState(
   extraContext: Partial<SessionContext> = {},
 ): Promise<SessionContext> {
   const nextContext = {
-    ...session.context,
+    ...mirrorWorkingStateToContext(session.context, withTimestamp(nextState)),
     ...extraContext,
-    workingState: withTimestamp(nextState),
   };
   await updateSessionContext(session.id, nextContext);
   session.context = nextContext;
@@ -90,5 +91,5 @@ export async function clearWorkingState(
   session: Session,
   extraContext: Partial<SessionContext> = {},
 ): Promise<SessionContext> {
-  return replaceWorkingState(session, {}, extraContext);
+  return replaceWorkingState(session, { version: 2 }, extraContext);
 }

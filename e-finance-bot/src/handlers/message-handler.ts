@@ -27,11 +27,12 @@ import { getBotTenantConfig, checkWhitelistBlock } from '../actions/bot-config-a
 import { understandCommand } from '../assistant/command-understanding';
 import { createActionPlan } from '../assistant/action-planner';
 import { resolveFollowup } from '../assistant/followup-resolver';
+import { buildContextPack, resolveReferences } from '../assistant/reference-resolver';
 import { getWorkingState, patchWorkingState } from '../assistant/working-state-store';
 import { clearPendingConfirmation, getPendingConfirmationState, parseConfirmationReply } from '../assistant/confirmation-store';
 import { executeActionPlan } from '../assistant/tool-executor';
 import { runPolicyCheck } from '../assistant/policy-engine';
-import type { ActionPlan, CommandUnderstanding } from '../assistant/contracts';
+import type { ActionPlan, CommandUnderstanding, StructuredResponse } from '../assistant/contracts';
 import { formatCobrancaList, formatReceivablesList, formatComprovante, formatRelatorioCompleto, formatContractConfirmationMessage, formatContractCreatedMessage } from '../tools/formatters';
 
 export interface IncomingMessage {
@@ -89,6 +90,7 @@ function shouldPrependAudioPreview(response: string): boolean {
   return /^Vou criar o seguinte contrato:/i.test(response)
     || /^Confirma a baixa desta parcela\?/i.test(response)
     || /Confirma\?\s*\(sim\/n[aã]o\)/i.test(response)
+    || /Se estiver certo, responda \*sim\*/i.test(response)
     || /taxa de juros|CPF do devedor|data da primeira parcela|dia do mês|dia da semana/i.test(response);
 }
 
@@ -862,6 +864,7 @@ const CAPABILITY_LABELS: Record<string, string> = {
 };
 
 function getPlanClarificationMessage(plan: ActionPlan, understanding?: CommandUnderstanding): string | null {
+  if ((plan.decision === 'ask_clarification' || plan.decision === 'reject') && plan.userFacingQuestion) return plan.userFacingQuestion;
   if (plan.ambiguity?.type === 'intent' && plan.ambiguity.candidates.length > 0) {
     const labels = plan.ambiguity.candidates
       .slice(0, 3)
@@ -881,7 +884,7 @@ function getPlanClarificationMessage(plan: ActionPlan, understanding?: CommandUn
     return 'Me diga o período que você quer consultar. Ex.: hoje, amanhã, próximos 7 dias ou próximos 2 meses.';
   }
 
-  if (plan.confidence === 'low') {
+  if (plan.confidenceLabel === 'low') {
     const capabilityLabel = CAPABILITY_LABELS[plan.capability] || 'seguir com essa ação';
     return understanding?.intent === 'desconhecido'
       ? 'Ainda não fechei sua ação com segurança. Me diga em uma frase o que você quer fazer no Juros Certo.'
@@ -893,6 +896,14 @@ function getPlanClarificationMessage(plan: ActionPlan, understanding?: CommandUn
 
 function shouldSkipConversationalLayer(action: string): boolean {
   return action === 'prompt_injection_blocked';
+}
+
+function isPendingOperationCancel(text: string): boolean {
+  return /^(não|nao|cancela|cancelar|para|sair)$/i.test(text.trim());
+}
+
+function isPendingOperationEscape(text: string): boolean {
+  return /cobrar\s+(?:hoje|amanhã|amanha)|quem\s+(?:devo\s+cobrar|me\s+deve|tenho\s+que\s+cobrar)|receb[ií]veis|quanto\s+(?:vou\s+)?receber|dashboard|resumo|ver\s+relat[oó]rio|quem\s+est[aá]\s+atrasad/i.test(text.trim());
 }
 
 export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessage> {
@@ -967,7 +978,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
   const finalize = async (
     text: string,
     patch: Partial<typeof telemetry> = {},
-    opts: { skipLlm?: boolean } = {},
+    opts: { skipLlm?: boolean; structuredResponse?: StructuredResponse } = {},
   ): Promise<OutgoingMessage> => {
     Object.assign(telemetry, patch);
 
@@ -989,6 +1000,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       baseText,
       action: String(telemetry.action || patch.action || 'resposta'),
       result: resultType,
+      structuredResponse: opts.structuredResponse,
     });
     const naturalizeElapsed = Date.now() - naturalizeStartedAt;
     latencyBreakdown.naturalizeMs += naturalizeElapsed;
@@ -1368,7 +1380,8 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
     );
 
     const pendingConfirmation = getPendingConfirmationState(session);
-    if (pendingConfirmation && !session.context.pendingAction) {
+    const legacyPendingAction = session.context.workingStateV2?.legacyPending?.action || session.context.pendingAction;
+    if (pendingConfirmation && !legacyPendingAction) {
       await saveMessageTimed(session.id, 'user', textToProcess, userMediaType, pendingConfirmation.capability);
 
       const confirmationReply = parseConfirmationReply(textToProcess);
@@ -1392,11 +1405,16 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       }
 
       const confirmedPlan: ActionPlan = {
+        decision: 'execute',
+        intent: 'desconhecido',
         capability: pendingConfirmation.capability,
-        confidence: 'high',
+        confidence: 0.95,
+        confidenceLabel: 'high',
         source: 'followup',
         args: pendingConfirmation.argsSnapshot,
+        missingArgs: [],
         missingFields: [],
+        evidence: ['pending_confirmation'],
         dependsOnContext: true,
         requiresConfirmation: false,
       };
@@ -1435,7 +1453,10 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
           role,
           requestId: msg.messageId,
           channel: msg.channel,
+          rawText: textToProcess,
           confirmed: true,
+          idempotencyKey: pendingConfirmation.idempotencyKey,
+          confirmationId: pendingConfirmation.confirmationId,
         },
         { executeLegacyIntent: legacyExecuteIntent }
       ));
@@ -1454,13 +1475,13 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
           : execution.status === 'forbidden'
             ? 'blocked'
             : execution.status === 'ok'
-              ? 'success'
-              : 'clarification',
-      });
+            ? 'success'
+            : 'clarification',
+      }, { structuredResponse: execution.structuredResponse });
     }
 
-    if (session.context.pendingAction) {
-      const pendingActionName = session.context.pendingAction;
+    if (legacyPendingAction) {
+      const pendingActionName = legacyPendingAction;
       await saveMessageTimed(session.id, 'user', textToProcess, userMediaType);
       let pendingResponse = await handlePendingAction(session, textToProcess, tenantId, profileId, msg.messageId);
       if (pendingResponse === null) {
@@ -1471,6 +1492,40 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
         pendingResponse = prependAudioPreview(pendingResponse, audioTranscript?.text);
         await saveMessageTimed(session.id, 'assistant', pendingResponse);
         return finalize(pendingResponse, { action: `pending:${pendingActionName}` }, { skipLlm: true });
+      }
+    }
+
+    if (
+      !pendingConfirmation
+      && !legacyPendingAction
+      && (workingState.pendingCapability === 'create_contract' || workingState.pendingCapability === 'mark_installment_paid')
+    ) {
+      if (isPendingOperationCancel(textToProcess)) {
+        await timed('dbWriteMs', () => patchWorkingState(session, {
+          pendingCapability: undefined,
+          pendingOperationInput: undefined,
+          pendingMissingFields: [],
+          missingSlots: [],
+          candidateSets: undefined,
+          focusedEntity: undefined,
+          legacyPending: undefined,
+        }));
+        const cancelReply = 'Ação cancelada. Pode me pedir outra coisa.';
+        await saveMessageTimed(session.id, 'assistant', cancelReply);
+        return finalize(cancelReply, { action: `cancel:${workingState.pendingCapability}`, result: 'clarification' }, { skipLlm: true });
+      }
+
+      if (isPendingOperationEscape(textToProcess)) {
+        await timed('dbWriteMs', () => patchWorkingState(session, {
+          pendingCapability: undefined,
+          pendingOperationInput: undefined,
+          pendingMissingFields: [],
+          missingSlots: [],
+          candidateSets: undefined,
+          focusedEntity: undefined,
+          legacyPending: undefined,
+        }));
+        workingState = getWorkingState(session.context);
       }
     }
 
@@ -1644,7 +1699,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
 
     if (followupPlan) {
       telemetry.intent = `followup:${followupPlan.capability}`;
-      telemetry.confidence = followupPlan.confidence;
+      telemetry.confidence = followupPlan.confidenceLabel;
       telemetry.routeSource = followupPlan.source;
       telemetry.fallbackReason = 'n/a';
       logStructuredMessage('followup_resolved', {
@@ -1677,7 +1732,21 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
         }),
       }));
 
-      actionPlan = createActionPlan(understanding, textToProcess, role);
+      const referenceResolution = resolveReferences(
+        textToProcess,
+        understanding,
+        workingState,
+        buildContextPack(workingState, role),
+      );
+      understanding = {
+        ...understanding,
+        normalizedEntities: {
+          ...understanding.normalizedEntities,
+          ...referenceResolution.normalizedEntities,
+        },
+      };
+
+      actionPlan = createActionPlan(understanding, textToProcess, role, referenceResolution.evidence);
       telemetry.intent = understanding.intent;
       telemetry.confidence = understanding.confidence;
       telemetry.routeSource = understanding.source;
@@ -1696,7 +1765,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       companyId: workingState.activeCompany?.id,
       companyLabel: workingState.activeCompany?.label,
       capability: actionPlan.capability,
-      confidence: actionPlan.confidence,
+      confidence: actionPlan.confidenceLabel,
       routeSource: actionPlan.source,
       result: actionPlan.missingFields.length > 0 ? 'needs_clarification' : 'ready',
     });
@@ -1753,6 +1822,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
         role,
         requestId: msg.messageId,
         channel: msg.channel,
+        rawText: textToProcess,
         confirmed: false,
       },
       { executeLegacyIntent: legacyExecuteIntent }
@@ -1793,7 +1863,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
     await saveMessageTimed(session.id, 'assistant', response);
 
     // Skip response LLM for high-confidence rule-based plans with structured output
-    const skipResponseLlm = actionPlan.confidence === 'high'
+    const skipResponseLlm = actionPlan.confidenceLabel === 'high'
       && actionPlan.source === 'rule'
       && execution.status === 'ok';
 
@@ -1806,7 +1876,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
           : execution.status === 'ok'
             ? 'success'
             : 'clarification',
-    }, { skipLlm: skipResponseLlm });
+    }, { skipLlm: skipResponseLlm, structuredResponse: execution.structuredResponse });
   } catch (err) {
     console.error('[handleMessage error]', err);
     telemetry.result = 'error';

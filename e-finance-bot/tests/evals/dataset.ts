@@ -174,7 +174,11 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
         expect: {
           textIncludes: ['taxa de juros'],
           textExcludes: ['Confirma?'],
-          pendingAction: 'criar_contrato',
+          pendingAction: null,
+          workingState: {
+            pendingCapability: 'create_contract',
+            pendingMissingFields: ['rate'],
+          },
         },
       },
     ],
@@ -207,14 +211,22 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
         expect: {
           textIncludes: ['data da primeira parcela'],
           textExcludes: ['Confirma?'],
-          pendingAction: 'criar_contrato',
+          pendingAction: null,
+          workingState: {
+            pendingCapability: 'create_contract',
+            pendingMissingFields: ['start_date'],
+          },
         },
       },
       {
         input: { text: '10/04/2026' },
         expect: {
-          textIncludes: ['Resumo do Contrato', 'Confirma?'],
-          pendingAction: 'criar_contrato',
+          textIncludes: ['Resumo do Contrato', 'responda *sim*'],
+          pendingAction: null,
+          workingState: {
+            pendingCapability: 'create_contract',
+            pendingConfirmation: expect.anything(),
+          },
         },
       },
     ],
@@ -256,7 +268,11 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
         expect: {
           textIncludes: ['Entendi do áudio', 'taxa de juros'],
           textExcludes: ['Confirma?'],
-          pendingAction: 'criar_contrato',
+          pendingAction: null,
+          workingState: {
+            pendingCapability: 'create_contract',
+            pendingMissingFields: ['rate'],
+          },
         },
       },
     ],
@@ -284,8 +300,12 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
       {
         input: { text: 'criar contrato para Pedro Lima, CPF 529 982 247 25, 2 mil, sem juros, 4 parcelas de 15 em 15 começando em 10/04/2026' },
         expect: {
-          textIncludes: ['Resumo do Contrato', 'Confirma?'],
-          pendingAction: 'criar_contrato',
+          textIncludes: ['Resumo do Contrato', 'responda *sim*'],
+          pendingAction: null,
+          workingState: {
+            pendingCapability: 'create_contract',
+            pendingConfirmation: expect.anything(),
+          },
         },
       },
     ],
@@ -326,8 +346,12 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
           audioKind: 'voice_note',
         },
         expect: {
-          textIncludes: ['Entendi do áudio', 'Resumo do Contrato', 'Confirma?'],
-          pendingAction: 'criar_contrato',
+          textIncludes: ['Entendi do áudio', 'Resumo do Contrato', 'responda *sim*'],
+          pendingAction: null,
+          workingState: {
+            pendingCapability: 'create_contract',
+            pendingConfirmation: expect.anything(),
+          },
         },
       },
     ],
@@ -355,7 +379,11 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
         input: { text: 'baixar contrato 123 parcela 2' },
         expect: {
           textIncludes: ['Confirma a baixa desta parcela?'],
-          pendingAction: 'marcar_pagamento_contrato',
+          pendingAction: null,
+          workingState: {
+            pendingCapability: 'mark_installment_paid',
+            pendingConfirmation: expect.anything(),
+          },
           mockCalls: {
             markInstallmentPaid: 0,
           },
@@ -366,6 +394,11 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
         expect: {
           textIncludes: ['Comprovante de Pagamento', '#123'],
           pendingAction: null,
+          workingState: {
+            lastMutation: expect.objectContaining({
+              capability: 'mark_installment_paid',
+            }),
+          },
           mockCalls: {
             markInstallmentPaid: 1,
           },

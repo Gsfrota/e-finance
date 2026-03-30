@@ -1,123 +1,208 @@
-import type { ActionPlan, CommandUnderstanding } from './contracts';
+import type { ActionPlan, CommandUnderstanding, OperationalIntent } from './contracts';
 import { inferTimeWindowFromEntities, inferTimeWindowFromText } from './time-window';
+import { labelToConfidenceScore, validateActionPlan } from './contracts';
+import { getCapabilityDefinition } from './capability-registry';
 
 function makePlan(
+  decision: ActionPlan['decision'],
   capability: ActionPlan['capability'],
   understanding: CommandUnderstanding,
   args: Record<string, unknown> = {},
-  missingFields: string[] = [],
+  missingArgs: string[] = [],
+  extras: Partial<ActionPlan> = {},
 ): ActionPlan {
-  return {
+  const base: ActionPlan = {
+    decision,
+    intent: understanding.intent,
     capability,
-    confidence: understanding.confidence,
-    source: understanding.source,
     args,
-    missingFields,
+    missingArgs,
+    missingFields: [...missingArgs],
+    confidence: labelToConfidenceScore(understanding.confidence),
+    confidenceLabel: understanding.confidence,
+    source: understanding.source,
+    evidence: extras.evidence || [],
     dependsOnContext: understanding.dependsOnContext,
-    requiresConfirmation: capability === 'disconnect_bot',
+    requiresConfirmation: getCapabilityDefinition(capability).requiresConfirmation,
+    ...extras,
   };
+
+  return validateActionPlan(base);
+}
+
+function makeClarification(
+  understanding: CommandUnderstanding,
+  capability: ActionPlan['capability'],
+  missingArgs: string[],
+  userFacingQuestion: string,
+  args: Record<string, unknown> = {},
+): ActionPlan {
+  return makePlan('ask_clarification', capability, understanding, args, missingArgs, {
+    userFacingQuestion,
+  });
+}
+
+function makeUtility(
+  intent: OperationalIntent,
+  capability: ActionPlan['capability'],
+): ActionPlan {
+  return validateActionPlan({
+    decision: 'smalltalk',
+    intent,
+    capability,
+    args: {},
+    missingArgs: [],
+    missingFields: [],
+    confidence: 0.99,
+    confidenceLabel: 'high',
+    source: 'rule',
+    evidence: ['utility_fast_path'],
+    dependsOnContext: false,
+    requiresConfirmation: false,
+  });
 }
 
 export function createActionPlan(
   understanding: CommandUnderstanding,
   rawText: string,
   role?: string,
+  referenceEvidence: string[] = [],
 ): ActionPlan {
   const entities = understanding.normalizedEntities || {};
+  const evidence = referenceEvidence.length > 0 ? referenceEvidence : [];
 
   switch (understanding.intent) {
     case 'smalltalk_identity':
-      return makePlan('smalltalk_identity', understanding);
+      return makeUtility('smalltalk_identity', 'smalltalk_identity');
     case 'smalltalk_datetime':
-      return makePlan('smalltalk_datetime', understanding);
+      return makeUtility('smalltalk_datetime', 'smalltalk_datetime');
     case 'ver_dashboard':
-      return makePlan('show_dashboard', understanding);
+      return makePlan('execute', 'show_dashboard', understanding, {}, [], { evidence });
     case 'listar_recebiveis':
-      return makePlan('list_receivables', understanding, { filter: entities.filter || 'pending' });
+      return makePlan('execute', 'list_receivables', understanding, { filter: entities.filter || 'pending' }, [], { evidence });
     case 'recebiveis_hoje':
     case 'recebiveis_periodo': {
       const timeWindow = entities.time_window || inferTimeWindowFromEntities(entities) || inferTimeWindowFromText(rawText);
-      return makePlan('query_receivables_window', understanding, {
-        time_window: timeWindow,
-      });
+      if (!timeWindow) {
+        return makeClarification(
+          understanding,
+          'query_receivables_window',
+          ['time_window'],
+          'Me diga o período que você quer consultar. Ex.: hoje, amanhã, próximos 7 dias ou próximos 2 meses.',
+        );
+      }
+      return makePlan('execute', 'query_receivables_window', understanding, { time_window: timeWindow }, [], { evidence });
     }
     case 'cobrar_hoje':
     case 'cobrar_periodo': {
       const timeWindow = entities.time_window || inferTimeWindowFromEntities(entities) || inferTimeWindowFromText(rawText);
-      return makePlan('query_collection_window', understanding, {
-        time_window: timeWindow,
-      });
+      if (!timeWindow) {
+        return makeClarification(
+          understanding,
+          'query_collection_window',
+          ['time_window'],
+          'Me diga o período que você quer consultar. Ex.: hoje, amanhã, próximos 7 dias ou próximos 2 meses.',
+        );
+      }
+      return makePlan('execute', 'query_collection_window', understanding, { time_window: timeWindow }, [], { evidence });
     }
     case 'buscar_usuario': {
       const debtorName = entities.debtor_name;
       const debtorProfileId = entities.debtor_profile_id;
+      if (!debtorName && !debtorProfileId) {
+        return makeClarification(
+          understanding,
+          'query_debtor_balance',
+          ['debtor_name'],
+          'Me diga o nome ou o CPF do cliente que você quer consultar.',
+        );
+      }
       return makePlan(
+        'execute',
         'query_debtor_balance',
         understanding,
         {
           debtor_name: debtorName,
           debtor_profile_id: debtorProfileId,
         },
-        debtorName || debtorProfileId ? [] : ['debtor_name'],
+        [],
+        { evidence },
       );
     }
     case 'criar_contrato':
-      return makePlan('create_contract', understanding, { ...entities });
+      return makePlan('execute', 'create_contract', understanding, { ...entities }, [], { evidence });
     case 'marcar_pagamento':
-      return makePlan('mark_installment_paid', understanding, { ...entities });
+      return makePlan('execute', 'mark_installment_paid', understanding, { ...entities }, [], { evidence });
     case 'gerar_relatorio':
-      return makePlan('generate_report', understanding);
+      return makePlan('execute', 'generate_report', understanding, {}, [], { evidence });
     case 'gerar_convite':
-      return makePlan('generate_invite', understanding);
+      return makePlan('execute', 'generate_invite', understanding, {}, [], { evidence });
     case 'ver_minhas_parcelas':
-      return makePlan('view_my_installments', understanding);
+      return makePlan('execute', 'view_my_installments', understanding, {}, [], { evidence });
     case 'ver_meu_saldo_devedor':
-      // Admins asking "minha dívida" / "meu saldo devedor" — redirect to dashboard
-      if (role === 'admin') return makePlan('show_dashboard', understanding);
-      return makePlan('view_my_debt_summary', understanding);
+      if (role === 'admin') return makePlan('execute', 'show_dashboard', understanding, {}, [], { evidence });
+      return makePlan('execute', 'view_my_debt_summary', understanding, {}, [], { evidence });
     case 'ver_meu_portfolio':
-      // Admins asking "meus contratos" / "meu portfólio" — redirect to list_receivables
-      if (role === 'admin') return makePlan('list_receivables', understanding, { filter: entities.filter || 'pending' });
-      return makePlan('view_my_portfolio', understanding);
+      if (role === 'admin') return makePlan('execute', 'list_receivables', understanding, { filter: entities.filter || 'pending' }, [], { evidence });
+      return makePlan('execute', 'view_my_portfolio', understanding, {}, [], { evidence });
     case 'ver_exemplo_lembrete':
-      return makePlan('preview_lembrete', understanding);
+      return makePlan('execute', 'preview_lembrete', understanding, {}, [], { evidence });
     case 'configurar_briefing': {
       const briefingTime = (entities as any).briefing_time as string | undefined;
       const briefingEnabled = (entities as any).briefing_enabled as boolean | undefined;
-      // Se explicitamente desabilitando, não precisa de tempo
       if (briefingEnabled === false) {
-        return makePlan('configure_briefing', understanding, { briefing_enabled: false });
+        return makePlan('execute', 'configure_briefing', understanding, { briefing_enabled: false }, [], { evidence });
       }
-      return makePlan('configure_briefing', understanding, {
+      if (!briefingTime) {
+        return makeClarification(
+          understanding,
+          'configure_briefing',
+          ['briefing_time'],
+          'Me diga o horário do briefing. Ex.: 07:30 ou 18h.',
+        );
+      }
+      return makePlan('execute', 'configure_briefing', understanding, {
         briefing_time: briefingTime,
         briefing_enabled: briefingEnabled ?? true,
-      }, briefingTime ? [] : ['briefing_time']);
+      }, [], { evidence });
     }
     case 'desconectar':
-      return makePlan('disconnect_bot', understanding);
+      return makePlan('request_confirmation', 'disconnect_bot', understanding, {}, [], {
+        evidence,
+        userFacingQuestion: 'Vou desconectar este chat da sua conta. Quer seguir?',
+      });
     case 'saudacao':
-      return makePlan('greet', understanding);
+      return makePlan('smalltalk', 'greet', understanding, {}, [], { evidence });
     case 'ajuda':
-      return makePlan('help', understanding);
+      return makePlan('smalltalk', 'help', understanding, {}, [], { evidence });
     case 'confirmar':
     case 'cancelar':
-      return makePlan('help', understanding);
+      return makePlan('reject', 'help', understanding, {}, ['pending_confirmation'], {
+        evidence,
+        userFacingQuestion: 'Não há uma confirmação pendente agora. Me diga a ação que você quer executar.',
+      });
     case 'desconhecido':
     default:
-      return {
+      return validateActionPlan({
+        decision: 'ask_clarification',
+        intent: 'desconhecido',
         capability: 'help',
-        confidence: 'low',
-        source: understanding.source,
         args: {},
+        missingArgs: ['intent'],
         missingFields: ['intent'],
+        confidence: labelToConfidenceScore(understanding.confidence),
+        confidenceLabel: understanding.confidence,
+        source: understanding.source,
+        evidence,
         dependsOnContext: understanding.dependsOnContext,
         requiresConfirmation: false,
+        userFacingQuestion: 'Ainda não fechei sua ação com segurança. Me diga em uma frase curta o que você quer fazer agora.',
         ambiguity: understanding.candidates?.length
           ? {
               type: 'intent',
               candidates: understanding.candidates.map(candidate => ({ id: candidate, label: candidate })),
             }
           : undefined,
-      };
+      });
   }
 }

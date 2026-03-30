@@ -794,6 +794,47 @@ export async function getContractOpenInstallmentByNumber(
   return mapContractOpenInstallmentRow(data[0], Number(contractId));
 }
 
+export async function getContractOpenInstallmentByMonth(
+  tenantId: string,
+  contractId: number,
+  month: number,
+  year?: number,
+): Promise<ContractOpenInstallment | null> {
+  if (!Number.isFinite(month) || month < 1 || month > 12) return null;
+
+  let query = db()
+    .from('loan_installments')
+    .select(`
+      id, number, investment_id, amount_total, amount_paid, due_date, status,
+      investments!inner(tenant_id, debtor:profiles!investments_payer_id_fkey(full_name))
+    `)
+    .eq('investments.tenant_id', tenantId)
+    .eq('investment_id', contractId)
+    .in('status', ['pending', 'late', 'partial']);
+
+  if (year) {
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const endDay = new Date(year, month, 0).getDate();
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${endDay}`;
+    query = query.gte('due_date', startDate).lte('due_date', endDate);
+  } else {
+    query = query.filter('due_date', 'ilike', `%-${String(month).padStart(2, '0')}-%`);
+  }
+
+  const { data, error } = await query
+    .order('due_date', { ascending: true })
+    .limit(1);
+
+  if (error) {
+    console.error('[getContractOpenInstallmentByMonth] query failed', error);
+    return null;
+  }
+
+  if (!data || data.length === 0) return null;
+
+  return mapContractOpenInstallmentRow(data[0], Number(contractId));
+}
+
 // ─── Criar Contrato ───────────────────────────────────────────────────────────
 
 function parsePtBrNumber(raw: string): number | null {

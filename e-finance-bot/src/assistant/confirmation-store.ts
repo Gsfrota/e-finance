@@ -49,10 +49,14 @@ export async function createPendingConfirmation(
     pendingCapability: capability,
   });
 
+  const hasInlineConfirmationInstruction = /confirma\?\s*\(sim\/n[aã]o\)|responda\s+\*?sim\*/i.test(safePreview);
+
   return {
     confirmationId,
     idempotencyKey,
-    safeUserMessage: `${safePreview}\n\nSe estiver certo, responda *sim*. Se não, responda *não*.`,
+    safeUserMessage: hasInlineConfirmationInstruction
+      ? safePreview
+      : `${safePreview}\n\nSe estiver certo, responda *sim*. Se não, responda *não*.`,
   };
 }
 

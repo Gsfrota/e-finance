@@ -10,6 +10,8 @@
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "test": "vitest run",
+    "test:agent-evals": "vitest run tests/agent-evals.test.ts",
+    "test:agent-evals:scorecard": "AGENT_EVAL_SCORECARD_PATH=artifacts/agent-evals/scorecard.json vitest run tests/agent-evals.test.ts",
     "test:bot-regression": "vitest run tests/message-handler.test.ts tests/conversation-smoke.test.ts tests/payment-followup.test.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -22,7 +24,8 @@
     "@supabase/supabase-js": "^2.49.2",
     "axios": "^1.7.0",
     "express": "^4.19.2",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

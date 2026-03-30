@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { config } from '../config';
+import type { StructuredResponse } from '../assistant/contracts';
 
 let _genai: GoogleGenAI | null = null;
 function ai(): GoogleGenAI {
@@ -9,9 +10,9 @@ function ai(): GoogleGenAI {
 
 const RESPONSE_MODEL = 'gemini-2.5-flash-lite';
 
-const AGENT_SYSTEM_PROMPT = `Voce e o assistente do Juros Certo, sistema de gestao de credito para investidores.
+const AGENT_SYSTEM_PROMPT = `Voce e Salomao, assistente operacional do Juros Certo.
 Responda em PT-BR coloquial, direto e profissional.
-Nao use menu numerado nem respostas roboticas.`;
+Nao invente fatos, nao altere valores, nao altere datas e nao reinterprete a operacao.`;
 
 export type ResponseContext =
   | { type: 'success'; action: string; details?: string; userName?: string }
@@ -27,6 +28,7 @@ export interface ConversationalReplyContext {
   baseText: string;
   action?: string;
   result?: 'success' | 'clarification' | 'error' | 'blocked';
+  structuredResponse?: StructuredResponse;
 }
 
 export interface ReplyResult {
@@ -54,6 +56,14 @@ function looksStructuredReply(text: string): boolean {
   if (/\n\d+\./.test(normalized)) return true;
   if (/[📊📅🔴💰📋👤⚠️✅❌]/.test(normalized) && lines >= 3) return true;
   return normalized.length >= 260;
+}
+
+function structuredResponseToText(response: StructuredResponse): string {
+  const lines = [response.title, ...response.facts];
+  if (response.nextActions?.length) {
+    lines.push(...response.nextActions);
+  }
+  return lines.filter(Boolean).join('\n');
 }
 
 async function generateWithTimeout(
@@ -87,34 +97,38 @@ export async function renderConversationalReply(
   const empty: ReplyResult = { text: null, tokensIn: 0, tokensOut: 0 };
   if (!config.llmResponse.enabled || !hasApiKey()) return empty;
 
-  const baseText = (context.baseText || '').trim();
+  const baseText = (context.baseText
+    || (context.structuredResponse ? structuredResponseToText(context.structuredResponse) : '')).trim();
   if (!baseText) return empty;
 
   const action = truncate(context.action || 'resposta', 60);
   const userMessage = truncate(context.userMessage || '', 180);
   const result = context.result || 'success';
-  const structured = looksStructuredReply(baseText);
+  const structured = !!context.structuredResponse || looksStructuredReply(baseText);
 
   try {
     if (structured) {
+      const sr = context.structuredResponse;
       const prompt = `${AGENT_SYSTEM_PROMPT}
 Tarefa: gerar apenas UMA frase curta para abrir a resposta do bot.
 Regras:
-- Ate 16 palavras.
-- Sem lista numerada.
-- Sem repetir os dados estruturados que virao depois.
-- Tom humano e objetivo.
+- Ate 14 palavras.
+- Sem repetir fatos, valores ou datas.
+- Sem mudar o significado do bloco estruturado.
+- Sem menus.
 
 Contexto:
 - resultado: ${result}
 - acao: ${action}
 - mensagem do usuario: "${userMessage}"
+- titulo: "${truncate(sr?.title || '', 80)}"
+- preview seguro: "${truncate(sr?.safePreview || baseText, 180)}"
 
 Retorne somente a frase final.`;
 
       const reply = await generateWithTimeout(
         prompt,
-        Math.min(config.llmResponse.maxOutputTokens, 40),
+        Math.min(config.llmResponse.maxOutputTokens, 32),
         config.llmResponse.timeoutMs,
       );
 
@@ -127,6 +141,7 @@ Tarefa: reescrever a resposta base para soar natural e humana.
 Regras:
 - Ate 2 frases curtas.
 - Nao inventar dados.
+- Nao alterar valores, datas, nomes, capacidade executada ou escopo.
 - Manter o mesmo objetivo da resposta base.
 - Sem menu numerado.
 
