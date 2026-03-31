@@ -288,6 +288,10 @@ export function parseBriefingTime(text: string): string | null {
     .trim();
 
   if (/meio\s*dia/.test(normalized)) return '12:00';
+  if (/\bmanh[aã]\b/.test(normalized) && !/\d/.test(normalized)) return '07:00';
+  if (/\btarde\b/.test(normalized) && !/\d/.test(normalized)) return '14:00';
+  if (/\bnoite\b/.test(normalized) && !/\d/.test(normalized)) return '19:00';
+  if (/meia[-\s]noite/.test(normalized)) return '00:00';
 
   const match = normalized.match(/^(\d{1,2})(?::(\d{2}))?(?:\s*h(?:oras?)?)?/i);
   if (!match) return null;
@@ -340,11 +344,11 @@ function resolveShortTemporalFollowup(
   const normalized = normalizeText(text);
   if (normalized.length > 20) return null;
 
-  const shortTemporalPattern = /^(?:e\s+)?(?:em\s+)?(\d{1,2})\s*(?:dias?)?[?!]?$|^(?:e\s+)?em\s+(\d{1,2})\s*dias?[?!]?$|^(?:e\s+)?(\d{1,2})\s+dias?[?!]?$/;
+  const shortTemporalPattern = /^(?:e\s+)?(?:em\s+)?(\d{1,2})\s*d(?:ias?)?[?!]?$|^(?:e\s+)?em\s+(\d{1,2})\s*d(?:ias?)?[?!]?$|^(?:e\s+)?(\d{1,2})\s+d(?:ias?)?[?!]?$|^pr[oó]x(?:im[oa]?)?\s+(\d{1,2})[?!]?$|^(\d{1,2})[?!]?$/;
   const match = normalized.match(shortTemporalPattern);
   if (!match) return null;
 
-  const days = Number(match[1] || match[2] || match[3]);
+  const days = Number(match[1] || match[2] || match[3] || match[4] || match[5]);
   if (!Number.isFinite(days) || days < 1 || days > 60) return null;
 
   const window = buildDateWindow(days, 'today');

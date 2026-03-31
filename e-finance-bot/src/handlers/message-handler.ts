@@ -1862,8 +1862,8 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
 
     await saveMessageTimed(session.id, 'assistant', response);
 
-    // Skip response LLM for high-confidence rule-based plans with structured output
-    const skipResponseLlm = actionPlan.confidenceLabel === 'high'
+    // Skip response LLM only when capability already produced a rich structuredResponse
+    const skipResponseLlm = !!execution.structuredResponse
       && actionPlan.source === 'rule'
       && execution.status === 'ok';
 

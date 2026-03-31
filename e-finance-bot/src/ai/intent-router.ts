@@ -19,6 +19,7 @@ export interface RoutedIntent extends ClassifiedIntent {
 
 interface RouteOptions {
   cacheScope?: string;
+  userRole?: string;
   channel?: 'whatsapp' | 'telegram';
   messageId?: string;
   sessionId?: string;
@@ -60,8 +61,10 @@ const RULES: Rule[] = [
   { intent: 'listar_recebiveis', pattern: /^(2)$/i, entities: { filter: 'pending' } },
   { intent: 'listar_recebiveis', pattern: /(quem\s+t[aá]\s+atrasad|quem\s+est[aá]\s+atrasad|quem\s+ta\s+atrasad)/i, entities: { filter: 'late' } },
 
-  { intent: 'recebiveis_periodo', pattern: /((quanto|quais?)\s+.*(vou|irei|devo)?\s*receber.*(pr[oó]xim|\d+\s*dias|amanh[ãa]))|(receb[ií]veis?.*(pr[oó]xim|\d+\s*dias|amanh[ãa]))/i },
-  { intent: 'cobrar_periodo', pattern: /((quem\s+.*devo\s+cobrar|quem\s+tenho\s+que\s+cobrar|quem\s+me\s+deve).*(pr[oó]xim|\d+\s*dias|amanh[ãa]))|((cobrar|cobran[cç]a).*(pr[oó]xim|\d+\s*dias|amanh[ãa]))/i },
+  { intent: 'recebiveis_periodo', pattern: /((quanto|quais?)\s+.*(vou|irei|devo)?\s*receber.*(pr[oó]xim|\d+\s*dias|amanh[ãa]|semana\s+que\s+vem|essa\s+semana))|(receb[ií]veis?.*(pr[oó]xim|\d+\s*dias|amanh[ãa]|semana))/i },
+  { intent: 'recebiveis_periodo', pattern: /quanto\s+recebo\s+n[ao]s?\s+pr[oó]xim|o\s+que\s+recebo\s+(?:essa\s+semana|semana\s+que\s+vem|amanh[ãa])/i },
+  { intent: 'cobrar_periodo', pattern: /((quem\s+.*devo\s+cobrar|quem\s+tenho\s+que\s+cobrar|quem\s+me\s+deve).*(pr[oó]xim|\d+\s*dias|amanh[ãa]|semana\s+que\s+vem))|((cobrar|cobran[cç]a).*(pr[oó]xim|\d+\s*dias|amanh[ãa]|semana))/i },
+  { intent: 'cobrar_periodo', pattern: /quem\s+(?:eu\s+)?cobro\s+(?:essa\s+semana|semana\s+que\s+vem|amanh[ãa]|n[ao]s?\s+pr[oó]xim)/i },
 
   { intent: 'criar_contrato', pattern: /^(\/contrato|\/criarcontrato|contrato)$/i },
   { intent: 'criar_contrato', pattern: /^(3)$/i },
@@ -288,9 +291,10 @@ function countHistoryChars(history: Array<{ role: string; content: string }>): n
   return history.reduce((acc, item) => acc + (item.content || '').length, 0);
 }
 
-function buildCacheKey(scope: string, text: string): string {
+function buildCacheKey(scope: string, text: string, role?: string): string {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  return `${scope}:${normalized}`;
+  const rolePrefix = role ? `${role}:` : '';
+  return `${scope}:${rolePrefix}${normalized}`;
 }
 
 function getCache(cacheKey: string): RoutedIntent | null {
@@ -579,7 +583,7 @@ export async function routeIntent(
   }
 
   const cacheScope = options.cacheScope || 'global';
-  const cacheKey = buildCacheKey(cacheScope, trimmed);
+  const cacheKey = buildCacheKey(cacheScope, trimmed, options.userRole);
   const cached = getCache(cacheKey);
   if (cached) {
     const withDefaults = applyPeriodDefaults(cached, trimmed);
@@ -657,10 +661,19 @@ export async function routeIntent(
   }
 
   if (didTimeout && candidates.length === 1) {
-    routed.intent = candidates[0];
-    routed.confidence = 'medium';
-    routed.entities = {};
-    routed.normalizedEntities = {};
+    // Only promote single timeout candidate if message text actually reinforces it
+    const candidateIntent = candidates[0];
+    const looksRelevant = (
+      (candidateIntent === 'criar_contrato' && detectContractSignal(trimmed).score >= 2) ||
+      (candidateIntent === 'listar_recebiveis' && detectReceivablesSignal(trimmed).score >= 2)
+    );
+    if (looksRelevant) {
+      routed.intent = candidateIntent;
+      routed.confidence = 'medium';
+      routed.entities = {};
+      routed.normalizedEntities = {};
+    }
+    // Otherwise keep as desconhecido/low — don't guess from timeout
   }
 
   routed = applyPeriodDefaults(routed, trimmed);

@@ -10,9 +10,10 @@ function ai(): GoogleGenAI {
 
 const RESPONSE_MODEL = 'gemini-2.5-flash-lite';
 
-const AGENT_SYSTEM_PROMPT = `Voce e Salomao, assistente operacional do Juros Certo.
-Responda em PT-BR coloquial, direto e profissional.
-Nao invente fatos, nao altere valores, nao altere datas e nao reinterprete a operacao.`;
+const AGENT_SYSTEM_PROMPT = `Você é Salomão, assistente financeiro do Juros Certo — plataforma de gestão de contratos de crédito.
+Seu tom é coloquial, direto e profissional em PT-BR. Você ajuda admins a monitorar carteiras, cobrar devedores e registrar pagamentos; investidores a acompanhar seus recebíveis; e devedores a consultar suas parcelas.
+Regras absolutas: não invente fatos, não altere valores, datas ou nomes, não reinterprete a operação executada, não liste menus, não ultrapasse 2 frases quando não solicitado.
+Quando houver erro ou dado ausente, reconheça de forma humana sem entrar em detalhes técnicos.`;
 
 export type ResponseContext =
   | { type: 'success'; action: string; details?: string; userName?: string }
@@ -109,6 +110,10 @@ export async function renderConversationalReply(
   try {
     if (structured) {
       const sr = context.structuredResponse;
+      // Use safePreview when available; otherwise strip CPF/amounts from baseText before sending to LLM
+      const safePreviewText = sr?.safePreview
+        || baseText.replace(/\b\d{3}[\.\s]?\d{3}[\.\s]?\d{3}[-\s]?\d{2}\b/g, '[CPF]')
+                   .replace(/R\$\s*[\d.,]+/g, '[valor]');
       const prompt = `${AGENT_SYSTEM_PROMPT}
 Tarefa: gerar apenas UMA frase curta para abrir a resposta do bot.
 Regras:
@@ -122,7 +127,7 @@ Contexto:
 - acao: ${action}
 - mensagem do usuario: "${userMessage}"
 - titulo: "${truncate(sr?.title || '', 80)}"
-- preview seguro: "${truncate(sr?.safePreview || baseText, 180)}"
+- preview seguro: "${truncate(safePreviewText, 180)}"
 
 Retorne somente a frase final.`;
 

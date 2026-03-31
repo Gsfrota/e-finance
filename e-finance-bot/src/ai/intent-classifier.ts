@@ -178,6 +178,9 @@ function toNumber(value: unknown): number | undefined {
   const normalized = value
     .toLowerCase()
     .replace(/r\$/g, '')
+    .replace(/\s*de\s+reais?\b/g, '')
+    .replace(/\s+reais?\b/g, '')
+    .replace(/\s+real\b/g, '')
     .replace(/\s+/g, '')
     .replace(/mil/g, '000')
     .replace(/k/g, '000')
@@ -228,6 +231,13 @@ export function inferInstallmentMonth(text: string): { month?: number; year?: nu
   }
   if (/este\s+mes|mes\s+atual|esse\s+mes/.test(normalized)) {
     return { month: now.getMonth() + 1, year: now.getFullYear() };
+  }
+  if (/proximo\s+mes|mes\s+que\s+vem/.test(normalized)) {
+    const d = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return { month: d.getMonth() + 1, year: d.getFullYear() };
+  }
+  if (/ano\s+que\s+vem|proximo\s+ano/.test(normalized)) {
+    return { month: now.getMonth() + 1, year: now.getFullYear() + 1 };
   }
 
   const patterns = [

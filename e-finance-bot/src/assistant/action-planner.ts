@@ -182,7 +182,24 @@ export function createActionPlan(
         userFacingQuestion: 'Não há uma confirmação pendente agora. Me diga a ação que você quer executar.',
       });
     case 'desconhecido':
-    default:
+    default: {
+      const candidateLabels: Record<string, string> = {
+        criar_contrato: 'criar contrato',
+        listar_recebiveis: 'ver recebíveis',
+        cobrar_hoje: 'ver cobrança de hoje',
+        cobrar_periodo: 'ver cobrança por período',
+        recebiveis_periodo: 'ver recebíveis por período',
+        marcar_pagamento: 'marcar pagamento',
+        buscar_usuario: 'buscar devedor',
+        ver_dashboard: 'ver dashboard',
+        gerar_relatorio: 'gerar relatório',
+      };
+      const candidateNames = understanding.candidates
+        ?.map(c => candidateLabels[c] || c)
+        .filter(Boolean) || [];
+      const clarificationQ = candidateNames.length > 0
+        ? `Você quis dizer: ${candidateNames.join(' ou ')}? Me confirme em uma frase curta.`
+        : 'Ainda não fechei sua ação com segurança. Me diga em uma frase curta o que você quer fazer agora.';
       return validateActionPlan({
         decision: 'ask_clarification',
         intent: 'desconhecido',
@@ -196,13 +213,14 @@ export function createActionPlan(
         evidence,
         dependsOnContext: understanding.dependsOnContext,
         requiresConfirmation: false,
-        userFacingQuestion: 'Ainda não fechei sua ação com segurança. Me diga em uma frase curta o que você quer fazer agora.',
+        userFacingQuestion: clarificationQ,
         ambiguity: understanding.candidates?.length
           ? {
               type: 'intent',
-              candidates: understanding.candidates.map(candidate => ({ id: candidate, label: candidate })),
+              candidates: understanding.candidates.map(candidate => ({ id: candidate, label: candidateLabels[candidate] || candidate })),
             }
           : undefined,
       });
+    }
   }
 }
