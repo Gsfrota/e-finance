@@ -1012,7 +1012,10 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       llmUsage.tokensOut += reply.tokensOut;
     }
 
-    const finalText = reply.text || baseText;
+    // BR-BOT-009: quando LLM habilitado falha/timeout, prefixar resposta crua com aviso informativo
+    const llmFailed = reply.text === null && config.llmResponse.enabled;
+    const finalText = reply.text
+      ?? (llmFailed && baseText ? `_Estou mais lento agora, mas aqui vai:_\n\n${baseText}` : baseText);
     responseTextForLog = finalText.slice(0, 300);
     return { text: finalText };
   };

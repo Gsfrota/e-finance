@@ -805,6 +805,38 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
   },
 
   {
+    id: 'regression-bot-s04-llm-naturalization-timeout-prefix',
+    description: 'BR-BOT-009: quando LLM de naturalização falha, resposta crua recebe prefixo informativo',
+    category: 'regressions',
+    criticality: 'core',
+    failureTag: 'response_regression',
+    setup: ({ mocks }) => {
+      mocks.routeIntent.mockResolvedValue({
+        intent: 'ver_dashboard',
+        entities: {},
+        normalizedEntities: {},
+        confidence: 'high',
+        source: 'rule',
+      });
+      // LLM de naturalização retorna null (timeout)
+      mocks.renderConversationalReply.mockResolvedValue({
+        text: null,
+        tokensIn: 0,
+        tokensOut: 0,
+      });
+    },
+    steps: [
+      {
+        input: { text: 'dashboard' },
+        expect: {
+          textIncludes: ['Estou mais lento agora', 'Dashboard'],
+          mockCalls: { getDashboardSummary: 1 },
+        },
+      },
+    ],
+  },
+
+  {
     id: 'regression-verbal-loan-description-routes-criar-contrato',
     description: 'GAP-1.5: descrição verbal de empréstimo ("vou emprestar...pagar de X por mês") → criar_contrato',
     category: 'regressions',
