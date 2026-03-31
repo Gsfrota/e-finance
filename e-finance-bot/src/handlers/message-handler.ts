@@ -1033,20 +1033,6 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
     }
   }
 
-  // Gate de whitelist (V21) — apenas WhatsApp (Telegram usa chat IDs numéricos)
-  if (msg.channel === 'whatsapp') {
-    const whitelistCheck = await checkWhitelistBlock(msg.channelUserId);
-    if (whitelistCheck.blocked) {
-      logStructuredMessage('whitelist_blocked', {
-        channel: msg.channel,
-        messageId: msg.messageId,
-        result: 'dropped',
-        reason: whitelistCheck.reason,
-      });
-      return finalize('', { action: 'whitelist_blocked', result: 'blocked' });
-    }
-  }
-
   try {
     let session: Session;
     let syncResult: Awaited<ReturnType<typeof syncSessionProfileFromChannelBinding>> | null = null;
@@ -1123,6 +1109,22 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
         sessionId: session.id,
         result: 'ephemeral',
       });
+    }
+
+    // Gate de whitelist (V21) — escopo por tenant para evitar bloqueio cross-tenant
+    if (msg.channel === 'whatsapp') {
+      const tenantId = session.profile?.tenant_id;
+      const whitelistCheck = await checkWhitelistBlock(msg.channelUserId, tenantId);
+      if (whitelistCheck.blocked) {
+        logStructuredMessage('whitelist_blocked', {
+          channel: msg.channel,
+          messageId: msg.messageId,
+          sessionId: session.id,
+          result: 'dropped',
+          reason: whitelistCheck.reason,
+        });
+        return { text: '' }; // silent drop — index.ts não envia respostas com text vazio
+      }
     }
 
     let audioTranscript: AudioTranscriptResult | null = null;

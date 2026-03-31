@@ -96,10 +96,14 @@ export interface WhitelistCheckResult {
   reason: 'whitelist_disabled' | 'phone_allowed' | 'phone_not_in_whitelist';
 }
 
-export async function checkWhitelistBlock(phone: string): Promise<WhitelistCheckResult> {
+export async function checkWhitelistBlock(phone: string, tenantId?: string): Promise<WhitelistCheckResult> {
+  // Sem tenant_id conhecido não há como escopar a whitelist — permite passar
+  if (!tenantId) return { blocked: false, reason: 'whitelist_disabled' };
+
   const { data } = await db()
     .from('bot_tenant_config')
-    .select('whitelist_enabled, whitelist_phones');
+    .select('whitelist_enabled, whitelist_phones')
+    .eq('tenant_id', tenantId);
 
   const activeRows = (data ?? []).filter((r: { whitelist_enabled: boolean }) => r.whitelist_enabled);
   if (activeRows.length === 0) return { blocked: false, reason: 'whitelist_disabled' };
