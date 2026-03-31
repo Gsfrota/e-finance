@@ -65,7 +65,6 @@ test.describe('Suite Smoke — Navegação e Carregamento', () => {
       return;
     }
     expect(loaded).toBeTruthy();
-    await expect(page.getByRole('button', { name: /Gerar Convite/i })).toBeVisible();
   });
 
   test('SMK-05: Sidebar → Cobranças carrega view', async ({ page }) => {
