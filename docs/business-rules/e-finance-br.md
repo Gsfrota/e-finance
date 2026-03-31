@@ -263,6 +263,17 @@ Categorias:
 - **Tabelas:** `loan_installments`
 - **Status:** ativa
 
+### BR-PAG-019: Classificação de Criticidade — Fluxo de Baixas
+- **Descrição:** O fluxo de baixas (todos os tipos de pagamento de parcela) é classificado como **EXTREMAMENTE CRÍTICO**. Qualquer falha neste fluxo impacta diretamente clientes pagadores e pode resultar em perda de clientes. Toda RPC de pagamento deve ter exatamente 1 assinatura (sem overloads). Antes de qualquer deploy que toque em pagamentos, o script `scripts/smoke-test-payment-rpcs.sql` deve ser executado e não retornar nenhum `[ERRO]`.
+- **Condição:** Antes de qualquer deploy em produção que modifique RPCs de pagamento ou componentes de baixa
+- **Resultado:** Deploy só avança se smoke test passar sem erros
+- **Exceções:** Nenhuma — criticidade máxima (P0), sem waiver possível
+- **Tabelas:** `loan_installments`, `payment_transactions`, `investments`
+- **RPCs cobertas:** `pay_installment`, `apply_surplus_action`, `apply_remainder_action`, `mark_installment_missed`, `revert_installment_payment`, `refinance_installment`, `admin_update_installment`, `pay_avulso`, `pay_bullet_interest_only`, `generate_next_bullet_installment`
+- **Script de validação:** `scripts/smoke-test-payment-rpcs.sql`
+- **Gate de overloads:** `SELECT proname, count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND proname IN ('pay_installment',...) GROUP BY proname HAVING count(*)>1` — deve retornar 0 linhas
+- **Status:** ativa
+
 ---
 
 ## Relatórios e Extratos (REL)

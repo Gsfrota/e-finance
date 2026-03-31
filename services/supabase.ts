@@ -81,6 +81,13 @@ export const parseSupabaseError = (error: any): string => {
     if (msg.includes("Invalid login credentials")) return "E-mail ou senha incorretos. Verifique suas credenciais.";
     if (msg.includes("Email not confirmed")) return "E-mail não confirmado. Verifique sua caixa de entrada.";
     if (msg.includes("User already registered")) return "Este e-mail já está cadastrado no sistema.";
+    // Erros de pagamento/baixa
+    if (msg.includes("quitada") || msg.includes("already paid")) return "Esta parcela já está quitada. Atualize a lista e tente novamente.";
+    if (msg.includes("Parcela não encontrada")) return "Parcela não encontrada. Atualize a lista e tente novamente.";
+    if (msg.includes("Valor deve ser positivo")) return "O valor informado deve ser maior que zero.";
+    if (msg.includes("Could not choose") || msg.includes("best candidate")) return "Erro interno ao processar pagamento. Tente novamente ou contate o suporte.";
+    if (msg.includes("nenhuma parcela elegível") || msg.includes("no eligible")) return "Não há parcelas elegíveis para receber o excedente.";
+    if (msg.includes("72") && msg.includes("hora")) return "Reversão não permitida após 72 horas do pagamento.";
     return msg || `Erro técnico: ${code || 'Sem código'}`;
 };
 

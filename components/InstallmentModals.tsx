@@ -409,7 +409,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       installment.paid_at = paidAtTs;
       setIsReceiptMode(true);
     } catch (err: any) {
-      setError(err.message || 'Erro ao processar pagamento.');
+      setError(parseSupabaseError(err));
     } finally {
       setLoading(false);
     }
@@ -618,7 +618,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       installment.paid_at = paymentDate + 'T12:00:00';
       setIsReceiptMode(true);
     } catch (err: any) {
-      setError(err.message || 'Erro ao processar pagamento.');
+      setError(parseSupabaseError(err));
     } finally {
       setLoading(false);
     }
@@ -679,7 +679,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       if (!isPartialPayment) installment.paid_at = new Date().toISOString();
       setIsReceiptMode(true);
     } catch (err: any) {
-      setError(err.message || 'Erro ao processar pagamento.');
+      setError(parseSupabaseError(err));
     } finally {
       setLoading(false);
     }
@@ -1456,7 +1456,7 @@ export const RefinanceModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSu
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Erro no refinanciamento.');
+      setError(parseSupabaseError(err));
     } finally {
       setLoading(false);
     }
@@ -1579,7 +1579,7 @@ export const EditModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Erro na edição.');
+      setError(parseSupabaseError(err));
     } finally {
       setLoading(false);
     }

@@ -1,0 +1,37 @@
+-- ============================================================================
+-- Migration v37: Remover overload antigo de pay_installment
+-- ============================================================================
+-- Problema:
+--   pay_installment tem 2 overloads no banco de producao:
+--     - (uuid, numeric)               ← versao antiga (OID 61169)
+--     - (uuid, numeric, timestamptz)  ← versao correta (OID 65025)
+--
+--   Multiplos overloads causam erro "Could not choose a best candidate function"
+--   via PostgREST/Supabase, impedindo pagamentos. BR-DB-001.
+--
+-- Acao:
+--   Dropar apenas a versao antiga (2 params). A versao com p_paid_at e a
+--   versao canonico usada por todo o frontend.
+--
+-- Verificacao pre-apply:
+--   SELECT p.oid, pg_get_function_arguments(p.oid)
+--   FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+--   WHERE n.nspname = 'public' AND p.proname = 'pay_installment'
+--   ORDER BY p.oid;
+--   -- Deve retornar 2 linhas (OIDs 61169 e 65025)
+-- ============================================================================
+
+-- Drop da versao antiga (2 params, sem p_paid_at, sem rejeicao de parcela ja paga)
+DROP FUNCTION IF EXISTS public.pay_installment(uuid, numeric);
+
+-- ============================================================================
+-- Verificacao pos-apply (executar e confirmar 1 linha):
+--
+--   SELECT p.oid, pg_get_function_arguments(p.oid)
+--   FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+--   WHERE n.nspname = 'public' AND p.proname = 'pay_installment';
+--
+-- Resultado esperado (1 linha):
+--   oid   | args
+--   65025 | p_installment_id uuid, p_amount_paid numeric, p_paid_at timestamptz DEFAULT now()
+-- ============================================================================

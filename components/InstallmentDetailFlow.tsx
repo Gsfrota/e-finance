@@ -859,7 +859,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
       installment.status = 'paid';
       installment.paid_at = paymentDate + 'T12:00:00';
       onSuccess(); setIsReceiptMode(true);
-    } catch (e: any) { setError(e.message || 'Erro ao processar.'); }
+    } catch (e: any) { setError(parseSupabaseError(e)); }
     finally { setLoading(false); }
   };
 
@@ -973,7 +973,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
       installment.status = isPartialPayment ? 'partial' : 'paid';
       if (!isPartialPayment) installment.paid_at = new Date().toISOString();
       onSuccess(); setIsReceiptMode(true);
-    } catch (e: any) { setError(e.message || 'Erro ao processar.'); }
+    } catch (e: any) { setError(parseSupabaseError(e)); }
     finally { setLoading(false); }
   };
 
@@ -1055,7 +1055,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
       });
 
       onSuccess(); onBack();
-    } catch (e: any) { setError(e.message || 'Erro.'); }
+    } catch (e: any) { setError(parseSupabaseError(e)); }
     finally { setLoading(false); }
   };
 
@@ -1078,7 +1078,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
       const { error: err } = await supabase.rpc('admin_update_installment', { p_installment_id: installment.id, p_new_amount_total: val, p_new_due_date: dueDate });
       if (err) throw err;
       onSuccess(); onBack();
-    } catch (e: any) { setError(e.message || 'Erro.'); }
+    } catch (e: any) { setError(parseSupabaseError(e)); }
     finally { setLoading(false); }
   };
 
