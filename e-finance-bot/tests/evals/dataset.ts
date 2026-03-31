@@ -586,6 +586,224 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
       },
     ],
   },
+  // ──────────────────────────────────────────────
+  // BOT-S02: Evals faltantes (rede de segurança)
+  // ──────────────────────────────────────────────
+
+  {
+    id: 'regression-ultra-short-temporal-sem-espaco',
+    description: '"e em 3?" reutiliza contexto de cobrança sem precisar de texto longo',
+    category: 'regressions',
+    criticality: 'core',
+    failureTag: 'context_loss',
+    initialContext: {
+      workingState: {
+        updatedAt: new Date().toISOString(),
+        lastAction: 'query_collection_window',
+      },
+    },
+    setup: ({ mocks }) => {
+      mocks.getDebtorsToCollectByDateRange.mockResolvedValue([
+        { name: 'Fábio', totalDue: 300, installmentCount: 1, oldestDueDate: '2026-04-03', daysLate: 0 },
+      ]);
+      mocks.buildDateWindow.mockReturnValue({
+        daysAhead: 3,
+        windowStart: 'today',
+        startDate: '2026-04-01',
+        endDate: '2026-04-03',
+      });
+    },
+    steps: [
+      {
+        input: { text: 'e em 3?' },
+        expect: {
+          textIncludes: ['R$ 300.00'],
+          mockCalls: {
+            getDebtorsToCollectByDateRange: 1,
+          },
+        },
+      },
+    ],
+  },
+
+  {
+    id: 'regression-ultra-short-temporal-numero-ponto-interrogacao',
+    description: '"5?" resolve janela temporal de recebíveis no contexto correto',
+    category: 'regressions',
+    criticality: 'core',
+    failureTag: 'context_loss',
+    initialContext: {
+      workingState: {
+        updatedAt: new Date().toISOString(),
+        lastAction: 'query_receivables_window',
+      },
+    },
+    setup: ({ mocks }) => {
+      mocks.getInstallmentsByDateRange.mockResolvedValue([
+        { id: 'r-1', investmentId: 'inv-1', debtorName: 'Laura', amount: 500, dueDate: '2026-04-05', status: 'pending', daysLate: 0 },
+      ]);
+      mocks.buildDateWindow.mockReturnValue({
+        daysAhead: 5,
+        windowStart: 'today',
+        startDate: '2026-04-01',
+        endDate: '2026-04-05',
+      });
+    },
+    steps: [
+      {
+        input: { text: '5?' },
+        expect: {
+          textIncludes: ['R$ 500.00'],
+          mockCalls: {
+            getInstallmentsByDateRange: 1,
+          },
+        },
+      },
+    ],
+  },
+
+  {
+    id: 'functional-contract-amount-and-cpf-ambiguous-entities',
+    description: 'contrato com amount e CPF na mesma frase extrai ambos corretamente',
+    category: 'functional',
+    criticality: 'core',
+    failureTag: 'response_regression',
+    setup: ({ mocks }) => {
+      mocks.routeIntent.mockResolvedValue({
+        intent: 'criar_contrato',
+        entities: {},
+        normalizedEntities: {
+          debtor_name: 'Pedro',
+          amount: 1000,
+          debtor_cpf: '52998224725',
+        },
+        confidence: 'high',
+        source: 'rule',
+      });
+    },
+    steps: [
+      {
+        input: { text: 'criar contrato para Pedro 1000 reais CPF 529.982.247-25' },
+        expect: {
+          // Deve perguntar taxa (não CPF, não nome — ambos já presentes)
+          textIncludes: ['taxa de juros'],
+          textExcludes: ['nome completo', 'CPF do devedor'],
+          workingState: {
+            pendingCapability: 'create_contract',
+            pendingMissingFields: ['rate'],
+          },
+        },
+      },
+    ],
+  },
+
+  {
+    id: 'multi-turn-debtor-cpf-suffix-unique-resolves',
+    description: 'sufixo de CPF único na desambiguação resolve o devedor correto',
+    category: 'multi_turn',
+    criticality: 'core',
+    failureTag: 'context_loss',
+    setup: ({ mocks }) => {
+      mocks.routeIntent.mockResolvedValue({
+        intent: 'buscar_usuario',
+        entities: {},
+        normalizedEntities: { debtor_name: 'Icaro' },
+        confidence: 'high',
+        source: 'rule',
+      });
+      mocks.searchUser.mockResolvedValue([
+        { id: 'debtor-1', full_name: 'Icaro', role: 'debtor', cpf: '52998224725' },
+        { id: 'debtor-2', full_name: 'Icaro Soares', role: 'debtor', cpf: '39053344705' },
+      ]);
+      mocks.getUserDebtDetails.mockResolvedValue({
+        totalDebt: 1500,
+        pendingInstallments: 5,
+        nextDueDate: '2026-04-10',
+        nextDueAmount: 300,
+        activeContracts: 1,
+      });
+    },
+    steps: [
+      {
+        input: { text: 'quanto o icaro deve?' },
+        expect: {
+          textIncludes: ['Qual deles', 'CPF'],
+          workingState: {
+            pendingCapability: 'query_debtor_balance',
+          },
+        },
+      },
+      {
+        // GAP-3.3: sufixo único → resolve diretamente
+        input: { text: '25' },
+        expect: {
+          textIncludes: ['R$ 1500.00'],
+        },
+      },
+    ],
+  },
+
+  {
+    id: 'regression-bug1-greeting-with-embedded-intent',
+    description: 'BUG-1: saudação com intent embutido rota corretamente (não trata como saudação pura)',
+    category: 'regressions',
+    criticality: 'core',
+    failureTag: 'misroute',
+    setup: ({ mocks }) => {
+      mocks.routeIntent.mockResolvedValue({
+        intent: 'recebiveis_periodo',
+        entities: {},
+        normalizedEntities: { days_ahead: 7, window_start: 'today' },
+        confidence: 'high',
+        source: 'rule',
+      });
+      mocks.getInstallmentsByDateRange.mockResolvedValue([
+        { id: 'r-1', investmentId: 'inv-1', debtorName: 'Carlos', amount: 200, dueDate: '2026-04-05', status: 'pending', daysLate: 0 },
+      ]);
+    },
+    steps: [
+      {
+        input: { text: 'oi, quanto vou receber essa semana?' },
+        expect: {
+          textIncludes: ['R$ 200.00'],
+          // Não deve conter resposta de saudação pura
+          textExcludes: ['Olá', 'posso ajudar'],
+          mockCalls: {
+            getInstallmentsByDateRange: 1,
+          },
+        },
+      },
+    ],
+  },
+
+  {
+    id: 'regression-llm-timeout-graceful-fallback',
+    description: 'timeout do LLM router produz clarificação, não crash ou resposta crua',
+    category: 'regressions',
+    criticality: 'critical',
+    failureTag: 'response_regression',
+    setup: ({ mocks }) => {
+      mocks.routeIntent.mockResolvedValue({
+        intent: 'desconhecido',
+        entities: {},
+        normalizedEntities: {},
+        confidence: 'low',
+        source: 'rule',
+        decisionPath: 'fallback',
+        fallbackReason: 'llm_timeout',
+      });
+    },
+    steps: [
+      {
+        input: { text: 'preciso fazer uma coisa urgente agora' },
+        expect: {
+          textIncludes: ['Ainda não fechei sua ação com segurança'],
+          mockNotCalled: ['getDashboardSummary', 'markInstallmentPaid', 'createContract'],
+        },
+      },
+    ],
+  },
+
   {
     id: 'functional-disconnect-confirmation',
     description: 'desconectar exige confirmação e só executa após resposta afirmativa',

@@ -353,11 +353,11 @@ function resolveShortTemporalFollowup(
   const normalized = normalizeText(text);
   if (normalized.length > 20) return null;
 
-  const shortTemporalPattern = /^(?:e\s+)?(?:em\s+)?(\d{1,2})\s*d(?:ias?)?[?!]?$|^(?:e\s+)?em\s+(\d{1,2})\s*d(?:ias?)?[?!]?$|^(?:e\s+)?(\d{1,2})\s+d(?:ias?)?[?!]?$|^pr[oó]x(?:im[oa]?)?\s+(\d{1,2})[?!]?$|^(\d{1,2})[?!]?$/;
+  const shortTemporalPattern = /^(?:e\s+)?(?:em\s+)?(\d{1,2})\s*d(?:ias?)?[?!]?$|^(?:e\s+)?em\s+(\d{1,2})\s*d(?:ias?)?[?!]?$|^(?:e\s+)?(\d{1,2})\s+d(?:ias?)?[?!]?$|^pr[oó]x(?:im[oa]?)?\s+(\d{1,2})[?!]?$|^(\d{1,2})[?!]?$|^(?:e\s+)?em\s+(\d{1,2})[?!]?$/;
   const match = normalized.match(shortTemporalPattern);
   if (!match) return null;
 
-  const days = Number(match[1] || match[2] || match[3] || match[4] || match[5]);
+  const days = Number(match[1] || match[2] || match[3] || match[4] || match[5] || match[6]);
   if (!Number.isFinite(days) || days < 1 || days > 60) return null;
 
   const window = buildDateWindow(days, 'today');
