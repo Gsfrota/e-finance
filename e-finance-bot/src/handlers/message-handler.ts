@@ -895,7 +895,10 @@ function getPlanClarificationMessage(plan: ActionPlan, understanding?: CommandUn
 }
 
 function shouldSkipConversationalLayer(action: string): boolean {
-  return action === 'prompt_injection_blocked';
+  // Greet and help already produce conversational text — no need for a second LLM rewrite pass
+  return action === 'prompt_injection_blocked'
+    || action === 'capability:greet'
+    || action === 'capability:help';
 }
 
 function isPendingOperationCancel(text: string): boolean {
@@ -2107,10 +2110,10 @@ async function dispatchIntent(
 
   switch (intent) {
     case 'saudacao': {
-      const userName = session.profile?.name || 'você';
+      const userName = (session.profile?.name || 'você').trim() || 'você';
       const greetRole = role || 'admin';
       const greeting = await generateGreeting(userName, greetRole, originalText);
-      return greeting.text || `Oi, ${userName}! Como posso ajudar hoje?`;
+      return (greeting.text || '').trim() || `Oi, ${userName}! Como posso ajudar hoje?`;
     }
 
     case 'ajuda':
