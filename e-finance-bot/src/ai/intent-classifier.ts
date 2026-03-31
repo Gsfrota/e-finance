@@ -60,6 +60,7 @@ export interface ClassifiedIntent {
     model?: string;
     timeout?: boolean;
     fallbackReason?: string;
+    errorType?: 'timeout' | 'parse_error' | 'api_error' | 'unknown';
   };
 }
 
@@ -415,7 +416,10 @@ function extractJson(raw: string): string {
   return '{}';
 }
 
-function fallbackClassification(reason: string, timeout = false): ClassifiedIntent {
+function fallbackClassification(
+  reason: string,
+  opts?: { timeout?: boolean; errorType?: ClassifiedIntent['meta']['errorType'] },
+): ClassifiedIntent {
   return {
     intent: 'desconhecido',
     entities: {},
@@ -423,8 +427,9 @@ function fallbackClassification(reason: string, timeout = false): ClassifiedInte
     confidence: 'low',
     meta: {
       model: CLASSIFIER_MODEL,
-      timeout,
+      timeout: opts?.timeout ?? false,
       fallbackReason: reason,
+      errorType: opts?.errorType ?? 'unknown',
     },
   };
 }
@@ -518,8 +523,11 @@ export async function classifyIntent(
     const compactedHistory = compactConversationHistory(conversationHistory, 6, 220);
     const prompt = buildPrompt(INTENT_SYSTEM_PROMPT, text.slice(0, 1200), compactedHistory);
     return await classifyWithPrompt(prompt, 180);
-  } catch {
-    return fallbackClassification('classifier_exception');
+  } catch (err) {
+    const errorType = err instanceof SyntaxError ? 'parse_error'
+      : (err instanceof Error && /timeout|abort/i.test(err.message)) ? 'timeout'
+      : 'api_error';
+    return fallbackClassification('classifier_exception', { errorType });
   }
 }
 
@@ -537,8 +545,11 @@ export async function classifyIntentCompact(
     const compactedHistory = compactConversationHistory(conversationHistory, maxHistoryItems, maxHistoryChars);
     const prompt = buildPrompt(INTENT_COMPACT_PROMPT, text.slice(0, maxInputChars), compactedHistory);
     return await classifyWithPrompt(prompt, maxOutputTokens);
-  } catch {
-    return fallbackClassification('classifier_compact_exception');
+  } catch (err) {
+    const errorType = err instanceof SyntaxError ? 'parse_error'
+      : (err instanceof Error && /timeout|abort/i.test(err.message)) ? 'timeout'
+      : 'api_error';
+    return fallbackClassification('classifier_compact_exception', { errorType });
   }
 }
 

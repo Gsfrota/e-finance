@@ -394,6 +394,14 @@ export async function routeIntent(
   const traceBase = buildTraceBase(trimmed, history, options);
   const routeMode = options.mode || 'full';
 
+  // BR-BOT-007: saudação com intent embutido — strip do prefixo, processar o restante
+  // Só strip quando o sufixo contém keyword de negócio; caso contrário preserva como saudacao
+  const GREETING_BUSINESS_KEYWORDS = /contrato|parcel|cobr|receb|pagamento|devedor|dashboard|ajuda|saldo|vencimento|valor|juros|cpf|boleto|carteira/i;
+  const greetingPrefixMatch = trimmed.match(/^(?:oi|ol[aá]|bom\s+dia|boa\s+tarde|boa\s+noite)[,!.\s]+(.{5,})/i);
+  const effectiveText = (greetingPrefixMatch && GREETING_BUSINESS_KEYWORDS.test(greetingPrefixMatch[1]))
+    ? greetingPrefixMatch[1].trim()
+    : trimmed;
+
   if (!trimmed) {
     const result = fallbackUnknown([], 'empty_message');
     logStructuredMessage('llm_router_skipped', {
@@ -434,9 +442,9 @@ export async function routeIntent(
     return result;
   }
 
-  const ruleMatch = inferRuleIntent(trimmed);
+  const ruleMatch = inferRuleIntent(effectiveText);
   if (ruleMatch) {
-    const withDefaults = applyPeriodDefaults(ruleMatch, trimmed);
+    const withDefaults = applyPeriodDefaults(ruleMatch, effectiveText);
     logStructuredMessage('llm_router_skipped', {
       ...traceBase,
       routeSource: 'rule',
@@ -456,13 +464,13 @@ export async function routeIntent(
     return withDefaults;
   }
 
-  const contractSignal = detectContractSignal(trimmed);
-  const receivablesSignal = detectReceivablesSignal(trimmed);
-  const inferredFilter = inferFilter(trimmed);
+  const contractSignal = detectContractSignal(effectiveText);
+  const receivablesSignal = detectReceivablesSignal(effectiveText);
+  const inferredFilter = inferFilter(effectiveText);
 
   if (contractSignal.isStrong) {
     const entities: Record<string, string | number> = {};
-    if (inferredFilter && /atrasad|pendente|vencid|inadimpl/.test(trimmed.toLowerCase())) {
+    if (inferredFilter && /atrasad|pendente|vencid|inadimpl/.test(effectiveText.toLowerCase())) {
       entities.filter = inferredFilter;
     }
 
@@ -554,7 +562,7 @@ export async function routeIntent(
     return result;
   }
 
-  const likelyNaturalSentence = /\s/.test(trimmed) && trimmed.length >= 12;
+  const likelyNaturalSentence = /\s/.test(effectiveText) && effectiveText.length >= 12;
   const hasConversationHistory = countHistoryChars(history) > 200;
   const shouldCallLlm = config.llmRouter.enabled && (
     likelyNaturalSentence
@@ -583,10 +591,10 @@ export async function routeIntent(
   }
 
   const cacheScope = options.cacheScope || 'global';
-  const cacheKey = buildCacheKey(cacheScope, trimmed, options.userRole);
+  const cacheKey = buildCacheKey(cacheScope, effectiveText, options.userRole);
   const cached = getCache(cacheKey);
   if (cached) {
-    const withDefaults = applyPeriodDefaults(cached, trimmed);
+    const withDefaults = applyPeriodDefaults(cached, effectiveText);
     logStructuredMessage('llm_router_skipped', {
       ...traceBase,
       routeSource: withDefaults.source,
@@ -627,7 +635,7 @@ export async function routeIntent(
   });
 
   const classified = await Promise.race([
-    classifyIntentCompact(trimmed, history, {
+    classifyIntentCompact(effectiveText, history, {
       maxInputChars: config.llmRouter.maxInputChars,
       maxHistoryItems: config.llmRouter.historyItems,
       maxHistoryChars: config.llmRouter.historyChars,
@@ -664,8 +672,8 @@ export async function routeIntent(
     // Only promote single timeout candidate if message text actually reinforces it
     const candidateIntent = candidates[0];
     const looksRelevant = (
-      (candidateIntent === 'criar_contrato' && detectContractSignal(trimmed).score >= 2) ||
-      (candidateIntent === 'listar_recebiveis' && detectReceivablesSignal(trimmed).score >= 2)
+      (candidateIntent === 'criar_contrato' && detectContractSignal(effectiveText).score >= 2) ||
+      (candidateIntent === 'listar_recebiveis' && detectReceivablesSignal(effectiveText).score >= 2)
     );
     if (looksRelevant) {
       routed.intent = candidateIntent;
@@ -676,7 +684,7 @@ export async function routeIntent(
     // Otherwise keep as desconhecido/low — don't guess from timeout
   }
 
-  routed = applyPeriodDefaults(routed, trimmed);
+  routed = applyPeriodDefaults(routed, effectiveText);
 
   logStructuredMessage('llm_router_called', {
     ...traceBase,

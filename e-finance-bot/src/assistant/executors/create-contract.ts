@@ -333,12 +333,12 @@ function normalizeDraftInput(input: CreateContractCapabilityInput): CreateContra
 }
 
 function getMissingFields(input: CreateContractCapabilityInput): string[] {
+  // BR-BOT-010: ordem determinística — nome → valor → taxa → parcelas → CPF → frequência → vencimento
   if (!input.debtor_name) return ['debtor_name'];
-  if (!input.debtor_cpf) return ['debtor_cpf'];
-  if (!isValidCpf(input.debtor_cpf)) return ['debtor_cpf'];
   if (input.amount === undefined || input.amount === null) return ['amount'];
   if (input.rate === undefined || input.rate === null) return ['rate'];
   if (input.installments === undefined || input.installments === null) return ['installments'];
+  if (!input.debtor_cpf || !isValidCpf(input.debtor_cpf)) return ['debtor_cpf'];
   if (!input.frequency) return ['frequency'];
 
   if (input.conflict_existing_name && input.conflict_requested_name && !input.rename_mode) {

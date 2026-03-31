@@ -157,4 +157,23 @@ describe('intent router', () => {
     expect(routed.source).toBe('rule');
     expect(mocks.classifyIntentCompact).not.toHaveBeenCalled();
   });
+
+  // BUG-1: saudação com intent embutido deve rotear pelo intent, não como saudacao
+  it('BUG-1: "oi, quanto vou receber essa semana" → recebiveis_periodo (não saudacao)', async () => {
+    const routed = await routeIntent('oi, quanto vou receber essa semana', []);
+    expect(routed.intent).toBe('recebiveis_periodo');
+    expect(routed.intent).not.toBe('saudacao');
+  });
+
+  it('BUG-1: "olá, criar contrato" → criar_contrato (não saudacao)', async () => {
+    const routed = await routeIntent('olá, criar contrato', []);
+    expect(routed.intent).toBe('criar_contrato');
+    expect(routed.intent).not.toBe('saudacao');
+  });
+
+  it('BUG-1: "bom dia, quem está com parcelas atrasadas?" → listar_recebiveis (não saudacao)', async () => {
+    const routed = await routeIntent('bom dia, quem está com parcelas atrasadas?', []);
+    expect(routed.intent).toBe('listar_recebiveis');
+    expect(routed.intent).not.toBe('saudacao');
+  });
 });

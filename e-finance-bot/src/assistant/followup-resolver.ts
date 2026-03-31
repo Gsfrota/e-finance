@@ -110,8 +110,13 @@ function resolveDebtorCandidateSelection(
       ? state.lastEntity.id
       : undefined;
 
-  if (/^o outro\b/.test(normalized) && candidates.length === 2 && focusedDebtorId) {
-    selected = candidates.find(candidate => candidate.id !== focusedDebtorId) || null;
+  if (/^o outro\b/.test(normalized) && candidates.length === 2) {
+    if (focusedDebtorId) {
+      selected = candidates.find(candidate => candidate.id !== focusedDebtorId) || null;
+    } else {
+      // GAP-3.2: sem focused, selecionar o segundo candidato
+      selected = candidates[1] ?? null;
+    }
     if (selected) evidence.push('candidate_set:debtors:o_outro');
   }
 
@@ -126,10 +131,14 @@ function resolveDebtorCandidateSelection(
   if (!selected) {
     const digits = normalized.replace(/\D/g, '');
     if (digits.length >= 2) {
-      selected = candidates.find(candidate =>
+      const cpfMatches = candidates.filter(candidate =>
         candidate.cpfMasked?.replace(/\D/g, '').endsWith(digits)
-      ) || null;
-      if (selected) evidence.push('candidate_set:debtors:cpf_suffix');
+      );
+      // GAP-3.3: múltiplos matches → retornar null para forçar clarificação
+      if (cpfMatches.length === 1) {
+        selected = cpfMatches[0];
+        evidence.push('candidate_set:debtors:cpf_suffix');
+      }
     }
   }
 

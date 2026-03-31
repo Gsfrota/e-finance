@@ -65,4 +65,47 @@ describe('followup-resolver', () => {
     expect(plan).not.toBeNull();
     expect(plan?.capability).toBe('query_collection_window');
   });
+
+  // GAP-3.2: "o outro" sem focusedDebtorId deve selecionar o segundo candidato
+  it('GAP-3.2: "o outro" sem focused seleciona o segundo candidato', () => {
+    const plan = resolveFollowup('o outro', {
+      lastAction: 'query_debtor_balance',
+      lastDebtorCandidates: [
+        { id: 'debtor-1', label: 'João', cpfMasked: '***.***.***-01' },
+        { id: 'debtor-2', label: 'Maria', cpfMasked: '***.***.***-02' },
+      ],
+      // sem lastEntity nem focusedEntity
+    });
+
+    expect(plan).not.toBeNull();
+    expect(plan?.args?.debtor_profile_id).toBe('debtor-2');
+    expect(plan?.args?.debtor_name).toBe('Maria');
+  });
+
+  // GAP-3.3: múltiplos candidatos com mesmo sufixo CPF deve retornar null (forçar clarificação)
+  it('GAP-3.3: CPF suffix ambíguo com múltiplos matches retorna null', () => {
+    const plan = resolveFollowup('25', {
+      lastAction: 'query_debtor_balance',
+      lastDebtorCandidates: [
+        { id: 'debtor-1', label: 'João', cpfMasked: '***.***.***-25' },
+        { id: 'debtor-2', label: 'Maria', cpfMasked: '***.***.***-25' },
+      ],
+    });
+
+    expect(plan).toBeNull();
+  });
+
+  // GAP-3.3 regressão: CPF suffix único ainda funciona
+  it('GAP-3.3: CPF suffix único ainda resolve corretamente', () => {
+    const plan = resolveFollowup('25', {
+      lastAction: 'query_debtor_balance',
+      lastDebtorCandidates: [
+        { id: 'debtor-1', label: 'João', cpfMasked: '***.***.***-25' },
+        { id: 'debtor-2', label: 'Maria', cpfMasked: '***.***.***-05' },
+      ],
+    });
+
+    expect(plan).not.toBeNull();
+    expect(plan?.args?.debtor_profile_id).toBe('debtor-1');
+  });
 });
