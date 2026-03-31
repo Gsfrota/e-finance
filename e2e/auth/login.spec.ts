@@ -1,11 +1,17 @@
 import { test, expect } from '@playwright/test';
 
 // AUTH-01: Login com credenciais válidas
-test('AUTH-01: Login com credenciais válidas redireciona ao dashboard', async ({ page }) => {
-  // Teste usa storageState do setup — sidebar já deve estar visível
+test('AUTH-01: Login com credenciais válidas redireciona ao dashboard', async ({ browser }) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
   await page.goto('/');
-  await expect(page.locator('aside')).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText('Dashboard')).toBeVisible();
+
+  await page.getByPlaceholder('seu@email.com').fill(process.env.TEST_ADMIN_EMAIL || 'teste1@teste');
+  await page.getByPlaceholder('Senha de acesso').fill(process.env.TEST_ADMIN_PASSWORD || 'E2eTest@2024');
+  await page.getByTestId('login-btn').click();
+
+  await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+  await context.close();
 });
 
 // AUTH-02: Login com credenciais inválidas
@@ -15,8 +21,8 @@ test('AUTH-02: Login com credenciais inválidas exibe erro em PT-BR', async ({ b
   const page = await context.newPage();
   await page.goto('/');
 
-  await page.getByPlaceholder('E-mail Corporativo').fill('email@invalido.com');
-  await page.getByPlaceholder('Senha de Acesso').fill('senhaerrada');
+  await page.getByPlaceholder('seu@email.com').fill('email@invalido.com');
+  await page.getByPlaceholder('Senha de acesso').fill('senhaerrada');
   await page.getByTestId('login-btn').click();
 
   await expect(page.getByTestId('error-message')).toBeVisible({ timeout: 8_000 });
@@ -33,8 +39,8 @@ test('AUTH-03: Botão de login fica desabilitado durante o carregamento', async 
   const page = await context.newPage();
   await page.goto('/');
 
-  await page.getByPlaceholder('E-mail Corporativo').fill('test@test.com');
-  await page.getByPlaceholder('Senha de Acesso').fill('senha123');
+  await page.getByPlaceholder('seu@email.com').fill('test@test.com');
+  await page.getByPlaceholder('Senha de acesso').fill('senha123');
   await page.getByTestId('login-btn').click();
 
   // Botão deve ficar desabilitado enquanto carrega
