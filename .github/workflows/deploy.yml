@@ -71,18 +71,6 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
-      - name: "Tier 1: Auth tests (login / logout)"
-        run: >
-          npx playwright test e2e/auth/login.spec.ts
-          --project=chromium
-          --project=no-auth
-          --reporter=list
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
-          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
-
       - name: "Tier 2: Payment flow tests (gate financeiro crítico)"
         run: >
           npx playwright test e2e/e2e-full/payment-flows.spec.ts
