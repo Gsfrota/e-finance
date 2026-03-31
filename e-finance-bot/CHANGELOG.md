@@ -1,5 +1,108 @@
 # Changelog — e-finance-bot
 
+## [2026-03-30] — Migração final de mutações sensíveis para capabilities dedicadas
+
+### Objetivo
+- Tirar `create_contract` e `mark_installment_paid` do `legacy-dispatch`.
+- Manter `WorkingStateV2` como estado canônico.
+- Deixar o `tool-executor` mais fino e mais registry-driven.
+- Preservar confirmação explícita, tenant isolation e resposta fiel ao resultado estruturado.
+
+### Alterado
+- **`src/assistant/contracts.ts`**
+  - Estendidos os contratos de runtime (`CapabilityRuntimeContext`, `CapabilityResolveResult`, `CapabilityExecuteResult`) e o estado (`pendingOperationInput`) para suportar resolução/autorização/execução por capability.
+  - Motivo: parar de depender de inferência espalhada entre handler, executor e legado.
+
+- **`src/assistant/legacy-state-adapter.ts`**
+  - O adapter deixou de espelhar `create_contract` e `mark_installment_paid` para `pendingAction/pendingStep/pendingData` quando o fluxo já está no estado novo.
+  - Motivo: evitar dualidade de memória e confirmações inconsistentes nesses dois fluxos.
+
+- **`src/assistant/executors/create-contract.ts`** (novo)
+  - Capability dedicada com `inputSchema`, `resolve`, `authorize`, `execute` e `formatResult`.
+  - `resolve` consolida draft pendente + texto atual, detecta campos faltantes, gera preview fiel e exige confirmação antes da gravação.
+  - `execute` trata `conflict_name` como clarificação estruturada e não volta para o legado.
+  - Motivo: fechar a migração do contrato para o runtime novo.
+
+- **`src/assistant/executors/mark-installment-paid.ts`** (novo)
+  - Capability dedicada com resolução determinística de parcela por contrato/parcela, contrato/mês ou devedor/mês.
+  - Persiste candidate set útil para follow-up curto, exige confirmação e respeita replay idempotente por sessão/confirmação.
+  - Motivo: remover a baixa de pagamento do `legacy-dispatch` sem perder segurança.
+
+- **`src/assistant/tool-executor.ts`**
+  - Passou a executar capabilities registry-driven via `inputSchema -> resolve -> policy -> confirmation -> authorize -> execute -> formatResult`.
+  - Mantém replay benigno para mutações já confirmadas no mesmo chat.
+  - Motivo: concentrar o runtime genérico e tirar lógica específica do executor central.
+
+- **`src/assistant/capability-registry.ts`** e **`src/assistant/action-planner.ts`**
+  - `create_contract` e `mark_installment_paid` agora apontam para capabilities dedicadas.
+  - `requiresConfirmation` passa a vir do registry para o planner.
+  - Motivo: consolidar o contrato de execução na registry.
+
+- **`src/assistant/followup-resolver.ts`**
+  - Adicionado suporte a follow-up por `pendingCapability` para os dois fluxos migrados.
+  - Motivo: manter multi-turn curto sem cair no legado.
+
+- **`src/handlers/message-handler.ts`**
+  - Confirmações desses fluxos agora passam pelo runtime novo.
+  - Cancelamento/escape de fluxo pendente passa a limpar apenas `WorkingStateV2`.
+  - Ajustado o prefixo `Entendi do áudio` para o novo wording de confirmação.
+  - Motivo: o handler fica mais orquestrador e menos dono da lógica.
+
+- **`src/actions/admin-actions.ts`**
+  - Adicionado helper determinístico `getContractOpenInstallmentByMonth(...)`.
+  - Motivo: resolver baixa por mês sem branch legado.
+
+- **`src/ai/response-generator.ts`**
+  - A naturalização passou a priorizar o `baseText`/`StructuredResponse` correto do runtime novo.
+  - Motivo: evitar reinterpretação errada da operação executada.
+
+- **`src/session/session-manager.ts`** e **`src/assistant/working-state-store.ts`**
+  - Tipagem e persistência alinhadas com `workingStateV2`.
+  - Motivo: manter o estado único como contrato real.
+
+### Bugs reais corrigidos durante a rodada
+- **CPF sobrescrevendo `amount` em `create_contract`**
+  - Causa: o fallback textual de contrato aceitava número curto fora de contexto e podia promover dígitos do CPF para o campo de valor.
+  - Correção: o patch textual genérico agora só preenche campos faltantes; respostas curtas são tratadas por slot focado.
+
+- **Slot filling curto não resolvia `due_day`**
+  - Causa: ao pedir `dia do mês`, a resposta `10` não era interpretada no fluxo novo.
+  - Correção: `create_contract.resolve()` passou a aceitar respostas curtas focadas por campo pendente (`due_day`, `rate`, `installments`, `weekday`, `start_date`, `rename_mode`, etc.).
+
+- **Artefatos `._*` do macOS quebrando o Vitest no `pc1`**
+  - Causa: sincronização por `tar` carregou AppleDouble files para dentro de `src/` e `tests/`.
+  - Correção: limpeza recursiva dos `._*` no repo remoto.
+
+### Testes e validação
+- **Novo teste:** `tests/tool-executor.mutations.test.ts`
+  - Cobre:
+    - `create_contract` happy path com confirmação
+    - `create_contract` missing args
+    - `create_contract` bloqueio por role
+    - `create_contract` conflito de nome
+    - `mark_installment_paid` confirmação
+    - `mark_installment_paid` múltiplos candidatos
+    - idempotência por replay
+    - ausência de fallback para `legacy-dispatch`
+
+- **Testes ajustados**
+  - `tests/message-handler.test.ts`
+  - `tests/conversation-smoke.test.ts`
+  - `tests/working-state-store.test.ts`
+  - `tests/evals/harness.ts`
+  - `tests/evals/dataset.ts`
+
+- **Validação no `pc1`**
+  - `npm run build -- --pretty false` → ok
+  - `npm test` → **22 arquivos, 142 testes passando**
+  - `npm run test:agent-evals` → **19/19 passando**
+
+### Riscos remanescentes
+- O legado ainda existe para fluxos não migrados; esta rodada removeu a dependência apenas para `create_contract` e `mark_installment_paid`.
+- A idempotência continua `session-scoped + confirmation-scoped`; ainda não é uma garantia global cross-instance.
+- Não houve deploy nesta rodada de changelog; esta nota documenta o estado do código e da validação no `pc1`.
+
+
 ## [2026-03-23] — Hardening multiempresa conversacional
 
 - Bot passou a entender referências de empresa mais naturais no chat admin, como `matriz`, `filial`, `empresa 2` e frases inline do tipo `dashboard da empresa X`.
