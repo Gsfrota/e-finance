@@ -805,6 +805,40 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
   },
 
   {
+    id: 'regression-verbal-loan-description-routes-criar-contrato',
+    description: 'GAP-1.5: descrição verbal de empréstimo ("vou emprestar...pagar de X por mês") → criar_contrato',
+    category: 'regressions',
+    criticality: 'core',
+    failureTag: 'misroute',
+    setup: ({ mocks }) => {
+      mocks.routeIntent.mockResolvedValue({
+        intent: 'criar_contrato',
+        entities: {},
+        normalizedEntities: {
+          debtor_name: 'João',
+          amount: 5000,
+          installments: 10,
+        },
+        confidence: 'high',
+        source: 'rule',
+      });
+    },
+    steps: [
+      {
+        input: { text: 'preciso emprestar 5mil pro João pagar de 500 por mês' },
+        expect: {
+          textIncludes: ['taxa de juros'],
+          textExcludes: ['Qual deles', 'Não entendi'],
+          workingState: {
+            pendingCapability: 'create_contract',
+            pendingMissingFields: ['rate'],
+          },
+        },
+      },
+    ],
+  },
+
+  {
     id: 'functional-disconnect-confirmation',
     description: 'desconectar exige confirmação e só executa após resposta afirmativa',
     category: 'functional',

@@ -69,6 +69,8 @@ interface ClassifyCompactOptions {
   maxHistoryItems?: number;
   maxHistoryChars?: number;
   maxOutputTokens?: number;
+  // GAP-1.1: candidatos pré-computados pela camada de regras como dica para o LLM
+  candidates?: string[];
 }
 
 const CLASSIFIER_MODEL = 'gemini-2.5-flash-lite';
@@ -454,13 +456,19 @@ function parseClassificationResult(rawText: string): ClassifiedIntent {
 function buildPrompt(
   systemPrompt: string,
   text: string,
-  conversationHistory: Array<{ role: string; content: string }>
+  conversationHistory: Array<{ role: string; content: string }>,
+  candidates?: string[],
 ): string {
   const historyText = conversationHistory.length > 0
     ? `\nHistórico recente:\n${conversationHistory.map(m => `${m.role}: ${m.content}`).join('\n')}\n`
     : '';
 
-  return `${systemPrompt}\n${historyText}Mensagem atual do usuário: "${text}"`;
+  // GAP-1.1: dica de candidatos pré-computados pela camada de regras
+  const candidatesHint = candidates && candidates.length > 0
+    ? `\nCandidatos possíveis (baseado em sinais de regras): ${candidates.join(', ')}. Escolha o mais provável ou desconhecido se nenhum se aplica.\n`
+    : '';
+
+  return `${systemPrompt}\n${historyText}${candidatesHint}Mensagem atual do usuário: "${text}"`;
 }
 
 export function compactConversationHistory(
@@ -543,7 +551,7 @@ export async function classifyIntentCompact(
 
   try {
     const compactedHistory = compactConversationHistory(conversationHistory, maxHistoryItems, maxHistoryChars);
-    const prompt = buildPrompt(INTENT_COMPACT_PROMPT, text.slice(0, maxInputChars), compactedHistory);
+    const prompt = buildPrompt(INTENT_COMPACT_PROMPT, text.slice(0, maxInputChars), compactedHistory, options.candidates);
     return await classifyWithPrompt(prompt, maxOutputTokens);
   } catch (err) {
     const errorType = err instanceof SyntaxError ? 'parse_error'

@@ -195,6 +195,8 @@ function detectContractSignal(text: string): ContractSignal {
   let score = 0;
 
   if (/empr[eé]stimo|emprestimo|contrato|juros|total\s+a\s+pagar|vai\s+pagar|devedor/.test(normalized)) score += 2;
+  // GAP-1.5: descrições verbais de empréstimo ("vou emprestar 5mil pro João pagar de 500 por mês")
+  if (/emprést[ia]r.*para.*pagar|vou\s+emprestar|fazer\s+empr[eé]stimo\s+de.*por\s+m[eê]s|emprestar\s+\d/.test(normalized)) score += 3;
   if (hasPorPattern) score += 3;
   if (hasMoney && hasInstallments) score += 3;
   if (hasDueDay) score += 2;
@@ -640,6 +642,7 @@ export async function routeIntent(
       maxHistoryItems: config.llmRouter.historyItems,
       maxHistoryChars: config.llmRouter.historyChars,
       maxOutputTokens: config.llmRouter.maxOutputTokens,
+      candidates: candidates.length > 0 ? candidates : undefined,
     }),
     timeoutPromise,
   ]);
