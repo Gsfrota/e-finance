@@ -52,13 +52,15 @@ jobs:
             sleep 2
           done
 
+      - name: Criar .env.local a partir dos secrets
+        run: |
+          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" > .env.local
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env.local
+          echo "TEST_ADMIN_EMAIL=${{ secrets.TEST_ADMIN_EMAIL }}" >> .env.local
+          echo "TEST_ADMIN_PASSWORD=${{ secrets.TEST_ADMIN_PASSWORD }}" >> .env.local
+
       - name: Auth setup (login admin)
         run: npx playwright test --project=setup --reporter=list
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
-          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
 
       - name: "Tier 1: Smoke tests (navegação e carregamento)"
         run: >
