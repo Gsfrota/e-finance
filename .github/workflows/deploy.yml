@@ -80,7 +80,6 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: "Tier 2: Payment flow tests (gate financeiro crítico)"
-        if: ${{ secrets.TEST_ADMIN_EMAIL != '' }}
         run: >
           npx playwright test e2e/e2e-full/payment-flows.spec.ts
           --project=chromium
