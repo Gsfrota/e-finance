@@ -269,9 +269,17 @@ Categorias:
 - **Resultado:** Deploy só avança se smoke test passar sem erros
 - **Exceções:** Nenhuma — criticidade máxima (P0), sem waiver possível
 - **Tabelas:** `loan_installments`, `payment_transactions`, `investments`
-- **RPCs cobertas:** `pay_installment`, `apply_surplus_action`, `apply_remainder_action`, `mark_installment_missed`, `revert_installment_payment`, `refinance_installment`, `admin_update_installment`, `pay_avulso`, `pay_bullet_interest_only`, `generate_next_bullet_installment`
+- **RPCs cobertas:** `pay_installment`, `apply_surplus_action`, `apply_remainder_action`, `mark_installment_missed`, `revert_installment_missed`, `revert_installment_payment`, `refinance_installment`, `admin_update_installment`, `pay_avulso`, `pay_bullet_interest_only`, `generate_next_bullet_installment`
 - **Script de validação:** `scripts/smoke-test-payment-rpcs.sql`
 - **Gate de overloads:** `SELECT proname, count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND proname IN ('pay_installment',...) GROUP BY proname HAVING count(*)>1` — deve retornar 0 linhas
+- **Status:** ativa
+
+### BR-PAG-020: Reversão de Falta — Janela de 72h e Guards
+- **Descrição:** A reversão de uma falta registrada (`revert_installment_missed`) é permitida apenas dentro de 72 horas do `missed_at`. Só disponível para admins. Se a parcela destino (substituta ou acumulada) já foi paga pelo devedor, a reversão é bloqueada.
+- **Condição:** Ao executar `revert_installment_missed`
+- **Resultado:** Parcela original restaurada com valores originais, `status = 'pending'`, `missed_at = NULL`. Para ação 'new': parcela substituta deletada e `total_installments` decrementado. Para ação 'last': valores subtraídos da parcela destino. Para ação 'postpone': `due_date` revertida.
+- **Exceções:** Dados de reversão requerem `metadata` na `contract_renegotiations` (disponível a partir da v38). Faltas anteriores à v38 bloqueiam a reversão com mensagem orientando contato ao suporte.
+- **Tabelas:** `loan_installments`, `contract_renegotiations`, `investments`
 - **Status:** ativa
 
 ---
@@ -287,9 +295,9 @@ Categorias:
 - **Status:** ativa
 - **Stories:** feat 311f8ca
 
-### BR-REL-002: Parcelas fantasmas (deferidas) são omitidas do extrato de recebimentos
-- **Descrição:** Parcelas resultantes de `mark_installment_missed` que foram zeradas e marcadas como `paid` não devem aparecer no extrato de recebimentos do investidor. Essas parcelas têm `amount_total = 0`, `amount_paid = 0` e `status = 'paid'`, e possuem uma parcela substituta com `deferred_from_id` apontando para elas.
-- **Condição:** Qualquer query ou view que exibe recebimentos/salário do investidor
+### BR-REL-002: Parcelas fantasmas (deferidas) são omitidas das métricas financeiras do investidor
+- **Descrição:** Parcelas resultantes de `mark_installment_missed` que foram zeradas e marcadas como `paid` não devem aparecer nas métricas financeiras do investidor (salário, visão mensal, gráficos). Essas parcelas têm `amount_total = 0`, `amount_paid = 0` e `status = 'paid'`, e possuem uma parcela substituta com `deferred_from_id` apontando para elas. **Exceção:** O histórico operacional do contrato (`InstallmentHistory`, aba "Por Parcela") exibe essas parcelas com status "Falta" e contexto do destino do valor — para transparência administrativa.
+- **Condição:** Queries/views de métricas financeiras do investidor (`useInvestorMetrics`, `useDashboardData`). NÃO se aplica ao `InstallmentHistory` do contrato (visualização operacional admin).
 - **Resultado:** Filtrar `WHERE NOT (amount_total = 0 AND amount_paid = 0 AND status = 'paid')` nas queries de recebimentos — ou equivalente: excluir parcelas que são referenciadas como `deferred_from_id` por outra parcela
 - **Exceções:** Parcelas com `amount_paid > 0` sempre aparecem, mesmo que `amount_total = 0`
 - **Tabelas:** `loan_installments`, `view_investor_balances` (ou equivalente)

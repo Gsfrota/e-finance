@@ -101,19 +101,24 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
     });
   };
 
-  // BR-REL-002: omite parcelas fantasmas geradas por mark_installment_missed
-  // (amount_total=0, amount_paid=0, status='paid' — foram deferidas para outra parcela)
+  // BR-REL-002: o filtro de parcelas fantasmas é mantido apenas nas views de métricas
+  // do investidor (useInvestorMetrics, useDashboardData). Aqui exibimos todas as
+  // parcelas para o histórico operacional do contrato, incluindo as absorvidas por falta.
   const allInstallments: LoanInstallment[] = (investment.loan_installments || [])
-    .filter(i => !(Number(i.amount_total) === 0 && Number(i.amount_paid) === 0 && i.status === 'paid'))
     .slice()
     .sort((a, b) => a.number - b.number);
 
   const contractId = `CT${String(investment.id).slice(-8)}`;
   const photoUrl = (investment as any).payer?.photo_url;
 
-  const paidItems = allInstallments.filter(i => i.status === 'paid');
+  // Parcelas absorvidas por falta (zeradas pelo missed flow) não contam como pagas
+  const isMissedAbsorbed = (i: LoanInstallment) =>
+    !!(i as any).missed_at && i.status === 'paid' && Number(i.amount_total) === 0;
+
+  const paidItems = allInstallments.filter(i => i.status === 'paid' && !isMissedAbsorbed(i));
   const pendingItems = allInstallments.filter(i => i.status === 'pending');
   const overdueItems = allInstallments.filter(i => i.status === 'late' || i.status === 'partial');
+  const missedAbsorbedItems = allInstallments.filter(isMissedAbsorbed);
 
   const paidTotal = paidItems.reduce((s, i) => s + normalizeNum(i.amount_paid), 0);
   const pendingTotal = pendingItems.reduce((s, i) => s + calcOutstanding(i), 0);
@@ -301,6 +306,12 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                 const isPaid = inst.status === 'paid';
                 const isPartial = inst.status === 'partial';
                 const amountPaid = normalizeNum(inst.amount_paid);
+                const isAbsorbed = isMissedAbsorbed(inst);
+
+                // Para parcelas absorvidas, buscar parcela destino para exibir contexto
+                const targetInst = isAbsorbed
+                  ? allInstallments.find(i => (i as any).deferred_from_id === inst.id)
+                  : undefined;
 
                 const statusMap: Record<string, { label: string; color: string }> = {
                   paid:    { label: 'Liquidada', color: 'var(--accent-positive)' },
@@ -310,7 +321,9 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                 };
                 let st = statusMap[inst.status] ?? statusMap.pending;
                 const modInfo = getInstallmentModInfo(inst);
-                if (modInfo) {
+                if (isAbsorbed) {
+                  st = { label: 'Falta', color: 'var(--accent-danger)' };
+                } else if (modInfo) {
                   const modColorMap: Record<string, string> = {
                     absorbed: 'var(--text-muted)', surplus_zeroed: 'var(--accent-danger)', surplus_paid: 'var(--accent-purple)',
                     surplus_reduced: 'var(--accent-purple)', deferred_target: 'var(--accent-caution)',
@@ -333,8 +346,10 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                       <span className="w-[4.5rem] shrink-0 text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>
                         {fmtDate(inst.due_date)}
                       </span>
-                      <span className="flex-1 min-w-0 text-xs font-semibold tabular-nums truncate" style={{ color: 'var(--text-primary)' }}>
-                        {fmtMoney(normalizeNum(inst.amount_total))}
+                      <span className="flex-1 min-w-0 text-xs font-semibold tabular-nums truncate" style={{ color: isAbsorbed ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+                        {isAbsorbed && targetInst
+                          ? `→ #${targetInst.number}`
+                          : fmtMoney(normalizeNum(inst.amount_total))}
                       </span>
                       <span className="w-14 shrink-0 text-xs font-bold tabular-nums text-right" style={{ color: (isPaid || isPartial) ? 'var(--accent-positive)' : 'var(--text-muted)' }}>
                         {(isPaid || isPartial) ? fmtMoney(amountPaid) : '—'}
@@ -388,6 +403,11 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                       <div className="px-4 py-1" style={{ background: 'rgba(198,126,105,0.07)', borderBottom: '1px solid var(--border-subtle)' }}>
                         <p className="text-[10px] font-semibold" style={{ color: 'var(--accent-danger)' }}>
                           ⚠ Falta registrada em {fmtDate((inst as any).missed_at)}
+                          {isAbsorbed && targetInst && (
+                            <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
+                              {' · '}Valor acumulado na parcela #{targetInst.number}
+                            </span>
+                          )}
                         </p>
                       </div>
                     )}
@@ -400,7 +420,15 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
       </div>
 
       {/* ── Footer Summary ──────────────────────────────────────────────── */}
-      <div className="shrink-0 grid grid-cols-3 gap-2 px-4 py-3" style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border-subtle)' }}>
+      {missedAbsorbedItems.length > 0 && (
+        <div className="shrink-0 flex items-center gap-2 px-4 py-2" style={{ background: 'rgba(198,126,105,0.07)', borderTop: '1px solid var(--border-subtle)' }}>
+          <span style={{ color: 'var(--accent-danger)', fontSize: 12 }}>⚠</span>
+          <p className="text-[11px] font-semibold" style={{ color: 'var(--accent-danger)' }}>
+            {missedAbsorbedItems.length} parcela{missedAbsorbedItems.length > 1 ? 's' : ''} com falta registrada
+          </p>
+        </div>
+      )}
+      <div className="shrink-0 grid grid-cols-3 gap-2 px-4 py-3" style={{ background: 'var(--bg-elevated)', borderTop: missedAbsorbedItems.length > 0 ? 'none' : '1px solid var(--border-subtle)' }}>
         <div className="flex items-center gap-2">
           <CheckCircle size={16} className="text-green-600 shrink-0" />
           <div>

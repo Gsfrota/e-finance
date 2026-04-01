@@ -36,12 +36,13 @@ import { useCompanyContext } from '../services/companyScope';
 
 export type InstallmentAction =
   | null
-  | { type: 'pay';      installment: LoanInstallment }
-  | { type: 'unpay';    installment: LoanInstallment }
-  | { type: 'miss';     installment: LoanInstallment }
-  | { type: 'refinance'; installment: LoanInstallment }
-  | { type: 'edit';     installment: LoanInstallment }
-  | { type: 'interest'; installment: LoanInstallment };
+  | { type: 'pay';          installment: LoanInstallment }
+  | { type: 'unpay';        installment: LoanInstallment }
+  | { type: 'miss';         installment: LoanInstallment }
+  | { type: 'revert_miss';  installment: LoanInstallment }
+  | { type: 'refinance';    installment: LoanInstallment }
+  | { type: 'edit';         installment: LoanInstallment }
+  | { type: 'interest';     installment: LoanInstallment };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -356,7 +357,17 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
           </button>
         )}
         <div className="flex items-stretch gap-2">
-        {!isPaid ? (
+        {/* Parcela absorvida por falta (zerada, missed_at preenchido) */}
+        {!!(activeInst as any).missed_at && isPaid && normalizeNum(activeInst.amount_total) === 0 ? (
+          <button
+            onClick={() => onAction({ type: 'revert_miss', installment: activeInst })}
+            className="flex-1 flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 font-bold text-white active:scale-95 transition-all"
+            style={{ background: '#F44336' }}
+          >
+            <RefreshCw size={20} />
+            <span className="text-[0.65rem] font-bold text-center leading-tight">Reverter Falta</span>
+          </button>
+        ) : !isPaid ? (
           <>
             <button
               onClick={() => onAction({ type: 'pay', installment: activeInst })}
@@ -574,6 +585,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
 
   const titles: Record<string, string> = {
     pay: 'Dar Baixa', unpay: 'Reverter Pagamento', miss: 'Registrar Falta',
+    revert_miss: 'Reverter Falta',
     refinance: 'Renegociar Parcela', edit: 'Editar Parcela', interest: 'Pagar Só Juros',
   };
 
@@ -1020,6 +1032,38 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         p_installment_id: installment.id,
       });
       if (err) throw err;
+      onSuccess(); onBack();
+    } catch (e: any) { setError(parseSupabaseError(e)); }
+    finally { setLoading(false); }
+  };
+
+  const handleRevertMiss = async () => {
+    // BR-PAG-020: reversão de falta apenas dentro de 72h do missed_at
+    if ((installment as any).missed_at) {
+      const missedMs = new Date((installment as any).missed_at).getTime();
+      const diffH = (Date.now() - missedMs) / 3600000;
+      if (diffH > 72) {
+        setError('Reversão não permitida após 72 horas da falta. Contate o suporte para reversões manuais.');
+        return;
+      }
+    }
+    setLoading(true); setError(null);
+    const supabase = getSupabase(); if (!supabase) return;
+    try {
+      const { error: err } = await supabase.rpc('revert_installment_missed', {
+        p_installment_id: installment.id,
+      });
+      if (err) throw err;
+
+      logPaymentTransaction({
+        tenant_id: installment.tenant_id,
+        investment_id: installment.investment_id,
+        installment_id: installment.id,
+        transaction_type: 'reversal',
+        amount: 0,
+        notes: `Reversão de falta (parcela #${installment.number})`,
+      });
+
       onSuccess(); onBack();
     } catch (e: any) { setError(parseSupabaseError(e)); }
     finally { setLoading(false); }
@@ -1800,6 +1844,28 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
               className="type-label w-full rounded-xl bg-[rgba(198,126,105,0.12)] py-4 text-[color:var(--accent-danger)] ring-1 ring-[rgba(198,126,105,0.3)] active:scale-95 transition-all flex items-center justify-center gap-2">
               {loading ? <Loader2 className="animate-spin" size={18} /> : <XCircle size={18} />}
               {loading ? 'Revertendo...' : 'Confirmar — Marcar Não Pago'}
+            </button>
+          </div>
+        )}
+
+        {action.type === 'revert_miss' && (
+          <div className="space-y-4 pt-2">
+            <div className="p-4 rounded-xl bg-[rgba(198,126,105,0.10)] border border-[rgba(198,126,105,0.25)] flex gap-3">
+              <AlertTriangle className="text-[color:var(--accent-danger)] shrink-0 mt-0.5" size={16} />
+              <div className="text-xs text-[color:var(--text-secondary)] leading-relaxed space-y-1">
+                <p>Esta ação irá <strong>reverter a falta registrada</strong>:</p>
+                <ul className="list-disc pl-4 space-y-0.5">
+                  <li>A parcela voltará ao status <strong>Pendente</strong> com os valores originais</li>
+                  <li>A parcela substituta/acumulada será removida ou ajustada</li>
+                </ul>
+                <p className="mt-1" style={{ color: 'var(--accent-danger)' }}>Disponível apenas dentro de 72h da falta.</p>
+              </div>
+            </div>
+            {errorBlock}
+            <button onClick={handleRevertMiss} disabled={loading}
+              className="type-label w-full rounded-xl bg-[rgba(198,126,105,0.12)] py-4 text-[color:var(--accent-danger)] ring-1 ring-[rgba(198,126,105,0.3)] active:scale-95 transition-all flex items-center justify-center gap-2">
+              {loading ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
+              {loading ? 'Revertendo...' : 'Confirmar — Reverter Falta'}
             </button>
           </div>
         )}
