@@ -334,10 +334,9 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                 }
 
                 return (
-                  <React.Fragment key={inst.id}>
+                  <div key={inst.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                     <button
                       className="w-full flex items-center gap-2 px-4 py-2.5 text-left transition-colors hover:bg-white/5 active:bg-white/10"
-                      style={{ borderBottom: '1px solid var(--border-subtle)' }}
                       onClick={() => onInstallmentClick?.(inst)}
                     >
                       <span className="w-8 shrink-0 text-sm font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>
@@ -360,7 +359,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                     </button>
 
                     {((isPaid || isPartial) && inst.paid_at) || (modInfo && (inst as any).notes) || (txByInstallment[inst.id]?.length > 0) ? (
-                      <div className="px-4 py-1.5 space-y-1" style={{ background: 'var(--bg-soft)' }}>
+                      <div className="px-4 py-1.5 space-y-1" style={{ background: 'var(--bg-soft)', borderLeft: `3px solid ${st.color}` }}>
                         {(isPaid || isPartial) && inst.paid_at && (() => {
                           const paidDate = inst.paid_at!.includes('T') ? inst.paid_at!.split('T')[0] : inst.paid_at!;
                           const dueDate = inst.due_date?.includes('T') ? inst.due_date.split('T')[0] : inst.due_date;
@@ -400,7 +399,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                       </div>
                     ) : null}
                     {(inst as any).missed_at && (
-                      <div className="px-4 py-1" style={{ background: 'rgba(198,126,105,0.07)', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <div className="px-4 py-1" style={{ background: 'rgba(198,126,105,0.07)', borderLeft: '3px solid var(--accent-danger)' }}>
                         <p className="text-[10px] font-semibold" style={{ color: 'var(--accent-danger)' }}>
                           ⚠ Falta registrada em {fmtDate((inst as any).missed_at)}
                           {isAbsorbed && targetInst && (
@@ -411,7 +410,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                         </p>
                       </div>
                     )}
-                  </React.Fragment>
+                  </div>
                 );
               })}
             </div>
