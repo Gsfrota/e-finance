@@ -50,7 +50,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
         .from('payment_transactions')
         .select('*')
         .eq('investment_id', investment.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
       if (data) setTransactions(data);
     };
     fetchTransactions();
@@ -91,7 +91,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
         is_legacy: isLegacy,
       };
     })
-    .sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime());
+    .sort((a, b) => new Date(a.received_at).getTime() - new Date(b.received_at).getTime());
 
   const toggleReceipt = (key: string) => {
     setExpandedReceipts(prev => {

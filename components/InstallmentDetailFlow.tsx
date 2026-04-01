@@ -1006,7 +1006,11 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         installment_id: installment.id,
         transaction_type: 'missed',
         amount: calcOutstanding(installment),
-        notes: `Falta registrada (parcela #${installment.number}) · ação: ${missDeferAction}`,
+        notes: `Falta registrada (parcela #${installment.number}) · ${
+          missDeferAction === 'last' ? 'Valor acumulado na última parcela' :
+          missDeferAction === 'new'  ? 'Parcela extra criada ao final do contrato' :
+          'Vencimento adiado 1 mês'
+        }`,
       });
 
       onSuccess(); onBack();
