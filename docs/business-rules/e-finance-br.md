@@ -538,7 +538,7 @@ Categorias:
 - **Exceções:** Overloads intencionais com tipos radicalmente diferentes (ex: `funcao(uuid)` e `funcao(text)`) são permitidos — mas devem ser documentados explicitamente na migration
 - **Tabelas:** Qualquer função em `public.*`
 - **Status:** ativa
-- **Origem:** Bug crítico 2026-03-26 — `create_investment_validated` acumulou 5 overloads entre v28 e v33, bloqueando criação de contratos. Corrigido em `context/migration_v34_drop_overloads.sql`
+- **Origem:** Bug crítico 2026-03-26 — `create_investment_validated` acumulou 5 overloads entre v28 e v33, bloqueando criação de contratos. Corrigido em `context/migration_v34_drop_overloads.sql`. Segundo incidente 2026-04-01 — `pay_installment` com 2 overloads (v32 não dropou v30 anterior), causando falha em baixas e perda de cliente. Corrigido em `context/migration_v37_drop_pay_installment_overload.sql`
 
 ---
 
