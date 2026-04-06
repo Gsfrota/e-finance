@@ -17,7 +17,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForApp, navigateToView } from '../fixtures/e2e-test-helpers';
+import { waitForApp, navigateToView, selectSpecificCompany } from '../fixtures/e2e-test-helpers';
 import { TEST_CPFS } from '../fixtures/test-data';
 
 // CPF válido para testes
@@ -28,6 +28,7 @@ const INVALID_CPF = TEST_CPFS.invalid;
 /** Navega para Usuários e abre modal de convite. */
 async function openInviteModal(page: any) {
   await waitForApp(page);
+  await selectSpecificCompany(page);
   await navigateToView(page, 'Usuários');
   await expect(page.getByText('Administração de Perfis')).toBeVisible({ timeout: 10_000 });
   await page.getByRole('button', { name: /Gerar Convite/i }).click();
@@ -163,6 +164,7 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
 
   test('CLT-06: Busca por nome filtra usuários na lista', async ({ page }) => {
     await waitForApp(page);
+    await selectSpecificCompany(page);
     await navigateToView(page, 'Usuários');
     await expect(page.getByText('Administração de Perfis')).toBeVisible({ timeout: 10_000 });
 
@@ -180,6 +182,7 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
 
   test('CLT-07: Busca por nome inexistente retorna lista vazia', async ({ page }) => {
     await waitForApp(page);
+    await selectSpecificCompany(page);
     await navigateToView(page, 'Usuários');
     await expect(page.getByText('Administração de Perfis')).toBeVisible({ timeout: 10_000 });
 
@@ -197,6 +200,7 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
 
   test('CLT-08: Abre edição de usuário existente', async ({ page }) => {
     await waitForApp(page);
+    await selectSpecificCompany(page);
     await navigateToView(page, 'Usuários');
     await expect(page.getByText('Administração de Perfis')).toBeVisible({ timeout: 10_000 });
 

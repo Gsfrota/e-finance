@@ -4,8 +4,12 @@ import { test, expect } from '@playwright/test';
 test('ADMIN-01: Dashboard admin carrega com KPIs visíveis', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('aside')).toBeVisible({ timeout: 10_000 });
-  // Tab "Visão Geral" ativa por padrão
-  await expect(page.getByText('Visão Geral')).toBeVisible();
+  // Navega para Dashboard explicitamente — pode iniciar em "Início"
+  const dashBtn = page.locator('aside').getByRole('button', { name: /Dashboard/i }).first();
+  await dashBtn.waitFor({ timeout: 8_000 });
+  await dashBtn.click();
+  // Tab "Visão Geral" aparece após dados carregarem
+  await expect(page.getByRole('button', { name: 'Visão Geral' })).toBeVisible({ timeout: 20_000 });
   // Spinner some após carregar
   await expect(page.locator('.animate-spin')).not.toBeVisible({ timeout: 15_000 });
 });

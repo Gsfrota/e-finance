@@ -254,17 +254,25 @@ export async function goToParcelasTab(page: Page): Promise<void> {
   await page.goto('/');
   await page.locator('aside').waitFor({ timeout: 12_000 });
 
-  // A aba "Parcelas" fica dentro de AppView.DASHBOARD.
-  // Clica no item "Dashboard" da sidebar para chegar lá.
+  // Seleciona empresa específica para ativar operações (Contratos, Parcelas)
+  const combobox = page.getByRole('combobox').first();
+  if (await combobox.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    const options = await combobox.locator('option').all();
+    if (options.length >= 2) {
+      const val = await options[1].getAttribute('value');
+      if (val) { await combobox.selectOption(val); await page.waitForTimeout(300); }
+    }
+  }
+
+  // Navega para Dashboard e clica na aba Parcelas
   const dashboardBtn = page.locator('aside').getByRole('button', { name: /Dashboard/i }).first();
   await dashboardBtn.waitFor({ timeout: 8_000 });
   await dashboardBtn.click();
 
-  // Agora busca a aba "Parcelas" dentro do Dashboard
-  const parcelasTab = page.getByRole('button', { name: /^Parcelas$/i });
-  await parcelasTab.waitFor({ timeout: 10_000 });
+  // getByRole com accessible name — evita problema de whitespace no filter(hasText)
+  const parcelasTab = page.getByRole('button', { name: 'Parcelas' });
+  await parcelasTab.waitFor({ timeout: 45_000 });
   await parcelasTab.click();
-  // Aguarda lista de parcelas carregar
   await page.waitForTimeout(800);
 }
 

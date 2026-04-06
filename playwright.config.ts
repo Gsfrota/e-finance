@@ -16,7 +16,9 @@ export default defineConfig({
     {
       name: 'no-auth',
       use: { ...devices['Desktop Chrome'] },
-      testMatch: /.*\/(auth\/login|edge-cases)\.spec\.ts/,
+      // auth/login testa fluxo de login — não precisa de auth
+      // edge-cases precisa de auth (EDGE-01 verifica sidebar) → roda só em chromium
+      testMatch: /.*\/auth\/login\.spec\.ts/,
     },
     {
       name: 'chromium',
@@ -25,6 +27,9 @@ export default defineConfig({
         storageState: 'e2e/.auth/admin.json',
       },
       dependencies: ['setup'],
+      // auth/login usa browser.newContext() mas Playwright aplica storageState ao contexto
+      // → usuário já logado, login page não aparece → excluir deste projeto
+      testIgnore: /.*\/auth\/login\.spec\.ts/,
     },
     {
       name: 'chromium-investor',

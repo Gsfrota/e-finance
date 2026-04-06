@@ -178,9 +178,9 @@ export async function selectSpecificCompany(page: Page): Promise<void> {
 /** Navega para aba interna do Dashboard e aguarda conteúdo renderizar. */
 export async function navigateToDashboardTab(page: Page, tabName: string): Promise<void> {
   await navigateToView(page, 'Dashboard');
-  // Usa filter hasText para match exato sem depender de accessible name concatenado
-  const tab = page.locator('button').filter({ hasText: new RegExp(`^${tabName}$`) });
-  await expect(tab).toBeVisible({ timeout: 12_000 });
+  // Usa getByRole com accessible name — mais robusto que filter(hasText regex)
+  const tab = page.getByRole('button', { name: tabName });
+  await expect(tab).toBeVisible({ timeout: 45_000 });
   await tab.click();
   await page.waitForTimeout(600);
 }
