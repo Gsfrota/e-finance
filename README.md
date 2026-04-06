@@ -1,146 +1,163 @@
-# E-Finance
+<div align="center">
 
-Plataforma SaaS multi-tenant para gestão de contratos de crédito entre investidores e devedores, com painel web completo e bot de WhatsApp/Telegram com NLU em português.
+<br/>
 
-## Visão geral
+<img src="https://img.shields.io/badge/-%F0%9F%8F%A6%20Juros%20Certo-0f1d33?style=for-the-badge&logoColor=f0b429&labelColor=0f1d33&color=f0b429" alt="Juros Certo" height="42"/>
 
-O E-Finance resolve um problema real de gestores de carteiras de crédito: controlar múltiplos contratos, parcelas, pagamentos e inadimplências em um único lugar — acessível tanto pelo painel web quanto pelo WhatsApp, via linguagem natural.
+# Juros Certo — Plataforma de Gestão de Crédito
 
-## Mudanças recentes
+**SaaS multi-tenant** para gestão completa de carteiras de crédito privado: contratos, parcelas, inadimplência, PIX e um bot conversacional com NLU em português.
 
-O sistema passou por uma transição operacional importante:
+<br/>
 
-- O frontend agora resolve perfil por `auth_user_id` com fallback legado para `id`.
-- O bot exige segredos próprios para `/setup`, Telegram e WhatsApp.
-- A configuração pública do browser migra para `SUPABASE_ANON_KEY`, mas ainda aceita `SUPABASE_KEY` como compatibilidade temporária.
-- Trial ativo agora libera a experiência multiempresa para admin; sem trial e sem `empresarial`, o switcher continua visível, mas bloqueado com upsell.
+[![React](https://img.shields.io/badge/React_19-20232A?style=flat-square&logo=react&logoColor=61DAFB)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=flat-square&logo=supabase&logoColor=white)](https://supabase.com)
+[![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Google Cloud Run](https://img.shields.io/badge/Cloud_Run-4285F4?style=flat-square&logo=googlecloud&logoColor=white)](https://cloud.google.com/run)
+[![Gemini AI](https://img.shields.io/badge/Gemini_AI-8E75B2?style=flat-square&logo=google&logoColor=white)](https://ai.google.dev)
 
-Para o impacto prático e o rollout seguro, veja [docs/guides/operational-differences.md](docs/guides/operational-differences.md).
+<br/>
 
-**Módulos:**
+</div>
 
-- **Painel Web** — React 19 + TypeScript + Supabase, multi-tenant com roles (admin, investidor, devedor)
-- **Bot WhatsApp/Telegram** — pipeline NLU de 20 estágios com fallback LLM (Gemini), processa comandos como *"quem vence essa semana?"* ou *"registra pagamento do João"*
-- **Análise de portfólio com IA** — integração com Gemini para insights sobre a carteira
-- **PIX** — geração de QR codes de cobrança nativos (padrão Pix brasileiro)
+---
+
+## Visão Geral
+
+O **Juros Certo** resolve um problema real de gestores de carteiras de crédito privado: controlar múltiplos contratos, parcelas, pagamentos e inadimplências em um único lugar, acessível tanto pelo painel web quanto pelo WhatsApp ou Telegram via linguagem natural.
+
+> Plataforma pensada para o mercado brasileiro: cálculo de juros compostos, PIX nativo, multi-CNPJ e suporte completo a PT-BR.
+
+---
+
+## Screenshots
+
+### Painel Admin — Dashboard
+
+![Dashboard](docs/screenshots/dashboard.png)
+*Visão geral com métricas de contratos vigentes, vencimentos próximos, inadimplências e avisos do dia.*
+
+### Wizard de Criação de Contrato
+
+![Wizard de Contrato](docs/screenshots/contract-wizard.png)
+*Criação guiada de contratos em 3 etapas: partes envolvidas, condições financeiras e resumo.*
+
+---
+
+## Funcionalidades
+
+### Painel Web (Admin)
+- **Gestão de Contratos** — Criação com juros compostos, wizard 3 etapas, investidor → devedor
+- **Controle de Parcelas** — Status `pendente | pago | atrasado | parcial` com cálculo automático de multa e juros de mora
+- **PIX Nativo** — Geração de QR Code e string PIX (padrão Banco Central) com um clique
+- **Recibos em PNG** — Download de comprovante de pagamento para envio ao cliente
+- **Dashboard de Inadimplência** — Ranking de devedores, alertas de vencimento, cobrança integrada
+- **Renegociação de Contratos** — Renovação, reestruturação e quitação antecipada
+- **Multi-empresa** — Um tenant pode operar múltiplos CNPJs com segregação total de dados via RLS
+
+### Bot Conversacional (WhatsApp + Telegram)
+- Consultas em linguagem natural: *"quem vence essa semana?"*, *"extrato do João?"*
+- Criação de contratos por texto/voz: *"cria contrato de 5 mil pra Maria, 12x, 3% ao mês"*
+- Confirmação explícita antes de qualquer mutação de dados
+- Briefing matinal automático (Cloud Scheduler)
+- Transcrição de áudio via Gemini (suporte a mensagens de voz no WhatsApp)
+
+### Análise com IA
+- Narrativa de portfólio gerada pelo Gemini: pontos fortes, riscos e recomendações
+- NLU híbrido: 80+ regex (~100ms) com fallback para Gemini quando a confiança é baixa (<500ms)
+
+---
+
+## Arquitetura
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                      Painel Web (React 19)                    │
+│   Login → Dashboard → [Admin | Investidor | Devedor]          │
+│   AdminContracts · InvestorDashboard · DebtorDashboard        │
+└──────────────────────────┬───────────────────────────────────┘
+                           │ Supabase JS Client
+               ┌───────────▼───────────┐
+               │  Supabase (Postgres)   │
+               │  RLS por tenant/empresa│
+               │  Auth · Storage · Edge │
+               └───────────┬───────────┘
+                           │
+┌──────────────────────────▼───────────────────────────────────┐
+│                     E-Finance Bot (Node.js)                   │
+│   WhatsApp/Telegram → Webhook → Pipeline NLU (20 estágios)   │
+│                                                               │
+│   inbound-buffer (debounce 3.5s)                             │
+│   → intent-router (80+ regex) → Gemini fallback              │
+│   → action-planner → tool-executor → response-generator      │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Pipeline NLU do Bot — 20 Estágios
+
+```
+Webhook → dedup → rate-limit → inbound-buffer
+  → session-manager → prompt-guard → audio-pipeline
+  → confirmation-store → followup-resolver → command-understanding
+  → intent-router → intent-classifier → action-planner → policy-engine
+  → tool-executor → response-generator → canal (WhatsApp / Telegram)
+```
+
+---
 
 ## Stack
 
 | Camada | Tecnologias |
 |--------|-------------|
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS, Recharts |
-| Backend | Supabase (PostgreSQL + RLS + Auth), Row Level Security por tenant |
-| Bot | Node.js + Express, Gemini API, UazAPI (WhatsApp), Telegram Bot API |
-| Deploy | Google Cloud Run (Docker), Artifact Registry, Secret Manager |
-| IA | Google Gemini (NLU fallback + geração de resposta + análise de portfólio) |
+| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS, Recharts, Lucide |
+| **Backend** | Supabase — PostgreSQL, Row Level Security, Auth, Edge Functions |
+| **Bot** | Node.js + Express, Gemini API, UazAPI (WhatsApp), Telegram Bot API |
+| **IA** | Google Gemini — NLU fallback, análise de portfólio, transcrição de áudio |
+| **Pagamentos** | PIX (padrão Banco Central) — geração de QR Code nativa |
+| **Deploy** | Google Cloud Run (Docker multi-stage), Artifact Registry, Secret Manager |
+| **CI/CD** | GitHub Actions — build, testes E2E (Playwright) e deploy automático |
 
-## Arquitetura
+---
 
-```
-┌─────────────────────────────────────────────────────┐
-│                    Painel Web                        │
-│  Login → Dashboard → [Admin | Investidor | Devedor]  │
-│  AdminContracts / InvestorDashboard / DebtorDashboard│
-└──────────────────────┬──────────────────────────────┘
-                       │
-               Supabase (Postgres + RLS)
-                       │
-┌──────────────────────┴──────────────────────────────┐
-│                  E-Finance Bot                       │
-│  WhatsApp/Telegram → Webhook → Pipeline NLU          │
-│  intent-router (80+ regex) → Gemini fallback          │
-│  intent-classifier → action-planner → tool-executor  │
-│  → response-generator → resposta em PT-BR natural    │
-└─────────────────────────────────────────────────────┘
-```
-
-### Pipeline NLU do bot (20 estágios)
+## Modelo de Dados
 
 ```
-Webhook → dedup → rate-limit → inbound-buffer (3.5s debounce)
-  → session-manager → prompt-guard → audio-pipeline (speech-to-text)
-  → confirmation-store → followup-resolver → command-understanding
-  → intent-router → intent-classifier → action-planner → policy-engine
-  → tool-executor → response-generator → canal (WhatsApp/Telegram)
-```
-
-**Estratégia híbrida:** 80+ regras regex cobrem os intents mais comuns (~100ms). Gemini entra apenas quando a confiança é baixa (timeout 2s, 80 tokens). Resultado: latência média <500ms na maioria das mensagens.
-
-## Modelo de dados
-
-```
-Tenant ──┬── Company
-         │     ├── Profile (admin | investor | debtor)
-         │     ├── Investment (contrato: investidor → devedor)
-         │     │     └── LoanInstallment (parcelas: pending | paid | late | partial)
-         │     ├── Invite (onboarding por código)
+Tenant ──┬── Company (CNPJ)
+         │     ├── Profile           role: admin | investor | debtor
+         │     ├── Investment        contrato: investidor → devedor
+         │     │     └── LoanInstallment   parcelas + multas + mora
+         │     ├── Invite            código de onboarding
          │     ├── ContractRenegotiation
          │     └── AvulsoPayment
-         └── BotSession / BotConfig (tenant-wide no v1)
+         └── BotSession · BotConfig
 ```
 
-Row Level Security no Supabase garante isolamento entre tenants e, no modelo multiempresa, também entre empresas do mesmo tenant.
+Row Level Security garante isolamento total entre tenants — e, no modelo multi-empresa, entre CNPJs do mesmo tenant.
 
-## Multiempresa enterprise
+---
 
-- `tenant` continua sendo o grupo principal, billing e segurança macro.
-- `company` vira a unidade operacional isolada para dashboard, avisos, contratos, usuários, Pix e branding.
-- O switcher aparece apenas para `admin`.
-- Com trial ativo ou `empresarial` ativo, o admin pode usar `Todas as empresas`, trocar de empresa e criar novas empresas.
-- Sem trial e sem `empresarial`, o admin vê o switcher bloqueado com CTA para `Configurações > Assinatura`.
-- Se o trial expirar sem upgrade, a empresa primária continua operável e as extras permanecem salvas, porém bloqueadas.
-- `HOME`, `DASHBOARD` e `TOP_CLIENTES` podem operar de forma consolidada.
-- `USERS`, `USER_DETAILS`, `CONTRACTS` e `LEGACY_CONTRACT` exigem empresa específica.
+## Como Rodar Localmente
 
-Guias principais:
-
-- [docs/guides/enterprise-multi-company.md](docs/guides/enterprise-multi-company.md)
-- [docs/qa/enterprise-multi-company-checklist.md](docs/qa/enterprise-multi-company-checklist.md)
-- [context/migration_v28_multi_company.sql](context/migration_v28_multi_company.sql)
-- [context/database_schema.md](context/database_schema.md)
-
-## Funcionalidades principais
-
-**Painel web (admin):**
-- Cadastro e gestão de contratos com juros compostos
-- Registro de pagamentos parciais e totais com cálculo de multa/juros de mora
-- Geração de recibos (PNG) e QR code PIX para cobrança
-- Dashboard de inadimplência e cobrança
-- Renovação e renegociação de contratos
-- Wizard de onboarding para novos tenants
-- Switcher multiempresa para admin com trial ativo ou plano `empresarial` ativo
-- Visão consolidada `Todas as empresas` com breakdown por empresa
-
-**Bot (WhatsApp e Telegram):**
-- Consultas em linguagem natural: *"quem vence hoje?"*, *"extrato do CPF 123"*
-- Criação de contratos por voz/texto: *"cria contrato de 5 mil pra João, 12 parcelas, 3% ao mês"*
-- Registro de pagamentos com confirmação explícita antes de mutações
-- Briefing matinal agendado (Cloud Scheduler)
-- Suporte a áudio com transcrição via Gemini
-
-**IA:**
-- Análise narrativa do portfólio com Gemini (pontos fortes, riscos, recomendações)
-- NLU com fallback LLM para mensagens ambíguas
-- Geração de respostas conversacionais em PT-BR
-
-## Como rodar localmente
-
-**Pré-requisitos:** Node.js 18+, conta Supabase
+**Pré-requisitos:** Node.js 18+, conta Supabase (free tier)
 
 ```bash
-# 1. Instalar dependências
+# 1. Clonar e instalar
+git clone https://github.com/Gsfrota/e-finance.git
+cd e-finance
 npm install
 
 # 2. Configurar variáveis de ambiente
 cp .env.example .env.local
-# Adicionar: GEMINI_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY
+# Preencher: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, GEMINI_API_KEY
 
-# 3. Configurar banco de dados
-# Execute o SQL em context/database_schema.md no Supabase SQL Editor
+# 3. Criar schema no Supabase
+# Executar o SQL em context/database_schema.md no Supabase SQL Editor
 
 # 4. Rodar
-npm run dev        # http://localhost:3000
-npm run build      # build de produção
+npm run dev      # http://localhost:3000
+npm run build    # build de produção
 ```
 
 **Bot (opcional):**
@@ -149,55 +166,65 @@ npm run build      # build de produção
 cd e-finance-bot
 npm install
 # Configurar .env com SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
-#   GEMINI_API_KEY, UAZAPI_SERVER_URL, UAZAPI_INSTANCE_TOKEN,
-#   TELEGRAM_BOT_TOKEN, SETUP_SECRET, TELEGRAM_WEBHOOK_SECRET_TOKEN,
-#   UAZAPI_WEBHOOK_SECRET, BOT_BASE_URL
+#   GEMINI_API_KEY, UAZAPI_INSTANCE_TOKEN, TELEGRAM_BOT_TOKEN
 npm run dev
 ```
 
-### Como usar o app
-
-- `admin`: cria e revisa contratos, acompanha cobrança e administra usuários do tenant. Com trial ativo ou `empresarial` ativo, alterna entre empresas pelo switcher do topo.
-- `investor`: acompanha carteira, retornos e próximas parcelas recebíveis.
-- `devedor`: vê saldo, parcelas e pagamentos pendentes.
-- `bot`: recebe mensagens por WhatsApp/Telegram e só executa mutações após validação e confirmação explícita.
+---
 
 ## Deploy
 
-O projeto roda no **Google Cloud Run** via Docker multi-stage (Node 22 builder → nginx alpine).
+Produção roda no **Google Cloud Run** via Docker multi-stage (Node 22 builder → nginx alpine).
 
 ```bash
-./deploy.sh          # painel web
-cd e-finance-bot && ./deploy-bot.sh   # bot
+./deploy.sh              # painel web
+./e-finance-bot/deploy-bot.sh  # bot
 ```
 
-Secrets gerenciados pelo Google Secret Manager. Nenhuma credencial no código.
+Secrets gerenciados pelo **Google Secret Manager**. Nenhuma credencial no código ou no repositório.
 
-Para operação e rollback seguros, use [docs/devops/deploy-runbook.md](docs/devops/deploy-runbook.md).
+---
 
-## Estrutura do projeto
+## Estrutura do Projeto
 
 ```
 e-finance/
-├── components/          # Componentes React (painel web)
-├── hooks/               # Custom hooks de data fetching
+├── components/          # UI (React) — Login, Dashboard, contratos, modais
+├── hooks/               # Data fetching — useInvestorMetrics, useDebtorFinance
 ├── services/
-│   ├── supabase.ts      # Cliente Supabase + helpers
-│   ├── gemini.ts        # Google GenAI para análise de portfólio
+│   ├── supabase.ts      # Cliente + helpers (parseSupabaseError, isValidCPF)
+│   ├── gemini.ts        # Google GenAI — análise de portfólio
 │   └── pix.ts           # Geração de strings PIX
 ├── types.ts             # Tipos globais TypeScript
-├── context/
-│   └── database_schema.md  # Schema SQL (v16+)
 ├── e-finance-bot/       # Bot WhatsApp/Telegram
 │   └── src/
 │       ├── ai/          # NLU: intent-router, classifier, response-generator
 │       ├── assistant/   # action-planner, tool-executor, policy-engine
-│       ├── actions/     # Lógica de negócio (~1850 linhas)
-│       ├── channels/    # WhatsApp (UazAPI) + Telegram
-│       └── scheduler/   # Cloud Scheduler (briefing matinal)
+│       ├── actions/     # Lógica de negócio (~1.850 linhas)
+│       ├── channels/    # UazAPI (WhatsApp) + Telegram
+│       └── scheduler/   # Briefing matinal (Cloud Scheduler)
 └── Dockerfile
 ```
 
+---
+
+## Roles e Acessos
+
+| Role | Capacidades |
+|------|-------------|
+| **admin** | Gerencia contratos, usuários, empresas; acessa todos os módulos |
+| **investor** | Visualiza carteira própria, retornos e parcelas a receber |
+| **devedor** | Vê saldo, parcelas pendentes e gera QR PIX para pagamento |
+| **bot** | Processa mensagens; só executa mutações após confirmação explícita |
+
+---
+
 ## Licença
 
-Projeto privado / portfólio pessoal.
+Projeto privado — portfólio pessoal.
+
+---
+
+<div align="center">
+  <sub>Desenvolvido com React 19 · Supabase · Google Cloud Run · Gemini AI</sub>
+</div>
