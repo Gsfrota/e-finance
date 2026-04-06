@@ -33,6 +33,25 @@ AND p.proname IN (
   'generate_next_bullet_installment'
 )
 GROUP BY proname
+
+UNION ALL
+
+-- BR-PAG-021: update_overdue_installments deve ter CTE late_auto (migration v39)
+SELECT
+  'VERIFICACAO BR-PAG-021' as secao,
+  'update_overdue_installments' as proname,
+  1 as overload_count,
+  CASE
+    WHEN EXISTS (
+      SELECT 1 FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public'
+        AND p.proname = 'update_overdue_installments'
+        AND p.prosrc LIKE '%late_auto%'
+        AND p.prosrc LIKE '%newly_late%'
+    ) THEN 'OK — late_auto CTE presente'
+    ELSE 'ERRO — migration v39 nao aplicada (falta late_auto)'
+  END as status
 ORDER BY proname;
 
 -- ============================================================================

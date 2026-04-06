@@ -62,6 +62,22 @@ jobs:
       - name: Auth setup (login admin)
         run: npx playwright test --project=setup --reporter=list
 
+      - name: "Tier 0: DB schema smoke test (BR-PAG-021 late_auto)"
+        run: |
+          RESULT=$(curl -s -X POST "${{ secrets.VITE_SUPABASE_URL }}/rest/v1/rpc/update_overdue_installments" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            -w "\n%{http_code}" | tail -1)
+          # Verificar que a função existe e responde (200 = OK, 204 = OK sem retorno)
+          if [ "$RESULT" = "200" ] || [ "$RESULT" = "204" ]; then
+            echo "✅ update_overdue_installments respondeu OK (HTTP $RESULT)"
+          else
+            echo "❌ update_overdue_installments falhou (HTTP $RESULT) — verifique migration v39"
+            exit 1
+          fi
+
       - name: "Tier 1: Smoke tests (navegação e carregamento)"
         run: >
           npx playwright test e2e/e2e-full/smoke.spec.ts
