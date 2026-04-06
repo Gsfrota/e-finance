@@ -20,3 +20,4 @@ scripts/migrate-*.ts
 e-finance-bot/instancia.md
 e2e/_generated/
 scripts/qa/tmp/
+e2e/.auth/
