@@ -38,6 +38,20 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
+      - name: Injetar credenciais Supabase no env-config.js (CI preview)
+        run: |
+          # Em produção, docker-entrypoint.sh faz isso em runtime.
+          # No CI, o vite preview serve dist/ com env-config.js vazio — injetamos aqui.
+          cat > dist/env-config.js << 'ENVEOF'
+window._env_ = {
+  SUPABASE_URL: "PLACEHOLDER_URL",
+  SUPABASE_ANON_KEY: "PLACEHOLDER_KEY"
+};
+ENVEOF
+          sed -i "s|PLACEHOLDER_URL|${{ secrets.VITE_SUPABASE_URL }}|g" dist/env-config.js
+          sed -i "s|PLACEHOLDER_KEY|${{ secrets.VITE_SUPABASE_ANON_KEY }}|g" dist/env-config.js
+          echo "env-config.js atualizado para CI preview"
+
       - name: Install Playwright + Chromium
         run: npx playwright install chromium --with-deps
 
