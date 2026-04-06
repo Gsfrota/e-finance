@@ -72,17 +72,26 @@ jobs:
 
       - name: "Tier 0: DB schema smoke test (BR-PAG-021 late_auto)"
         run: |
-          RESULT=$(curl -s -X POST "${{ secrets.VITE_SUPABASE_URL }}/rest/v1/rpc/update_overdue_installments" \
+          # Verifica que a função EXISTS no banco (não a executa — execução toca dados reais).
+          # 200/204 = sucesso, 400/422 = função existe mas erro de dados (constraint etc),
+          # 404 = função não existe (migration ausente) → falha.
+          RESPONSE=$(curl -s -X POST "${{ secrets.VITE_SUPABASE_URL }}/rest/v1/rpc/update_overdue_installments" \
             -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             -H "Content-Type: application/json" \
             -d '{}' \
-            -w "\n%{http_code}" | tail -1)
-          if [ "$RESULT" = "200" ] || [ "$RESULT" = "204" ]; then
-            echo "✅ update_overdue_installments respondeu OK (HTTP $RESULT)"
-          else
-            echo "❌ update_overdue_installments falhou (HTTP $RESULT) — verifique migration v39"
+            -w "\n%{http_code}")
+          RESULT=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP $RESULT — $BODY"
+          if [ "$RESULT" = "404" ]; then
+            echo "❌ update_overdue_installments NÃO EXISTE — migration v39 não foi aplicada"
             exit 1
+          elif [ "$RESULT" = "500" ]; then
+            echo "❌ Erro interno do servidor (HTTP 500)"
+            exit 1
+          else
+            echo "✅ update_overdue_installments existe (HTTP $RESULT)"
           fi
 
       - name: "Tier 1: Smoke tests (navegação e carregamento)"
