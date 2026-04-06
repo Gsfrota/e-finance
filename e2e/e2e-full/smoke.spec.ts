@@ -17,7 +17,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForApp, navigateToView, navigateToDashboardTab } from '../fixtures/e2e-test-helpers';
+import { waitForApp, navigateToView, navigateToDashboardTab, selectSpecificCompany } from '../fixtures/e2e-test-helpers';
 
 test.describe('Suite Smoke — Navegação e Carregamento', () => {
 
@@ -45,6 +45,8 @@ test.describe('Suite Smoke — Navegação e Carregamento', () => {
 
   test('SMK-03: Sidebar → Contratos carrega lista', async ({ page }) => {
     await waitForApp(page);
+    // Contratos é operacional e exige empresa ativa — selecionar antes de navegar
+    await selectSpecificCompany(page);
     await navigateToView(page, 'Contratos');
 
     // Aceita: dados carregaram, empty state, ou nenhum erro visível
@@ -66,6 +68,8 @@ test.describe('Suite Smoke — Navegação e Carregamento', () => {
 
   test('SMK-04: Sidebar → Usuários carrega lista', async ({ page }) => {
     await waitForApp(page);
+    // Usuários é operacional e exige empresa ativa — selecionar antes de navegar
+    await selectSpecificCompany(page);
     await navigateToView(page, 'Usuários');
 
     await expect(page.getByTestId('error-message')).not.toBeVisible({ timeout: 25_000 });
@@ -118,6 +122,8 @@ test.describe('Suite Smoke — Navegação e Carregamento', () => {
 
     await waitForApp(page);
     await navigateToView(page, 'Dashboard');
+    // Usuários exige empresa ativa — selecionar antes de navegar
+    await selectSpecificCompany(page);
     await navigateToView(page, 'Usuários');
     await navigateToView(page, 'Contratos');
     await page.waitForTimeout(1_000);
@@ -154,15 +160,10 @@ test.describe('Suite Smoke — Navegação e Carregamento', () => {
     await waitForApp(page);
     await navigateToView(page, 'Dashboard');
 
-    // Dashboard exibe skeleton enquanto carrega dados (useDashboardData).
-    // Aguarda skeleton desaparecer antes de procurar os tabs.
-    await page.locator('.skeleton').first()
-      .waitFor({ state: 'hidden', timeout: 30_000 })
-      .catch(() => {}); // se não há skeleton (já carregou), continua normalmente
-
-    // Agora os tabs estão no DOM — procura pelo botão Parcelas
-    const tabBtn = page.locator('button').filter({ hasText: /^Parcelas$/ });
-    await expect(tabBtn, 'Aba Parcelas não encontrada no Dashboard após 30s').toBeVisible({ timeout: 30_000 });
+    // Aguarda diretamente o botão Parcelas ficar visível (tabs aparecem após dados carregarem).
+    // Usa getByRole + accessible name para evitar falhas por whitespace no texto.
+    const tabBtn = page.getByRole('button', { name: 'Parcelas' });
+    await expect(tabBtn, 'Aba Parcelas não encontrada no Dashboard após 45s').toBeVisible({ timeout: 45_000 });
 
     await tabBtn.click();
     await page.waitForTimeout(500);

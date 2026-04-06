@@ -155,6 +155,26 @@ export async function navigateToView(page: Page, viewName: string): Promise<void
   await page.waitForTimeout(400);
 }
 
+/**
+ * Seleciona uma empresa específica (não a visão agregada) no combobox do header.
+ * Necessário antes de acessar views operacionais como Usuários, que exigem empresa ativa.
+ */
+export async function selectSpecificCompany(page: Page): Promise<void> {
+  const combobox = page.getByRole('combobox').first();
+  const visible = await combobox.isVisible({ timeout: 3_000 }).catch(() => false);
+  if (!visible) return;
+
+  // Seleciona a segunda opção (a primeira empresa específica, pulando "Todas as empresas")
+  const options = await combobox.locator('option').all();
+  if (options.length < 2) return;
+
+  const secondValue = await options[1].getAttribute('value');
+  if (secondValue) {
+    await combobox.selectOption(secondValue);
+    await page.waitForTimeout(400);
+  }
+}
+
 /** Navega para aba interna do Dashboard e aguarda conteúdo renderizar. */
 export async function navigateToDashboardTab(page: Page, tabName: string): Promise<void> {
   await navigateToView(page, 'Dashboard');
