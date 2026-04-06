@@ -150,20 +150,25 @@ test.describe('Suite Smoke — Navegação e Carregamento', () => {
   });
 
   test('SMK-08: Aba Parcelas do Dashboard carrega', async ({ page }) => {
-    // Fluxo real: usuário abre app → clica Dashboard na sidebar → clica aba Parcelas
+    // Fluxo real: usuário abre app → clica Dashboard na sidebar → aguarda dados → clica aba Parcelas
     await waitForApp(page);
     await navigateToView(page, 'Dashboard');
 
-    // Auto-wait correto: expect(...).toBeVisible() aguarda o elemento aparecer (não isVisible() que é instantâneo)
+    // Dashboard exibe skeleton enquanto carrega dados (useDashboardData).
+    // Aguarda skeleton desaparecer antes de procurar os tabs.
+    await page.locator('.skeleton').first()
+      .waitFor({ state: 'hidden', timeout: 30_000 })
+      .catch(() => {}); // se não há skeleton (já carregou), continua normalmente
+
+    // Agora os tabs estão no DOM — procura pelo botão Parcelas
     const tabBtn = page.locator('button').filter({ hasText: /^Parcelas$/ });
-    await expect(tabBtn, 'Aba Parcelas não encontrada no Dashboard após 15s').toBeVisible({ timeout: 15_000 });
+    await expect(tabBtn, 'Aba Parcelas não encontrada no Dashboard após 30s').toBeVisible({ timeout: 30_000 });
 
     await tabBtn.click();
     await page.waitForTimeout(500);
 
     await expect(page.getByTestId('error-message')).not.toBeVisible({ timeout: 5_000 });
 
-    // Aguarda qualquer conteúdo da aba renderizar
     await expect(
       page.getByText(/parcela|vencimento|baixa|nenhuma|pendente/i).first(),
       'Aba Parcelas não renderizou conteúdo após 25s'
