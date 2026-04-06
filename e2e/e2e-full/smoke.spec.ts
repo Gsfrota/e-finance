@@ -175,3 +175,4 @@ test.describe('Suite Smoke — Navegação e Carregamento', () => {
     ).toBeVisible({ timeout: 25_000 });
   });
 });
+
