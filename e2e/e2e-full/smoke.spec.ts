@@ -152,7 +152,7 @@ test.describe('Suite Smoke — Navegação e Carregamento', () => {
   test('SMK-08: Aba Parcelas do Dashboard carrega', async ({ page }) => {
     await waitForApp(page);
 
-    const tabBtn = page.getByRole('button', { name: /^Parcelas$/i });
+    const tabBtn = page.getByRole('button', { name: /Parcelas/i });
     const tabVisible = await tabBtn.isVisible({ timeout: 10_000 }).catch(() => false);
 
     expect(tabVisible, 'Aba Parcelas não encontrada no Dashboard após 10s').toBeTruthy();
