@@ -30,6 +30,7 @@ const TX_META: Record<string, { icon: string; label: string; color: string }> = 
   deferred:         { icon: '⇢', label: 'Postergado',           color: 'var(--accent-caution)' },
   missed:           { icon: '⚠', label: 'Falta registrada',    color: 'var(--accent-warning)' },
   reversal:         { icon: '✕', label: 'Estorno',              color: 'var(--accent-danger)' },
+  late_auto:        { icon: '▲', label: 'Atraso detectado',    color: 'var(--accent-brass)' },
 };
 
 const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
@@ -63,11 +64,14 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
   }, {});
 
   // ── Agrupamento por receipt_id (view "Por Recebimento") ─────────────────────
-  const receiptGroups = transactions.reduce<Record<string, PaymentTransaction[]>>((acc, tx) => {
-    const key = tx.receipt_id ?? `legacy_${tx.investment_id}_${tx.created_at.slice(0, 16)}`;
-    (acc[key] ??= []).push(tx);
-    return acc;
-  }, {});
+  // late_auto é evento de status (amount=0), não entra na view "Por Recebimento"
+  const receiptGroups = transactions
+    .filter(tx => tx.transaction_type !== 'late_auto')
+    .reduce<Record<string, PaymentTransaction[]>>((acc, tx) => {
+      const key = tx.receipt_id ?? `legacy_${tx.investment_id}_${tx.created_at.slice(0, 16)}`;
+      (acc[key] ??= []).push(tx);
+      return acc;
+    }, {});
 
   const receipts: PaymentReceipt[] = Object.entries(receiptGroups)
     .map(([key, txs]) => {
@@ -383,19 +387,30 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                           </p>
                         )}
                         {/* Transações detalhadas */}
-                        {txByInstallment[inst.id]?.map(tx => (
-                          <div key={tx.id} className="flex items-start gap-1.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                            <span style={{ color: TX_META[tx.transaction_type]?.color ?? 'var(--text-muted)' }}>
-                              {TX_META[tx.transaction_type]?.icon ?? '●'}
-                            </span>
-                            <span className="flex-1">
-                              {fmtDatetime(tx.created_at)} — {tx.notes || `${tx.transaction_type}: ${fmtMoney(tx.amount)}`}
-                            </span>
-                            <span className="font-bold tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>
-                              {fmtMoney(tx.amount)}
-                            </span>
-                          </div>
-                        ))}
+                        {txByInstallment[inst.id]?.map(tx => {
+                          const isLateAuto = tx.transaction_type === 'late_auto';
+                          const daysLate = isLateAuto && inst.due_date
+                            ? Math.floor((new Date(tx.created_at).getTime() - new Date(inst.due_date).getTime()) / 86400000)
+                            : 0;
+                          return (
+                            <div key={tx.id} className="flex items-start gap-1.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                              <span style={{ color: TX_META[tx.transaction_type]?.color ?? 'var(--text-muted)' }}>
+                                {TX_META[tx.transaction_type]?.icon ?? '●'}
+                              </span>
+                              <span className="flex-1">
+                                {fmtDatetime(tx.created_at)} — {TX_META[tx.transaction_type]?.label ?? tx.transaction_type}
+                                {isLateAuto && daysLate > 0 && (
+                                  <span style={{ color: 'var(--accent-brass)', marginLeft: 4 }}>· há {daysLate}d</span>
+                                )}
+                              </span>
+                              {!isLateAuto && (
+                                <span className="font-bold tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>
+                                  {fmtMoney(tx.amount)}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : null}
                     {(inst as any).missed_at && (

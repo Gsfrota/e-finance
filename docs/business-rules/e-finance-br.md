@@ -250,9 +250,9 @@ Categorias:
 ### BR-PAG-017: Marcação automática de atraso — carência e notificação
 - **Descrição:** `update_overdue_installments` marca como `late` parcelas com `due_date < (today - carência)`. A carência padrão é 0 dias (sem carência). Após marcar, deve haver trigger de notificação configurável por tenant
 - **Condição:** Cron diário executando `update_overdue_installments`
-- **Resultado:** `WHERE due_date < (CURRENT_DATE - carencia_dias) AND status = 'pending'` → `status = 'late'`. Aplicar `fine_amount` conforme BR-CNT-010. Registrar evento de notificação pendente
+- **Resultado:** `WHERE due_date < (CURRENT_DATE - carencia_dias) AND status = 'pending'` → `status = 'late'`. Aplicar `fine_amount` conforme BR-CNT-010. Registrar evento de notificação pendente. Inserir registro em `payment_transactions` conforme **BR-PAG-021**
 - **Exceções:** Parcelas de contratos com `status = 'completed'` ou `status = 'renewed'` não são marcadas
-- **Tabelas:** `loan_installments`, `tenants`
+- **Tabelas:** `loan_installments`, `tenants`, `payment_transactions`
 - **Status:** ativa
 
 ### BR-PAG-018: Postergamento (missed) — zeragem e criação de substituta
@@ -280,6 +280,18 @@ Categorias:
 - **Resultado:** Parcela original restaurada com valores originais, `status = 'pending'`, `missed_at = NULL`. Para ação 'new': parcela substituta deletada e `total_installments` decrementado. Para ação 'last': valores subtraídos da parcela destino. Para ação 'postpone': `due_date` revertida.
 - **Exceções:** Dados de reversão requerem `metadata` na `contract_renegotiations` (disponível a partir da v38). Faltas anteriores à v38 bloqueiam a reversão com mensagem orientando contato ao suporte.
 - **Tabelas:** `loan_installments`, `contract_renegotiations`, `investments`
+- **Status:** ativa
+
+### BR-PAG-021: Registro de atraso automático no histórico — audit trail obrigatório
+- **Descrição:** Quando `update_overdue_installments` transiciona uma parcela `pending → late`, deve inserir um registro em `payment_transactions` com `transaction_type = 'late_auto'`. Este evento é distinto de `missed` (falta manual pelo admin): não move dinheiro, apenas sinaliza o momento em que o atraso foi detectado pelo sistema
+- **Condição:** Cron diário `update_overdue_installments` ao marcar `status = 'late'`
+- **Resultado:** Uma linha em `payment_transactions` por parcela marcada. Campos obrigatórios: `installment_id`, `investment_id`, `tenant_id`, `transaction_type = 'late_auto'`, `amount = 0`, `created_at = NOW()`. Idempotente: se já existe registro `late_auto` para o `installment_id`, não duplicar
+- **Diferença conceitual:**
+  - `late_auto` = atraso automático — sinaliza vencimento sem ação financeira
+  - `missed` = falta manual — admin decide destino do valor (postpone/last/new)
+- **Exibição no histórico:** `InstallmentHistory.tsx` deve exibir `late_auto` como "Atrasada" com ícone e cor distintos de "Falta registrada" (conforme definição de UX)
+- **Exceções:** Parcelas que já possuem `transaction_type = 'late_auto'` não recebem novo registro
+- **Tabelas:** `payment_transactions`, `loan_installments`
 - **Status:** ativa
 
 ---
