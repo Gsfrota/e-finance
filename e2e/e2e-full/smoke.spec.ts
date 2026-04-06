@@ -10,6 +10,7 @@
  * SMK-05  Navegação: sidebar Cobranças carrega view
  * SMK-06  Sidebar exibe botões de navegação do admin
  * SMK-07  Sem erros JS no console durante navegação
+ * SMK-08  Aba Parcelas do Dashboard carrega
  *
  * Execução:
  *   npx playwright test e2e/e2e-full/smoke.spec.ts --project=chromium
@@ -45,38 +46,50 @@ test.describe('Suite Smoke — Navegação e Carregamento', () => {
   test('SMK-03: Sidebar → Contratos carrega lista', async ({ page }) => {
     await waitForApp(page);
     await navigateToView(page, 'Contratos');
-    // Em CI, dados do Supabase podem demorar — verifica renderização, não dados
-    const loaded = await page.getByText(/contrato|investimento|nenhum|Novo/i)
-      .isVisible({ timeout: 15_000 }).catch(() => false);
-    if (!loaded && process.env.CI) {
-      test.skip(true, 'Dados Supabase não carregaram no CI — view renderizou sem erro');
-      return;
-    }
-    expect(loaded).toBeTruthy();
+
+    // Aceita: dados carregaram, empty state, ou nenhum erro visível
+    // Falha apenas se a view crashar (error-message visível)
+    await expect(page.getByTestId('error-message')).not.toBeVisible({ timeout: 25_000 });
+
+    // Confirma que algum conteúdo renderizou (dados, empty state, ou botão de ação)
+    const hasContent = await page.getByText(/contrato|investimento|nenhum|Novo/i)
+      .isVisible({ timeout: 25_000 }).catch(() => false);
+    const hasEmptyState = await page.getByText(/nenhum resultado|sem contratos|sem investimentos/i)
+      .isVisible({ timeout: 3_000 }).catch(() => false);
+    const hasActionButton = await page.getByRole('button', { name: /novo|adicionar|criar/i })
+      .isVisible({ timeout: 3_000 }).catch(() => false);
+
+    expect(hasContent || hasEmptyState || hasActionButton,
+      'Contratos: nenhum conteúdo renderizou após 25s — possível crash'
+    ).toBeTruthy();
   });
 
   test('SMK-04: Sidebar → Usuários carrega lista', async ({ page }) => {
     await waitForApp(page);
     await navigateToView(page, 'Usuários');
-    const loaded = await page.getByText('Administração de Perfis')
-      .isVisible({ timeout: 15_000 }).catch(() => false);
-    if (!loaded && process.env.CI) {
-      test.skip(true, 'Dados Supabase não carregaram no CI — view renderizou sem erro');
-      return;
-    }
-    expect(loaded).toBeTruthy();
+
+    await expect(page.getByTestId('error-message')).not.toBeVisible({ timeout: 25_000 });
+
+    const hasTitle = await page.getByText('Administração de Perfis')
+      .isVisible({ timeout: 25_000 }).catch(() => false);
+    const hasContent = await page.getByText(/usuário|perfil|email|nenhum/i)
+      .isVisible({ timeout: 3_000 }).catch(() => false);
+
+    expect(hasTitle || hasContent,
+      'Usuários: view não renderizou após 25s — possível crash'
+    ).toBeTruthy();
   });
 
   test('SMK-05: Sidebar → Cobranças carrega view', async ({ page }) => {
     await waitForApp(page);
 
     const cobrancasBtn = page.locator('aside').getByRole('button', { name: /Cobranças|Cobrança|Recebimento/i }).first();
-    if (!(await cobrancasBtn.isVisible({ timeout: 3_000 }).catch(() => false))) {
-      test.skip(true, 'Botão de Cobranças não encontrado no sidebar');
-    }
+    const btnVisible = await cobrancasBtn.isVisible({ timeout: 5_000 }).catch(() => false);
+
+    expect(btnVisible, 'Botão Cobranças não encontrado no sidebar — sidebar incompleto').toBeTruthy();
+
     await cobrancasBtn.click();
     await page.waitForTimeout(800);
-    // Não deve ter erro
     await expect(page.getByTestId('error-message')).not.toBeVisible();
   });
 
@@ -90,10 +103,17 @@ test.describe('Suite Smoke — Navegação e Carregamento', () => {
 
   test('SMK-07: Sem erros críticos no console durante navegação básica', async ({ page }) => {
     const consoleErrors: string[] = [];
+    const pageErrors: string[] = [];
+
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
         consoleErrors.push(msg.text());
       }
+    });
+
+    // Captura erros JS não tratados (unhandled exceptions)
+    page.on('pageerror', (err) => {
+      pageErrors.push(err.message);
     });
 
     await waitForApp(page);
@@ -103,7 +123,7 @@ test.describe('Suite Smoke — Navegação e Carregamento', () => {
     await page.waitForTimeout(1_000);
 
     // Filtra erros esperados (CORS, favicon, etc.)
-    const criticalErrors = consoleErrors.filter(
+    const criticalConsoleErrors = consoleErrors.filter(
       (e) =>
         !e.includes('favicon') &&
         !e.includes('CORS') &&
@@ -111,29 +131,39 @@ test.describe('Suite Smoke — Navegação e Carregamento', () => {
         !e.includes('Failed to load resource'),
     );
 
-    if (criticalErrors.length > 0) {
-      console.warn('[SMK-07] Erros no console:', criticalErrors);
+    if (criticalConsoleErrors.length > 0) {
+      console.warn('[SMK-07] Erros console:', criticalConsoleErrors);
     }
-    // Tolerante — só falha se tiver erro de JS puro
-    expect(criticalErrors.filter((e) => e.includes('TypeError') || e.includes('ReferenceError'))).toHaveLength(0);
+    if (pageErrors.length > 0) {
+      console.warn('[SMK-07] Erros JS não tratados:', pageErrors);
+    }
+
+    // Erros de JS puro (console)
+    const jsErrors = ['TypeError', 'ReferenceError', 'SyntaxError', 'RangeError', 'EvalError'];
+    expect(
+      criticalConsoleErrors.filter((e) => jsErrors.some((t) => e.includes(t))),
+      'Erros JS críticos no console'
+    ).toHaveLength(0);
+
+    // Unhandled exceptions sempre falham
+    expect(pageErrors, 'Exceções JS não tratadas na página').toHaveLength(0);
   });
 
   test('SMK-08: Aba Parcelas do Dashboard carrega', async ({ page }) => {
     await waitForApp(page);
-    // Em CI a aba Parcelas pode não existir se o dashboard carrega lento
+
     const tabBtn = page.getByRole('button', { name: /^Parcelas$/i });
     const tabVisible = await tabBtn.isVisible({ timeout: 10_000 }).catch(() => false);
-    if (!tabVisible && process.env.CI) {
-      test.skip(true, 'Aba Parcelas não disponível no CI — dashboard carregou sem erro');
-      return;
-    }
+
+    expect(tabVisible, 'Aba Parcelas não encontrada no Dashboard após 10s').toBeTruthy();
+
     await navigateToDashboardTab(page, 'Parcelas');
-    const loaded = await page.getByText(/parcela|Vencimento|BAIXA|nenhuma/i)
-      .isVisible({ timeout: 15_000 }).catch(() => false);
-    if (!loaded && process.env.CI) {
-      test.skip(true, 'Dados de parcelas não carregaram no CI');
-      return;
-    }
-    expect(loaded).toBeTruthy();
+
+    await expect(page.getByTestId('error-message')).not.toBeVisible({ timeout: 5_000 });
+
+    const hasContent = await page.getByText(/parcela|Vencimento|BAIXA|nenhuma/i)
+      .isVisible({ timeout: 25_000 }).catch(() => false);
+
+    expect(hasContent, 'Aba Parcelas não renderizou conteúdo após 25s').toBeTruthy();
   });
 });

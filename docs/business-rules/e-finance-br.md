@@ -542,6 +542,15 @@ Categorias:
 - **Tabelas:** Nenhuma (localStorage)
 - **Status:** ativa
 
+### BR-SYS-007: Pipeline CI/CD com testes tiered obrigatórios
+- **Descrição:** Todo push na branch `main` deve executar os dois tiers de testes E2E antes do deploy. Tier 1 (smoke) valida que o sistema está vivo. Tier 2 (core business) valida fluxos críticos de negócio — login, contratos, pagamentos, clientes. Ambos bloqueiam o deploy se falharem. Relatório detalhado com screenshots de falhas deve ser enviado ao Telegram após cada execução
+- **Condição:** Qualquer commit na branch `main`
+- **Resultado:** Deploy para Cloud Run só ocorre se Tier 1 AND Tier 2 passarem. Screenshots de falhas chegam ao Telegram via `sendPhoto` sem persistência em banco de dados
+- **Exceções:** Tier 3 (investor/debtor) é informativo — não bloqueia deploy enquanto credenciais de teste não estiverem provisionadas
+- **Tabelas:** Nenhuma (CI/CD only)
+- **Story:** Implementa BR-SYS-003 (deploy via CI/CD)
+- **Status:** ativa
+
 ### BR-DB-001: Migrations de RPC devem dropar overloads anteriores explicitamente
 - **Descrição:** Ao adicionar parâmetros a uma função PostgreSQL existente, `CREATE OR REPLACE FUNCTION` com assinatura diferente NÃO substitui a versão anterior — cria um novo overload. Múltiplos overloads com parâmetros opcionais causam erro "Could not choose the best candidate function" em runtime
 - **Condição:** Qualquer migration que modifique a assinatura de uma função em `public.*`

@@ -70,7 +70,6 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{}' \
             -w "\n%{http_code}" | tail -1)
-          # Verificar que a função existe e responde (200 = OK, 204 = OK sem retorno)
           if [ "$RESULT" = "200" ] || [ "$RESULT" = "204" ]; then
             echo "✅ update_overdue_installments respondeu OK (HTTP $RESULT)"
           else
@@ -79,13 +78,44 @@ jobs:
           fi
 
       - name: "Tier 1: Smoke tests (navegação e carregamento)"
+        id: tier1
         run: >
           npx playwright test e2e/e2e-full/smoke.spec.ts
           --project=chromium
-          --reporter=list
+          --reporter=list,json
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/tier1-results.json
+
+      - name: "Tier 2: Core business tests (login, admin, contratos, pagamentos)"
+        id: tier2
+        run: >
+          npx playwright test
+          e2e/auth/
+          e2e/edge-cases.spec.ts
+          e2e/admin/
+          e2e/e2e-full/client-management.spec.ts
+          e2e/e2e-full/contract-creation.spec.ts
+          e2e/e2e-full/payment-flows.spec.ts
+          e2e/payment/
+          --project=chromium
+          --project=no-auth
+          --reporter=list,json
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/tier2-results.json
+
+      - name: Relatório Telegram (resultados + screenshots)
+        if: always()
+        run: bash scripts/ci/telegram-report.sh
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: "7354814208"
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Upload relatório de falhas
         if: failure()
@@ -96,13 +126,6 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
-
-      - name: Notificar falha de testes no Telegram
-        if: failure()
-        run: |
-          MSG="🧪 *Testes E2E falharam — deploy bloqueado*%0A%0ACommit: \`${{ github.sha }}\`%0APor: ${{ github.actor }}%0A%0A🔍 Detalhes: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -d "chat_id=7354814208&text=${MSG}&parse_mode=Markdown" > /dev/null
 
   deploy:
     name: Build & Deploy
@@ -156,7 +179,7 @@ jobs:
         if: success()
         run: |
           URL=$(gcloud run services describe ${{ env.SERVICE }} --region=${{ env.REGION }} --format='value(status.url)')
-          MSG="✅ *Deploy concluído*%0A%0AServiço: \`${{ env.SERVICE }}\`%0ACommit: \`${{ github.sha }}\`%0APor: ${{ github.actor }}%0AURL: ${URL}"
+          MSG="🚀 *Deploy concluído*%0A%0AServiço: \`${{ env.SERVICE }}\`%0ACommit: \`${{ github.sha }}\`%0APor: ${{ github.actor }}%0AURL: ${URL}"
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -d "chat_id=7354814208&text=${MSG}&parse_mode=Markdown" > /dev/null
 

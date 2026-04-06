@@ -21,6 +21,13 @@ async function loginAs(page: any, email: string, password: string, authPath: str
 
 setup('authenticate as admin', async ({ page }) => {
   if (!process.env.TEST_ADMIN_EMAIL || !process.env.TEST_ADMIN_PASSWORD) {
+    // Em CI, admin é obrigatório — sem credenciais, o deploy deve ser bloqueado
+    if (process.env.CI) {
+      throw new Error(
+        'TEST_ADMIN_EMAIL / TEST_ADMIN_PASSWORD não configurados no CI. ' +
+        'Adicione esses secrets ao repositório GitHub.'
+      );
+    }
     console.warn('⚠️  TEST_ADMIN_EMAIL/PASSWORD não configurado — auth de admin pulado.');
     writeEmptyAuth('e2e/.auth/admin.json');
     return;
