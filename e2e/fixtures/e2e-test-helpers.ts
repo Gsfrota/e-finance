@@ -133,30 +133,36 @@ export function dateOffset(days: number): string {
 
 // ─── Navegação ────────────────────────────────────────────────────────────────
 
-/** Aguarda o app carregar (sidebar visível). */
+/** Aguarda o app carregar: sidebar visível + spinner desapareceu. */
 export async function waitForApp(page: Page): Promise<void> {
   await page.goto('/');
   await page.locator('aside').waitFor({ timeout: 15_000 });
+  // Aguarda spinner de autenticação desaparecer antes de interagir
+  await page.locator('.animate-spin').waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => {});
 }
 
 /**
- * Navega para uma view via botão na sidebar.
+ * Navega para uma view via botão na sidebar e aguarda o conteúdo principal carregar.
  * @param viewName Texto do botão (ex: 'Dashboard', 'Contratos', 'Usuários')
  */
 export async function navigateToView(page: Page, viewName: string): Promise<void> {
   const btn = page.locator('aside').getByRole('button', { name: new RegExp(viewName, 'i') }).first();
-  await btn.waitFor({ timeout: 8_000 });
+  await btn.waitFor({ state: 'visible', timeout: 8_000 });
   await btn.click();
-  await page.waitForTimeout(600);
+  // Aguarda conteúdo principal renderizar (main ou section dentro do layout)
+  await page.locator('main, [role="main"], #content, .flex-1').first()
+    .waitFor({ state: 'visible', timeout: 8_000 }).catch(() => {});
+  await page.waitForTimeout(400);
 }
 
-/** Navega para aba interna do Dashboard (Parcelas, Recebíveis, etc.). */
+/** Navega para aba interna do Dashboard e aguarda conteúdo renderizar. */
 export async function navigateToDashboardTab(page: Page, tabName: string): Promise<void> {
   await navigateToView(page, 'Dashboard');
-  const tab = page.getByRole('button', { name: new RegExp(`^${tabName}$`, 'i') });
-  await tab.waitFor({ timeout: 8_000 });
+  // Usa filter hasText para match exato sem depender de accessible name concatenado
+  const tab = page.locator('button').filter({ hasText: new RegExp(`^${tabName}$`) });
+  await expect(tab).toBeVisible({ timeout: 12_000 });
   await tab.click();
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(600);
 }
 
 // ─── Contratos ───────────────────────────────────────────────────────────────
