@@ -32,7 +32,7 @@ async function openInviteModal(page: any) {
   await navigateToView(page, 'Usuários');
   await expect(page.getByText('Administração de Perfis')).toBeVisible({ timeout: 10_000 });
   await page.getByRole('button', { name: /Cadastrar Cliente/i }).click();
-  await expect(page.getByText('Cadastrar Cliente')).toBeVisible({ timeout: 6_000 });
+  await expect(page.getByText('Cadastrar Cliente').first()).toBeVisible({ timeout: 6_000 });
 }
 
 test.describe('Suite Client Management — Clientes e Convites', () => {

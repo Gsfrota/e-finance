@@ -62,11 +62,13 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
 
   test.beforeAll(async ({ browser }) => {
     // Cria dados de teste uma vez antes de todos os testes
-    const page = await browser.newPage();
+    // Usa storageState do admin para ter token JWT válido na API REST do Supabase
+    const context = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
+    const page = await context.newPage();
     await page.goto('/');
     await page.locator('aside').waitFor({ timeout: 15_000 });
     testData = await createTestPaymentData(page);
-    await page.close();
+    await context.close();
 
     if (!testData) {
       console.warn(
@@ -77,11 +79,12 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
 
   test.afterAll(async ({ browser }) => {
     if (!testData) return;
-    const page = await browser.newPage();
+    const context = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
+    const page = await context.newPage();
     await page.goto('/');
     await page.locator('aside').waitFor({ timeout: 15_000 });
     await deleteTestPaymentData(page, testData.investmentId);
-    await page.close();
+    await context.close();
   });
 
   // ── PAY-01: Pagamento exato ────────────────────────────────────────────────

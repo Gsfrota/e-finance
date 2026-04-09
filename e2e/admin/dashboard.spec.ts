@@ -8,8 +8,8 @@ test('ADMIN-01: Dashboard admin carrega com KPIs visíveis', async ({ page }) =>
   const dashBtn = page.locator('aside').getByRole('button', { name: /Dashboard/i }).first();
   await dashBtn.waitFor({ timeout: 8_000 });
   await dashBtn.click();
-  // Tab "Visão Geral" aparece após dados carregarem
-  await expect(page.getByRole('button', { name: 'Visão Geral' })).toBeVisible({ timeout: 20_000 });
+  // Tab "Visão Geral" aparece após dados carregarem (usa hidden sm:inline — pegar pelo texto completo)
+  await expect(page.getByRole('button').filter({ hasText: /Visão Geral|Visão/ }).first()).toBeVisible({ timeout: 20_000 });
   // Spinner some após carregar
   await expect(page.locator('.animate-spin')).not.toBeVisible({ timeout: 15_000 });
 });
@@ -19,7 +19,7 @@ test('ADMIN-02: Navegação entre as 4 abas do dashboard admin', async ({ page }
   await page.goto('/');
   await expect(page.locator('aside')).toBeVisible({ timeout: 10_000 });
 
-  const tabs = ['Visão Geral', 'Recebíveis', 'Investidores', 'Relatórios'];
+  const tabs = ['Visão Geral', 'Parcelas', 'Cobranças', 'Mensal', 'Rendimento'];
   for (const tab of tabs) {
     const tabButton = page.getByRole('button', { name: tab });
     if (await tabButton.isVisible()) {

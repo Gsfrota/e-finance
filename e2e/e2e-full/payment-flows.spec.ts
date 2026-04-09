@@ -47,11 +47,12 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
   let testData: TestPaymentData | null = null;
 
   test.beforeAll(async ({ browser }) => {
-    const page = await browser.newPage();
+    const context = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
+    const page = await context.newPage();
     await page.goto('/');
     await page.locator('aside').waitFor({ timeout: 15_000 });
     testData = await createTestPaymentData(page);
-    await page.close();
+    await context.close();
 
     if (!testData) {
       console.warn('[PAY-F] Dados de teste não criados — verifique credenciais Supabase.');
@@ -60,11 +61,12 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
 
   test.afterAll(async ({ browser }) => {
     if (!testData) return;
-    const page = await browser.newPage();
+    const context = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
+    const page = await context.newPage();
     await page.goto('/');
     await page.locator('aside').waitFor({ timeout: 15_000 });
     await deleteTestPaymentData(page, testData.investmentId);
-    await page.close();
+    await context.close();
   });
 
   // ── PAY-F-01: Pagamento exato ────────────────────────────────────────────

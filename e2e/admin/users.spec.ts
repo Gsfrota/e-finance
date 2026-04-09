@@ -22,7 +22,7 @@ test('ADMIN-04: Modal de geração de convite abre corretamente', async ({ page 
   await expect(page.getByText('Administração de Perfis')).toBeVisible({ timeout: 10_000 });
   await page.getByRole('button', { name: /Cadastrar Cliente/i }).click();
 
-  await expect(page.getByText('Cadastrar Cliente')).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByText('Cadastrar Cliente').first()).toBeVisible({ timeout: 8_000 });
   await expect(page.getByPlaceholder('Nome Completo')).toBeVisible();
   await expect(page.getByPlaceholder('E-mail')).toBeVisible();
 });
