@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   Clock,
   Loader2,
+  Wallet,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -395,11 +396,11 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
   const kpis = useMemo(() => {
     const totalDebtors = debtors.length;
     const totalExpected = debtors.reduce((s, d) => s + d.totalDue, 0);
-    const totalInterest = debtors.reduce((s, d) => s + d.totalInterest, 0);
+    const totalCapital = debtors.reduce((s, d) => s + d.totalRemainingBalance, 0);
     const totalReceived = debtors.reduce((s, d) => s + d.totalPaid, 0);
     const totalOverdue = debtors.reduce((s, d) => s + (d.hasLate ? d.totalOutstanding : 0), 0);
     const collectionRate = totalExpected > 0 ? (totalReceived / totalExpected) * 100 : 0;
-    return { totalDebtors, totalExpected, totalInterest, totalReceived, totalOverdue, collectionRate };
+    return { totalDebtors, totalExpected, totalCapital, totalReceived, totalOverdue, collectionRate };
   }, [debtors]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -481,13 +482,13 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
           }))}
         />
         <KpiCard
-          icon={<TrendingUp size={16} />}
-          label="Esperado líquido"
-          value={fmtKpi(kpis.totalInterest)}
+          icon={<Wallet size={16} />}
+          label="Capital ativo"
+          value={fmtKpi(kpis.totalCapital)}
           color="var(--accent-purple)"
-          items={debtors.filter(d => d.totalInterest > 0).sort((a,b) => b.totalInterest - a.totalInterest).map((d) => ({
+          items={debtors.filter(d => d.totalRemainingBalance > 0).sort((a,b) => b.totalRemainingBalance - a.totalRemainingBalance).map((d) => ({
             label: d.payerName,
-            value: fmtKpi(d.totalInterest),
+            value: fmtKpi(d.totalRemainingBalance),
             statusColor: 'var(--accent-purple)',
             onClick: () => { setStatusFilter('all'); setExpandedDebtor(d.payerId); setExpandedContract(null); },
           }))}
