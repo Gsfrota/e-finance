@@ -13,9 +13,140 @@ env:
   IMAGE: us-west1-docker.pkg.dev/tribal-pillar-476701-a3/cloud-run-source-deploy/e-finance
 
 jobs:
+  test:
+    name: E2E Tests (Critical Gate)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app (com credenciais Supabase)
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Injetar credenciais Supabase no env-config.js (CI preview)
+        run: |
+          printf 'window._env_ = {\n  SUPABASE_URL: "%s",\n  SUPABASE_ANON_KEY: "%s"\n};\n' \
+            "${{ secrets.VITE_SUPABASE_URL }}" \
+            "${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
+            > dist/env-config.js
+          echo "env-config.js atualizado para CI preview"
+
+      - name: Install Playwright + Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Start preview server
+        run: npx vite preview --port 4173 &
+
+      - name: Wait for server to be ready
+        run: |
+          for i in $(seq 1 15); do
+            curl -sf http://localhost:4173 > /dev/null && echo "Servidor pronto" && break
+            echo "Aguardando servidor... ($i/15)"
+            sleep 2
+          done
+
+      - name: Criar .env.local a partir dos secrets
+        run: |
+          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" > .env.local
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env.local
+          echo "TEST_ADMIN_EMAIL=${{ secrets.TEST_ADMIN_EMAIL }}" >> .env.local
+          echo "TEST_ADMIN_PASSWORD=${{ secrets.TEST_ADMIN_PASSWORD }}" >> .env.local
+
+      - name: Auth setup (login admin)
+        run: npx playwright test --project=setup --reporter=list
+
+      - name: "Tier 0: DB schema smoke test (BR-PAG-021 late_auto)"
+        run: |
+          # Verifica que a função EXISTS no banco (não a executa — execução toca dados reais).
+          # 200/204 = sucesso, 400/422 = função existe mas erro de dados (constraint etc),
+          # 404 = função não existe (migration ausente) → falha.
+          RESPONSE=$(curl -s -X POST "${{ secrets.VITE_SUPABASE_URL }}/rest/v1/rpc/update_overdue_installments" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            -w "\n%{http_code}")
+          RESULT=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP $RESULT — $BODY"
+          if [ "$RESULT" = "404" ]; then
+            echo "❌ update_overdue_installments NÃO EXISTE — migration v39 não foi aplicada"
+            exit 1
+          elif [ "$RESULT" = "500" ]; then
+            echo "❌ Erro interno do servidor (HTTP 500)"
+            exit 1
+          else
+            echo "✅ update_overdue_installments existe (HTTP $RESULT)"
+          fi
+
+      - name: "Tier 1: Smoke tests (navegação e carregamento)"
+        id: tier1
+        run: >
+          npx playwright test e2e/e2e-full/smoke.spec.ts
+          --project=chromium
+          --reporter=list,json
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/tier1-results.json
+
+      - name: "Tier 2: Core business tests (login, admin, contratos, pagamentos)"
+        id: tier2
+        run: >
+          npx playwright test
+          e2e/auth/
+          e2e/edge-cases.spec.ts
+          e2e/admin/
+          e2e/e2e-full/client-management.spec.ts
+          e2e/e2e-full/contract-creation.spec.ts
+          e2e/e2e-full/payment-flows.spec.ts
+          e2e/payment/
+          --project=chromium
+          --project=no-auth
+          --reporter=list,json
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/tier2-results.json
+
+      - name: Relatório Telegram (resultados + screenshots)
+        if: always()
+        run: bash scripts/ci/telegram-report.sh
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: "7354814208"
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Upload relatório de falhas
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
   deploy:
     name: Build & Deploy
-    needs: []
+    needs: [test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
