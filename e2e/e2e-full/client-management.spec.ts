@@ -31,8 +31,8 @@ async function openInviteModal(page: any) {
   await selectSpecificCompany(page);
   await navigateToView(page, 'Usuários');
   await expect(page.getByText('Administração de Perfis')).toBeVisible({ timeout: 10_000 });
-  await page.getByRole('button', { name: /Gerar Convite/i }).click();
-  await expect(page.getByText('Gerar Convite de Acesso')).toBeVisible({ timeout: 6_000 });
+  await page.getByRole('button', { name: /Cadastrar Cliente/i }).click();
+  await expect(page.getByText('Cadastrar Cliente')).toBeVisible({ timeout: 6_000 });
 }
 
 test.describe('Suite Client Management — Clientes e Convites', () => {
@@ -80,7 +80,7 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
     }
 
     // Submit
-    const submitBtn = page.getByRole('button', { name: /Gerar Convite|Salvar|Criar/i });
+    const submitBtn = page.getByRole('button', { name: /Cadastrar Cliente|Salvar|Criar/i });
     await submitBtn.click();
 
     // Deve aparecer código de convite ou mensagem de sucesso
@@ -115,7 +115,7 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
       await cpfInput.fill(TEST_CPFS.valid2 || '275.984.389-10');
     }
 
-    const submitBtn = page.getByRole('button', { name: /Gerar Convite|Salvar|Criar/i });
+    const submitBtn = page.getByRole('button', { name: /Cadastrar Cliente|Salvar|Criar/i });
     await submitBtn.click();
 
     await expect(
@@ -136,12 +136,12 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
 
     await cpfInput.fill(INVALID_CPF);
 
-    const submitBtn = page.getByRole('button', { name: /Gerar Convite|Salvar|Criar/i });
+    const submitBtn = page.getByRole('button', { name: /Cadastrar Cliente|Salvar|Criar/i });
     await submitBtn.click();
 
     // Deve exibir erro de CPF ou manter no formulário
     const cpfError = page.getByText(/CPF inválido|CPF.*inválido|inválido/i);
-    const stillOpen = page.getByText('Gerar Convite de Acesso');
+    const stillOpen = page.getByText('Cadastrar Cliente');
 
     await expect(cpfError.or(stillOpen)).toBeVisible({ timeout: 6_000 });
   });
@@ -152,11 +152,11 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
     // Não preenche nome
     await page.getByPlaceholder('E-mail').fill('sem-nome@e2e.test');
 
-    const submitBtn = page.getByRole('button', { name: /Gerar Convite|Salvar|Criar/i });
+    const submitBtn = page.getByRole('button', { name: /Cadastrar Cliente|Salvar|Criar/i });
     await submitBtn.click();
 
     // Deve mostrar erro de validação ou manter o modal aberto
-    const stillOpen = page.getByText('Gerar Convite de Acesso');
+    const stillOpen = page.getByText('Cadastrar Cliente');
     const errorMsg = page.getByText(/obrigatório|preencha|nome/i);
 
     await expect(stillOpen.or(errorMsg)).toBeVisible({ timeout: 5_000 });

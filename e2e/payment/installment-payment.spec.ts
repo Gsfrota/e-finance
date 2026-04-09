@@ -496,7 +496,7 @@ test.describe('PAY — Comportamento do Modal (UI)', () => {
     await parcelasTab.click();
     await page.waitForTimeout(1_000);
 
-    const btnBaixa = page.getByRole('button', { name: /✓\s*BAIXA/ }).first();
+    const btnBaixa = page.locator('[data-action="pay"]').first();
     if (!(await btnBaixa.isVisible({ timeout: 5_000 }).catch(() => false))) {
       test.skip(true, 'Nenhuma parcela pendente disponível no ambiente de teste');
     }
@@ -518,7 +518,7 @@ test.describe('PAY — Comportamento do Modal (UI)', () => {
     await parcelasTab.click();
     await page.waitForTimeout(1_000);
 
-    const btnBaixa = page.getByRole('button', { name: /✓\s*BAIXA/ }).first();
+    const btnBaixa = page.locator('[data-action="pay"]').first();
     if (!(await btnBaixa.isVisible({ timeout: 5_000 }).catch(() => false))) {
       test.skip(true, 'Nenhuma parcela pendente disponível');
     }
@@ -545,7 +545,7 @@ test.describe('PAY — Comportamento do Modal (UI)', () => {
     await parcelasTab.click();
     await page.waitForTimeout(1_000);
 
-    const btnBaixa = page.getByRole('button', { name: /✓\s*BAIXA/ }).first();
+    const btnBaixa = page.locator('[data-action="pay"]').first();
     if (!(await btnBaixa.isVisible({ timeout: 5_000 }).catch(() => false))) {
       test.skip(true, 'Nenhuma parcela pendente disponível');
     }
@@ -571,7 +571,7 @@ test.describe('PAY — Comportamento do Modal (UI)', () => {
     await parcelasTab.click();
     await page.waitForTimeout(1_000);
 
-    const btnBaixa = page.getByRole('button', { name: /✓\s*BAIXA/ }).first();
+    const btnBaixa = page.locator('[data-action="pay"]').first();
     if (!(await btnBaixa.isVisible({ timeout: 5_000 }).catch(() => false))) {
       test.skip(true, 'Nenhuma parcela pendente disponível');
     }
@@ -607,7 +607,7 @@ test.describe('PAY — Comportamento do Modal (UI)', () => {
     await parcelasTab.click();
     await page.waitForTimeout(1_000);
 
-    const btnBaixa = page.getByRole('button', { name: /✓\s*BAIXA/ }).first();
+    const btnBaixa = page.locator('[data-action="pay"]').first();
     if (!(await btnBaixa.isVisible({ timeout: 5_000 }).catch(() => false))) {
       test.skip(true, 'Nenhuma parcela pendente disponível');
     }

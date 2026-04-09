@@ -10,7 +10,7 @@ import {
   Lock,
   Settings2,
 } from 'lucide-react';
-import { getSupabase, isProduction, clearExternalConfig } from '../services/supabase';
+import { getSupabase, isProduction, clearExternalConfig, parseSupabaseError } from '../services/supabase';
 
 interface LoginProps {
   onLoginSuccess: () => void;
@@ -128,7 +128,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         if (data.session) onLoginSuccess();
       }
     } catch (err: any) {
-      setError(err.message || "Credenciais inválidas ou erro de servidor.");
+      setError(parseSupabaseError(err));
     } finally {
       setLoading(false);
     }

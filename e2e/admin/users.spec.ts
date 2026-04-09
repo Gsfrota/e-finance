@@ -9,7 +9,7 @@ test('ADMIN-03: Admin acessa gerenciamento de usuários', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Usuários' }).click();
   await expect(page.getByText('Administração de Perfis')).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByRole('button', { name: /Gerar Convite/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Cadastrar Cliente/i })).toBeVisible();
 });
 
 // ADMIN-04: Admin abre modal de convite
@@ -20,9 +20,9 @@ test('ADMIN-04: Modal de geração de convite abre corretamente', async ({ page 
 
   await page.getByRole('button', { name: 'Usuários' }).click();
   await expect(page.getByText('Administração de Perfis')).toBeVisible({ timeout: 10_000 });
-  await page.getByRole('button', { name: /Gerar Convite/i }).click();
+  await page.getByRole('button', { name: /Cadastrar Cliente/i }).click();
 
-  await expect(page.getByText('Gerar Convite de Acesso')).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByText('Cadastrar Cliente')).toBeVisible({ timeout: 8_000 });
   await expect(page.getByPlaceholder('Nome Completo')).toBeVisible();
   await expect(page.getByPlaceholder('E-mail')).toBeVisible();
 });

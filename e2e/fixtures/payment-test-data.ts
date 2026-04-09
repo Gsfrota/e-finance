@@ -298,8 +298,8 @@ export async function clickBaixaByInstallmentId(
   }, installmentId);
 
   if (!found) {
-    // Fallback: procura pelo primeiro botão BAIXA visível
-    const btnBaixa = page.getByRole('button', { name: /✓\s*BAIXA/ }).first();
+    // Fallback: procura pelo primeiro botão BAIXA visível via data-action
+    const btnBaixa = page.locator('[data-action="pay"]').first();
     if (await btnBaixa.isVisible()) {
       await btnBaixa.click();
       return true;
@@ -311,19 +311,26 @@ export async function clickBaixaByInstallmentId(
 
 /** Abre o modal de pagamento para a parcela "TESTE E2E PAGAMENTO" mais recente. */
 export async function openPaymentModal(page: Page): Promise<boolean> {
-  // Procura texto "TESTE E2E PAGAMENTO" na lista e clica no botão BAIXA da linha
+  // Procura card com data-installment-id que contenha "TESTE E2E PAGAMENTO"
   const linhaTeste = page.getByText('TESTE E2E PAGAMENTO').first();
   if (!(await linhaTeste.isVisible({ timeout: 5_000 }).catch(() => false))) {
-    // Fallback: qualquer parcela pending
-    const btn = page.getByRole('button', { name: /✓\s*BAIXA/ }).first();
+    // Fallback: qualquer botão BAIXA visível (data-action="pay")
+    const btn = page.locator('[data-action="pay"]').first();
     if (!(await btn.isVisible({ timeout: 3_000 }).catch(() => false))) return false;
     await btn.click();
     return true;
   }
-  // Clica no botão BAIXA mais próximo do item de teste
-  const container = linhaTeste.locator('..').locator('..').locator('..');
-  const btnBaixa = container.getByRole('button', { name: /✓\s*BAIXA/ }).first();
-  await btnBaixa.click();
+  // Sobe para o card [data-installment-id] e clica em data-action="pay"
+  const card = linhaTeste.locator('xpath=ancestor::*[@data-installment-id][1]');
+  const btnBaixa = card.locator('[data-action="pay"]').first();
+  if (await btnBaixa.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    await btnBaixa.click();
+    return true;
+  }
+  // Fallback: qualquer botão BAIXA
+  const fallback = page.locator('[data-action="pay"]').first();
+  if (!(await fallback.isVisible({ timeout: 3_000 }).catch(() => false))) return false;
+  await fallback.click();
   return true;
 }
 

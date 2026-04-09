@@ -282,7 +282,7 @@ export async function submitPaymentStep2(page: Page): Promise<void> {
 
 /** Abre o botão BAIXA da primeira parcela pendente visível. */
 export async function openFirstPaymentModal(page: Page): Promise<boolean> {
-  const btn = page.getByRole('button', { name: /✓\s*BAIXA/ }).first();
+  const btn = page.locator('[data-action="pay"]').first();
   if (!(await btn.isVisible({ timeout: 5_000 }).catch(() => false))) return false;
   await btn.click();
   return true;

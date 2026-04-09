@@ -940,7 +940,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                     : 'text-[color:var(--text-secondary)] bg-white/[0.04]';
 
               return (
-                <div key={installment.id} className="p-4">
+                <div key={installment.id} data-installment-id={installment.id} className="p-4">
                   <div className="mb-1 flex items-start justify-between">
                     <span className="font-bold text-[color:var(--text-primary)]">{installment.investment?.payer?.full_name || 'Cliente'}</span>
                     <span className="text-xs text-[color:var(--text-faint)]">{formatDate(installment.due_date)}</span>
@@ -961,6 +961,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                     <div className="space-y-2">
                       <div className="grid grid-cols-3 gap-2">
                         <button
+                          data-action="pay"
                           onClick={() => openAction('pay', installment)}
                           className="min-h-[48px] rounded-xl border border-[rgba(143,179,157,0.3)] bg-[rgba(143,179,157,0.12)] py-3 text-sm font-bold text-[color:var(--accent-positive)] transition-colors hover:bg-[rgba(143,179,157,0.25)]"
                         >
