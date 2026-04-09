@@ -228,8 +228,9 @@ Categorias:
 - **Condição:** Ao executar `pay_avulso`
 - **Resultado:** `p_destination` é parâmetro obrigatório da RPC (default `'general_credit'`). Inserir em `avulso_payments` E em `payment_transactions` com `transaction_type = 'avulso'`. Quando `p_destination = 'principal_reduction'`: seguir BR-PAG-022. Quando `general_credit`: quitar parcelas pendentes last-first sem descartar surplus — registrar cada quitação
 - **Exceções:** Nenhuma — audit trail é obrigatório em todos os destinos (BR-PAG-009)
+- **Vínculo:** O registro em `payment_transactions` DEVE ter `installment_id = NULL` — ver BR-PAG-023
 - **Tabelas:** `avulso_payments`, `payment_transactions`, `investments`
-- **Status:** ativa — *atualizada em 2026-04-09 (v40: p_destination implementado na RPC)*
+- **Status:** ativa — *atualizada em 2026-04-09 (v40: p_destination implementado; BR-PAG-023 complementa vínculo contrato)*
 
 ### BR-PAG-015: Bullet interest_only — capitalização de juros e saldo residual
 - **Descrição:** Na modalidade bullet, `pay_bullet_interest_only` aplica juros apenas do período corrente. Se o pagamento for menor que os juros devidos, a diferença deve ser registrada como `capitalized_interest` e somada ao `remaining_balance` do contrato (juros capitalizados)
@@ -306,6 +307,19 @@ Categorias:
 - **Exceções:** `p_destination = 'principal_reduction'` é inválido para contratos sem `calculation_mode = 'interest_only'` — deve ser rejeitado com erro descritivo
 - **Tabelas:** `investments`, `loan_installments`, `avulso_payments`, `payment_transactions`
 - **Status:** ativa — *criada em 2026-04-09 (v40, incidente #789 MD Veículos)*
+
+### BR-PAG-023: Pagamento avulso é vinculado ao contrato, não à parcela
+- **Descrição:** O pagamento avulso (`pay_avulso`) reduz a dívida total do contrato (`remaining_balance`), não o saldo de uma parcela individual. Por isso, o registro em `payment_transactions` gerado por `pay_avulso` DEVE ter `installment_id = NULL`. A associação é feita pelo `investment_id`
+- **Condição:** Sempre que `pay_avulso` grava em `payment_transactions`
+- **Resultado:**
+  1. `payment_transactions.installment_id = NULL` — sem vínculo com parcela específica
+  2. `payment_transactions.investment_id = p_investment_id` — vínculo com o contrato
+  3. A exibição no histórico (`InstallmentHistory`) deve tratar registros com `installment_id = NULL` e `transaction_type = 'avulso'` como entradas de nível contrato, agrupadas com chave `avulso_{tx.id}` no agrupamento "Por Recebimento"
+  4. O `totalReceived` de um grupo avulso deve usar o campo `amount` da transação (não apenas transações do tipo `payment`)
+- **Motivação:** Avulso pode ser `principal_reduction`, `penalty_payment` ou `general_credit` — nenhum desses destinos é exclusivo de uma única parcela; o efeito se propaga pelo contrato inteiro
+- **Exceções:** Se o `general_credit` quitar integralmente uma parcela específica, a RPC PODE vincular a transação à parcela quitada — mas o avulso raiz permanece com `installment_id = NULL`
+- **Tabelas:** `payment_transactions`, `avulso_payments`, `investments`
+- **Status:** ativa — *criada em 2026-04-09 (incidente #789 MD Veículos — avulso não aparecia no histórico por ter installment_id vinculado incorretamente)*
 
 ---
 
