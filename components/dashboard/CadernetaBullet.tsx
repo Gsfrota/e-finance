@@ -27,7 +27,6 @@ import {
   AlertTriangle,
   Clock,
   Loader2,
-  Wallet,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -396,11 +395,13 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
   const kpis = useMemo(() => {
     const totalDebtors = debtors.length;
     const totalExpected = debtors.reduce((s, d) => s + d.totalDue, 0);
-    const totalCapital = debtors.reduce((s, d) => s + d.totalRemainingBalance, 0);
+    const totalInterest = debtors.reduce((s, d) => s + d.totalInterest, 0);
     const totalReceived = debtors.reduce((s, d) => s + d.totalPaid, 0);
     const totalOverdue = debtors.reduce((s, d) => s + (d.hasLate ? d.totalOutstanding : 0), 0);
     const collectionRate = totalExpected > 0 ? (totalReceived / totalExpected) * 100 : 0;
-    return { totalDebtors, totalExpected, totalCapital, totalReceived, totalOverdue, collectionRate };
+    const progressBruto = totalExpected > 0 ? (totalReceived / totalExpected) * 100 : 0;
+    const progressLiquido = totalInterest > 0 ? (totalReceived / totalInterest) * 100 : 0;
+    return { totalDebtors, totalExpected, totalInterest, totalReceived, totalOverdue, collectionRate, progressBruto, progressLiquido };
   }, [debtors]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -474,6 +475,8 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
           label="Esperado bruto"
           value={fmtKpi(kpis.totalExpected)}
           color="var(--accent-brass)"
+          progress={kpis.progressBruto}
+          progressLabel={`${fmtKpi(kpis.totalReceived)} recebido · ${kpis.progressBruto.toFixed(0).replace('.', ',')}%`}
           items={debtors.filter(d => d.totalDue > 0).sort((a,b) => b.totalDue - a.totalDue).map((d) => ({
             label: d.payerName,
             value: fmtKpi(d.totalDue),
@@ -482,13 +485,15 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
           }))}
         />
         <KpiCard
-          icon={<Wallet size={16} />}
-          label="Capital ativo"
-          value={fmtKpi(kpis.totalCapital)}
+          icon={<TrendingUp size={16} />}
+          label="Esperado líquido"
+          value={fmtKpi(kpis.totalInterest)}
           color="var(--accent-purple)"
-          items={debtors.filter(d => d.totalRemainingBalance > 0).sort((a,b) => b.totalRemainingBalance - a.totalRemainingBalance).map((d) => ({
+          progress={kpis.progressLiquido}
+          progressLabel={`${fmtKpi(kpis.totalReceived)} recebido · ${Math.min(100, kpis.progressLiquido).toFixed(0).replace('.', ',')}%`}
+          items={debtors.filter(d => d.totalInterest > 0).sort((a,b) => b.totalInterest - a.totalInterest).map((d) => ({
             label: d.payerName,
-            value: fmtKpi(d.totalRemainingBalance),
+            value: fmtKpi(d.totalInterest),
             statusColor: 'var(--accent-purple)',
             onClick: () => { setStatusFilter('all'); setExpandedDebtor(d.payerId); setExpandedContract(null); },
           }))}
@@ -641,11 +646,15 @@ interface KpiCardProps {
   color: string;
   colSpanFull?: boolean;
   items?: KpiItem[];
+  /** 0–100 — exibe barra de progresso abaixo do valor */
+  progress?: number;
+  progressLabel?: string;
 }
 
-const KpiCard: React.FC<KpiCardProps> = ({ icon, label, value, color, colSpanFull, items }) => {
+const KpiCard: React.FC<KpiCardProps> = ({ icon, label, value, color, colSpanFull, items, progress, progressLabel }) => {
   const [open, setOpen] = useState(false);
   const hasItems = items && items.length > 0;
+  const showProgress = progress !== undefined;
 
   return (
     <div className={`panel-card rounded-[1.4rem] overflow-hidden${colSpanFull ? ' col-span-2 md:col-span-1' : ''}`}>
@@ -664,6 +673,19 @@ const KpiCard: React.FC<KpiCardProps> = ({ icon, label, value, color, colSpanFul
           <p className="tabular-nums font-bold leading-tight break-all" style={{ color: 'var(--text-primary)', fontSize: 'clamp(0.8rem, 2vw, 1.05rem)' }}>
             {value}
           </p>
+          {showProgress && (
+            <div className="mt-1.5 space-y-0.5">
+              <div className="rounded-full overflow-hidden" style={{ height: 4, background: 'rgba(255,255,255,0.08)' }}>
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(100, progress!)}%`, background: color }}
+                />
+              </div>
+              {progressLabel && (
+                <p className="text-[0.6rem] tabular-nums" style={{ color: 'var(--text-faint)' }}>{progressLabel}</p>
+              )}
+            </div>
+          )}
         </div>
         {hasItems && (
           <ChevronDown
