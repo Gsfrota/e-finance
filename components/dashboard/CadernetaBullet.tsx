@@ -842,16 +842,6 @@ const DebtorRow: React.FC<DebtorRowProps> = ({
               <span style={{ color: 'var(--text-muted)' }}>
                 {debtor.contracts.length} contrato{debtor.contracts.length !== 1 ? 's' : ''}
               </span>
-              {debtor.payerEmail && (
-                <a
-                  href={`mailto:${debtor.payerEmail}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="truncate hover:underline"
-                  style={{ color: 'var(--accent-steel)' }}
-                >
-                  {debtor.payerEmail}
-                </a>
-              )}
               {debtor.totalRemainingBalance > 0 && (
                 <span style={{ color: 'var(--text-secondary)' }}>
                   Saldo: <span className="tabular-nums font-semibold">{fmtMoney(debtor.totalRemainingBalance)}</span>
