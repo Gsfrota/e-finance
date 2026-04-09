@@ -82,9 +82,9 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
       // Dados legados: payment record tem só o outstanding da parcela principal;
       // somamos payment + surplus_received para melhor estimativa do total recebido
       const totalReceived = isLegacy
-        ? txs.filter(t => t.transaction_type === 'payment' || t.transaction_type === 'surplus_received')
+        ? txs.filter(t => t.transaction_type === 'payment' || t.transaction_type === 'surplus_received' || t.transaction_type === 'avulso')
             .reduce((s, t) => s + normalizeNum(t.amount), 0)
-        : txs.filter(t => t.transaction_type === 'payment')
+        : txs.filter(t => t.transaction_type === 'payment' || t.transaction_type === 'avulso')
             .reduce((s, t) => s + normalizeNum(t.amount), 0);
       return {
         key,
@@ -231,9 +231,13 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                           )}
                         </div>
                         <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                          {uniqueInstallments.length === 1
-                            ? `1 parcela afetada`
-                            : `${uniqueInstallments.length} parcelas afetadas`}
+                          {(() => {
+                            const realInsts = uniqueInstallments.filter(id => id != null);
+                            const hasContractLevel = uniqueInstallments.some(id => id == null);
+                            if (realInsts.length === 0 && hasContractLevel) return 'Nível contrato';
+                            if (realInsts.length === 1) return hasContractLevel ? '1 parcela + nível contrato' : '1 parcela afetada';
+                            return `${realInsts.length} parcelas afetadas${hasContractLevel ? ' + nível contrato' : ''}`;
+                          })()}
                         </p>
                       </div>
                       <span style={{ color: 'var(--text-faint)' }}>
@@ -254,20 +258,21 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                             }, {});
 
                           return Object.entries(byInst).map(([instId, txs]) => {
-                            const inst = allInstallments.find(i => i.id === instId);
+                            const isContractLevel = instId === 'null' || instId === 'undefined';
+                            const inst = isContractLevel ? undefined : allInstallments.find(i => i.id === instId);
                             const applied = txs.reduce((s, t) => s + normalizeNum(t.amount), 0);
                             const status = inst?.status;
-                            const statusLabel = status === 'paid' ? 'Quitada' : status === 'partial' ? 'Parcial' : status === 'late' ? 'Atrasada' : 'Pendente';
-                            const statusColor = status === 'paid' ? 'var(--accent-positive)' : status === 'partial' ? 'var(--accent-steel)' : 'var(--accent-danger)';
+                            const statusLabel = isContractLevel ? 'Contrato' : status === 'paid' ? 'Quitada' : status === 'partial' ? 'Parcial' : status === 'late' ? 'Atrasada' : 'Pendente';
+                            const statusColor = isContractLevel ? 'var(--accent-brass)' : status === 'paid' ? 'var(--accent-positive)' : status === 'partial' ? 'var(--accent-steel)' : 'var(--accent-danger)';
 
                             return (
                               <div key={instId} className="flex items-center gap-2 text-[11px]">
-                                <span style={{ color: statusColor }}>●</span>
+                                <span style={{ color: statusColor }}>{isContractLevel ? '◇' : '●'}</span>
                                 <div className="flex-1 min-w-0">
                                   <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>
-                                    Parcela #{inst?.number ?? '?'}
+                                    {isContractLevel ? 'Pagamento avulso' : `Parcela #${inst?.number ?? '?'}`}
                                   </span>
-                                  {inst?.due_date && (
+                                  {!isContractLevel && inst?.due_date && (
                                     <span className="ml-1" style={{ color: 'var(--text-faint)' }}>
                                       · venc. {fmtDate(inst.due_date)}
                                     </span>
