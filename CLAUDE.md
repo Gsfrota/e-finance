@@ -7,11 +7,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm run dev      # Dev server at http://localhost:3000
 npm run build    # TypeScript check + production build
-npm run preview  # Preview production build
+npm run preview  # Preview production build (porta 4173, usada pelos e2e)
 scripts/claude-agent.sh "seu prompt"  # Claude headless com JSON e MCP do Supabase
 ```
 
-No test runner is configured.
+### E2E (Playwright)
+
+```bash
+npm run test:e2e          # Todos os testes (headless)
+npm run test:e2e:ui       # UI interativa do Playwright
+npm run test:e2e:headed   # Browser visível
+npm run test:e2e:report   # Abrir relatório do último run
+npm run test:qa           # scripts/pre-deploy-qa.sh (smoke tests pré-deploy)
+```
+
+Os testes ficam em `e2e/` organizados por role: `auth/`, `admin/`, `investor/`, `debtor/`, `payment/`, `edge-cases.spec.ts`. A autenticação é feita via `e2e/auth.setup.ts`, que persiste estado em `e2e/.auth/{role}.json`. Requer `preview` rodando na porta 4173 e variáveis em `.env.local`.
 
 ## Environment
 
@@ -55,10 +65,26 @@ App.tsx (routing via AppView enum)
 
 All data fetching goes through custom hooks (`hooks/`) which call `services/supabase.ts`. The Supabase client is recreated when localStorage credentials change (see `getSupabaseClient()` pattern).
 
+### Subscription Plans & Feature Gates
+
+`Tenant.plan` pode ser `'free' | 'caderneta' | 'empresarial'`. A lógica de gates vive em `services/companyScope.ts`:
+
+- **`isFreePlanLocked(tenant)`** — plano `free` sem trial ativo bloqueia `FREE_PLAN_BLOCKED_VIEWS` (Dashboard, Collection, Assistant, etc.)
+- **`isTrialActive(tenant)`** — verifica `trial_ends_at` vs `Date.now()`
+- **Multi-empresa** — só `empresarial` com `plan_status === 'active'` OU trial ativo pode acessar escopo agregado (`CompanyScope = 'all'`)
+- **`isPlatformOwner`** — email `guifrotasouza@gmail.com` tem acesso irrestrito permanente
+
+O `CompanyContextProvider` (em `App.tsx`) expõe via `useContext(CompanyContext)`: `tenant`, `profile`, `companies`, `activeCompanyScope`, `activeCompanyId`, `isEnterpriseTenant`, `isFreePlanLocked`, etc. Todos os componentes que precisam saber a empresa ativa devem consumir este contexto, não o estado local.
+
+`CompanyScope = 'all' | string | null` — `'all'` é escopo agregado, `string` é `company_id`, `null` é sem empresa selecionada.
+
 ### Key Services
 
 - `services/supabase.ts` — Supabase client factory + shared helpers (`isValidCPF`, `parseSupabaseError`, `logError`)
+- `services/companyScope.ts` — Lógica de planos, gates de features, `CompanyContext`, helpers de escopo multi-empresa
 - `services/pix.ts` — Generates PIX payment strings (Brazilian instant payment standard); used with `qrcode.react` in `PaymentModal.tsx`
+- `services/cache.ts` — Cache em memória para queries do Supabase (evitar refetch desnecessário)
+- `services/paymentAudit.ts` — Log de auditoria de pagamentos
 
 ### Path Alias
 

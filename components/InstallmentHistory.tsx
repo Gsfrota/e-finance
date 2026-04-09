@@ -25,6 +25,7 @@ interface PaymentReceipt {
 // ── Mapeamento de tipos de transação → exibição PT-BR ────────────────────────
 const TX_META: Record<string, { icon: string; label: string; color: string }> = {
   payment:          { icon: '●', label: 'Pagamento',           color: 'var(--accent-positive)' },
+  avulso:           { icon: '◇', label: 'Pagamento avulso',    color: 'var(--accent-brass)' },
   surplus_applied:  { icon: '▸', label: 'Surplus aplicado',    color: 'var(--accent-caution)' },
   surplus_received: { icon: '◆', label: 'Recebido via surplus', color: 'var(--accent-purple)' },
   deferred:         { icon: '⇢', label: 'Postergado',           color: 'var(--accent-caution)' },

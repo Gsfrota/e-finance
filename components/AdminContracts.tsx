@@ -230,15 +230,21 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
       [editInstallments]
   );
 
-  const editPaidPrincipal = useMemo(
-      () => roundCurrency(editPaidInstallments.reduce((sum, installment) => sum + Number(installment.amount_principal || 0), 0)),
-      [editPaidInstallments]
-  );
+  const editPaidPrincipal = useMemo(() => {
+      // Para contratos bullet (interest_only), parcelas pagas via pay_bullet_interest_only
+      // têm amount_principal = saldo devedor (display), mas o principal NUNCA foi amortizado.
+      // Usar 0 para que remainingPrincipal = principal intacto.
+      if (contractToEdit?.calculation_mode === 'interest_only') return 0;
+      return roundCurrency(editPaidInstallments.reduce((sum, installment) => sum + Number(installment.amount_principal || 0), 0));
+  }, [editPaidInstallments, contractToEdit]);
 
-  const editPaidTotal = useMemo(
-      () => roundCurrency(editPaidInstallments.reduce((sum, installment) => sum + Number(installment.amount_total || 0), 0)),
-      [editPaidInstallments]
-  );
+  const editPaidTotal = useMemo(() => {
+      // Para contratos bullet, usar amount_paid (juros efetivamente pagos)
+      // em vez de amount_total (que inclui o principal como display).
+      const isBullet = contractToEdit?.calculation_mode === 'interest_only';
+      return roundCurrency(editPaidInstallments.reduce((sum, installment) =>
+          sum + Number(isBullet ? (installment.amount_paid || 0) : (installment.amount_total || 0)), 0));
+  }, [editPaidInstallments, contractToEdit]);
 
   const editCurrentValuePreview = useMemo(() => {
       const installmentValue = Number(editContractInstallmentValue) || 0;
@@ -477,7 +483,20 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               p_frequency: formData.frequency,
               p_due_day: formData.frequency === 'monthly' ? formData.due_day : null,
               p_weekday: formData.frequency === 'weekly' ? formData.weekday : null,
-              p_start_date: formData.frequency === 'daily' ? formData.start_date : null,
+              p_start_date: (() => {
+                  // Para contratos mensais, enviar a primeira data calculada pelo preview
+                  // para que a RPC respeite a escolha "Este mês" / "Próximo mês" do admin.
+                  if (formData.frequency === 'monthly' && monthOffset !== undefined) {
+                      const dates = calculateInstallmentDates(
+                          'monthly', formData.due_day, formData.weekday,
+                          formData.start_date, 1,
+                          formData.skip_saturday, formData.skip_sunday, monthOffset
+                      );
+                      return dates[0]?.toISOString().split('T')[0] ?? null;
+                  }
+                  if (formData.frequency === 'daily') return formData.start_date;
+                  return null;
+              })(),
               p_calculation_mode: formData.calculation_mode,
               p_skip_saturday: formData.frequency === 'daily' ? formData.skip_saturday : false,
               p_skip_sunday:   formData.frequency === 'daily' ? formData.skip_sunday   : false,
@@ -693,9 +712,13 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               throw new Error('O valor da parcela gera um total menor do que o principal ainda em aberto.');
           }
 
-          const nextInterestRate = principal > 0
-              ? roundCurrency(((nextCurrentValue / principal) - 1) * 100)
-              : 0;
+          // Para bullet, preservar taxa original — a fórmula (currentValue/principal - 1)*100
+          // inflaria a taxa porque editPaidTotal conta amount_paid (juros) e não o principal.
+          const nextInterestRate = contractToEdit.calculation_mode === 'interest_only'
+              ? contractToEdit.interest_rate
+              : principal > 0
+                  ? roundCurrency(((nextCurrentValue / principal) - 1) * 100)
+                  : 0;
 
           const principalDistribution = distributeEvenly(remainingPrincipal, openCount);
           const totalDistribution = distributeEvenly(remainingTotal, openCount);

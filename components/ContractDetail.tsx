@@ -182,6 +182,7 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
         p_amount: amountNum,
         p_paid_at: new Date(dateInput + 'T12:00:00').toISOString(),
         p_notes: fullNotes,
+        p_destination: destination,
       });
       if (rpcErr) throw rpcErr;
       onSuccess();

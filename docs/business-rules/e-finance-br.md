@@ -56,13 +56,13 @@ Categorias:
 - **Tabelas:** `investments`, `loan_installments`
 - **Status:** ativa
 
-### BR-CNT-004: Modalidade bullet paga apenas juros nas parcelas intermediárias
-- **Descrição:** Na modalidade bullet, parcelas intermediárias contêm apenas `amount_interest`. O principal é devolvido somente na última parcela
+### BR-CNT-004: Modalidade bullet — estrutura de parcelas e saldo devedor
+- **Descrição:** Na modalidade bullet (interest_only), todas as parcelas periódicas refletem o saldo devedor atual: `amount_principal = remaining_balance` (valor de referência/display) e `amount_total = remaining_balance + (remaining_balance * interest_rate / 100)`. O pagamento de juros via `pay_bullet_interest_only` marca a parcela como `paid` sem reduzir `remaining_balance`. A redução do principal ocorre exclusivamente via `pay_avulso` com `p_destination = 'principal_reduction'` (BR-PAG-022). Quando `remaining_balance = 0`, o contrato é marcado como `completed`
 - **Condição:** `investments.calculation_mode = 'interest_only'`
-- **Resultado:** `loan_installments.amount_principal = 0` para todas exceto a última; última parcela tem `amount_principal = investments.amount_invested`
-- **Exceções:** Nenhuma
+- **Resultado:** `loan_installments.amount_principal = investments.remaining_balance` (display); `amount_total = remaining_balance + juros_do_periodo`. `pay_bullet_interest_only` não altera `remaining_balance`. `generate_next_bullet_installment` usa o `remaining_balance` vigente no momento da geração
+- **Exceções:** Se `pay_avulso` zerar o `remaining_balance`, a parcela `pending` existente é marcada como `paid` e o contrato como `completed` sem gerar nova parcela
 - **Tabelas:** `investments`, `loan_installments`
-- **Status:** ativa
+- **Status:** ativa — *atualizada em 2026-04-09 (v40, incidente #789 MD Veículos)*
 
 ### BR-CNT-005: Capital de origem deve ser classificado
 - **Descrição:** Todo contrato deve ter origem do capital identificada
@@ -224,12 +224,12 @@ Categorias:
 - **Status:** ativa
 
 ### BR-PAG-014: Pagamento avulso exige destino explícito e audit trail
-- **Descrição:** A operação `pay_avulso` deve receber destino explícito: `principal_reduction` (reduz saldo devedor), `penalty_payment` (quita multas/encargos), `general_credit` (crédito geral a ser alocado). O destino deve ser registrado em `payment_transactions`
+- **Descrição:** A operação `pay_avulso` DEVE receber o parâmetro `p_destination` com um dos valores aceitos: `principal_reduction` (reduz saldo devedor — exclusivo para contratos bullet), `penalty_payment` (quita multas/encargos), `general_credit` (crédito geral alocado em parcelas abertas last-first). O destino determina o comportamento da RPC e deve ser registrado como transaction_type `'avulso'` em `payment_transactions`. O campo `p_notes` pode conter informações adicionais mas não substitui o parâmetro formal de destino
 - **Condição:** Ao executar `pay_avulso`
-- **Resultado:** Campo `p_notes` deve incluir destino. Criar entry em `payment_transactions` com `type = 'avulso'` e destino. Atualizar `remaining_balance` no contrato pai quando destino = `principal_reduction`
-- **Exceções:** Nenhuma
+- **Resultado:** `p_destination` é parâmetro obrigatório da RPC (default `'general_credit'`). Inserir em `avulso_payments` E em `payment_transactions` com `transaction_type = 'avulso'`. Quando `p_destination = 'principal_reduction'`: seguir BR-PAG-022. Quando `general_credit`: quitar parcelas pendentes last-first sem descartar surplus — registrar cada quitação
+- **Exceções:** Nenhuma — audit trail é obrigatório em todos os destinos (BR-PAG-009)
 - **Tabelas:** `avulso_payments`, `payment_transactions`, `investments`
-- **Status:** ativa
+- **Status:** ativa — *atualizada em 2026-04-09 (v40: p_destination implementado na RPC)*
 
 ### BR-PAG-015: Bullet interest_only — capitalização de juros e saldo residual
 - **Descrição:** Na modalidade bullet, `pay_bullet_interest_only` aplica juros apenas do período corrente. Se o pagamento for menor que os juros devidos, a diferença deve ser registrada como `capitalized_interest` e somada ao `remaining_balance` do contrato (juros capitalizados)
@@ -293,6 +293,19 @@ Categorias:
 - **Exceções:** Parcelas que já possuem `transaction_type = 'late_auto'` não recebem novo registro
 - **Tabelas:** `payment_transactions`, `loan_installments`
 - **Status:** ativa
+
+### BR-PAG-022: Pagamento avulso com principal_reduction em contrato bullet
+- **Descrição:** Quando `pay_avulso` é chamado com `p_destination = 'principal_reduction'` em um contrato com `calculation_mode = 'interest_only'`, o valor pago deve reduzir o `remaining_balance` do contrato e recalcular a parcela pendente existente com o novo saldo. Não quitar parcelas de juros como se fossem parcelas normais
+- **Condição:** `pay_avulso` + `p_destination = 'principal_reduction'` + `investments.calculation_mode = 'interest_only'`
+- **Resultado:**
+  1. `investments.remaining_balance -= p_amount` (não pode ficar negativo — rejeitar se `p_amount > remaining_balance`)
+  2. Se `remaining_balance > 0`: localizar parcela `pending` e recalcular: `amount_principal = new_remaining_balance`, `amount_interest = new_remaining_balance * interest_rate / 100`, `amount_total = amount_principal + amount_interest`
+  3. Se `remaining_balance = 0`: marcar parcela `pending` como `paid` (`amount_paid = amount_total`, `paid_at = p_paid_at`); marcar contrato como `status = 'completed'`
+  4. Sempre inserir em `payment_transactions` com `transaction_type = 'avulso'`, `principal_portion = p_amount`, `interest_portion = 0`
+  5. Sempre inserir em `avulso_payments`
+- **Exceções:** `p_destination = 'principal_reduction'` é inválido para contratos sem `calculation_mode = 'interest_only'` — deve ser rejeitado com erro descritivo
+- **Tabelas:** `investments`, `loan_installments`, `avulso_payments`, `payment_transactions`
+- **Status:** ativa — *criada em 2026-04-09 (v40, incidente #789 MD Veículos)*
 
 ---
 
