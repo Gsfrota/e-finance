@@ -95,6 +95,17 @@ function getInitials(name: string): string {
     .join('');
 }
 
+// Formata valor monetário para KPIs: sem centavos se valor for inteiro (BR-REL-015)
+function fmtKpi(v: number): string {
+  const hasDecimals = v % 1 !== 0;
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: hasDecimals ? 2 : 0,
+    maximumFractionDigits: hasDecimals ? 2 : 0,
+  }).format(v || 0);
+}
+
 function monthLabel(key: string): string {
   const d = monthKeyToDate(key);
   return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -452,11 +463,11 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
         <KpiCard
           icon={<TrendingUp size={16} />}
           label="Juros esperados"
-          value={fmtMoney(kpis.totalExpected)}
+          value={fmtKpi(kpis.totalExpected)}
           color="var(--accent-brass)"
           items={debtors.filter(d => d.totalDue > 0).sort((a,b) => b.totalDue - a.totalDue).map((d) => ({
             label: d.payerName,
-            value: fmtMoney(d.totalDue),
+            value: fmtKpi(d.totalDue),
             statusColor: d.hasLate ? 'var(--accent-danger)' : d.hasPending ? 'var(--accent-warning)' : 'var(--accent-positive)',
             onClick: () => { setStatusFilter('all'); setExpandedDebtor(d.payerId); setExpandedContract(null); },
           }))}
@@ -464,11 +475,11 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
         <KpiCard
           icon={<CheckCircle2 size={16} />}
           label="Recebido"
-          value={fmtMoney(kpis.totalReceived)}
+          value={fmtKpi(kpis.totalReceived)}
           color="var(--accent-positive)"
           items={debtors.filter(d => d.totalPaid > 0).sort((a,b) => b.totalPaid - a.totalPaid).map((d) => ({
             label: d.payerName,
-            value: fmtMoney(d.totalPaid),
+            value: fmtKpi(d.totalPaid),
             sublabel: `· ${d.payPercent.toFixed(0)}%`,
             statusColor: 'var(--accent-positive)',
             onClick: () => { setStatusFilter('all'); setExpandedDebtor(d.payerId); setExpandedContract(null); },
@@ -477,11 +488,11 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
         <KpiCard
           icon={<AlertTriangle size={16} />}
           label="Em atraso"
-          value={fmtMoney(kpis.totalOverdue)}
+          value={fmtKpi(kpis.totalOverdue)}
           color="var(--accent-danger)"
           items={debtors.filter(d => d.hasLate).sort((a,b) => b.totalOutstanding - a.totalOutstanding).map((d) => ({
             label: d.payerName,
-            value: fmtMoney(d.totalOutstanding),
+            value: fmtKpi(d.totalOutstanding),
             statusColor: 'var(--accent-danger)',
             onClick: () => { setStatusFilter('late'); setExpandedDebtor(d.payerId); setExpandedContract(null); },
           }))}
@@ -495,7 +506,7 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
           items={debtors.filter(d => d.totalDue > 0).sort((a,b) => b.payPercent - a.payPercent).map((d) => ({
             label: d.payerName,
             value: `${d.payPercent.toFixed(1).replace('.', ',')}%`,
-            sublabel: `${fmtMoney(d.totalPaid)} / ${fmtMoney(d.totalDue)}`,
+            sublabel: `${fmtKpi(d.totalPaid)} / ${fmtKpi(d.totalDue)}`,
             statusColor: d.payPercent >= 100 ? 'var(--accent-positive)' : d.payPercent > 0 ? 'var(--accent-warning)' : 'var(--accent-danger)',
             onClick: () => { setStatusFilter('all'); setExpandedDebtor(d.payerId); setExpandedContract(null); },
           }))}
@@ -620,28 +631,29 @@ const KpiCard: React.FC<KpiCardProps> = ({ icon, label, value, color, colSpanFul
     <div className={`panel-card rounded-[1.4rem] overflow-hidden${colSpanFull ? ' col-span-2 md:col-span-1' : ''}`}>
       <button
         onClick={() => hasItems && setOpen((v) => !v)}
-        className={`w-full p-4 flex items-center gap-3 text-left transition-colors${hasItems ? ' cursor-pointer hover:bg-white/[0.03]' : ''}`}
+        className={`w-full p-3 flex items-start gap-2.5 text-left transition-colors${hasItems ? ' cursor-pointer hover:bg-white/[0.03]' : ''}`}
       >
         <div
-          className="flex items-center justify-center rounded-xl p-2.5 shrink-0"
+          className="flex items-center justify-center rounded-xl p-2 shrink-0 mt-0.5"
           style={{ background: `${color}18`, boxShadow: `0 0 0 1px ${color}30` }}
         >
           <span style={{ color }}>{icon}</span>
         </div>
         <div className="flex-1 min-w-0">
           <p className="type-label" style={{ color: 'var(--text-muted)' }}>{label}</p>
-          <p className="type-metric-md tabular-nums font-bold truncate" style={{ color: 'var(--text-primary)' }}>
+          <p className="tabular-nums font-bold leading-tight break-all" style={{ color: 'var(--text-primary)', fontSize: 'clamp(0.8rem, 2vw, 1.05rem)' }}>
             {value}
           </p>
         </div>
         {hasItems && (
           <ChevronDown
-            size={14}
+            size={13}
             style={{
               color: 'var(--text-faint)',
               transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
               transition: 'transform 0.2s ease',
               flexShrink: 0,
+              marginTop: 4,
             }}
           />
         )}

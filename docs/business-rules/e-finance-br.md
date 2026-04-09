@@ -435,6 +435,14 @@ Categorias:
 - **Tabelas:** `loan_installments`
 - **Status:** ativa
 
+### BR-REL-015: Caderneta Bullet — formatação de valores monetários nos KPIs
+- **Descrição:** Valores monetários exibidos nos KPI cards da Caderneta Bullet devem sempre ser legíveis por completo (sem truncamento). Casas decimais são exibidas somente quando o valor não é inteiro — ex: R$ 1.364 (sem centavos) e R$ 1.364,67 (com centavos quando necessário)
+- **Condição:** Toda exibição de valor monetário nos KPI cards da Caderneta Bullet
+- **Resultado:** Usar formatter `fmtKpi` que detecta se o valor possui decimais relevantes. Se `v % 1 === 0`, exibir sem casas decimais. Caso contrário, exibir com 2 casas. Nunca usar `truncate` CSS em valores monetários de KPI — o card deve se adaptar ao conteúdo
+- **Exceções:** Parcelas individuais na tabela de detalhes mantêm sempre 2 casas decimais via `fmtMoney` padrão
+- **Tabelas:** —
+- **Status:** ativa
+
 ### BR-REL-014: Caderneta Bullet — informações de cobrança por devedor
 - **Descrição:** Para cada devedor expandido, a caderneta exibe: nome, email (link mailto), número de contratos bullet ativos no mês, saldo devedor principal agregado (`remaining_balance`), juros esperado do mês, valor pago, valor em aberto (com multas e juros de atraso), barra de progresso de pagamento e status agregado
 - **Condição:** Devedor expandido na Caderneta Bullet
