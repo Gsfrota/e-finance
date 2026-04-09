@@ -332,8 +332,7 @@ test.describe('PAY-F — Comportamento UI do Modal (sem dados de teste)', () => 
     await waitForPaymentModal(page);
 
     // Fecha com X
-    const closeBtn = page.getByRole('button').filter({ has: page.locator('svg') }).first();
-    await closeBtn.click();
+    await page.getByRole('button', { name: 'Fechar' }).click();
 
     await expect(page.getByText('Baixa de Pagamento')).not.toBeVisible({ timeout: 4_000 });
     await expect(page.getByText('Pagamento Confirmado!')).not.toBeVisible();

@@ -51,7 +51,7 @@ async function submitStep1(page: any) {
 
 /** Clica no botão de confirmação do Step 2. */
 async function submitStep2(page: any) {
-  const btn = page.getByRole('button', { name: /Confirmar|Quitar|Aplicar|Encerrar/ });
+  const btn = page.getByRole('button', { name: /Confirmar tudo|Encerrar contrato|Quitar parcelas/ }).first();
   await btn.click();
 }
 
@@ -166,7 +166,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
     await fillAmount(page, '250');
 
     // Deve mostrar alerta "Excedente"
-    await expect(page.getByText('Excedente')).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByText('Excedente').first()).toBeVisible({ timeout: 3_000 });
 
     // Avança para Step 2
     await submitStep1(page);
@@ -198,7 +198,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
     // Excedente suficiente para cobrir uma atrasada (200 + 250 = 450)
     await fillAmount(page, '450');
 
-    await expect(page.getByText('Excedente')).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByText('Excedente').first()).toBeVisible({ timeout: 3_000 });
     await submitStep1(page);
 
     // Deve mostrar opção de pagar atrasadas (pay_late)
@@ -558,7 +558,7 @@ test.describe('PAY — Comportamento do Modal (UI)', () => {
 
     const input = page.locator('input[type="number"]').first();
     await input.fill('999999');
-    await expect(page.getByText('Excedente')).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByText('Excedente').first()).toBeVisible({ timeout: 3_000 });
   });
 
   test('PAY-UI-04: Botão Step 1 muda texto conforme tipo de valor', async ({ page }) => {
@@ -619,7 +619,7 @@ test.describe('PAY — Comportamento do Modal (UI)', () => {
     await page.getByText('Baixa de Pagamento').waitFor({ timeout: 6_000 });
 
     // Fecha com X
-    await page.getByRole('button').filter({ has: page.locator('svg') }).first().click();
+    await page.getByRole('button', { name: 'Fechar' }).click();
 
     // Modal deve fechar
     await expect(page.getByText('Baixa de Pagamento')).not.toBeVisible({ timeout: 3_000 });

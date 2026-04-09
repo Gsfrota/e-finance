@@ -65,7 +65,7 @@ const Header: React.FC<{ title: string, subtitle: string, icon: React.ReactNode,
         <p className="type-label text-[color:var(--text-secondary)]">{subtitle}</p>
       </div>
     </div>
-    <button onClick={onClose} className="text-[color:var(--text-muted)] hover:text-white transition-colors p-2 hover:bg-[color:var(--bg-soft)] rounded-full">
+    <button onClick={onClose} aria-label="Fechar" className="text-[color:var(--text-muted)] hover:text-white transition-colors p-2 hover:bg-[color:var(--bg-soft)] rounded-full">
       <X size={20} />
     </button>
   </div>
