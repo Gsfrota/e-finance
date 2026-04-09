@@ -846,7 +846,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                         : 'text-[color:var(--text-secondary)] bg-white/[0.04]';
 
                   return (
-                    <tr key={installment.id} className="transition-colors hover:bg-white/[0.02]">
+                    <tr key={installment.id} data-installment-id={installment.id} className="transition-colors hover:bg-white/[0.02]">
                       <td className="px-6 py-4 font-semibold text-[color:var(--text-primary)]">
                         {formatDate(installment.due_date)}
                       </td>
@@ -872,6 +872,7 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                           {installment.status !== 'paid' ? (
                             <>
                               <button
+                                data-action="pay"
                                 onClick={() => openAction('pay', installment)}
                                 className="rounded-lg border border-[rgba(143,179,157,0.3)] bg-[rgba(143,179,157,0.12)] px-4 py-2.5 text-sm font-bold text-[color:var(--accent-positive)] transition-colors hover:bg-[rgba(143,179,157,0.25)]"
                               >
