@@ -157,6 +157,20 @@ export async function createTestPaymentData(page: Page): Promise<TestPaymentData
 
   if (!tenantId) return null;
 
+  // Admin pode não ter company_id — busca a primeira empresa do tenant
+  // para garantir que o contrato de teste aparece na aba Parcelas (que filtra por empresa)
+  if (!companyId) {
+    try {
+      const companies = await restCall(
+        ctx,
+        `companies?select=id&tenant_id=eq.${tenantId}&order=created_at.asc&limit=1`,
+      );
+      companyId = companies?.[0]?.id ?? '';
+    } catch {
+      console.warn('[payment-test-data] Não foi possível buscar empresa do tenant.');
+    }
+  }
+
   // Cria investment de teste
   const investment = await restCall(
     ctx,

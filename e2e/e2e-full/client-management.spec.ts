@@ -42,8 +42,8 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
 
     await expect(page.getByPlaceholder('Nome Completo')).toBeVisible();
     await expect(page.getByPlaceholder('E-mail')).toBeVisible();
-    // Role selector deve estar presente
-    await expect(page.getByText(/Investidor|Devedor|Tipo/i)).toBeVisible();
+    // Role selector deve estar presente (usa first() — sidebar também tem labels de role)
+    await expect(page.getByText(/Investidor|Devedor|Tipo/i).first()).toBeVisible();
   });
 
   test('CLT-02: Criar convite de investidor — happy path', async ({ page }) => {
@@ -140,8 +140,8 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
     await submitBtn.click();
 
     // Deve exibir erro de CPF ou manter no formulário
-    const cpfError = page.getByText(/CPF inválido|CPF.*inválido|inválido/i);
-    const stillOpen = page.getByText('Cadastrar Cliente');
+    const cpfError = page.getByText(/CPF inválido|CPF.*inválido|inválido/i).first();
+    const stillOpen = page.getByText('Cadastrar Cliente').first();
 
     await expect(cpfError.or(stillOpen)).toBeVisible({ timeout: 6_000 });
   });
@@ -156,8 +156,8 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
     await submitBtn.click();
 
     // Deve mostrar erro de validação ou manter o modal aberto
-    const stillOpen = page.getByText('Cadastrar Cliente');
-    const errorMsg = page.getByText(/obrigatório|preencha|nome/i);
+    const stillOpen = page.getByText('Cadastrar Cliente').first();
+    const errorMsg = page.getByText(/obrigatório|preencha|nome/i).first();
 
     await expect(stillOpen.or(errorMsg)).toBeVisible({ timeout: 5_000 });
   });

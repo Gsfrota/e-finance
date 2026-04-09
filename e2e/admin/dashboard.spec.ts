@@ -20,9 +20,16 @@ test('ADMIN-02: Navegação entre as 4 abas do dashboard admin', async ({ page }
   await expect(page.locator('aside')).toBeVisible({ timeout: 10_000 });
 
   const tabs = ['Visão Geral', 'Parcelas', 'Cobranças', 'Mensal', 'Rendimento'];
+  // Navega para Dashboard primeiro para garantir que as abas estejam visíveis
+  const dashBtn = page.locator('aside').getByRole('button', { name: /Dashboard/i }).first();
+  await dashBtn.waitFor({ timeout: 8_000 });
+  await dashBtn.click();
+  await page.waitForTimeout(500);
+
   for (const tab of tabs) {
-    const tabButton = page.getByRole('button', { name: tab });
-    if (await tabButton.isVisible()) {
+    // Usa first() para evitar strict mode — 'Cobranças' pode aparecer na sidebar também
+    const tabButton = page.getByRole('button', { name: tab }).first();
+    if (await tabButton.isVisible({ timeout: 2_000 }).catch(() => false)) {
       await tabButton.click();
       // Sem erro após mudar de aba
       await expect(page.getByTestId('error-message')).not.toBeVisible();
