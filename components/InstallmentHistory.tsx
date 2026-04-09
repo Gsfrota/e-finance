@@ -232,6 +232,9 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                         </div>
                         <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
                           {(() => {
+                            // Avulso é sempre nível contrato, independente de installment_id
+                            const isAvulsoReceipt = receipt.transactions.every(t => t.transaction_type === 'avulso');
+                            if (isAvulsoReceipt) return 'Pagamento avulso';
                             const realInsts = uniqueInstallments.filter(id => id != null);
                             const hasContractLevel = uniqueInstallments.some(id => id == null);
                             if (realInsts.length === 0 && hasContractLevel) return 'Nível contrato';
@@ -250,15 +253,17 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                       <div className="px-4 pb-3 space-y-1.5" style={{ background: 'var(--bg-soft)' }}>
                         {(() => {
                           // Agrupa por installment, ignora surplus_applied (roteamento interno)
+                          // Avulso é sempre nível contrato — agrupa sob chave fixa 'avulso'
                           const byInst = receipt.transactions
                             .filter(t => t.transaction_type !== 'surplus_applied')
                             .reduce<Record<string, PaymentTransaction[]>>((acc, tx) => {
-                              (acc[tx.installment_id] ??= []).push(tx);
+                              const key = tx.transaction_type === 'avulso' ? 'avulso' : (tx.installment_id ?? 'null');
+                              (acc[key] ??= []).push(tx);
                               return acc;
                             }, {});
 
                           return Object.entries(byInst).map(([instId, txs]) => {
-                            const isContractLevel = instId === 'null' || instId === 'undefined';
+                            const isContractLevel = instId === 'null' || instId === 'undefined' || instId === 'avulso';
                             const inst = isContractLevel ? undefined : allInstallments.find(i => i.id === instId);
                             const applied = txs.reduce((s, t) => s + normalizeNum(t.amount), 0);
                             const status = inst?.status;
@@ -435,6 +440,36 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
                 );
               })}
             </div>
+
+            {/* ── Avulsos nível contrato ───────────────────────────────── */}
+            {(() => {
+              const avulsoTxs = transactions.filter(t => t.transaction_type === 'avulso');
+              if (avulsoTxs.length === 0) return null;
+              return (
+                <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 8 }}>
+                  <div className="px-4 py-2 type-label" style={{ background: 'var(--bg-soft)', color: 'var(--accent-brass)' }}>
+                    ◇ Pagamentos avulsos
+                  </div>
+                  {avulsoTxs.map(tx => (
+                    <div key={tx.id} className="flex items-center gap-2 px-4 py-2.5 text-xs"
+                      style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                      <span style={{ color: 'var(--accent-brass)' }}>◇</span>
+                      <span className="flex-1" style={{ color: 'var(--text-secondary)' }}>
+                        {fmtDate(tx.created_at)}
+                        {tx.notes && (
+                          <span className="ml-2 text-[10px] italic" style={{ color: 'var(--text-faint)' }}>
+                            {tx.notes}
+                          </span>
+                        )}
+                      </span>
+                      <span className="font-bold tabular-nums" style={{ color: 'var(--accent-brass)' }}>
+                        {fmtMoney(tx.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </>
         )}
       </div>
