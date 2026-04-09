@@ -56,6 +56,7 @@ interface DebtorEntry {
   totalPaid: number;
   totalOutstanding: number;
   totalRemainingBalance: number;
+  totalInterest: number;
   hasLate: boolean;
   hasPending: boolean;
   allPaid: boolean;
@@ -332,6 +333,7 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
       let totalPaid = 0;
       let totalOutstanding = 0;
       let totalRemainingBalance = 0;
+      let totalInterest = 0;
       let hasLate = false;
       let hasPending = false;
 
@@ -340,6 +342,10 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
         totalPaid += c.totalPaid;
         totalOutstanding += c.outstanding;
         totalRemainingBalance += c.remainingBalance ?? 0;
+        // interest líquido = soma de amount_interest das parcelas do mês
+        for (const inst of c.installments) {
+          totalInterest += inst.amount_interest ?? inst.amount_total;
+        }
         if (c.hasLate) hasLate = true;
         if (c.hasPending) hasPending = true;
       }
@@ -357,6 +363,7 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
         totalPaid,
         totalOutstanding,
         totalRemainingBalance,
+        totalInterest,
         hasLate,
         hasPending,
         allPaid,
@@ -388,10 +395,11 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
   const kpis = useMemo(() => {
     const totalDebtors = debtors.length;
     const totalExpected = debtors.reduce((s, d) => s + d.totalDue, 0);
+    const totalInterest = debtors.reduce((s, d) => s + d.totalInterest, 0);
     const totalReceived = debtors.reduce((s, d) => s + d.totalPaid, 0);
     const totalOverdue = debtors.reduce((s, d) => s + (d.hasLate ? d.totalOutstanding : 0), 0);
     const collectionRate = totalExpected > 0 ? (totalReceived / totalExpected) * 100 : 0;
-    return { totalDebtors, totalExpected, totalReceived, totalOverdue, collectionRate };
+    return { totalDebtors, totalExpected, totalInterest, totalReceived, totalOverdue, collectionRate };
   }, [debtors]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -446,7 +454,7 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <KpiCard
           icon={<Users size={16} />}
           label="Devedores"
@@ -462,13 +470,25 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
         />
         <KpiCard
           icon={<TrendingUp size={16} />}
-          label="Total esperado"
+          label="Esperado bruto"
           value={fmtKpi(kpis.totalExpected)}
           color="var(--accent-brass)"
           items={debtors.filter(d => d.totalDue > 0).sort((a,b) => b.totalDue - a.totalDue).map((d) => ({
             label: d.payerName,
             value: fmtKpi(d.totalDue),
             statusColor: d.hasLate ? 'var(--accent-danger)' : d.hasPending ? 'var(--accent-warning)' : 'var(--accent-positive)',
+            onClick: () => { setStatusFilter('all'); setExpandedDebtor(d.payerId); setExpandedContract(null); },
+          }))}
+        />
+        <KpiCard
+          icon={<TrendingUp size={16} />}
+          label="Esperado líquido"
+          value={fmtKpi(kpis.totalInterest)}
+          color="var(--accent-purple)"
+          items={debtors.filter(d => d.totalInterest > 0).sort((a,b) => b.totalInterest - a.totalInterest).map((d) => ({
+            label: d.payerName,
+            value: fmtKpi(d.totalInterest),
+            statusColor: 'var(--accent-purple)',
             onClick: () => { setStatusFilter('all'); setExpandedDebtor(d.payerId); setExpandedContract(null); },
           }))}
         />
@@ -502,7 +522,6 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
           label="Taxa cobrança"
           value={`${kpis.collectionRate.toFixed(1).replace('.', ',')}%`}
           color={kpis.collectionRate >= 80 ? 'var(--accent-positive)' : kpis.collectionRate >= 50 ? 'var(--accent-warning)' : 'var(--accent-danger)'}
-          colSpanFull
           items={debtors.filter(d => d.totalDue > 0).sort((a,b) => b.payPercent - a.payPercent).map((d) => ({
             label: d.payerName,
             value: `${d.payPercent.toFixed(1).replace('.', ',')}%`,
