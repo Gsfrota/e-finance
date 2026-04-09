@@ -708,49 +708,78 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
           const remainingPrincipal = roundCurrency(principal - editPaidPrincipal);
           const remainingTotal = roundCurrency(nextCurrentValue - editPaidTotal);
 
-          if (remainingTotal < remainingPrincipal) {
+          const isBulletEdit = contractToEdit.calculation_mode === 'interest_only';
+
+          // Para bullet, installmentValue = juros por período; principal nunca é
+          // distribuído nas parcelas, então a validação padrão não se aplica.
+          if (!isBulletEdit && remainingTotal < remainingPrincipal) {
               throw new Error('O valor da parcela gera um total menor do que o principal ainda em aberto.');
           }
 
           // Para bullet, preservar taxa original — a fórmula (currentValue/principal - 1)*100
           // inflaria a taxa porque editPaidTotal conta amount_paid (juros) e não o principal.
-          const nextInterestRate = contractToEdit.calculation_mode === 'interest_only'
+          const nextInterestRate = isBulletEdit
               ? contractToEdit.interest_rate
               : principal > 0
                   ? roundCurrency(((nextCurrentValue / principal) - 1) * 100)
                   : 0;
 
-          const principalDistribution = distributeEvenly(remainingPrincipal, openCount);
-          const totalDistribution = distributeEvenly(remainingTotal, openCount);
+          let installmentUpdates;
+          if (isBulletEdit) {
+              // Bullet: cada parcela exibe saldo devedor (principal) + juros do período.
+              // amount_principal = saldo devedor (display), amount_interest = installmentValue.
+              const bulletInterest = installmentValue; // já é taxa × saldo
+              installmentUpdates = editOpenInstallments.map((installment) => {
+                  if (!installment.due_date) {
+                      throw new Error(`A parcela ${installment.number} precisa de uma data válida.`);
+                  }
+                  return supabase
+                      .from('loan_installments')
+                      .update({
+                          due_date: installment.due_date,
+                          amount_principal: principal,
+                          amount_interest: bulletInterest,
+                          amount_total: roundCurrency(principal + bulletInterest),
+                      })
+                      .eq('id', installment.id);
+              });
+          } else {
+              const principalDistribution = distributeEvenly(remainingPrincipal, openCount);
+              const totalDistribution = distributeEvenly(remainingTotal, openCount);
+              installmentUpdates = editOpenInstallments.map((installment, index) => {
+                  const nextAmountPrincipal = principalDistribution[index];
+                  const nextAmountTotal = totalDistribution[index];
+                  const nextAmountInterest = roundCurrency(nextAmountTotal - nextAmountPrincipal);
+                  if (!installment.due_date) {
+                      throw new Error(`A parcela ${installment.number} precisa de uma data válida.`);
+                  }
+                  return supabase
+                      .from('loan_installments')
+                      .update({
+                          due_date: installment.due_date,
+                          amount_total: nextAmountTotal,
+                          amount_principal: nextAmountPrincipal,
+                          amount_interest: nextAmountInterest,
+                      })
+                      .eq('id', installment.id);
+              });
+          }
 
-          const installmentUpdates = editOpenInstallments.map((installment, index) => {
-              const nextAmountPrincipal = principalDistribution[index];
-              const nextAmountTotal = totalDistribution[index];
-              const nextAmountInterest = roundCurrency(nextAmountTotal - nextAmountPrincipal);
-              if (!installment.due_date) {
-                  throw new Error(`A parcela ${installment.number} precisa de uma data válida.`);
-              }
-
-              return supabase
-                  .from('loan_installments')
-                  .update({
-                      due_date: installment.due_date,
-                      amount_total: nextAmountTotal,
-                      amount_principal: nextAmountPrincipal,
-                      amount_interest: nextAmountInterest,
-                  })
-                  .eq('id', installment.id);
-          });
+          const investmentUpdate: Record<string, unknown> = {
+              asset_name: editContractName.trim(),
+              amount_invested: principal,
+              installment_value: installmentValue,
+              current_value: nextCurrentValue,
+              interest_rate: nextInterestRate,
+          };
+          // Para bullet, manter remaining_balance sincronizado com o principal editado.
+          if (isBulletEdit) {
+              investmentUpdate.remaining_balance = principal;
+          }
 
           const { error: investmentError } = await supabase
               .from('investments')
-              .update({
-                  asset_name: editContractName.trim(),
-                  amount_invested: principal,
-                  installment_value: installmentValue,
-                  current_value: nextCurrentValue,
-                  interest_rate: nextInterestRate,
-              })
+              .update(investmentUpdate)
               .eq('id', contractToEdit.id);
 
           if (investmentError) throw investmentError;
