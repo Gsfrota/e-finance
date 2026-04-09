@@ -32,7 +32,9 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
+  BookOpen,
 } from 'lucide-react';
+import { CadernetaBulletView } from './CadernetaBullet';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -188,6 +190,7 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
   const [highlightType, setHighlightType] = useState<string | null>(null);
   const [expandedClient, setExpandedClient] = useState<string | null>(null);
   const [expandedClientContract, setExpandedClientContract] = useState<number | null>(null);
+  const [showCadernetaBullet, setShowCadernetaBullet] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
   const clientsRef = useRef<HTMLDivElement>(null);
 
@@ -275,6 +278,18 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
     );
 
   const hasData = totals.activeContracts > 0 || totals.interestReceived > 0;
+
+  if (showCadernetaBullet) {
+    return (
+      <CadernetaBulletView
+        investments={investments}
+        allPaidInstallments={allPaidInstallments}
+        pendingInstallments={pendingInstallments}
+        onBack={() => setShowCadernetaBullet(false)}
+        onInstallmentClick={onInstallmentClick}
+      />
+    );
+  }
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -764,14 +779,26 @@ const YieldByContractType: React.FC<YieldByContractTypeProps> = ({
         <div ref={clientsRef} className={`${panelClass} overflow-hidden`}>
           <div className="p-4 md:p-6 border-b border-white/[0.06]">
             <p className="section-kicker mb-1">Carteira</p>
-            <h3 className="type-title text-[color:var(--text-primary)]">
-              Clientes por Tipo
-              {filter.typeFilter !== 'all' && (
-                <span className="ml-2 text-sm font-normal text-[color:var(--text-faint)]">
-                  — {typeOptions.find(o => o.value === filter.typeFilter)?.label ?? filter.typeFilter}
-                </span>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <h3 className="type-title text-[color:var(--text-primary)]">
+                Clientes por Tipo
+                {filter.typeFilter !== 'all' && (
+                  <span className="ml-2 text-sm font-normal text-[color:var(--text-faint)]">
+                    — {typeOptions.find(o => o.value === filter.typeFilter)?.label ?? filter.typeFilter}
+                  </span>
+                )}
+              </h3>
+              {(filter.typeFilter === 'all' || filter.typeFilter === 'bullet' || filter.typeFilter.startsWith('bullet_')) && (
+                <button
+                  onClick={() => setShowCadernetaBullet(true)}
+                  className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition-all cursor-pointer hover:opacity-80"
+                  style={{ background: 'rgba(245, 158, 11, 0.12)', color: 'var(--accent-caution)', border: '1px solid rgba(245, 158, 11, 0.25)' }}
+                >
+                  <BookOpen size={13} />
+                  Caderneta Bullet
+                </button>
               )}
-            </h3>
+            </div>
           </div>
 
           <div className="divide-y divide-white/[0.05]">

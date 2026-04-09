@@ -13,6 +13,7 @@ import { AssistantPaywall } from './components/SubscriptionTab';
 import AdminUserDetails from './components/AdminUserDetails';
 import ResetPassword from './components/ResetPassword';
 import DailyCollectionView from './components/DailyCollectionView';
+import CadernetaBullet from './components/dashboard/CadernetaBullet';
 import LegacyContractPage from './components/LegacyContractPage';
 import TopClientes from './components/TopClientes';
 import CompanySwitcher from './components/CompanySwitcher';
@@ -161,6 +162,7 @@ const Layout: React.FC<LayoutProps> = ({
     [AppView.SETTINGS]: 'Configurações',
     [AppView.ASSISTANT]: 'Assistente',
     [AppView.COLLECTION]: 'Cobranças',
+    [AppView.CADERNETA_BULLET]: 'Caderneta Bullet',
     [AppView.LEGACY_CONTRACT]: 'Contrato Antigo',
     [AppView.TOP_CLIENTES]: 'Top Clientes',
     [AppView.RESET_PASSWORD]: 'Segurança',
@@ -1107,6 +1109,12 @@ const App: React.FC = () => {
           )}
           {currentView === AppView.COLLECTION && profile?.role === 'admin' && !isFreeLocked && (
             <DailyCollectionView tenant={tenant} />
+          )}
+          {currentView === AppView.CADERNETA_BULLET && profile?.role === 'admin' && !isFreeLocked && (
+            <CadernetaBullet
+              tenant={tenant}
+              onBack={() => setCurrentView(AppView.HOME)}
+            />
           )}
           {currentView === AppView.TOP_CLIENTES && profile?.role === 'admin' && !isFreeLocked && (
             <TopClientes

@@ -402,6 +402,47 @@ Categorias:
 - **Status:** ativa
 - **Stories:** implementa BR-REL-009 em 30/03/2026
 
+### BR-REL-010: Caderneta Bullet — acesso e escopo
+- **Descrição:** A Caderneta Bullet é uma tela dedicada de cobrança mensal exclusiva para contratos bullet (`calculation_mode = 'interest_only'`). Acessível pelo menu home do admin como atalho direto.
+- **Condição:** Perfil `admin`; plano não bloqueado (`isFreePlanLocked = false`)
+- **Resultado:** Exibe apenas investimentos com `calculation_mode = 'interest_only'` e `status = 'active'`. Parcelas de outros tipos de contrato são completamente omitidas. Visão padrão: mês corrente
+- **Exceções:** Contratos bullet com `status = 'completed' | 'defaulted' | 'renewed'` não aparecem na lista de contratos ativos, mas suas parcelas pagas no mês selecionado podem aparecer se o filtro de status incluir "Pago"
+- **Tabelas:** `investments` (leitura: `calculation_mode`, `remaining_balance`, `capitalize_interest`, `frequency`, `interest_rate`), `loan_installments` (leitura: todos os campos)
+- **Status:** ativa
+- **Stories:** implementado em 09/04/2026
+
+### BR-REL-011: Caderneta Bullet — navegação mensal
+- **Descrição:** A caderneta opera com granularidade mensal. O usuário pode navegar entre meses (anterior/próximo). Não é possível avançar além do mês corrente.
+- **Condição:** Toda exibição da Caderneta Bullet
+- **Resultado:** Parcelas são filtradas por `due_date` dentro do mês selecionado (primeiro ao último dia do mês). Parcelas pagas cujo `due_date` cai no mês selecionado aparecem mesmo que `paid_at` seja de outro mês — o critério é sempre o vencimento, não o pagamento
+- **Exceções:** Nenhuma
+- **Tabelas:** `loan_installments.due_date`
+- **Status:** ativa
+
+### BR-REL-012: Caderneta Bullet — filtro de status e ordenação
+- **Descrição:** A caderneta deve permitir filtrar devedores por status de cobrança: Todos / Em atraso / Pendentes / Pagos. Cada filtro exibe apenas os devedores cujo status agregado corresponde ao selecionado.
+- **Condição:** Toda exibição da Caderneta Bullet
+- **Resultado:** Status agregado do devedor é determinado pela pior situação entre seus contratos bullet no mês: `late > partial > pending > paid`. Ordenação padrão (filtro "Todos"): inadimplentes primeiro, depois parciais, depois pendentes, depois pagos. Dentro de cada grupo, ordem alfabética por nome
+- **Exceções:** Devedor sem nenhuma parcela no mês selecionado não aparece em nenhum filtro
+- **Tabelas:** `loan_installments.status`
+- **Status:** ativa
+
+### BR-REL-013: Caderneta Bullet — KPIs do mês
+- **Descrição:** A caderneta exibe 5 KPIs consolidados do mês selecionado: (1) Total de devedores com parcelas bullet no mês; (2) Juros esperados = soma de `amount_total` de todas as parcelas bullet do mês; (3) Recebido = soma de `amount_paid`; (4) Em atraso = soma de `calcOutstanding()` das parcelas com `status = 'late'`; (5) Taxa de cobrança = `recebido / esperado * 100`
+- **Condição:** Toda exibição da Caderneta Bullet
+- **Resultado:** KPIs sempre refletem o mês selecionado independente do filtro de status ativo. KPIs não são filtrados — mostram o total real do mês
+- **Exceções:** Se não há parcelas no mês, todos KPIs exibem zero
+- **Tabelas:** `loan_installments`
+- **Status:** ativa
+
+### BR-REL-014: Caderneta Bullet — informações de cobrança por devedor
+- **Descrição:** Para cada devedor expandido, a caderneta exibe: nome, email (link mailto), número de contratos bullet ativos no mês, saldo devedor principal agregado (`remaining_balance`), juros esperado do mês, valor pago, valor em aberto (com multas e juros de atraso), barra de progresso de pagamento e status agregado
+- **Condição:** Devedor expandido na Caderneta Bullet
+- **Resultado:** Saldo devedor = soma de `investments.remaining_balance` dos contratos do devedor. Valor em aberto = `calcOutstanding()` por parcela. Barra de progresso = `amount_paid / amount_total * 100` (limitado a 100%)
+- **Exceções:** Se `remaining_balance` for nulo (contrato bullet legado sem saldo rotativo), não exibir linha de saldo
+- **Tabelas:** `investments.remaining_balance`, `loan_installments`
+- **Status:** ativa
+
 ---
 
 ## Usuários e Perfis (USR)
