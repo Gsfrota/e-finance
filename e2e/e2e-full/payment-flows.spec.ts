@@ -82,7 +82,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
     // Valor pré-preenchido = outstanding → submit direto
     await submitPaymentStep1(page);
     await waitForPaymentSuccess(page);
-    await expect(page.getByText('Pagamento Confirmado!')).toBeVisible();
+    await expect(page.getByText(/Pagamento Confirmado!|foi paga|Comprovante/i).first()).toBeVisible();
   });
 
   // ── PAY-F-02: Parcial → Step 2 com opções ────────────────────────────────

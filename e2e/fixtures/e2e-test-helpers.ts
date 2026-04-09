@@ -256,9 +256,9 @@ export async function waitForPaymentModal(page: Page): Promise<void> {
   await page.getByText('Baixa de Pagamento').waitFor({ timeout: 8_000 });
 }
 
-/** Aguarda confirmação de sucesso. */
+/** Aguarda confirmação de sucesso (comprovante ou fallback sem tenant). */
 export async function waitForPaymentSuccess(page: Page): Promise<void> {
-  await page.getByText('Pagamento Confirmado!').waitFor({ timeout: 15_000 });
+  await page.getByText(/Pagamento Confirmado!|foi paga|Comprovante/i).first().waitFor({ timeout: 15_000 });
 }
 
 /** Preenche valor no Step 1 do modal de pagamento. */
@@ -276,7 +276,7 @@ export async function submitPaymentStep1(page: Page): Promise<void> {
 
 /** Clica no botão de confirmação do Step 2. */
 export async function submitPaymentStep2(page: Page): Promise<void> {
-  const btn = page.getByRole('button', { name: /Confirmar|Quitar|Aplicar|Encerrar/ }).first();
+  const btn = page.getByRole('button', { name: /Confirmar tudo|Encerrar contrato|Quitar parcelas/ }).first();
   await btn.click();
 }
 

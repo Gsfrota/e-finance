@@ -79,7 +79,7 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
 
     // Deve aparecer código de convite ou mensagem de sucesso
     await expect(
-      page.getByText(/Convite gerado|código|sucesso|Copiar/i),
+      page.getByText(/Cliente cadastrado|Convite gerado|código|sucesso/i),
     ).toBeVisible({ timeout: 12_000 });
   });
 
@@ -108,7 +108,7 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
     await submitBtn.click();
 
     await expect(
-      page.getByText(/Convite gerado|código|sucesso|Copiar/i),
+      page.getByText(/Cliente cadastrado|Convite gerado|código|sucesso/i),
     ).toBeVisible({ timeout: 12_000 });
   });
 

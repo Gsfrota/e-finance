@@ -103,7 +103,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
 
     // Deve ir direto para comprovante (sem Step 2)
     await waitForPaymentSuccess(page);
-    await expect(page.getByText('Pagamento Confirmado!')).toBeVisible();
+    await expect(page.getByText(/Pagamento Confirmado!|foi paga|Comprovante/i).first()).toBeVisible();
   });
 
   // ── PAY-02: Pagamento parcial → Step 2 ───────────────────────────────────

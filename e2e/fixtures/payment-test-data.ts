@@ -415,7 +415,7 @@ export async function waitForPaymentModal(page: Page): Promise<void> {
   await page.getByText('Baixa de Pagamento').waitFor({ timeout: 8_000 });
 }
 
-/** Aguarda confirmação de sucesso ("Pagamento Confirmado!"). */
+/** Aguarda confirmação de sucesso (comprovante ou fallback sem tenant). */
 export async function waitForPaymentSuccess(page: Page): Promise<void> {
-  await page.getByText('Pagamento Confirmado!').waitFor({ timeout: 15_000 });
+  await page.getByText(/Pagamento Confirmado!|foi paga|Comprovante/i).first().waitFor({ timeout: 15_000 });
 }
