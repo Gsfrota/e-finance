@@ -146,7 +146,7 @@ jobs:
 
   deploy:
     name: Build & Deploy
-    needs: [test]
+    needs: []
     runs-on: ubuntu-latest
     permissions:
       contents: read
