@@ -483,7 +483,7 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
           items={debtors.filter(d => d.totalRemainingBalance + d.totalInterest > 0).sort((a,b) => (b.totalRemainingBalance + b.totalInterest) - (a.totalRemainingBalance + a.totalInterest)).map((d) => ({
             label: d.payerName,
             value: fmtKpi(d.totalRemainingBalance + d.totalInterest),
-            sublabel: `· capital ${fmtKpi(d.totalRemainingBalance)}`,
+
             statusColor: d.hasLate ? 'var(--accent-danger)' : d.hasPending ? 'var(--accent-warning)' : 'var(--accent-positive)',
             onClick: () => { setStatusFilter('all'); setExpandedDebtor(d.payerId); setExpandedContract(null); },
           }))}
