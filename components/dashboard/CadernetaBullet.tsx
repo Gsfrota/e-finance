@@ -664,44 +664,40 @@ const KpiCard: React.FC<KpiCardProps> = ({ icon, label, value, color, colSpanFul
     <div className={`panel-card rounded-[1.4rem] overflow-hidden${colSpanFull ? ' col-span-2 md:col-span-1' : ''}`}>
       <button
         onClick={() => hasItems && setOpen((v) => !v)}
-        className={`w-full p-3 flex items-start gap-2.5 text-left transition-colors${hasItems ? ' cursor-pointer hover:bg-white/[0.03]' : ''}`}
+        className={`w-full p-4 flex flex-col gap-2 text-left transition-colors${hasItems ? ' cursor-pointer hover:bg-white/[0.03]' : ''}`}
       >
-        <div
-          className="flex items-center justify-center rounded-xl p-2 shrink-0 mt-0.5"
-          style={{ background: `${color}18`, boxShadow: `0 0 0 1px ${color}30` }}
-        >
-          <span style={{ color }}>{icon}</span>
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="type-label" style={{ color: 'var(--text-muted)' }}>{label}</p>
-          <p className="tabular-nums font-bold leading-tight break-all" style={{ color: 'var(--text-primary)', fontSize: 'clamp(0.8rem, 2vw, 1.05rem)' }}>
-            {value}
-          </p>
-          {showProgress && (
-            <div className="mt-1.5 space-y-0.5">
-              <div className="rounded-full overflow-hidden" style={{ height: 4, background: 'rgba(255,255,255,0.08)' }}>
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(100, progress!)}%`, background: color }}
-                />
-              </div>
-              {progressLabel && (
-                <p className="text-[0.6rem] tabular-nums" style={{ color: 'var(--text-faint)' }}>{progressLabel}</p>
-              )}
-            </div>
+        {/* Linha 1: ícone + label + chevron */}
+        <div className="flex items-center gap-1.5">
+          <span style={{ color, opacity: 0.8 }}>{icon}</span>
+          <p className="text-xs font-medium flex-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
+          {hasItems && (
+            <ChevronDown
+              size={12}
+              style={{
+                color: 'var(--text-faint)',
+                transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease',
+                flexShrink: 0,
+              }}
+            />
           )}
         </div>
-        {hasItems && (
-          <ChevronDown
-            size={13}
-            style={{
-              color: 'var(--text-faint)',
-              transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
-              transition: 'transform 0.2s ease',
-              flexShrink: 0,
-              marginTop: 4,
-            }}
-          />
+        {/* Linha 2: valor grande */}
+        <p className="tabular-nums font-bold leading-none break-all" style={{ color: 'var(--text-primary)', fontSize: 'clamp(1rem, 3.5vw, 1.25rem)' }}>
+          {value}
+        </p>
+        {showProgress && (
+          <div className="space-y-1">
+            <div className="rounded-full overflow-hidden" style={{ height: 3, background: 'rgba(255,255,255,0.08)' }}>
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, progress!)}%`, background: color }}
+              />
+            </div>
+            {progressLabel && (
+              <p className="text-[0.65rem] tabular-nums" style={{ color: 'var(--text-faint)' }}>{progressLabel}</p>
+            )}
+          </div>
         )}
       </button>
 
