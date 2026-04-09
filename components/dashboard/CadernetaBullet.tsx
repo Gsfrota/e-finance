@@ -462,7 +462,7 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
         />
         <KpiCard
           icon={<TrendingUp size={16} />}
-          label="Juros esperados"
+          label="Total esperado"
           value={fmtKpi(kpis.totalExpected)}
           color="var(--accent-brass)"
           items={debtors.filter(d => d.totalDue > 0).sort((a,b) => b.totalDue - a.totalDue).map((d) => ({
@@ -985,7 +985,7 @@ const ContractRow: React.FC<ContractRowProps> = ({
               <tr style={{ color: 'var(--text-faint)' }}>
                 <th className="text-left py-1.5 pr-3 font-medium uppercase tracking-wide text-[0.6rem]">#</th>
                 <th className="text-left py-1.5 pr-3 font-medium uppercase tracking-wide text-[0.6rem]">Vencimento</th>
-                <th className="text-right py-1.5 pr-3 font-medium uppercase tracking-wide text-[0.6rem]">Juros</th>
+                <th className="text-right py-1.5 pr-3 font-medium uppercase tracking-wide text-[0.6rem]">Total</th>
                 <th className="text-right py-1.5 pr-3 font-medium uppercase tracking-wide text-[0.6rem]">Multa</th>
                 <th className="text-right py-1.5 pr-3 font-medium uppercase tracking-wide text-[0.6rem]">J. Atraso</th>
                 <th className="text-right py-1.5 pr-3 font-medium uppercase tracking-wide text-[0.6rem]">Pago</th>
@@ -1007,7 +1007,7 @@ const ContractRow: React.FC<ContractRowProps> = ({
                     {fmtDate(inst.due_date)}
                   </td>
                   <td className="py-2 pr-3 text-right tabular-nums font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    {fmtMoney(inst.amount_interest ?? inst.amount_total)}
+                    {fmtMoney(inst.amount_total)}
                   </td>
                   <td className="py-2 pr-3 text-right tabular-nums" style={{ color: inst.fine_amount > 0 ? 'var(--accent-danger)' : 'var(--text-faint)' }}>
                     {inst.fine_amount > 0 ? fmtMoney(inst.fine_amount) : '—'}
