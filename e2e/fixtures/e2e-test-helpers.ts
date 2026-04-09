@@ -179,7 +179,7 @@ export async function selectSpecificCompany(page: Page): Promise<void> {
 export async function navigateToDashboardTab(page: Page, tabName: string): Promise<void> {
   await navigateToView(page, 'Dashboard');
   // Usa getByRole com accessible name — mais robusto que filter(hasText regex)
-  const tab = page.getByRole('button', { name: tabName });
+  const tab = page.getByRole('button', { name: tabName }).first();
   await expect(tab).toBeVisible({ timeout: 45_000 });
   await tab.click();
   await page.waitForTimeout(600);
@@ -270,13 +270,13 @@ export async function fillPaymentAmount(page: Page, value: string): Promise<void
 
 /** Clica no botão de submit do Step 1. */
 export async function submitPaymentStep1(page: Page): Promise<void> {
-  const btn = page.getByRole('button', { name: /Confirmar Recebimento|Próximo/ });
+  const btn = page.getByRole('button', { name: /Confirmar Recebimento|Próximo/ }).first();
   await btn.click();
 }
 
 /** Clica no botão de confirmação do Step 2. */
 export async function submitPaymentStep2(page: Page): Promise<void> {
-  const btn = page.getByRole('button', { name: /Confirmar|Quitar|Aplicar|Encerrar/ });
+  const btn = page.getByRole('button', { name: /Confirmar|Quitar|Aplicar|Encerrar/ }).first();
   await btn.click();
 }
 

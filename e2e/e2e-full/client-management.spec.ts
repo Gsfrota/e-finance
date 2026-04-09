@@ -55,16 +55,10 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
     await page.getByPlaceholder('Nome Completo').fill(`Investidor E2E ${timestamp}`);
     await page.getByPlaceholder('E-mail').fill(email);
 
-    // Seleciona role "Investidor"
-    const roleSelector = page.getByRole('combobox').first();
+    // Seleciona role "Investidor" — usa o select de role (tem option value="investor")
+    const roleSelector = page.locator('select').filter({ has: page.locator('option[value="investor"]') });
     if (await roleSelector.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await roleSelector.selectOption({ label: 'Investidor' });
-    } else {
-      // Tenta via radio ou button
-      const investidorOpt = page.getByText(/^Investidor$/).first();
-      if (await investidorOpt.isVisible({ timeout: 2_000 }).catch(() => false)) {
-        await investidorOpt.click();
-      }
+      await roleSelector.selectOption({ value: 'investor' });
     }
 
     // Preenche CPF se campo presente
@@ -98,15 +92,10 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
     await page.getByPlaceholder('Nome Completo').fill(`Devedor E2E ${timestamp}`);
     await page.getByPlaceholder('E-mail').fill(email);
 
-    // Seleciona role "Devedor"
-    const roleSelector = page.getByRole('combobox').first();
+    // Seleciona role "Devedor" — usa o select de role (tem option value="debtor")
+    const roleSelector = page.locator('select').filter({ has: page.locator('option[value="debtor"]') });
     if (await roleSelector.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await roleSelector.selectOption({ label: 'Devedor' });
-    } else {
-      const devedorOpt = page.getByText(/^Devedor$/).first();
-      if (await devedorOpt.isVisible({ timeout: 2_000 }).catch(() => false)) {
-        await devedorOpt.click();
-      }
+      await roleSelector.selectOption({ value: 'debtor' });
     }
 
     // CPF diferente para não conflitar com CLT-02

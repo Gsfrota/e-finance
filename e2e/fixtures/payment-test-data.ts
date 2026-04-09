@@ -159,8 +159,10 @@ export async function createTestPaymentData(page: Page): Promise<TestPaymentData
 
   if (!tenantId) return null;
 
-  // Admin pode não ter company_id — busca a primeira empresa do tenant
-  // para garantir que o contrato de teste aparece na aba Parcelas (que filtra por empresa)
+  // Admin pode não ter company_id — tenta várias fontes para obter o company_id do tenant.
+  // O company_id é necessário para o contrato aparecer na aba Parcelas (que filtra por empresa).
+
+  // Tentativa 1: companies table
   if (!companyId) {
     try {
       const companies = await restCall(
@@ -169,8 +171,51 @@ export async function createTestPaymentData(page: Page): Promise<TestPaymentData
       );
       companyId = companies?.[0]?.id ?? '';
     } catch {
-      console.warn('[payment-test-data] Não foi possível buscar empresa do tenant.');
+      console.warn('[payment-test-data] Não foi possível buscar empresa via /companies.');
     }
+  }
+
+  // Tentativa 2: outro perfil no tenant com company_id (investidores/devedores)
+  if (!companyId) {
+    try {
+      const profilesWithCo = await restCall(
+        ctx,
+        `profiles?select=company_id&tenant_id=eq.${tenantId}&company_id=not.is.null&limit=1`,
+      );
+      companyId = profilesWithCo?.[0]?.company_id ?? '';
+    } catch {
+      console.warn('[payment-test-data] Não foi possível buscar company via /profiles.');
+    }
+  }
+
+  // Tentativa 3: busca company_id de um investimento existente no tenant
+  if (!companyId) {
+    try {
+      const existingInvs = await restCall(
+        ctx,
+        `investments?select=company_id&tenant_id=eq.${tenantId}&company_id=not.is.null&order=created_at.desc&limit=1`,
+      );
+      companyId = existingInvs?.[0]?.company_id ?? '';
+    } catch {
+      console.warn('[payment-test-data] Não foi possível buscar company via /investments.');
+    }
+  }
+
+  // Tentativa 3: busca company_id de uma parcela existente no tenant
+  if (!companyId) {
+    try {
+      const existingInst = await restCall(
+        ctx,
+        `loan_installments?select=company_id&tenant_id=eq.${tenantId}&company_id=not.is.null&order=created_at.desc&limit=1`,
+      );
+      companyId = existingInst?.[0]?.company_id ?? '';
+    } catch {
+      console.warn('[payment-test-data] Não foi possível buscar company via /loan_installments.');
+    }
+  }
+
+  if (!companyId) {
+    console.warn('[payment-test-data] company_id não encontrado — contrato criado sem empresa (pode não aparecer na aba Parcelas).');
   }
 
   // Cria investment de teste
@@ -258,8 +303,9 @@ export async function deleteTestPaymentData(
   if (!ctx || !investmentId) return;
 
   try {
-    await restCall(ctx, `loan_installments?investment_id=eq.${investmentId}`, 'DELETE');
+    // Ordem correta: FK payment_transactions → loan_installments → investments
     await restCall(ctx, `payment_transactions?investment_id=eq.${investmentId}`, 'DELETE');
+    await restCall(ctx, `loan_installments?investment_id=eq.${investmentId}`, 'DELETE');
     await restCall(ctx, `investments?id=eq.${investmentId}`, 'DELETE');
   } catch (e) {
     console.warn('[payment-test-data] Cleanup falhou:', e);

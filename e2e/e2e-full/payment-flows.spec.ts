@@ -95,12 +95,12 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
     await waitForPaymentModal(page);
 
     await fillPaymentAmount(page, '100');
-    await expect(page.getByText('Faltam')).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByText('Faltam').first()).toBeVisible({ timeout: 3_000 });
 
     await submitPaymentStep1(page);
 
     // Step 2 com opções de destino para parcial
-    await expect(page.getByText(/Próxima parcela|Última parcela|Nova parcela/i)).toBeVisible({ timeout: 6_000 });
+    await expect(page.getByText(/Próxima parcela|Última parcela|Nova parcela/i).first()).toBeVisible({ timeout: 6_000 });
   });
 
   // ── PAY-F-03: Parcial + next ─────────────────────────────────────────────
@@ -115,11 +115,11 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
     await fillPaymentAmount(page, '100');
     await submitPaymentStep1(page);
 
-    await page.getByText('Próxima parcela').click();
+    await page.getByText('Próxima parcela').first().click();
     await submitPaymentStep2(page);
 
     await expect(
-      page.getByText(/Confirmado|Pagamento|sucesso/i),
+      page.getByText(/Confirmado|Pagamento|sucesso/i).first(),
     ).toBeVisible({ timeout: 10_000 });
   });
 
@@ -140,7 +140,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
       await lastOption.click();
       await submitPaymentStep2(page);
       await expect(
-        page.getByText(/Confirmado|Pagamento/i),
+        page.getByText(/Confirmado|Pagamento/i).first(),
       ).toBeVisible({ timeout: 10_000 });
     }
   });
@@ -155,13 +155,13 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
     await waitForPaymentModal(page);
 
     await fillPaymentAmount(page, '250');
-    await expect(page.getByText('Excedente')).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByText('Excedente').first()).toBeVisible({ timeout: 3_000 });
 
     await submitPaymentStep1(page);
 
     // Step 2 deve ter opções de surplus
     await expect(
-      page.getByText(/Próxima parcela|próxima/i),
+      page.getByText(/Próxima parcela|próxima/i).first(),
     ).toBeVisible({ timeout: 6_000 });
   });
 
@@ -181,7 +181,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
     await submitPaymentStep2(page);
 
     await expect(
-      page.getByText(/Confirmado|Pagamento/i),
+      page.getByText(/Confirmado|Pagamento/i).first(),
     ).toBeVisible({ timeout: 10_000 });
   });
 
@@ -196,11 +196,11 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
 
     // 450 = 200 (parcela) + 250 (cobre parcela atrasada + taxas)
     await fillPaymentAmount(page, '450');
-    await expect(page.getByText('Excedente')).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByText('Excedente').first()).toBeVisible({ timeout: 3_000 });
     await submitPaymentStep1(page);
 
     await expect(
-      page.getByText(/Pagar parcelas atrasadas|atrasad/i),
+      page.getByText(/Pagar parcelas atrasadas|atrasad/i).first(),
     ).toBeVisible({ timeout: 6_000 });
   });
 
@@ -218,14 +218,14 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
     await submitPaymentStep1(page);
 
     await expect(
-      page.getByText(/excede a dívida|Pagamento excede/i),
+      page.getByText(/excede a dívida|Pagamento excede/i).first(),
     ).toBeVisible({ timeout: 6_000 });
 
-    await page.getByText('Desconsiderar excedente').click();
+    await page.getByText('Desconsiderar excedente').first().click();
     await submitPaymentStep2(page);
 
     await expect(
-      page.getByText(/Confirmado|Pagamento/i),
+      page.getByText(/Confirmado|Pagamento/i).first(),
     ).toBeVisible({ timeout: 15_000 });
   });
 
@@ -286,7 +286,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
     }
 
     await expect(
-      page.getByText(/Revertido|Estornado|pendente/i),
+      page.getByText(/Revertido|Estornado|pendente/i).first(),
     ).toBeVisible({ timeout: 8_000 }).catch(() => {});
   });
 
@@ -311,7 +311,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
 
     // Deve confirmar ou ir para Step 2
     await expect(
-      page.getByText(/Confirmado|Pagamento|Próxima|parcela/i),
+      page.getByText(/Confirmado|Pagamento|Próxima|parcela/i).first(),
     ).toBeVisible({ timeout: 10_000 });
   });
 });
@@ -350,7 +350,7 @@ test.describe('PAY-F — Comportamento UI do Modal (sem dados de teste)', () => 
 
     const input = page.locator('input[type="number"]').first();
     await input.fill('1');
-    await expect(page.getByText('Faltam')).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByText('Faltam').first()).toBeVisible({ timeout: 3_000 });
   });
 
   test('PAY-F-14: Alerta "Excedente" aparece ao digitar valor acima do saldo', async ({ page }) => {
@@ -364,6 +364,6 @@ test.describe('PAY-F — Comportamento UI do Modal (sem dados de teste)', () => 
 
     const input = page.locator('input[type="number"]').first();
     await input.fill('999999');
-    await expect(page.getByText('Excedente')).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByText('Excedente').first()).toBeVisible({ timeout: 3_000 });
   });
 });
