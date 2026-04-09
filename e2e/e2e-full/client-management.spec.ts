@@ -42,8 +42,8 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
 
     await expect(page.getByPlaceholder('Nome Completo')).toBeVisible();
     await expect(page.getByPlaceholder('E-mail')).toBeVisible();
-    // Role selector deve estar presente (usa first() — sidebar também tem labels de role)
-    await expect(page.getByText(/Investidor|Devedor|Tipo/i).first()).toBeVisible();
+    // Role selector: verifica o combobox (select) em vez do texto da option (que é hidden)
+    await expect(page.getByRole('combobox').first()).toBeVisible();
   });
 
   test('CLT-02: Criar convite de investidor — happy path', async ({ page }) => {
@@ -58,7 +58,7 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
     // Seleciona role "Investidor"
     const roleSelector = page.getByRole('combobox').first();
     if (await roleSelector.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await roleSelector.selectOption({ label: /Investidor/i });
+      await roleSelector.selectOption({ label: 'Investidor' });
     } else {
       // Tenta via radio ou button
       const investidorOpt = page.getByText(/^Investidor$/).first();
@@ -101,7 +101,7 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
     // Seleciona role "Devedor"
     const roleSelector = page.getByRole('combobox').first();
     if (await roleSelector.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await roleSelector.selectOption({ label: /Devedor/i });
+      await roleSelector.selectOption({ label: 'Devedor' });
     } else {
       const devedorOpt = page.getByText(/^Devedor$/).first();
       if (await devedorOpt.isVisible({ timeout: 2_000 }).catch(() => false)) {
@@ -143,7 +143,8 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
     const cpfError = page.getByText(/CPF inválido|CPF.*inválido|inválido/i).first();
     const stillOpen = page.getByText('Cadastrar Cliente').first();
 
-    await expect(cpfError.or(stillOpen)).toBeVisible({ timeout: 6_000 });
+    // .first() no resultado do .or() evita strict mode quando ambos existem no DOM
+    await expect(cpfError.or(stillOpen).first()).toBeVisible({ timeout: 6_000 });
   });
 
   test('CLT-05: Submit sem nome exibe erro ou bloqueia', async ({ page }) => {
@@ -159,7 +160,7 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
     const stillOpen = page.getByText('Cadastrar Cliente').first();
     const errorMsg = page.getByText(/obrigatório|preencha|nome/i).first();
 
-    await expect(stillOpen.or(errorMsg)).toBeVisible({ timeout: 5_000 });
+    await expect(stillOpen.or(errorMsg).first()).toBeVisible({ timeout: 5_000 });
   });
 
   test('CLT-06: Busca por nome filtra usuários na lista', async ({ page }) => {

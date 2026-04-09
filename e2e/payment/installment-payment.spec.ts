@@ -90,7 +90,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   // ── PAY-01: Pagamento exato ────────────────────────────────────────────────
   test('PAY-01: Pagamento exato → status=paid e comprovante exibido', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste — verifique credenciais Supabase');
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
 
     const opened = await openPaymentModal(page);
     expect(opened, 'Nenhuma parcela disponível na aba Parcelas').toBe(true);
@@ -109,7 +109,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   // ── PAY-02: Pagamento parcial → Step 2 ───────────────────────────────────
   test('PAY-02: Valor parcial → Step 2 com modo partial e opções de destino', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
 
     const opened = await openPaymentModal(page);
     expect(opened).toBe(true);
@@ -133,7 +133,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   // ── PAY-03: Parcial + next → apply_remainder_action ─────────────────────
   test('PAY-03: Parcial + destino "next" → remainder aplicado na próxima', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
 
     const opened = await openPaymentModal(page);
     expect(opened).toBe(true);
@@ -156,7 +156,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   // ── PAY-04: Surplus → Step 2 surplus + ação 'next' ───────────────────────
   test('PAY-04: Valor excedente → Step 2 surplus com ação "next"', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
 
     const opened = await openPaymentModal(page);
     expect(opened).toBe(true);
@@ -188,7 +188,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   // ── PAY-05: Surplus com atrasadas → opção pay_late visível ──────────────
   test('PAY-05: Surplus com parcelas atrasadas → opção "Pagar atrasadas" visível', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
 
     // Abre modal da parcela #3 (pendente), com #1 e #2 atrasadas no contrato
     const opened = await openPaymentModal(page);
@@ -210,7 +210,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   // ── PAY-06: Overpayment → Step 2 overpayment ────────────────────────────
   test('PAY-06: Overpayment → Step 2 com opções discard e add_to_last', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
 
     const opened = await openPaymentModal(page);
     expect(opened).toBe(true);
@@ -232,7 +232,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   // ── PAY-07: Overpayment discard → contrato encerrado ────────────────────
   test('PAY-07: Overpayment discard → contrato encerrado, parcelas pagas', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
 
     const opened = await openPaymentModal(page);
     expect(opened).toBe(true);
@@ -258,7 +258,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   // ── PAY-08: pay_late + leftover → postLateAction exibido ────────────────
   test('PAY-08: pay_late com leftover → seleção de destino residual visível', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
 
     const opened = await openPaymentModal(page);
     expect(opened).toBe(true);
@@ -298,7 +298,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
     // Manipula o DOM para simular parcela com status=paid
     await page.goto('/');
     await page.locator('aside').waitFor({ timeout: 12_000 });
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
 
     const opened = await openPaymentModal(page);
     if (!opened) return;
@@ -335,7 +335,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   // ── PAY-10: Marcar falta ─────────────────────────────────────────────────
   test('PAY-10: Marcar falta → alert de confirmação e parcela marcada', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
 
     // Procura o menu de ações (3 pontos) ou botão de falta em InstallmentDetailFlow
     // Tenta encontrar via texto "TESTE E2E" na lista
@@ -371,7 +371,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   // ── PAY-11: Reverter pagamento ───────────────────────────────────────────
   test('PAY-11: Desfazer pagamento → status volta ao anterior', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
 
     // Procura parcela paga (status=paid) para reverter
     // Após PAY-01, deve existir pelo menos uma parcela paga no contrato de teste
@@ -407,7 +407,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   // ── PAY-12: Data retroativa → paid_at correto ────────────────────────────
   test('PAY-12: Data retroativa → paid_at gravado com data informada', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
 
     const opened = await openPaymentModal(page);
     expect(opened).toBe(true);

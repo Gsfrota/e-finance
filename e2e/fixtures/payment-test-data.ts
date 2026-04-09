@@ -22,6 +22,8 @@ export interface TestInstallment {
 export interface TestPaymentData {
   investmentId: number;
   tenantId: string;
+  /** ID da empresa associada ao contrato de teste */
+  companyId: string;
   installments: TestInstallment[];
   /** Parcela atual (#3, vencimento hoje, pending) */
   currentInstallmentId: string;
@@ -236,6 +238,7 @@ export async function createTestPaymentData(page: Page): Promise<TestPaymentData
   return {
     investmentId,
     tenantId,
+    companyId,
     installments: sorted,
     lateInstallmentId: sorted[0].id,
     currentInstallmentId: sorted[2].id,
@@ -263,8 +266,11 @@ export async function deleteTestPaymentData(
   }
 }
 
-/** Navega para a aba "Parcelas" no dashboard admin. */
-export async function goToParcelasTab(page: Page): Promise<void> {
+/**
+ * Navega para a aba "Parcelas" no dashboard admin.
+ * @param preferCompanyId - ID da empresa a selecionar no combobox; se omitido, usa options[1].
+ */
+export async function goToParcelasTab(page: Page, preferCompanyId?: string): Promise<void> {
   await page.goto('/');
   await page.locator('aside').waitFor({ timeout: 12_000 });
 
@@ -272,7 +278,17 @@ export async function goToParcelasTab(page: Page): Promise<void> {
   const combobox = page.getByRole('combobox').first();
   if (await combobox.isVisible({ timeout: 3_000 }).catch(() => false)) {
     const options = await combobox.locator('option').all();
-    if (options.length >= 2) {
+    if (preferCompanyId && options.length >= 1) {
+      // Seleciona a empresa exata usada na criação dos dados de teste
+      for (const opt of options) {
+        const val = await opt.getAttribute('value');
+        if (val === preferCompanyId) {
+          await combobox.selectOption(val);
+          await page.waitForTimeout(300);
+          break;
+        }
+      }
+    } else if (options.length >= 2) {
       const val = await options[1].getAttribute('value');
       if (val) { await combobox.selectOption(val); await page.waitForTimeout(300); }
     }

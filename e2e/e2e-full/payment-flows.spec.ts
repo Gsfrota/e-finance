@@ -73,7 +73,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
   test('PAY-F-01: Pagamento exato → status=paid e comprovante exibido', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste — verifique credenciais Supabase');
 
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
     const opened = await openPaymentModal(page);
     expect(opened, 'Nenhuma parcela disponível').toBe(true);
 
@@ -89,7 +89,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
   test('PAY-F-02: Pagamento parcial → Step 2 com opções de destino', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
 
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
     const opened = await openPaymentModal(page);
     expect(opened).toBe(true);
     await waitForPaymentModal(page);
@@ -107,7 +107,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
   test('PAY-F-03: Parcial + destino "Próxima parcela" → confirmado', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
 
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
     const opened = await openPaymentModal(page);
     expect(opened).toBe(true);
     await waitForPaymentModal(page);
@@ -127,7 +127,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
   test('PAY-F-04: Parcial + destino "Última parcela" → confirmado', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
 
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
     const opened = await openPaymentModal(page);
     expect(opened).toBe(true);
     await waitForPaymentModal(page);
@@ -149,7 +149,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
   test('PAY-F-05: Surplus → Step 2 com alertas de excedente', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
 
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
     const opened = await openPaymentModal(page);
     expect(opened).toBe(true);
     await waitForPaymentModal(page);
@@ -169,7 +169,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
   test('PAY-F-06: Surplus → destino "next" → confirmado', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
 
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
     const opened = await openPaymentModal(page);
     expect(opened).toBe(true);
     await waitForPaymentModal(page);
@@ -189,7 +189,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
   test('PAY-F-07: Surplus suficiente → opção pay_late visível', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
 
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
     const opened = await openPaymentModal(page);
     expect(opened).toBe(true);
     await waitForPaymentModal(page);
@@ -208,7 +208,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
   test('PAY-F-08: Overpayment discard → contrato encerrado', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
 
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
     const opened = await openPaymentModal(page);
     expect(opened).toBe(true);
     await waitForPaymentModal(page);
@@ -233,7 +233,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
   test('PAY-F-09: Marcar parcela como falta', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
 
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
 
     const listItem = page.getByText('TESTE E2E PAGAMENTO').first();
     if (!(await listItem.isVisible({ timeout: 5_000 }).catch(() => false))) {
@@ -263,7 +263,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
   test('PAY-F-10: Desfazer pagamento → status volta ao anterior', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
 
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
 
     const listItem = page.getByText('TESTE E2E PAGAMENTO').first();
     if (!(await listItem.isVisible({ timeout: 5_000 }).catch(() => false))) {
@@ -294,7 +294,7 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
   test('PAY-F-11: Data retroativa → aceita sem erro', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
 
-    await goToParcelasTab(page);
+    await goToParcelasTab(page, testData?.companyId);
     const opened = await openPaymentModal(page);
     expect(opened).toBe(true);
     await waitForPaymentModal(page);
