@@ -395,13 +395,16 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
   const kpis = useMemo(() => {
     const totalDebtors = debtors.length;
     const totalExpected = debtors.reduce((s, d) => s + d.totalDue, 0);
+    // Bruto = capital (remaining_balance) + juros do mês
+    const totalBruto = debtors.reduce((s, d) => s + d.totalRemainingBalance + d.totalInterest, 0);
+    // Líquido = só os juros (ganho puro)
     const totalInterest = debtors.reduce((s, d) => s + d.totalInterest, 0);
     const totalReceived = debtors.reduce((s, d) => s + d.totalPaid, 0);
     const totalOverdue = debtors.reduce((s, d) => s + (d.hasLate ? d.totalOutstanding : 0), 0);
-    const collectionRate = totalExpected > 0 ? (totalReceived / totalExpected) * 100 : 0;
-    const progressBruto = totalExpected > 0 ? (totalReceived / totalExpected) * 100 : 0;
-    const progressLiquido = totalInterest > 0 ? (totalReceived / totalInterest) * 100 : 0;
-    return { totalDebtors, totalExpected, totalInterest, totalReceived, totalOverdue, collectionRate, progressBruto, progressLiquido };
+    const collectionRate = totalInterest > 0 ? Math.min(100, (totalReceived / totalInterest) * 100) : 0;
+    const progressBruto = totalBruto > 0 ? Math.min(100, (totalReceived / totalBruto) * 100) : 0;
+    const progressLiquido = totalInterest > 0 ? Math.min(100, (totalReceived / totalInterest) * 100) : 0;
+    return { totalDebtors, totalExpected, totalBruto, totalInterest, totalReceived, totalOverdue, collectionRate, progressBruto, progressLiquido };
   }, [debtors]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -473,13 +476,14 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
         <KpiCard
           icon={<TrendingUp size={16} />}
           label="Esperado bruto"
-          value={fmtKpi(kpis.totalExpected)}
+          value={fmtKpi(kpis.totalBruto)}
           color="var(--accent-brass)"
           progress={kpis.progressBruto}
-          progressLabel={`${fmtKpi(kpis.totalReceived)} recebido · ${kpis.progressBruto.toFixed(0).replace('.', ',')}%`}
-          items={debtors.filter(d => d.totalDue > 0).sort((a,b) => b.totalDue - a.totalDue).map((d) => ({
+          progressLabel={`${fmtKpi(kpis.totalReceived)} recebido · ${kpis.progressBruto.toFixed(0)}%`}
+          items={debtors.filter(d => d.totalRemainingBalance + d.totalInterest > 0).sort((a,b) => (b.totalRemainingBalance + b.totalInterest) - (a.totalRemainingBalance + a.totalInterest)).map((d) => ({
             label: d.payerName,
-            value: fmtKpi(d.totalDue),
+            value: fmtKpi(d.totalRemainingBalance + d.totalInterest),
+            sublabel: `· capital ${fmtKpi(d.totalRemainingBalance)}`,
             statusColor: d.hasLate ? 'var(--accent-danger)' : d.hasPending ? 'var(--accent-warning)' : 'var(--accent-positive)',
             onClick: () => { setStatusFilter('all'); setExpandedDebtor(d.payerId); setExpandedContract(null); },
           }))}
@@ -490,7 +494,7 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
           value={fmtKpi(kpis.totalInterest)}
           color="var(--accent-purple)"
           progress={kpis.progressLiquido}
-          progressLabel={`${fmtKpi(kpis.totalReceived)} recebido · ${Math.min(100, kpis.progressLiquido).toFixed(0).replace('.', ',')}%`}
+          progressLabel={`${fmtKpi(kpis.totalReceived)} recebido · ${kpis.progressLiquido.toFixed(0)}%`}
           items={debtors.filter(d => d.totalInterest > 0).sort((a,b) => b.totalInterest - a.totalInterest).map((d) => ({
             label: d.payerName,
             value: fmtKpi(d.totalInterest),
