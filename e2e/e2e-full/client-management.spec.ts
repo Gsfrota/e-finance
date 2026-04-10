@@ -20,10 +20,19 @@ import { test, expect } from '@playwright/test';
 import { waitForApp, navigateToView, selectSpecificCompany } from '../fixtures/e2e-test-helpers';
 import { TEST_CPFS } from '../fixtures/test-data';
 
-// CPF válido para testes
-const VALID_CPF = TEST_CPFS.valid;
 // CPF inválido para validação
 const INVALID_CPF = TEST_CPFS.invalid;
+
+/** Gera um CPF válido único baseado em número arbitrário (não precisa ser real). */
+function generateValidCpf(seed: number): string {
+  const n = String(seed % 1000000000).padStart(9, '0');
+  const d = n.split('').map(Number);
+  const v1 = (11 - ((d[0]*10 + d[1]*9 + d[2]*8 + d[3]*7 + d[4]*6 + d[5]*5 + d[6]*4 + d[7]*3 + d[8]*2) % 11)) % 11;
+  const dig1 = v1 < 2 ? 0 : v1;
+  const v2 = (11 - ((d[0]*11 + d[1]*10 + d[2]*9 + d[3]*8 + d[4]*7 + d[5]*6 + d[6]*5 + d[7]*4 + d[8]*3 + dig1*2) % 11)) % 11;
+  const dig2 = v2 < 2 ? 0 : v2;
+  return `${n.slice(0,3)}.${n.slice(3,6)}.${n.slice(6,9)}-${dig1}${dig2}`;
+}
 
 /** Navega para Usuários e abre modal de convite. */
 async function openInviteModal(page: any) {
@@ -51,6 +60,7 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
 
     const timestamp = Date.now();
     const email = `investidor-teste-${timestamp}@e2e.test`;
+    const cpf = generateValidCpf(timestamp);
 
     await page.getByPlaceholder('Nome Completo').fill(`Investidor E2E ${timestamp}`);
     await page.getByPlaceholder('E-mail').fill(email);
@@ -64,7 +74,7 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
     // Preenche CPF se campo presente
     const cpfInput = page.getByPlaceholder(/CPF/i);
     if (await cpfInput.isVisible({ timeout: 1_500 }).catch(() => false)) {
-      await cpfInput.fill(VALID_CPF);
+      await cpfInput.fill(cpf);
     }
 
     // Telefone se presente
@@ -88,6 +98,7 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
 
     const timestamp = Date.now();
     const email = `devedor-teste-${timestamp}@e2e.test`;
+    const cpf = generateValidCpf(timestamp + 1);
 
     await page.getByPlaceholder('Nome Completo').fill(`Devedor E2E ${timestamp}`);
     await page.getByPlaceholder('E-mail').fill(email);
@@ -98,10 +109,10 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
       await roleSelector.selectOption({ value: 'debtor' });
     }
 
-    // CPF diferente para não conflitar com CLT-02
+    // CPF único por run para evitar conflito de unicidade no banco
     const cpfInput = page.getByPlaceholder(/CPF/i);
     if (await cpfInput.isVisible({ timeout: 1_500 }).catch(() => false)) {
-      await cpfInput.fill(TEST_CPFS.valid2 || '275.984.389-10');
+      await cpfInput.fill(cpf);
     }
 
     const submitBtn = page.getByRole('button', { name: /Cadastrar Cliente|Salvar|Criar/i });

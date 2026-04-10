@@ -303,7 +303,10 @@ export async function deleteTestPaymentData(
   if (!ctx || !investmentId) return;
 
   try {
-    // Ordem correta: FK payment_transactions → loan_installments → investments
+    // Ordem correta respeitando FKs:
+    // payment_event_installments → payment_events → payment_transactions → loan_installments → investments
+    await restCall(ctx, `payment_event_installments?installment_id=in.(select id from loan_installments where investment_id=${investmentId})`, 'DELETE').catch(() => {});
+    await restCall(ctx, `payment_events?investment_id=eq.${investmentId}`, 'DELETE').catch(() => {});
     await restCall(ctx, `payment_transactions?investment_id=eq.${investmentId}`, 'DELETE');
     await restCall(ctx, `loan_installments?investment_id=eq.${investmentId}`, 'DELETE');
     await restCall(ctx, `investments?id=eq.${investmentId}`, 'DELETE');
@@ -344,69 +347,57 @@ export async function goToParcelasTab(page: Page, preferCompanyId?: string): Pro
   const dashboardBtn = page.locator('aside').getByRole('button', { name: /Dashboard/i }).first();
   await dashboardBtn.waitFor({ timeout: 8_000 });
   await dashboardBtn.click();
+  await page.waitForTimeout(400);
 
-  // getByRole com accessible name — evita problema de whitespace no filter(hasText)
-  const parcelasTab = page.getByRole('button', { name: 'Parcelas' });
+  // Usa .first() para evitar strict mode com múltiplos botões "Parcelas" na página
+  const parcelasTab = page.getByRole('button', { name: 'Parcelas' }).first();
   await parcelasTab.waitFor({ timeout: 45_000 });
   await parcelasTab.click();
   await page.waitForTimeout(800);
 }
 
 /**
- * Encontra o botão "✓ BAIXA" de uma parcela pelo ID da parcela
- * (via busca no DOM — usa data-installment-id se disponível, ou busca por valor).
+ * Encontra o botão "✓ BAIXA" de uma parcela pelo ID e clica via Playwright locator
+ * (evita problemas de timing e elementos ocultos do page.evaluate nativo).
  */
 export async function clickBaixaByInstallmentId(
   page: Page,
   installmentId: string,
 ): Promise<boolean> {
-  // Tenta clicar via evaluate (mais robusto para listas longas)
-  const found = await page.evaluate((id: string) => {
-    // Percorre cards de parcela no DOM procurando pelo ID
-    const cards = document.querySelectorAll('[data-installment-id]');
-    for (const card of Array.from(cards)) {
-      if (card.getAttribute('data-installment-id') === id) {
-        const btn = card.querySelector('[data-action="pay"]') as HTMLButtonElement;
-        if (btn) { btn.click(); return true; }
-      }
-    }
-    return false;
-  }, installmentId);
+  // Cada parcela tem 2 elementos [data-installment-id]: desktop (<tr>) e mobile (<div>).
+  // O desktop vem primeiro no DOM e é visível; usamos .filter({ hasText: ... }) não,
+  // mas sim localizamos o botão data-action="pay" dentro de cada um e clicamos no visível.
+  const cards = page.locator(`[data-installment-id="${installmentId}"]`);
+  const count = await cards.count().catch(() => 0);
 
-  if (!found) {
-    // Fallback: procura pelo primeiro botão BAIXA visível via data-action
-    const btnBaixa = page.locator('[data-action="pay"]').first();
-    if (await btnBaixa.isVisible()) {
-      await btnBaixa.click();
+  for (let i = 0; i < count; i++) {
+    const card = cards.nth(i);
+    const payBtn = card.locator('[data-action="pay"]').first();
+    const visible = await payBtn.isVisible({ timeout: 1_000 }).catch(() => false);
+    if (visible) {
+      await payBtn.click();
       return true;
     }
-    return false;
   }
-  return true;
+
+  return false;
 }
 
-/** Abre o modal de pagamento para a parcela "TESTE E2E PAGAMENTO" mais recente. */
-export async function openPaymentModal(page: Page): Promise<boolean> {
-  // Procura card com data-installment-id que contenha "TESTE E2E PAGAMENTO"
-  const linhaTeste = page.getByText('TESTE E2E PAGAMENTO').first();
-  if (!(await linhaTeste.isVisible({ timeout: 5_000 }).catch(() => false))) {
-    // Fallback: qualquer botão BAIXA visível (data-action="pay")
-    const btn = page.locator('[data-action="pay"]').first();
-    if (!(await btn.isVisible({ timeout: 3_000 }).catch(() => false))) return false;
-    await btn.click();
-    return true;
+/**
+ * Abre o modal de pagamento para um installment específico ou o primeiro disponível.
+ * @param targetInstallmentId - Se fornecido, abre exatamente esse installment (evita órfãos).
+ */
+export async function openPaymentModal(page: Page, targetInstallmentId?: string): Promise<boolean> {
+  // Prioridade: ID específico do installment recém-criado
+  if (targetInstallmentId) {
+    const found = await clickBaixaByInstallmentId(page, targetInstallmentId);
+    if (found) return true;
   }
-  // Sobe para o card [data-installment-id] e clica em data-action="pay"
-  const card = linhaTeste.locator('xpath=ancestor::*[@data-installment-id][1]');
-  const btnBaixa = card.locator('[data-action="pay"]').first();
-  if (await btnBaixa.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    await btnBaixa.click();
-    return true;
-  }
-  // Fallback: qualquer botão BAIXA
-  const fallback = page.locator('[data-action="pay"]').first();
-  if (!(await fallback.isVisible({ timeout: 3_000 }).catch(() => false))) return false;
-  await fallback.click();
+
+  // Fallback: qualquer botão BAIXA visível (data-action="pay")
+  const btn = page.locator('[data-action="pay"]').first();
+  if (!(await btn.isVisible({ timeout: 3_000 }).catch(() => false))) return false;
+  await btn.click();
   return true;
 }
 

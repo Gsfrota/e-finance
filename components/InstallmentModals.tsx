@@ -748,7 +748,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
     <ModalBackdrop onClose={onClose}>
       <Header title="Baixa de Pagamento" subtitle={`Parcela #${installment.number}`} icon={<CheckCircle2 size={24}/>} onClose={onClose} colorClass="text-emerald-500"/>
 
-      <form onSubmit={handleStep1Next} className="p-6 space-y-5">
+      <form onSubmit={handleStep1Next} className="p-6 space-y-5" data-testid="payment-modal-form" data-modal-installment-id={installment.id}>
         {/* Saldo devedor breakdown */}
         <div className="bg-emerald-900/10 border border-emerald-900/30 p-4 rounded-2xl">
           <p className="type-label text-emerald-400 mb-2 text-center">Saldo Devedor</p>

@@ -238,7 +238,9 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
     );
   }
 
-  if (loading) {
+  // Só mostra skeleton no carregamento inicial (sem dados); refetch preserva UI/modal aberto
+  const hasData = installments.length > 0 || investments.length > 0;
+  if (loading && !hasData) {
     return <DashboardSkeleton />;
   }
 

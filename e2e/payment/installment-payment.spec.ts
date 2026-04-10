@@ -90,18 +90,24 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   // ── PAY-01: Pagamento exato ────────────────────────────────────────────────
   test('PAY-01: Pagamento exato → status=paid e comprovante exibido', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste — verifique credenciais Supabase');
+
     await goToParcelasTab(page, testData?.companyId);
 
-    const opened = await openPaymentModal(page);
+    const opened = await openPaymentModal(page, testData?.currentInstallmentId);
     expect(opened, 'Nenhuma parcela disponível na aba Parcelas').toBe(true);
 
     await waitForPaymentModal(page);
 
-    // Step 1: preenche valor exato do outstanding
-    // O modal já pré-preenche o outstanding — apenas submete
+    // Confirma que o modal abriu com a parcela correta
+    const modalInstallmentId = await page.locator('[data-modal-installment-id]')
+      .getAttribute('data-modal-installment-id')
+      .catch(() => null);
+    expect(modalInstallmentId, 'Modal abriu com parcela errada').toBe(testData!.currentInstallmentId);
+
+    // Submete com o valor pré-preenchido (pagamento exato)
     await submitStep1(page);
 
-    // Deve ir direto para comprovante (sem Step 2)
+    // Comprovante deve aparecer após pagamento bem-sucedido
     await waitForPaymentSuccess(page);
     await expect(page.getByText(/Pagamento Confirmado!|foi paga|Comprovante/i).first()).toBeVisible();
   });

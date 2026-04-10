@@ -405,11 +405,11 @@ Categorias:
 ### BR-REL-010: Caderneta Bullet — acesso e escopo
 - **Descrição:** A Caderneta Bullet é uma tela dedicada de cobrança mensal exclusiva para contratos bullet (`calculation_mode = 'interest_only'`). Acessível pelo menu home do admin como atalho direto.
 - **Condição:** Perfil `admin`; plano não bloqueado (`isFreePlanLocked = false`)
-- **Resultado:** Exibe apenas investimentos com `calculation_mode = 'interest_only'` e `status = 'active'`. Parcelas de outros tipos de contrato são completamente omitidas. Visão padrão: mês corrente
-- **Exceções:** Contratos bullet com `status = 'completed' | 'defaulted' | 'renewed'` não aparecem na lista de contratos ativos, mas suas parcelas pagas no mês selecionado podem aparecer se o filtro de status incluir "Pago"
-- **Tabelas:** `investments` (leitura: `calculation_mode`, `remaining_balance`, `capitalize_interest`, `frequency`, `interest_rate`), `loan_installments` (leitura: todos os campos)
+- **Resultado:** Exibe parcelas de todos os investimentos com `calculation_mode = 'interest_only'` cujo `status != 'renewed'`. Contratos `active`, `completed` e `defaulted` são incluídos (podem ter parcelas históricas relevantes). Contratos `renewed` são excluídos pois foram substituídos por novo contrato. Parcelas de outros tipos de contrato são completamente omitidas. Visão padrão: mês corrente
+- **Exceções:** Contratos `renewed` nunca aparecem — foram substituídos por contrato sucessor
+- **Tabelas:** `investments` (leitura: `calculation_mode`, `payer_id`, `frequency`, `interest_rate`, `asset_name`, `status`), `loan_installments` (leitura: todos os campos)
 - **Status:** ativa
-- **Stories:** implementado em 09/04/2026
+- **Stories:** implementado em 09/04/2026; atualizado em 10/04/2026 (escopo de status expandido)
 
 ### BR-REL-011: Caderneta Bullet — navegação mensal
 - **Descrição:** A caderneta opera com granularidade mensal. O usuário pode navegar entre meses (anterior/próximo). Não é possível avançar além do mês corrente.
@@ -420,20 +420,28 @@ Categorias:
 - **Status:** ativa
 
 ### BR-REL-012: Caderneta Bullet — filtro de status e ordenação
-- **Descrição:** A caderneta deve permitir filtrar devedores por status de cobrança: Todos / Em atraso / Pendentes / Pagos. Cada filtro exibe apenas os devedores cujo status agregado corresponde ao selecionado.
+- **Descrição:** A caderneta exibe uma lista flat de parcelas (uma por card) e permite filtrar por status: Todos / Em atraso / Pendentes / Pagas. Cada filtro exibe apenas as parcelas cujo `status` corresponde ao selecionado.
 - **Condição:** Toda exibição da Caderneta Bullet
-- **Resultado:** Status agregado do devedor é determinado pela pior situação entre seus contratos bullet no mês: `late > partial > pending > paid`. Ordenação padrão (filtro "Todos"): inadimplentes primeiro, depois parciais, depois pendentes, depois pagos. Dentro de cada grupo, ordem alfabética por nome
-- **Exceções:** Devedor sem nenhuma parcela no mês selecionado não aparece em nenhum filtro
-- **Tabelas:** `loan_installments.status`
+- **Resultado:** Filtro "Pendentes" inclui `status = 'pending' | 'partial'`. Filtro "Em atraso" = `status = 'late'`. Filtro "Pagas" = `status = 'paid'`. Ordenação padrão (filtro "Todos"): `late` primeiro, depois `partial/pending`, depois `paid`; dentro de cada grupo, por `due_date` ascendente. Os KPIs sempre refletem o mês completo independente do filtro ativo (BR-REL-013).
+- **Exceções:** Parcela sem `investment_id` ou cujo investimento não é bullet é omitida. Parcelas fora do mês selecionado não aparecem em nenhum filtro
+- **Tabelas:** `loan_installments.status`, `loan_installments.due_date`
 - **Status:** ativa
+- **Atualizado:** 10/04/2026 — filtro passou a operar por parcela individual (flat list) em vez de status agregado por devedor
 
 ### BR-REL-013: Caderneta Bullet — KPIs do mês
-- **Descrição:** A caderneta exibe 5 KPIs consolidados do mês selecionado: (1) Total de devedores com parcelas bullet no mês; (2) Juros esperados = soma de `amount_total` de todas as parcelas bullet do mês; (3) Recebido = soma de `amount_paid`; (4) Em atraso = soma de `calcOutstanding()` das parcelas com `status = 'late'`; (5) Taxa de cobrança = `recebido / esperado * 100`
+- **Descrição:** A caderneta exibe 6 KPIs consolidados do mês selecionado:
+  1. **Devedores** = contagem de `payer_id` únicos com parcelas bullet no mês (fallback por nome se `payer_id` nulo)
+  2. **Esperado bruto** = `SUM(loan_installments.amount_total)` — inclui capital nas parcelas finais e só juros nas intermediárias
+  3. **Esperado líquido** = `SUM(loan_installments.amount_interest ?? amount_total)` — somente rendimento (juros)
+  4. **Recebido** = `SUM(loan_installments.amount_paid)`
+  5. **Em atraso** = `SUM(calcOutstanding())` das parcelas com `status = 'late'`
+  6. **Taxa de cobrança** = `recebido / esperado_bruto * 100` (limitado a 100%)
 - **Condição:** Toda exibição da Caderneta Bullet
-- **Resultado:** KPIs sempre refletem o mês selecionado independente do filtro de status ativo. KPIs não são filtrados — mostram o total real do mês
-- **Exceções:** Se não há parcelas no mês, todos KPIs exibem zero
-- **Tabelas:** `loan_installments`
+- **Resultado:** KPIs sempre refletem o mês selecionado independente do filtro de status ativo. KPIs não são filtrados — mostram o total real do mês. KPIs 2 e 3 exibem barra de progresso (`recebido / esperado`) com rótulo de valor recebido e percentual
+- **Exceções:** Se não há parcelas no mês, todos KPIs exibem zero. Taxa de cobrança exibe 0% se esperado bruto for zero
+- **Tabelas:** `loan_installments`, `investments.payer_id`
 - **Status:** ativa
+- **Atualizado:** 10/04/2026 — expandido de 5 para 6 KPIs; fórmulas bruto e taxa cobrança corrigidas; deduplicação de devedores por `payer_id`
 
 ### BR-REL-015: Caderneta Bullet — formatação de valores monetários nos KPIs
 - **Descrição:** Valores monetários exibidos nos KPI cards da Caderneta Bullet devem sempre ser legíveis por completo (sem truncamento). Casas decimais são exibidas somente quando o valor não é inteiro — ex: R$ 1.364 (sem centavos) e R$ 1.364,67 (com centavos quando necessário)
@@ -443,13 +451,14 @@ Categorias:
 - **Tabelas:** —
 - **Status:** ativa
 
-### BR-REL-014: Caderneta Bullet — informações de cobrança por devedor
-- **Descrição:** Para cada devedor expandido, a caderneta exibe: nome, email (link mailto), número de contratos bullet ativos no mês, saldo devedor principal agregado (`remaining_balance`), juros esperado do mês, valor pago, valor em aberto (com multas e juros de atraso), barra de progresso de pagamento e status agregado
-- **Condição:** Devedor expandido na Caderneta Bullet
-- **Resultado:** Saldo devedor = soma de `investments.remaining_balance` dos contratos do devedor. Valor em aberto = `calcOutstanding()` por parcela. Barra de progresso = `amount_paid / amount_total * 100` (limitado a 100%)
-- **Exceções:** Se `remaining_balance` for nulo (contrato bullet legado sem saldo rotativo), não exibir linha de saldo
-- **Tabelas:** `investments.remaining_balance`, `loan_installments`
+### BR-REL-014: Caderneta Bullet — card de parcela (flat list)
+- **Descrição:** Cada parcela bullet do mês é exibida como um card individual (flat list, sem accordion). O card deve conter as informações essenciais de cobrança em layout compacto, clicável para abrir o detalhe da parcela.
+- **Condição:** Toda parcela bullet exibida na Caderneta Bullet
+- **Resultado:** Cada card exibe obrigatoriamente: (a) barra lateral colorida pelo status (`late`=danger, `partial/pending`=warning, `paid`=positive); (b) foto do devedor em círculo 26px (fallback: inicial do nome com cor do status); (c) nome do devedor + nome do contrato (`asset_name`) como sublabel; (d) data de vencimento formatada `dd/mm/aaaa` e número da parcela `#N` alinhados à direita; (e) valor `amount_total` em destaque; (f) valor pago `amount_paid` quando parcial ou pago; (g) barra de progresso `amount_paid / (amount_total + multas + juros_atraso) * 100`; (h) badge de status; (i) linha de multa/juros de atraso exibida condicionalmente apenas quando `fine_amount > 0 || interest_delay_amount > 0`
+- **Exceções:** Linha de multa/juros omitida quando ambos são zero. Barra de progresso com percentual numérico exibida apenas quando `0 < progress < 100`. Valor pago exibido apenas para `status = 'paid' | 'partial'`
+- **Tabelas:** `loan_installments`, `investments.asset_name`, `profiles.photo_url`, `profiles.full_name`
 - **Status:** ativa
+- **Atualizado:** 10/04/2026 — substituiu modelo accordion expandido por flat card clicável
 
 ---
 
