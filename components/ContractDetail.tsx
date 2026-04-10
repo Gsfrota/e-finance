@@ -9,6 +9,7 @@ import {
 import { Investment, LoanInstallment, Tenant, AvulsoPayment } from '../types';
 import { useContractDetail, ContractDetailData } from '../hooks/useContractDetail';
 import { getSupabase, parseSupabaseError } from '../services/supabase';
+import { getBrazilToday } from '../services/dateUtils';
 import ReceiptTemplate from './ReceiptTemplate';
 import {
   InstallmentDetailScreen as SharedInstallmentDetailScreen,
@@ -136,7 +137,7 @@ interface AvulsoPaymentScreenProps {
 const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
   investmentId, installments, onBack, onSuccess,
 }) => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getBrazilToday();
   const [amount, setAmount]     = useState('');
   const [dateInput, setDate]    = useState(today);
   const [notes, setNotes]       = useState('');

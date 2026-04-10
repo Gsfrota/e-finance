@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchProfileByAuthUserId, getSupabase, withRetry } from '../services/supabase';
 import { getCached, setCached } from '../services/cache';
+import { getBrazilToday } from '../services/dateUtils';
 
 export interface DebtorInstallment {
   id: string;
@@ -94,8 +95,7 @@ export const useDebtorFinance = () => {
         let globalBalance = 0;
         let globalNextPayment: DebtorInstallment | null = null;
         let globalHasLate = false;
-        const today = new Date();
-        today.setHours(0,0,0,0);
+        const todayYMD = getBrazilToday();
 
         const contracts: DebtorContract[] = (investments || []).map((inv: any) => {
             let contractTotal = Number(inv.current_value || 0);
@@ -104,9 +104,8 @@ export const useDebtorFinance = () => {
 
             // Processa Parcelas deste contrato
             const insts: DebtorInstallment[] = (inv.loan_installments || []).map((inst: any) => {
-                const dueDate = new Date(inst.due_date + 'T00:00:00');
-                const isLate = inst.status !== 'paid' && dueDate < today;
-                const daysLate = isLate ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 3600 * 24)) : 0;
+                const isLate = inst.status !== 'paid' && inst.due_date < todayYMD;
+                const daysLate = isLate ? Math.floor((new Date(todayYMD).getTime() - new Date(inst.due_date + 'T00:00:00').getTime()) / (1000 * 3600 * 24)) : 0;
                 
                 if (inst.status === 'paid') {
                     contractPaid += Number(inst.amount_total);

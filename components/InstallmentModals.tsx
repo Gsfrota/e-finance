@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { LoanInstallment, Tenant } from '../types';
 import { getSupabase } from '../services/supabase';
+import { getBrazilToday, addDaysBR, toBrazilYMD } from '../services/dateUtils';
 import { X, CheckCircle2, Calendar, DollarSign, Loader2, AlertTriangle, RefreshCw, Pencil, Save, Printer, Percent, ArrowDownToLine, ArrowRight, Plus, ChevronLeft, TrendingUp, Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import { parseSupabaseError } from '../services/supabase';
 import ReceiptTemplate from './ReceiptTemplate';
@@ -89,7 +90,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   // ── Step 1 state ────────────────────────────────────────────────────────────
   const [amount, setAmount]           = useState('');
   const [paymentMethod, setPaymentMethod] = useState('PIX');
-  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate] = useState(() => getBrazilToday());
 
   // ── Step 2 state ────────────────────────────────────────────────────────────
   const [step2Mode, setStep2Mode]         = useState<'partial' | 'surplus'>('partial');
@@ -198,7 +199,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       setStep2Mode('partial');
       setError(null);
       setPaymentMethod('PIX');
-      setPaymentDate(new Date().toISOString().split('T')[0]);
+      setPaymentDate(getBrazilToday());
       setDeferAction('last');
       setUseInterest(false);
       setInterestPercent('');
@@ -1404,9 +1405,7 @@ export const RefinanceModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSu
     if (isOpen) {
       setPayAmount('');
       // Default to 30 days from now
-      const d = new Date();
-      d.setDate(d.getDate() + 30);
-      setNewDate(d.toISOString().split('T')[0]);
+      setNewDate(addDaysBR(getBrazilToday(), 30));
       setError(null);
     }
   }, [isOpen]);
@@ -1541,8 +1540,7 @@ export const EditModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess
   useEffect(() => {
     if (isOpen && installment) {
       setTotalAmount(installment.amount_total.toString());
-      // Ensure valid date format YYYY-MM-DD
-      const dateVal = installment.due_date ? new Date(installment.due_date).toISOString().split('T')[0] : '';
+      const dateVal = installment.due_date ?? '';
       setDueDate(dateVal);
       setError(null);
     }
@@ -1659,7 +1657,7 @@ export const EditModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess
 // - Regular: input editável, chama pay_installment + apply_remainder_action('last').
 
 export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess, installment }) => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getBrazilToday();
 
   const [paymentDate, setPaymentDate]   = useState(today);
   const [interestAmount, setInterestAmount] = useState('');
@@ -1679,7 +1677,7 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
     if (!dueDateStr) return '';
     const d = new Date(dueDateStr + 'T12:00:00');
     d.setMonth(d.getMonth() + 1);
-    return d.toISOString().split('T')[0];
+    return toBrazilYMD(d);
   };
 
   useEffect(() => {

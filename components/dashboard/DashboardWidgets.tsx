@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { AdminDashboardStats, AppView, DashboardKPIs, Investment, LoanInstallment, Tenant } from '../../types';
 import { PaymentModal, RefinanceModal, EditModal, InterestOnlyModal } from '../InstallmentModals';
 import { getInstallmentModInfo, ModBadge } from '../InstallmentDetailFlow';
+import { getBrazilToday, addDaysBR, toBrazilYMD } from '../../services/dateUtils';
 import {
   AlertTriangle,
   Bot,
@@ -61,8 +62,7 @@ const calculateOutstanding = (installment: LoanInstallment): number => {
 
 const isInstallmentOverdue = (installment: LoanInstallment): boolean => {
   if (installment.status === 'paid') return false;
-  const today = new Date().toISOString().split('T')[0];
-  return installment.due_date < today && calculateOutstanding(installment) > 0.01;
+  return installment.due_date < getBrazilToday() && calculateOutstanding(installment) > 0.01;
 };
 
 const formatDate = (ymd: string) => {
@@ -199,11 +199,8 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToCo
   const [cobraDias, setCobraDias] = useState<CobraDias>(15);
 
   const aCobraValor = useMemo(() => {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-
     if (cobraDias === 0) {
-      const todayStr = hoje.toISOString().split('T')[0];
+      const todayStr = getBrazilToday();
       return installments
         .filter((i) => {
           if (!['pending', 'late', 'partial'].includes(i.status)) return false;
@@ -212,13 +209,11 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToCo
         .reduce((sum, i) => sum + calculateOutstanding(i), 0);
     }
 
-    const limite = new Date(hoje);
-    limite.setDate(limite.getDate() + cobraDias);
+    const limiteYMD = addDaysBR(todayStr, cobraDias);
     return installments
       .filter((i) => {
         if (!['pending', 'late', 'partial'].includes(i.status)) return false;
-        const due = new Date(i.due_date + 'T00:00:00');
-        return due <= limite;
+        return i.due_date <= limiteYMD;
       })
       .reduce((sum, i) => sum + calculateOutstanding(i), 0);
   }, [installments, cobraDias]);
@@ -755,8 +750,8 @@ export const InstallmentsTable: React.FC<InstallmentsTableProps> = ({ data, onUp
                     {[
                       { label: 'Este mês', action: () => { setDateMode('month'); setCurrentDate(new Date()); } },
                       { label: 'Mês ant.', action: () => { const d = new Date(); setDateMode('month'); setCurrentDate(new Date(d.getFullYear(), d.getMonth() - 1, 1)); } },
-                      { label: '30 dias', action: () => { const e = new Date(); const s = new Date(); s.setDate(s.getDate() - 30); setRangeStart(s.toISOString().split('T')[0]); setRangeEnd(e.toISOString().split('T')[0]); } },
-                      { label: '90 dias', action: () => { const e = new Date(); const s = new Date(); s.setDate(s.getDate() - 90); setRangeStart(s.toISOString().split('T')[0]); setRangeEnd(e.toISOString().split('T')[0]); } },
+                      { label: '30 dias', action: () => { const todayStr = getBrazilToday(); setRangeStart(addDaysBR(todayStr, -30)); setRangeEnd(todayStr); } },
+                      { label: '90 dias', action: () => { const todayStr = getBrazilToday(); setRangeStart(addDaysBR(todayStr, -90)); setRangeEnd(todayStr); } },
                     ].map((preset) => (
                       <button
                         key={preset.label}
@@ -1076,16 +1071,14 @@ interface DailyAlertsProps {
 }
 
 export const DailyAlerts: React.FC<DailyAlertsProps> = ({ kpis, installments }) => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getBrazilToday();
   const todayFormatted = today.split('-').reverse().join('/');
   const [showVencendo, setShowVencendo] = useState(false);
 
   const vigentes = kpis?.activeContractsCount ?? 0;
   const contratosMorosos = kpis?.overdueContractsCount ?? 0;
 
-  const in3Days = new Date();
-  in3Days.setDate(in3Days.getDate() + 3);
-  const d3 = in3Days.toISOString().split('T')[0];
+  const d3 = addDaysBR(today, 3);
   const vencendo3d = installments.filter(
     (i) => i.due_date >= today && i.due_date <= d3 && i.status !== 'paid'
   );

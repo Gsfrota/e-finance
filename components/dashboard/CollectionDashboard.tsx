@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { LoanInstallment, Tenant } from '../../types';
+import { getBrazilToday, addDaysBR, isoToBrazilYMD } from '../../services/dateUtils';
 import {
   InstallmentAction,
   InstallmentDetailScreen,
@@ -26,11 +27,6 @@ interface CollectionDashboardProps {
   initialBucket?: BucketId;
 }
 
-const addDays = (base: string, days: number) => {
-  const date = new Date(`${base}T00:00:00`);
-  date.setDate(date.getDate() + days);
-  return date.toISOString().split('T')[0];
-};
 
 type BucketId = 'overdue' | 'today' | '3d' | '7d' | '15d' | '30d';
 
@@ -80,14 +76,11 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
   const [installmentAction, setInstallmentAction] = useState<InstallmentAction>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const today = (() => {
-    const n = new Date();
-    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
-  })();
-  const d3    = addDays(today, 3);
-  const d7    = addDays(today, 7);
-  const d15   = addDays(today, 15);
-  const d30   = addDays(today, 30);
+  const today = getBrazilToday();
+  const d3    = addDaysBR(today, 3);
+  const d7    = addDaysBR(today, 7);
+  const d15   = addDaysBR(today, 15);
+  const d30   = addDaysBR(today, 30);
 
   const pendingInstallments = useMemo(
     () => installments.filter((i) => i.status !== 'paid'),
@@ -121,9 +114,7 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
       if (i.status !== 'paid' && i.status !== 'partial') return false;
       if (Number(i.amount_paid) === 0) return false;  // Exclui parcelas absorvidas
       if (!i.paid_at) return false;
-      const p = new Date(i.paid_at);
-      const paidYMD = `${p.getFullYear()}-${String(p.getMonth() + 1).padStart(2, '0')}-${String(p.getDate()).padStart(2, '0')}`;
-      return paidYMD === today;
+      return isoToBrazilYMD(i.paid_at) === today;
     });
   }, [installments, today]);
 

@@ -7,6 +7,7 @@ import { useCompanyContext } from '../services/companyScope';
 import { InstallmentsTable } from './dashboard/DashboardWidgets';
 import { CollectionDashboard } from './dashboard/CollectionDashboard';
 import { SalaryDashboard } from './dashboard/SalaryDashboard';
+import { getBrazilToday, isoToBrazilYMD } from '../services/dateUtils';
 import {
   InstallmentDetailScreen,
   InstallmentFormScreen,
@@ -68,8 +69,7 @@ const useHomeData = (tenantId?: string, companyId?: string | null) => {
     profilesQuery.then(({ data }) => setProfiles((data as Profile[]) ?? []));
   }, [tenantId, companyId]);
 
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const today = getBrazilToday();
 
   const contratosHoje = useMemo(
     () => investments.filter(inv => inv.created_at?.startsWith(today)),
@@ -81,9 +81,7 @@ const useHomeData = (tenantId?: string, companyId?: string | null) => {
       if (i.status !== 'paid' && i.status !== 'partial') return false;
       if (Number(i.amount_paid) === 0) return false;
       if (!i.paid_at) return false;
-      const p = new Date(i.paid_at);
-      const paidYMD = `${p.getFullYear()}-${String(p.getMonth() + 1).padStart(2, '0')}-${String(p.getDate()).padStart(2, '0')}`;
-      return paidYMD === today;
+      return isoToBrazilYMD(i.paid_at) === today;
     }),
     [installments, today]
   );
@@ -219,10 +217,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
     clientesQuePageramCount,
   } = useHomeData(tenant?.id, activeCompanyId);
 
-  const today = useMemo(() => {
-    const n = new Date();
-    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
-  }, []);
+  const today = useMemo(() => getBrazilToday(), []);
   const [subView, setSubView] = useState<
     'home' | 'pagaram-hoje' | 'contratos-hoje' |
     'contratos-vigentes' | 'parcelas-vencendo' | 'parcelas-atrasadas' | 'parcelas-inadimplentes'

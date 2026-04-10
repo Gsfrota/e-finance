@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Tenant, LoanInstallment } from '../types';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useCompanyContext } from '../services/companyScope';
+import { getBrazilToday, isoToBrazilYMD } from '../services/dateUtils';
 import {
   InstallmentAction,
   InstallmentDetailScreen,
@@ -41,13 +42,7 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
   const [showPaidToday, setShowPaidToday] = useState(false);
   const [showOverdue, setShowOverdue] = useState(false);
 
-  const today = useMemo(() => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }, []);
+  const today = useMemo(() => getBrazilToday(), []);
 
   const overdueItems = useMemo(
     () => installments.filter(i => i.due_date < today && i.status !== 'paid'),
@@ -64,9 +59,7 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
       if (i.status !== 'paid' && i.status !== 'partial') return false;
       if (Number(i.amount_paid) === 0) return false;  // Exclui parcelas absorvidas
       if (!i.paid_at) return false;
-      const p = new Date(i.paid_at);
-      const paidYMD = `${p.getFullYear()}-${String(p.getMonth() + 1).padStart(2, '0')}-${String(p.getDate()).padStart(2, '0')}`;
-      return paidYMD === today;
+      return isoToBrazilYMD(i.paid_at) === today;
     }),
     [installments, today],
   );

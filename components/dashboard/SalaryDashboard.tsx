@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { LoanInstallment, Tenant } from '../../types';
 import { InstallmentAction, InstallmentDetailScreen, InstallmentFormScreen } from '../InstallmentDetailFlow';
+import { getBrazilToday, addDaysBR } from '../../services/dateUtils';
 
 interface SalaryDashboardProps {
   installments: LoanInstallment[];
@@ -25,7 +26,7 @@ const fmtDate = (s?: string) => {
 };
 
 export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, tenant, onUpdate }) => {
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const today = useMemo(() => getBrazilToday(), []);
   const [period, setPeriod] = useState<FilterPeriod>('month');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState(today);
@@ -37,8 +38,7 @@ export const SalaryDashboard: React.FC<SalaryDashboardProps> = ({ installments, 
     const d = new Date();
     if (period === 'today') return { from: today, to: today };
     if (period === 'week') {
-      const w = new Date(d); w.setDate(d.getDate() - 6);
-      return { from: w.toISOString().split('T')[0], to: today };
+      return { from: addDaysBR(today, -6), to: today };
     }
     if (period === 'month') {
       return { from: `${today.slice(0, 7)}-01`, to: today };

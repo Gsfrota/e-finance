@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { fetchProfileByAuthUserId, getSupabase, withRetry } from '../services/supabase';
 import { getCached, setCached } from '../services/cache';
 import { Investment, MonthlyViewData, MonthlyDebtorSummary, MonthlyOverdueEntry } from '../types';
+import { getBrazilToday } from '../services/dateUtils';
 
 // Tipagem local enriquecida para o frontend
 export interface EnrichedInvestment extends Investment {
@@ -104,8 +105,8 @@ function computeMetrics(
   filter: InvestorFilter
 ): { metrics: InvestorMetrics; investments: EnrichedInvestment[] } {
   const bounds = getPeriodBounds(filter.period);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const todayYMD = getBrazilToday();
+  const today = new Date(todayYMD + 'T00:00:00');
 
   let totalAllocated = 0;
   let grossReceived = 0;
@@ -151,7 +152,7 @@ function computeMetrics(
       const monthKey = dueDate.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
       const sortKey = new Date(dueDate.getFullYear(), dueDate.getMonth(), 1).getTime();
 
-      if (inst.status !== 'paid' && dueDate < today) {
+      if (inst.status !== 'paid' && inst.due_date < todayYMD) {
         hasLatePayment = true;
       }
 
@@ -294,8 +295,8 @@ function computeMetrics(
 export function computeMonthlyView(invData: RawInvestment[], targetMonth: Date): MonthlyViewData {
   const monthStart = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), 1);
   const monthEnd = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0, 23, 59, 59);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const todayYMD = getBrazilToday();
+  const today = new Date(todayYMD + 'T00:00:00');
 
   const monthLabel = monthStart.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 

@@ -3,6 +3,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { fetchProfileByAuthUserId, getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { Investment, Tenant, Profile, AppView } from '../types';
 import { useCompanyContext } from '../services/companyScope';
+import { getBrazilToday, addDaysBR, toBrazilYMD } from '../services/dateUtils';
 import QuickContractInput from './QuickContractInput';
 import ContractDetail from './ContractDetail';
 import ContractRenewalModal from './ContractRenewalModal';
@@ -179,7 +180,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
       frequency: 'monthly' as 'monthly' | 'weekly' | 'daily' | 'freelancer',
       due_day: 10,
       weekday: 1,
-      start_date: new Date().toISOString().split('T')[0],
+      start_date: getBrazilToday(),
       interest_rate: 10,
       installment_value: 0,
       current_value: 0,
@@ -355,7 +356,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
           frequency: 'monthly',
           due_day: 10,
           weekday: 1,
-          start_date: today.toISOString().split('T')[0],
+          start_date: getBrazilToday(),
           interest_rate: 10,
           installment_value: 0,
           current_value: 0,
@@ -492,7 +493,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                           formData.start_date, 1,
                           formData.skip_saturday, formData.skip_sunday, monthOffset
                       );
-                      return dates[0]?.toISOString().split('T')[0] ?? null;
+                      return dates[0] ? toBrazilYMD(dates[0]) : null;
                   }
                   if (formData.frequency === 'daily') return formData.start_date;
                   return null;
@@ -1211,9 +1212,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     { label: 'Hoje', offset: 0 },
                                     { label: 'Amanhã', offset: 1 },
                                 ].map(opt => {
-                                    const d = new Date();
-                                    d.setDate(d.getDate() + opt.offset);
-                                    const val = d.toISOString().split('T')[0];
+                                    const val = addDaysBR(getBrazilToday(), opt.offset);
                                     return (
                                         <button
                                             key={opt.label}

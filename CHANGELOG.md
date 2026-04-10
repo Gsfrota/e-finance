@@ -1,5 +1,33 @@
 # Changelog — E-Finance
 
+## [Não publicado] — 2026-04-10
+
+### fix(timezone): centralizar cálculo de "hoje" em America/Sao_Paulo — BR-TZ-001
+
+**Problema:** Às 21:00 BRT (= 00:00 UTC), vistas de cobrança mostravam datas erradas. Parcelas do dia sumiam do bucket "Vence hoje" e apareciam como atrasadas. Raiz: 20+ locais no frontend computavam "hoje" de forma inconsistente — `toISOString().split('T')[0]` retorna data UTC, não BRT.
+
+**Solução:**
+
+- **Criado `services/dateUtils.ts`** — utilitário centralizado usando `Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' })`, mesmo padrão já usado pelo bot:
+  - `getBrazilToday()` — data de hoje em BRT (única fonte de verdade)
+  - `toBrazilYMD(date)` — converte `Date` → `YYYY-MM-DD` em BRT
+  - `isoToBrazilYMD(iso)` — converte `paid_at` UTC do Supabase → data BRT
+  - `addDaysBR(ymd, n)` — soma dias retornando BRT
+  - `getMonthRangeBR()` — limites do mês corrente em BRT
+
+- **17 arquivos corrigidos** — todos os padrões `toISOString().split('T')[0]` e `new Date().getFullYear()/.getDate()` substituídos:
+  - **HIGH RISK:** `DashboardWidgets.tsx`, `useDashboardData.ts`, `CollectionDashboard.tsx`, `DailyCollectionView.tsx`, `AdminHome.tsx`, `useTopClientes.ts`
+  - **MEDIUM:** `InstallmentModals.tsx`, `InstallmentDetailFlow.tsx`, `ContractDetail.tsx`, `AdminContracts.tsx`
+  - **LOW:** `useDebtorFinance.ts`, `useInvestorMetrics.ts`, `useYieldMetrics.ts`, `QuickContractInput.tsx`, `ContractRenewalModal.tsx`, `SalaryDashboard.tsx`
+
+- **Removidos:** `getMonthRange()` hardcoded (com `BRAZIL_OFFSET_MS`) em `useDashboardData.ts`; `addDays()` local em `CollectionDashboard.tsx`
+
+- **BR-TZ-001** adicionada em `docs/business-rules/e-finance-br.md`
+
+**Grep de regressão:** 0 hits de `toISOString().split('T')[0]` ou `new Date().getFullYear()` em `components/` e `hooks/` após o fix.
+
+---
+
 ## [Não publicado] — 2026-03-19
 
 ### feat(typography): sistema tipográfico profissional (Stripe-inspired)

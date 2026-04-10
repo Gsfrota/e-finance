@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { getSupabase } from '../services/supabase';
 import { Investment, LoanInstallment } from '../types';
+import { getBrazilToday } from '../services/dateUtils';
 
 export interface ClienteScore {
   profileId: string;
@@ -140,8 +141,7 @@ export function useTopClientes(tenantId: string | undefined, companyId?: string 
       // Resolved = paid or partial (has a final status)
       const resolved = allInst.filter(i => i.status === 'paid' || i.status === 'partial');
       const overdue = allInst.filter(i => i.status === 'late' || i.status === 'pending').filter(i => {
-        const today = new Date().toISOString().split('T')[0];
-        return i.due_date < today;
+        return i.due_date < getBrazilToday();
       });
 
       // Paid on time: paid_at <= due_date (or same day)

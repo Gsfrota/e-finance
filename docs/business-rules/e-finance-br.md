@@ -735,6 +735,15 @@ Categorias:
 - **Tabelas:** `bot_tenant_config`
 - **Status:** ativa
 
+### BR-TZ-001: Timezone operacional do frontend
+- **Descrição:** Toda computação de "hoje" e comparação de datas no frontend deve usar o fuso horário `America/Sao_Paulo`. Proibido usar `new Date().toISOString().split('T')[0]` para obter a data atual (retorna UTC — às 21h BRT já é dia seguinte em UTC). Proibido usar `new Date().getFullYear()/.getMonth()/.getDate()` sem timezone explícito.
+- **Condição:** Qualquer hook, componente ou serviço que compare `due_date`, `paid_at`, ou compute "hoje"
+- **Resultado:** Usar exclusivamente `services/dateUtils.ts`: `getBrazilToday()` para "hoje", `toBrazilYMD(date)` para converter Date, `isoToBrazilYMD(iso)` para converter timestamps do Supabase, `addDaysBR(ymd, n)` para somar dias, `getMonthRangeBR()` para limites de mês. Internamente usam `Intl.DateTimeFormat` com timezone `America/Sao_Paulo`.
+- **Exceções:** Timestamps enviados ao Supabase (`paid_at`, `created_at`, `updated_at`) continuam em UTC/ISO — a conversão é apenas para exibição e comparação de datas no frontend. A função de banco `update_overdue_installments` usa `CURRENT_DATE` (PostgreSQL) — o cron está configurado para rodar às 03:05 UTC (00:05 BRT), momento em que UTC e BRT concordam no dia.
+- **Tabelas:** N/A — regra de código frontend
+- **Status:** ativa
+- **Stories:** fix timezone bug 2026-04-10
+
 ---
 
 ## Backlog de BRs a Formalizar

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Zap, X, Loader2, CheckCircle2, AlertTriangle, User, UserPlus, ArrowLeft, Pencil, Mail, Phone, Key, History, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { useCompanyContext } from '../services/companyScope';
+import { getBrazilToday } from '../services/dateUtils';
 
 interface ParsedContract {
   debtor_name: string;
@@ -213,7 +214,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
         p_frequency:          parsed.frequency,
         p_due_day:            parsed.frequency === 'monthly' ? parsed.due_day : null,
         p_weekday:            parsed.frequency === 'weekly' ? 1 : null,
-        p_start_date:         parsed.frequency === 'daily' ? new Date().toISOString().split('T')[0] : null,
+        p_start_date:         parsed.frequency === 'daily' ? getBrazilToday() : null,
         p_calculation_mode:   'manual',
         p_company_id:         activeCompanyId || null,
       }));

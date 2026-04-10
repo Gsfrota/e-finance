@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Investment, LoanInstallment } from '../types';
+import { getBrazilToday, isoToBrazilYMD } from '../services/dateUtils';
 
 // --- TYPES ---
 
@@ -94,20 +95,22 @@ function filterByPeriod<T extends { paid_at?: string }>(
   period: YieldPeriod
 ): T[] {
   if (period === 'all') return items;
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+  const todayYMD = getBrazilToday();
+  const [year, monthStr] = todayYMD.split('-');
+  const yearNum = Number(year);
+  const monthNum = Number(monthStr); // 1-based
 
   return items.filter((item) => {
     if (!item.paid_at) return false;
-    const d = new Date(item.paid_at);
-    if (period === 'month') return d.getFullYear() === year && d.getMonth() === month;
+    const paidYMD = isoToBrazilYMD(item.paid_at);
+    const [pYear, pMonth] = paidYMD.split('-').map(Number);
+    if (period === 'month') return pYear === yearNum && pMonth === monthNum;
     if (period === 'last_month') {
-      const prevMonth = month === 0 ? 11 : month - 1;
-      const prevYear = month === 0 ? year - 1 : year;
-      return d.getFullYear() === prevYear && d.getMonth() === prevMonth;
+      const prevMonth = monthNum === 1 ? 12 : monthNum - 1;
+      const prevYear = monthNum === 1 ? yearNum - 1 : yearNum;
+      return pYear === prevYear && pMonth === prevMonth;
     }
-    if (period === 'year') return d.getFullYear() === year;
+    if (period === 'year') return pYear === yearNum;
     return true;
   });
 }

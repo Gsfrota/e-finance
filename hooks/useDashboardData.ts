@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { getSupabase, withRetry } from '../services/supabase';
 import { getCached, setCached } from '../services/cache';
 import { Investment, LoanInstallment, AdminDashboardStats, DashboardKPIs } from '../types';
+import { getBrazilToday, isoToBrazilYMD, getMonthRangeBR } from '../services/dateUtils';
 
 // --- TYPES ---
 
@@ -27,28 +28,6 @@ const normalizeNumber = (val: any): number => {
   return isNaN(num) ? 0 : num;
 };
 
-const getMonthRange = () => {
-  // Brasília = UTC-3. Midnight Brasília = 03:00 UTC.
-  // Shift "now" back 3h to get the correct local month/year in Brazil.
-  const BRAZIL_OFFSET_MS = 3 * 60 * 60 * 1000;
-  const now = new Date();
-  const brazilNow = new Date(now.getTime() - BRAZIL_OFFSET_MS);
-  const year = brazilNow.getUTCFullYear();
-  const month = brazilNow.getUTCMonth();
-
-  // Month boundaries anchored at Brazil midnight (= 03:00 UTC)
-  const start = new Date(Date.UTC(year, month, 1, 3, 0, 0));
-  const end = new Date(Date.UTC(year, month + 1, 1, 3, 0, 0));
-  const startYMD = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-  const endYMD = new Date(Date.UTC(year, month + 1, 1)).toISOString().split('T')[0];
-
-  return {
-    startISO: start.toISOString(),
-    endISO: end.toISOString(),
-    startYMD,
-    endYMD
-  };
-};
 
 const calculateOutstanding = (inst: any): number => {
   const total = normalizeNumber(inst.amount_total);
@@ -86,8 +65,7 @@ const buildKPIs = (
         receivedTodayCount: 0,
     };
 
-    const _now = new Date();
-    const todayYMD = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
+    const todayYMD = getBrazilToday();
     const overdueContractIds = new Set<number>();
 
     // Map para acesso rápido aos dados de origem do contrato
@@ -165,8 +143,7 @@ const buildKPIs = (
         }
 
         if (inst.paid_at) {
-            const _p = new Date(inst.paid_at);
-            const _paidYMD = `${_p.getFullYear()}-${String(_p.getMonth() + 1).padStart(2, '0')}-${String(_p.getDate()).padStart(2, '0')}`;
+            const _paidYMD = isoToBrazilYMD(inst.paid_at);
             if (_paidYMD === todayYMD && amountPaid > 0) {
                 kpis.receivedToday += amountPaid;
                 kpis.receivedTodayCount++;
@@ -299,9 +276,8 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
     }
 
     try {
-      const monthRange = getMonthRange();
-      const _now2 = new Date();
-      const todayYMD = `${_now2.getFullYear()}-${String(_now2.getMonth() + 1).padStart(2, '0')}-${String(_now2.getDate()).padStart(2, '0')}`;
+      const monthRange = getMonthRangeBR();
+      const todayYMD = getBrazilToday();
 
       // 1. Investimentos (filtro explícito de tenant_id para defesa em profundidade)
       const investmentsQuery = supabase

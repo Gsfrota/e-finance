@@ -3,6 +3,7 @@ import { ArrowLeft, Loader2, CheckCircle2, RotateCcw, AlertCircle } from 'lucide
 import { getSupabase, parseSupabaseError } from '../services/supabase';
 import { Investment } from '../types';
 import { useCompanyContext } from '../services/companyScope';
+import { getBrazilToday, toBrazilYMD } from '../services/dateUtils';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ const calculateInstallmentDates = (
     dates.push(d);
   }
 
-  return dates.map((d) => d.toISOString().split('T')[0]);
+  return dates.map((d) => toBrazilYMD(d));
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -82,7 +83,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
     frequency: 'monthly',
     due_day: 10,
     weekday: 1,
-    start_date: new Date().toISOString().split('T')[0],
+    start_date: getBrazilToday(),
     calculation_mode: 'auto',
     installment_value: 0,
     bullet_principal_mode: 'together',
@@ -104,7 +105,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
       frequency: (sourceContract.frequency as RenewalForm['frequency']) || 'monthly',
       due_day: Number(sourceContract.due_day) || 10,
       weekday: Number(sourceContract.weekday) || 1,
-      start_date: new Date().toISOString().split('T')[0],
+      start_date: getBrazilToday(),
       calculation_mode: sourceContract.calculation_mode === 'interest_only' ? 'interest_only' : 'auto',
       installment_value: 0,
       bullet_principal_mode: sourceContract.bullet_principal_mode || 'together',
@@ -229,7 +230,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
             tenant_id: sourceContract.tenant_id,
             company_id: activeCompanyId || sourceContract.company_id || null,
             number: count + 1,
-            due_date: lastDate.toISOString().split('T')[0],
+            due_date: toBrazilYMD(lastDate),
             amount_principal: principal,
             amount_interest: 0,
             amount_total: principal,

@@ -12,6 +12,7 @@ import {
 
 type SurplusAction = 'next' | 'last' | 'spread' | 'pay_late';
 import { LoanInstallment, Tenant } from '../types';
+import { getBrazilToday, addDaysBR } from '../services/dateUtils';
 
 interface ActionSummary {
   type: 'exact' | 'partial' | 'surplus';
@@ -496,7 +497,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
   const [missDeferAction, setMissDeferAction] = useState<'postpone' | 'last' | 'new'>('postpone');
 
   // Data real do pagamento
-  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate] = useState(() => getBrazilToday());
 
   // Pay-after-miss state
   const [useMissedInterest, setUseMissedInterest]   = useState(false);
@@ -575,11 +576,10 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
       else { setAmount(outstanding.toFixed(2)); }
     } else if (action.type === 'refinance') {
       setAmount('0.00');
-      const d = new Date(); d.setDate(d.getDate() + 30);
-      setNewDate(d.toISOString().split('T')[0]);
+      setNewDate(addDaysBR(getBrazilToday(), 30));
     } else if (action.type === 'edit') {
       setTotalAmount(installment.amount_total.toString());
-      setDueDate(installment.due_date ? new Date(installment.due_date).toISOString().split('T')[0] : '');
+      setDueDate(installment.due_date ?? '');
     } else { setAmount(''); }
   }, [action]);
 
@@ -1082,7 +1082,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     const outstanding = calcOutstanding(installment);
     const minPayment = Math.max(1.00, outstanding * 0.01);
     if (val < minPayment) { setError(`Valor mínimo de entrada: ${fmtMoney(minPayment)} (1% do saldo devedor).`); return; }
-    const today = new Date().toISOString().split('T')[0];
+    const today = getBrazilToday();
     if (newDate <= today) { setError('A nova data de vencimento deve ser uma data futura.'); return; }
     setLoading(true); setError(null);
     const supabase = getSupabase(); if (!supabase) return;
@@ -1113,7 +1113,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     if (isNaN(val) || val <= 0) { setError('Valor inválido.'); return; }
     if (!dueDate) { setError('Data inválida.'); return; }
     // BR-PAG-013: data não pode ser passado; delta máximo de 50%
-    const today = new Date().toISOString().split('T')[0];
+    const today = getBrazilToday();
     if (dueDate < today) { setError('A data de vencimento não pode ser uma data passada.'); return; }
     const original = normalizeNum(installment.amount_total);
     if (original > 0 && Math.abs(val - original) / original > 0.5) {
