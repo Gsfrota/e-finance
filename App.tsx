@@ -611,6 +611,9 @@ const App: React.FC = () => {
       ?? null;
 
     if (canUseAggregateCompanyScope(nextTenant, nextProfile)) {
+      // Com apenas 1 empresa, modo agregado e empresa específica são equivalentes.
+      // Preferir a empresa diretamente evita que views operacionais fiquem sem activeCompanyId.
+      if (availableCompanies.length <= 1) return primaryCompanyId;
       return validStoredScope ?? 'all';
     }
 
