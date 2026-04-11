@@ -99,11 +99,10 @@ jobs:
         run: >
           npx playwright test e2e/e2e-full/smoke.spec.ts
           --project=chromium
-          --reporter=list,json
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/tier1-results.json
+          PLAYWRIGHT_JSON_TIER: tier1
 
       - name: "Tier 2: Core business tests (login, admin, contratos, pagamentos)"
         id: tier2
@@ -121,11 +120,10 @@ jobs:
           e2e/payment/
           --project=chromium
           --project=no-auth
-          --reporter=list,json
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/tier2-results.json
+          PLAYWRIGHT_JSON_TIER: tier2
 
       - name: Relatório Telegram (resultados + screenshots)
         if: always()

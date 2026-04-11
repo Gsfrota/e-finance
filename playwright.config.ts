@@ -6,6 +6,12 @@ export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
   retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI
+    ? [
+        ['list'],
+        ['json', { outputFile: `test-results/${process.env.PLAYWRIGHT_JSON_TIER ?? 'ci'}-results.json` }],
+      ]
+    : [['list']],
   use: {
     baseURL: 'http://localhost:4173',
     trace: 'on-first-retry',
