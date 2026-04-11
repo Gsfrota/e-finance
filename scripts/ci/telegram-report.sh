@@ -232,8 +232,44 @@ fi
 
 echo "[telegram-report] Total de screenshots: ${#all_screenshots[@]}"
 
+# ─── Função: caption legível por screenshot ───────────────────────────────
+# Extrai nome do teste a partir do diretório do Playwright.
+# Formato do diretório: {spec-path}-{Test Title}-{browser}
+# Exemplo: e2e-full-contract-creation-CNT-02-Contrato-modo-Auto-chromium
+make_caption() {
+  local shot="$1"
+  local dir
+  dir=$(basename "$(dirname "$shot")")
+
+  # Remove sufixo de projeto (-chromium, -no-auth, etc.)
+  local label
+  label=$(echo "$dir" \
+    | sed 's/-chromium$//' \
+    | sed 's/-no-auth$//' \
+    | sed 's/-chromium-investor$//' \
+    | sed 's/-chromium-debtor$//' \
+    | sed 's/-webkit$//' \
+    | sed 's/-firefox$//')
+
+  # Remove hash de unicidade do Playwright (ex: -a1b2c3d4-texto)
+  label=$(echo "$label" | sed 's/-[0-9a-f]\{5,\}-[^-]*$//')
+
+  # Converte hífens em espaços e limpa espaços duplos
+  label=$(echo "$label" | tr '-' ' ' | tr -s ' ' | sed 's/^ *//;s/ *$//')
+
+  # Trunca a 120 chars para caber no caption do Telegram (limite 1024)
+  if [[ ${#label} -gt 120 ]]; then
+    label="${label:0:117}..."
+  fi
+
+  local icon="✅"
+  [[ "$shot" == *"test-failed"* ]] && icon="❌"
+
+  echo "${icon} ${label}"
+}
+
 # ─── Enviar em lotes de 10 via sendMediaGroup ─────────────────────────────
-# sendMediaGroup aceita até 10 itens por requisição
+# sendMediaGroup aceita até 10 itens por requisição; cada foto tem caption próprio.
 BATCH_SIZE=10
 total_screenshots=${#all_screenshots[@]}
 sent_total=0
@@ -252,30 +288,14 @@ for (( i=0; i<total_screenshots; i+=BATCH_SIZE )); do
     shot="${batch[$j]}"
     attach_name="photo${j}"
 
-    # Caption apenas no primeiro item do lote (Telegram mostra no álbum)
+    # Caption individual por foto — indica o que o teste está verificando
+    caption=$(make_caption "$shot")
+    caption_escaped=$(echo "$caption" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read())[1:-1])')
+
     if [[ $j -eq 0 ]]; then
-      # Extrair nome legível do diretório
-      dir_name=$(basename "$(dirname "$shot")" \
-        | sed 's/-chromium$//' \
-        | sed 's/-no-auth$//' \
-        | sed 's/-[0-9a-f]\{8\}-.*$//' \
-        | tr '-' ' ')
-      is_failure="false"
-      [[ "$shot" == *"test-failed"* ]] && is_failure="true"
-      if [[ "$is_failure" == "true" ]]; then
-        icon="❌"
-      else
-        icon="✅"
-      fi
-      caption="${icon} Lote ${batch_num}/${batch_num} | \`${SHA_SHORT}\`"
-      # Escapar aspas para JSON
-      caption_escaped=$(echo "$caption" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read())[1:-1])')
-      media_json+="{\"type\":\"photo\",\"media\":\"attach://${attach_name}\",\"caption\":\"${caption_escaped}\",\"parse_mode\":\"Markdown\"}"
+      media_json+="{\"type\":\"photo\",\"media\":\"attach://${attach_name}\",\"caption\":\"${caption_escaped}\"}"
     else
-      # Sem caption nos demais — apenas icon no nome do attach
-      is_failure="false"
-      [[ "$shot" == *"test-failed"* ]] && is_failure="true"
-      media_json+=",{\"type\":\"photo\",\"media\":\"attach://${attach_name}\"}"
+      media_json+=",{\"type\":\"photo\",\"media\":\"attach://${attach_name}\",\"caption\":\"${caption_escaped}\"}"
     fi
 
     curl_files+=(-F "${attach_name}=@${shot}")
