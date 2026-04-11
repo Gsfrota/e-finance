@@ -146,11 +146,14 @@ test.describe('Suite Contract Creation — Criação de Contratos', () => {
 
     await fillBasicFields(page);
 
-    // Tentar avançar ou submeter
+    // Tentar avançar ou submeter (só clica se o botão estiver habilitado)
     const nextBtn = page.getByRole('button', { name: /Próximo|Avançar|Criar Contrato|Salvar/i });
     if (await nextBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await nextBtn.click();
-      await page.waitForTimeout(1_000);
+      const isEnabled = await nextBtn.isEnabled({ timeout: 500 }).catch(() => false);
+      if (isEnabled) {
+        await nextBtn.click();
+        await page.waitForTimeout(1_000);
+      }
     }
 
     // Sucesso: contrato criado ou passou para próximo step
@@ -237,10 +240,9 @@ test.describe('Suite Contract Creation — Criação de Contratos', () => {
     if (!opened) test.skip(true, 'Wizard não acessível');
     if (!(await isWizardOpen(page))) test.skip(true, 'Wizard não abriu');
 
-    // Frequência mensal deve ser o default — campo de dia deve estar visível
+    // Frequência mensal deve ser o default — o seletor de dia (select precedido de "Todo dia") deve estar visível
     await expect(
-      page.getByPlaceholder(/dia.*venc|Dia de Vencimento/i)
-        .or(page.locator('input[name="due_day"]')),
+      page.getByText('Todo dia').or(page.locator('select').first()),
     ).toBeVisible({ timeout: 5_000 });
   });
 
@@ -290,23 +292,27 @@ test.describe('Suite Contract Creation — Criação de Contratos', () => {
     if (!opened) test.skip(true, 'Wizard não acessível');
     if (!(await isWizardOpen(page))) test.skip(true, 'Wizard não abriu');
 
-    // Clica em cancelar ou no X
-    const cancelBtn = page.getByRole('button', { name: /Cancelar|Fechar|Voltar/i }).first();
-    const closeX = page.getByRole('button').filter({ has: page.locator('svg') }).first();
+    // O wizard tem um botão X no cabeçalho (ao lado do título "Novo Contrato")
+    // Estrutura: <div flex justify-between><div><h3>Novo Contrato</h3>…</div><button>X</button></div>
+    // Navegamos: h3 → pai (div com heading) → avô (div flex) → botão X
+    const xBtnInHeader = page.locator('h3', { hasText: 'Novo Contrato' }).locator('../..').getByRole('button').first();
 
-    if (await cancelBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await cancelBtn.click();
+    if (await xBtnInHeader.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await xBtnInHeader.click();
     } else {
-      await closeX.click();
+      // Fallback: botão Cancelar explícito (outras telas)
+      const cancelBtn = page.getByRole('button', { name: /^Cancelar$/i }).first();
+      if (await cancelBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
+        await cancelBtn.click();
+      }
     }
 
-    // Wizard deve fechar — lista de contratos fica visível
+    // Wizard deve fechar — botão "Novo Contrato" da lista de contratos fica visível
     await expect(
-      page.getByText(/Novo Contrato|lista|contratos/i)
-        .or(page.getByRole('button', { name: /Novo Contrato/i })),
+      page.getByRole('button', { name: 'Novo Contrato' }),
     ).toBeVisible({ timeout: 6_000 });
 
-    // O wizard em si não deve mais estar visível
+    // O conteúdo do wizard não deve mais estar visível
     await expect(
       page.getByText('Valor Principal'),
     ).not.toBeVisible();
@@ -320,10 +326,14 @@ test.describe('Suite Contract Creation — Criação de Contratos', () => {
     // Preenche campos numéricos mas não seleciona investidor
     await fillBasicFields(page);
 
-    // Tenta avançar
+    // O botão "Próximo" deve estar desabilitado quando não há investidor selecionado
     const nextBtn = page.getByRole('button', { name: /Próximo|Avançar|Criar Contrato|Salvar/i });
     if (await nextBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await nextBtn.click();
+      // Só clica se estiver habilitado (não deveria estar — essa é a validação do teste)
+      const isEnabled = await nextBtn.isEnabled({ timeout: 500 }).catch(() => false);
+      if (isEnabled) {
+        await nextBtn.click();
+      }
     }
 
     // Deve ficar no wizard (não avança)
