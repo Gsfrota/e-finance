@@ -120,30 +120,37 @@ test.describe('Pagamentos Avançados — Juros, Reversão, Override e Falta', ()
 
   // ─── PAG-ADV-02: Surplus multi-parcela → label plural ───────────────────────
 
-  test('PAG-ADV-02 [BR-PAG-010]: Surplus cobrindo múltiplas parcelas exibe label plural', async ({ page }) => {
+  test('PAG-ADV-02 [BR-PAG-010]: Surplus cobrindo múltiplas parcelas chega ao Step 2', async ({ page }) => {
     if (!testData) return;
-    await goToParcelasTab(page, testData.companyId);
 
-    // Abre a parcela #3 (pendente, hoje) e paga valor que cobre #3 + #4 + #5
-    const opened = await openPaymentModal(page, testData.currentInstallmentId);
-    if (!opened) { test.skip(true, 'Modal não abriu'); return; }
-    await waitForPaymentModal(page);
+    // Cria dados frescos para não depender do estado dos dados compartilhados
+    const freshData = await createTestPaymentData(page);
+    if (!freshData) { test.skip(true, 'Setup falhou'); return; }
 
-    // Paga 800 (cobre 200×3 = #3 + #4 + #5, surplus de 600 sobre as demais)
-    await fillAmount(page, '800');
-    await submitStep1(page);
-    await page.waitForTimeout(800);
+    try {
+      await goToParcelasTab(page, freshData.companyId);
 
-    // Step 2 deve mostrar "parcelas" (plural) no preview de excedente
-    const step2 = page.getByText(/parcelas|próximas parcelas/i).first();
-    const pluralVisible = await step2.isVisible({ timeout: 5_000 }).catch(() => false);
+      // Abre parcela #3 (pendente, hoje)
+      const opened = await openPaymentModal(page, freshData.currentInstallmentId);
+      expect(opened, 'Modal não abriu').toBe(true);
+      await waitForPaymentModal(page);
 
-    // Fecha modal sem confirmar (protege dados)
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
+      // Paga 600 → cobre parcela #3 (200) + excedente de 400 que atinge #4 e #5
+      await fillAmount(page, '600');
 
-    // Aceita se apareceu label plural OU se ficou no step 1 (sem parcelas suficientes)
-    expect(pluralVisible || true).toBeTruthy();
+      // Alerta de excedente deve aparecer no Step 1
+      await expect(page.getByText('Excedente').first()).toBeVisible({ timeout: 3_000 });
+
+      // Avança para Step 2
+      await submitStep1(page);
+
+      // Step 2 deve estar visível com opções de destino do excedente
+      await expect(
+        page.getByText(/Próxima parcela|Última parcela|parcelas/i).first()
+      ).toBeVisible({ timeout: 6_000 });
+    } finally {
+      await deleteTestPaymentData(page, freshData.investmentId);
+    }
   });
 
   // ─── PAG-ADV-07: Audit trail após pagamento ─────────────────────────────────
@@ -233,11 +240,12 @@ test.describe('Pagamentos Avançados — Juros, Reversão, Override e Falta', ()
       if (canRevert) {
         await reverterBtn.click();
         await page.waitForTimeout(1_000);
-        // Deve aparecer alguma confirmação ou a parcela volta a pendente
-        const confirmEl = page.getByText(/revertido|pendente|erro/i).first();
-        const appeared = await confirmEl.isVisible({ timeout: 8_000 }).catch(() => false);
-        // Aceita qualquer feedback visível (sucesso ou estado pendente)
-        expect(appeared || true).toBeTruthy();
+        // Deve aparecer feedback de reversão ou parcela volta a pendente
+        const feedbackEl = page.getByText(/revertido|pendente|Pendente/i).first();
+        await expect(feedbackEl).toBeVisible({ timeout: 8_000 });
+      } else {
+        // Botão Reverter não encontrado — aceita skip
+        test.skip(true, 'Botão Reverter não disponível neste estado');
       }
     } finally {
       await deleteTestPaymentData(page, freshData.investmentId);
@@ -252,40 +260,29 @@ test.describe('Pagamentos Avançados — Juros, Reversão, Override e Falta', ()
     if (!lateData) { test.skip(true, 'Setup falhou'); return; }
 
     try {
-      // Aguarda processamento (o cron mark late pode não ter rodado ainda)
-      // Verifica diretamente o status via REST após navegar para a view
-      // que aciona o hook de atualização de atraso
+      // Navega para a aba parcelas — o hook de update_overdue_installments
+      // é acionado via RPC quando o componente carrega
       await goToParcelasTab(page);
-
-      // Aguarda a UI carregar
-      await page.waitForTimeout(2_000);
+      await page.waitForTimeout(3_000); // aguarda cron/RPC processar
 
       // Verifica status via REST
       const ctx = await getCtx(page);
-      if (ctx) {
-        const rows = await restCall(
-          ctx,
-          `loan_installments?id=eq.${lateData.installmentId}&select=status`,
-        );
-        const status = rows?.[0]?.status;
-        // Status pode ser 'late' (se cron rodou) ou 'pending' (aguardando cron)
-        // O teste valida que o fixture foi criado corretamente com due_date no passado
-        expect(['late', 'pending']).toContain(status);
+      if (!ctx) { test.skip(true, 'Contexto Supabase indisponível'); return; }
 
-        // Se o status ainda é pending, tenta acionar a função de marcação
-        if (status === 'pending') {
-          // Verifica que a due_date está de fato no passado
-          const instRows = await restCall(
-            ctx,
-            `loan_installments?id=eq.${lateData.installmentId}&select=due_date`,
-          );
-          const dueDate = instRows?.[0]?.due_date;
-          if (dueDate) {
-            const today = new Date().toISOString().split('T')[0];
-            expect(dueDate < today).toBeTruthy();
-          }
-        }
-      }
+      const rows = await restCall(
+        ctx,
+        `loan_installments?id=eq.${lateData.installmentId}&select=status,due_date`,
+      );
+      const inst = rows?.[0];
+      expect(inst, 'Parcela não encontrada via REST').toBeTruthy();
+
+      // due_date deve estar no passado (fixture correto)
+      const today = new Date().toISOString().split('T')[0];
+      expect(inst.due_date < today, `due_date ${inst.due_date} deve ser anterior a hoje`).toBeTruthy();
+
+      // Status deve ser 'late' (cron marcou) ou 'pending' (cron ainda não rodou)
+      // Ambos são válidos — o importante é que a data está no passado
+      expect(['late', 'pending']).toContain(inst.status);
     } finally {
       if (lateData) {
         const ctx = await getCtx(page);
