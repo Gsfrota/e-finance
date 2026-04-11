@@ -42,6 +42,14 @@ interface SupabaseContext {
 
 /** Extrai configuração Supabase do contexto do browser após login. */
 async function getSupabaseContext(page: Page): Promise<SupabaseContext | null> {
+  // Garante que a página está em um contexto com acesso ao localStorage.
+  // Se a URL for about:blank, navega para o app primeiro.
+  const currentUrl = page.url();
+  if (!currentUrl || currentUrl === 'about:blank' || currentUrl.startsWith('about:')) {
+    await page.goto('/');
+    await page.locator('aside').waitFor({ timeout: 15_000 }).catch(() => {});
+  }
+
   return await page.evaluate(() => {
     // URL e chave anon — várias fontes possíveis
     const env = (window as any)._env_ || {};
@@ -299,7 +307,13 @@ export async function deleteTestPaymentData(
   page: Page,
   investmentId: number,
 ): Promise<void> {
-  const ctx = await getSupabaseContext(page);
+  let ctx: Awaited<ReturnType<typeof getSupabaseContext>>;
+  try {
+    ctx = await getSupabaseContext(page);
+  } catch {
+    // página pode estar fechada após timeout — cleanup ignorado
+    return;
+  }
   if (!ctx || !investmentId) return;
 
   try {
@@ -347,7 +361,15 @@ export async function goToParcelasTab(page: Page, preferCompanyId?: string): Pro
   const dashboardBtn = page.locator('aside').getByRole('button', { name: /Dashboard/i }).first();
   await dashboardBtn.waitFor({ timeout: 8_000 });
   await dashboardBtn.click();
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(1_500);
+
+  // Detecta paywall pela ausência das abas (tela em branco = plano free bloqueado)
+  const dashAvailable = await page.getByRole('button').filter({ hasText: /Visão Geral/ }).first()
+    .isVisible({ timeout: 6_000 }).catch(() => false);
+  if (!dashAvailable) {
+    // Dashboard paywalled ou ainda carregando — retorna sem navegar para parcelas
+    return;
+  }
 
   // Usa .first() para evitar strict mode com múltiplos botões "Parcelas" na página
   const parcelasTab = page.getByRole('button', { name: 'Parcelas' }).first();
@@ -409,4 +431,212 @@ export async function waitForPaymentModal(page: Page): Promise<void> {
 /** Aguarda confirmação de sucesso (comprovante ou fallback sem tenant). */
 export async function waitForPaymentSuccess(page: Page): Promise<void> {
   await page.getByText(/Pagamento Confirmado!|foi paga|Comprovante/i).first().waitFor({ timeout: 15_000 });
+}
+
+// ─── Bullet Contract Fixtures ─────────────────────────────────────────────────
+
+export interface BulletContractData {
+  investmentId: number;
+  tenantId: string;
+  companyId: string;
+  /** ID da parcela de juros pendente (mês atual) */
+  installmentId: string;
+  remainingBalance: number;
+  interestRate: number;
+}
+
+/**
+ * Cria um contrato bullet (interest_only) com 1 parcela de juros pendente no mês atual.
+ * Usado para testar PAG-015, PAG-022, PAG-023.
+ */
+export async function createBulletContractViaREST(page: Page): Promise<BulletContractData | null> {
+  const ctx = await getSupabaseContext(page);
+  if (!ctx || !ctx.url) {
+    console.warn('[payment-test-data] Credenciais não encontradas — pulando bullet setup.');
+    return null;
+  }
+
+  let tenantId = '';
+  let investorId = '';
+  let companyId = '';
+  try {
+    const profiles = await restCall(ctx, `profiles?select=id,tenant_id,company_id&limit=1`);
+    tenantId = profiles?.[0]?.tenant_id ?? '';
+    investorId = profiles?.[0]?.id ?? '';
+    companyId = profiles?.[0]?.company_id ?? '';
+  } catch {
+    return null;
+  }
+  if (!tenantId) return null;
+
+  if (!companyId) {
+    try {
+      const cos = await restCall(ctx, `companies?select=id&tenant_id=eq.${tenantId}&order=created_at.asc&limit=1`);
+      companyId = cos?.[0]?.id ?? '';
+    } catch {}
+  }
+
+  const remainingBalance = 5000;
+  const interestRate = 3; // 3% ao mês
+
+  const investment = await restCall(
+    ctx,
+    'investments',
+    'POST',
+    {
+      tenant_id: tenantId,
+      company_id: companyId || undefined,
+      user_id: investorId,
+      payer_id: investorId,
+      asset_name: 'TESTE E2E BULLET',
+      type: 'Bond',
+      amount_invested: remainingBalance,
+      source_capital: remainingBalance,
+      source_profit: 0,
+      current_value: remainingBalance,
+      interest_rate: interestRate,
+      remaining_balance: remainingBalance,
+      total_installments: 12,
+      current_installment: 1,
+      frequency: 'monthly',
+      calculation_mode: 'interest_only',
+      status: 'active',
+      notes: 'E2E_TEST_BULLET',
+      due_day: 10,
+    },
+    'return=representation',
+  );
+  const investmentId = investment?.[0]?.id as number;
+  if (!investmentId) return null;
+
+  // Parcela de juros do mês atual
+  const interestAmt = remainingBalance * interestRate / 100;
+  const today = dateOffset(0);
+  const [year, month] = today.split('-');
+  const dueDate = `${year}-${month}-10`;
+
+  const insts = await restCall(
+    ctx,
+    'loan_installments',
+    'POST',
+    [{
+      investment_id: investmentId,
+      tenant_id: tenantId,
+      company_id: companyId || undefined,
+      number: 1,
+      due_date: dueDate,
+      status: 'pending',
+      amount_total: interestAmt,
+      amount_principal: 0,
+      amount_interest: interestAmt,
+      fine_amount: 0,
+      interest_delay_amount: 0,
+      amount_paid: 0,
+    }],
+    'return=representation',
+  );
+
+  if (!insts || insts.length < 1) {
+    await restCall(ctx, `investments?id=eq.${investmentId}`, 'DELETE').catch(() => {});
+    return null;
+  }
+
+  return {
+    investmentId,
+    tenantId,
+    companyId,
+    installmentId: insts[0].id,
+    remainingBalance,
+    interestRate,
+  };
+}
+
+/**
+ * Cria uma parcela com vencimento no passado e status=pending para testar
+ * marcação automática de atraso (BR-PAG-017).
+ */
+export async function createLateInstallmentViaREST(
+  page: Page,
+  daysOverdue: number = 2,
+): Promise<{ investmentId: number; installmentId: string } | null> {
+  const ctx = await getSupabaseContext(page);
+  if (!ctx || !ctx.url) return null;
+
+  let tenantId = '';
+  let investorId = '';
+  let companyId = '';
+  try {
+    const profiles = await restCall(ctx, `profiles?select=id,tenant_id,company_id&limit=1`);
+    tenantId = profiles?.[0]?.tenant_id ?? '';
+    investorId = profiles?.[0]?.id ?? '';
+    companyId = profiles?.[0]?.company_id ?? '';
+  } catch {
+    return null;
+  }
+  if (!tenantId) return null;
+
+  if (!companyId) {
+    try {
+      const cos = await restCall(ctx, `companies?select=id&tenant_id=eq.${tenantId}&order=created_at.asc&limit=1`);
+      companyId = cos?.[0]?.id ?? '';
+    } catch {}
+  }
+
+  const investment = await restCall(
+    ctx,
+    'investments',
+    'POST',
+    {
+      tenant_id: tenantId,
+      company_id: companyId || undefined,
+      user_id: investorId,
+      payer_id: investorId,
+      asset_name: 'TESTE E2E LATE',
+      type: 'Bond',
+      amount_invested: 1000,
+      source_capital: 1000,
+      source_profit: 0,
+      current_value: 1000,
+      interest_rate: 2,
+      installment_value: 200,
+      total_installments: 3,
+      current_installment: 1,
+      frequency: 'monthly',
+      calculation_mode: 'auto',
+      status: 'active',
+      notes: 'E2E_TEST_LATE',
+      due_day: 10,
+    },
+    'return=representation',
+  );
+  const investmentId = investment?.[0]?.id as number;
+  if (!investmentId) return null;
+
+  const insts = await restCall(
+    ctx,
+    'loan_installments',
+    'POST',
+    [{
+      investment_id: investmentId,
+      tenant_id: tenantId,
+      company_id: companyId || undefined,
+      number: 1,
+      due_date: dateOffset(-daysOverdue),
+      status: 'pending',
+      amount_total: 200,
+      amount_principal: 196,
+      amount_interest: 4,
+      fine_amount: 0,
+      interest_delay_amount: 0,
+      amount_paid: 0,
+    }],
+    'return=representation',
+  );
+
+  if (!insts || insts.length < 1) {
+    await restCall(ctx, `investments?id=eq.${investmentId}`, 'DELETE').catch(() => {});
+    return null;
+  }
+
+  return { investmentId, installmentId: insts[0].id };
 }

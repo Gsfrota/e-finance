@@ -27,10 +27,11 @@ const INVALID_CPF = TEST_CPFS.invalid;
 function generateValidCpf(seed: number): string {
   const n = String(seed % 1000000000).padStart(9, '0');
   const d = n.split('').map(Number);
-  const v1 = (11 - ((d[0]*10 + d[1]*9 + d[2]*8 + d[3]*7 + d[4]*6 + d[5]*5 + d[6]*4 + d[7]*3 + d[8]*2) % 11)) % 11;
-  const dig1 = v1 < 2 ? 0 : v1;
-  const v2 = (11 - ((d[0]*11 + d[1]*10 + d[2]*9 + d[3]*8 + d[4]*7 + d[5]*6 + d[6]*5 + d[7]*4 + d[8]*3 + dig1*2) % 11)) % 11;
-  const dig2 = v2 < 2 ? 0 : v2;
+  // Algoritmo padrão: remainder < 2 → dígito = 0, senão dígito = 11 - remainder
+  const r1 = (d[0]*10 + d[1]*9 + d[2]*8 + d[3]*7 + d[4]*6 + d[5]*5 + d[6]*4 + d[7]*3 + d[8]*2) % 11;
+  const dig1 = r1 < 2 ? 0 : 11 - r1;
+  const r2 = (d[0]*11 + d[1]*10 + d[2]*9 + d[3]*8 + d[4]*7 + d[5]*6 + d[6]*5 + d[7]*4 + d[8]*3 + dig1*2) % 11;
+  const dig2 = r2 < 2 ? 0 : 11 - r2;
   return `${n.slice(0,3)}.${n.slice(3,6)}.${n.slice(6,9)}-${dig1}${dig2}`;
 }
 
@@ -215,7 +216,7 @@ test.describe('Suite Client Management — Clientes e Convites', () => {
 
     // Deve abrir view de edição ou modal com nome do usuário
     await expect(
-      page.getByPlaceholder('Nome Completo').or(page.getByText(/Editar|Perfil/i)),
+      page.getByPlaceholder('Nome Completo').or(page.getByText(/Editar|Perfil/i)).first(),
     ).toBeVisible({ timeout: 6_000 });
   });
 });

@@ -1,4 +1,7 @@
 /**
+ * @deprecated Coberto por e2e/payment/installment-payment.spec.ts (canônico).
+ * Este arquivo foi excluído do testIgnore no playwright.config.ts.
+ *
  * Suite Payment Flows — E2E Full
  *
  * Testa o ciclo completo de pagamento: criar contrato com parcelas via REST,
@@ -31,6 +34,7 @@ import {
   submitPaymentStep1,
   submitPaymentStep2,
   openFirstPaymentModal,
+  isDashboardPaywalled,
 } from '../fixtures/e2e-test-helpers';
 import {
   createTestPaymentData,
@@ -45,6 +49,19 @@ import {
 
 test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
   let testData: TestPaymentData | null = null;
+
+  test.beforeEach(async ({ page }) => {
+    // Detecta paywall: Dashboard bloqueado em plano free → skip todos os testes da suite
+    await page.goto('/');
+    await page.locator('aside').waitFor({ timeout: 12_000 });
+    const dashBtn = page.locator('aside').getByRole('button', { name: /Dashboard/i }).first();
+    await dashBtn.click();
+    const dashAvailable = await page.getByRole('button').filter({ hasText: /Visão Geral/ }).first()
+      .isVisible({ timeout: 6_000 }).catch(() => false);
+    if (!dashAvailable) {
+      test.skip(true, 'Dashboard não acessível — tenant em plano free sem trial ativo');
+    }
+  });
 
   test.beforeAll(async ({ browser }) => {
     const context = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
@@ -320,6 +337,18 @@ test.describe('Suite Payment Flows — Baixa de Parcelas', () => {
 
 test.describe('PAY-F — Comportamento UI do Modal (sem dados de teste)', () => {
 
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.locator('aside').waitFor({ timeout: 12_000 });
+    const dashBtn = page.locator('aside').getByRole('button', { name: /Dashboard/i }).first();
+    await dashBtn.click();
+    const dashAvailable = await page.getByRole('button').filter({ hasText: /Visão Geral/ }).first()
+      .isVisible({ timeout: 6_000 }).catch(() => false);
+    if (!dashAvailable) {
+      test.skip(true, 'Dashboard não acessível — tenant em plano free sem trial ativo');
+    }
+  });
+
   test('PAY-F-12: Modal fecha com X sem submeter pagamento', async ({ page }) => {
     await waitForApp(page);
     await navigateToDashboardTab(page, 'Parcelas');
@@ -341,6 +370,9 @@ test.describe('PAY-F — Comportamento UI do Modal (sem dados de teste)', () => 
   test('PAY-F-13: Alerta "Faltam" aparece em tempo real ao digitar valor parcial', async ({ page }) => {
     await waitForApp(page);
     await navigateToDashboardTab(page, 'Parcelas');
+    if (await isDashboardPaywalled(page)) {
+      test.skip(true, 'Dashboard bloqueado — tenant em plano free sem trial ativo');
+    }
 
     const opened = await openFirstPaymentModal(page);
     if (!opened) test.skip(true, 'Nenhuma parcela pendente disponível');
@@ -355,6 +387,9 @@ test.describe('PAY-F — Comportamento UI do Modal (sem dados de teste)', () => 
   test('PAY-F-14: Alerta "Excedente" aparece ao digitar valor acima do saldo', async ({ page }) => {
     await waitForApp(page);
     await navigateToDashboardTab(page, 'Parcelas');
+    if (await isDashboardPaywalled(page)) {
+      test.skip(true, 'Dashboard bloqueado — tenant em plano free sem trial ativo');
+    }
 
     const opened = await openFirstPaymentModal(page);
     if (!opened) test.skip(true, 'Nenhuma parcela pendente disponível');

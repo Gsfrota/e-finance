@@ -1,3 +1,7 @@
+/**
+ * @deprecated Coberto por e2e/e2e-full/role-views.spec.ts (canônico) e
+ * e2e/reports/investor-monthly.spec.ts. Este arquivo foi excluído via testIgnore.
+ */
 import { test, expect } from '@playwright/test';
 
 test('INV-01: Dashboard do investidor carrega métricas', async ({ page }) => {

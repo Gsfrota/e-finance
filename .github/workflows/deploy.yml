@@ -112,6 +112,9 @@ jobs:
           e2e/auth/
           e2e/edge-cases.spec.ts
           e2e/admin/
+          e2e/contract/
+          e2e/reports/
+          e2e/system/
           e2e/e2e-full/client-management.spec.ts
           e2e/e2e-full/contract-creation.spec.ts
           e2e/e2e-full/payment-flows.spec.ts

@@ -6,7 +6,7 @@ import {
   BadgeCheck, Flame, CircleDollarSign, RotateCcw,
   Pencil, Save, XCircle, Banknote,
 } from 'lucide-react';
-import { Investment, LoanInstallment, Tenant, AvulsoPayment } from '../types';
+import { Investment, LoanInstallment, Tenant } from '../types';
 import { useContractDetail, ContractDetailData } from '../hooks/useContractDetail';
 import { getSupabase, parseSupabaseError } from '../services/supabase';
 import { getBrazilToday } from '../services/dateUtils';
@@ -363,20 +363,8 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
   const refetch = externalData !== undefined ? () => {} : internal.refetch;
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
   const [installmentAction, setInstallmentAction]     = useState<SharedInstallmentAction>(null);
-  const [avulsoOpen, setAvulsoOpen]                   = useState(false);
-  const [avulsoPayments, setAvulsoPayments]           = useState<AvulsoPayment[]>([]);
-
-  const refreshAvulso = async () => {
-    if (!investmentId || readOnly) return;
-    const { data: ap } = await getSupabase()
-      .from('avulso_payments')
-      .select('*')
-      .eq('investment_id', investmentId)
-      .order('paid_at', { ascending: false });
-    setAvulsoPayments(ap ?? []);
-  };
-
-  useEffect(() => { refreshAvulso(); }, [investmentId]);
+  const [avulsoOpen, setAvulsoOpen]       = useState(false);
+  const [showHistoryView, setShowHistoryView] = useState(false);
 
   const progressPct = useMemo(() => {
     if (!data) return 0;
@@ -402,6 +390,21 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
     return { totalPago, totalRestante };
   }, [data]);
 
+  // ── Sub-view: histórico do contrato (BR-REL-016) ──
+  if (showHistoryView && data) {
+    const InstallmentHistory = React.lazy(() => import('./InstallmentHistory'));
+    const debtorName = data.investment.payer?.full_name || (data.investment as any).payer_name || 'Cliente';
+    return (
+      <React.Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 size={32} className="animate-spin" style={{ color: 'var(--header-blue)' }} /></div>}>
+        <InstallmentHistory
+          investment={data.investment}
+          debtorName={debtorName}
+          onBack={() => setShowHistoryView(false)}
+        />
+      </React.Suspense>
+    );
+  }
+
   // ── Sub-view: pagamento avulso ──
   if (!readOnly && avulsoOpen && data) {
     return (
@@ -412,7 +415,6 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
         onSuccess={() => {
           setAvulsoOpen(false);
           refetch();
-          refreshAvulso();
         }}
       />
     );
@@ -525,6 +527,12 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                 className="type-label flex items-center gap-2 rounded-full bg-[rgba(202,176,122,0.14)] px-4 py-2 text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.22)] transition-all hover:bg-[rgba(202,176,122,0.24)]"
               >
                 <Banknote size={13} /> Pagamento Avulso
+              </button>
+              <button
+                onClick={() => setShowHistoryView(true)}
+                className="type-label flex items-center gap-2 rounded-full bg-white/[0.06] px-4 py-2 text-[color:var(--text-secondary)] ring-1 ring-white/10 transition-all hover:bg-white/[0.10] hover:text-[color:var(--text-primary)]"
+              >
+                <History size={13} /> Histórico
               </button>
               {onRenew && (
                 <button onClick={() => onRenew(data.investment)}
@@ -776,34 +784,6 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                 </div>
               )}
             </section>
-
-            {/* Pagamentos Avulsos */}
-            {avulsoPayments.length > 0 && (
-              <section>
-                <p className="section-kicker mb-3 flex items-center gap-2">
-                  <Banknote size={13} /> Pagamentos Avulsos ({avulsoPayments.length})
-                </p>
-                <div className="space-y-2">
-                  {avulsoPayments.map((ap) => (
-                    <div key={ap.id} className={`${panelCard} px-4 py-3`}>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="type-metric-sm text-[color:var(--accent-brass)]">{fmt(ap.amount)}</p>
-                          {ap.notes && (
-                            <p className="mt-0.5 truncate type-caption italic text-[color:var(--text-faint)]">"{ap.notes}"</p>
-                          )}
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="type-caption text-[color:var(--text-faint)]">
-                            {fmtDate(ap.paid_at.split('T')[0])}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
 
             {/* Renegociações */}
             <section>

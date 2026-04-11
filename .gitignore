@@ -21,3 +21,14 @@ e-finance-bot/instancia.md
 e2e/_generated/
 scripts/qa/tmp/
 e2e/.auth/
+
+# Playwright artefatos de CI (não pertencem ao repositório)
+test-results/
+playwright-report/
+playwright-report-*/
+
+# Knowledge graph gerado (regenerado com /graphify)
+graphify-out/
+
+# MCP config local (gerado pelo Claude Code)
+.mcp.json

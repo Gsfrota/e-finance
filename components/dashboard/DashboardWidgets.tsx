@@ -199,8 +199,8 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, installments, onGoToCo
   const [cobraDias, setCobraDias] = useState<CobraDias>(15);
 
   const aCobraValor = useMemo(() => {
+    const todayStr = getBrazilToday();
     if (cobraDias === 0) {
-      const todayStr = getBrazilToday();
       return installments
         .filter((i) => {
           if (!['pending', 'late', 'partial'].includes(i.status)) return false;

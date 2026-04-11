@@ -112,6 +112,16 @@ Categorias:
 - **Tabelas:** `loan_installments`, `tenants` (configuração de carência)
 - **Status:** ativa
 
+### BR-CNT-011: Fechamento automático de contrato quando quitado 100%
+- **Descrição:** Um contrato deve refletir seu estado financeiro real. Quando `remaining_balance <= 0` E todas as `loan_installments` com `status IN ('pending','late','partial')` são zeradas, `investments.status` DEVE ser atualizado para `'completed'` automaticamente pela RPC que executou o pagamento
+- **Condição:** Ao final de **qualquer** RPC de mutação financeira que possa levar o saldo devedor a zero: `pay_installment`, `pay_avulso` (todos os destinos), `apply_surplus_action`, `apply_remainder_action`, `refinance_installment`, `admin_update_installment`, `pay_bullet_interest_only`, `generate_next_bullet_installment`
+- **Resultado:** Chamar a função auxiliar `recalculate_investment_status(p_investment_id)` ao final de cada RPC listada acima. A função verifica se todas as parcelas são `paid` (exceto absorvidas via `missed_at` com `amount_total = 0`) e `remaining_balance < 0.01`; se sim, executa `UPDATE investments SET status = 'completed', updated_at = NOW() WHERE id = p_investment_id`
+- **Inverso (revert):** Se uma RPC de reversão (`revert_installment_payment`, `revert_installment_missed`) restaurar saldo > 0 ou parcela não-paga, a mesma função deve restaurar `status = 'active'`
+- **Efeito em UI:** Contratos `completed` NÃO aparecem em telas de cobrança (`CollectionDashboard`, `InstallmentsTable`, KPI de parcelas atrasadas). `useDashboardData` filtra `loan_installments` de investments com `status = 'completed'`. `CollectionDashboard` aplica filtro defensivo: `calcOutstanding(i) > 0.01 && i.investment?.status !== 'completed'`
+- **Exceções:** Contratos com `status IN ('defaulted', 'renewed')` não são automaticamente completados — requerem ação administrativa explícita. Avulso `penalty_payment` não necessariamente quita o contrato (só paga encargos de atraso); a verificação pela função auxiliar é o árbitro
+- **Tabelas:** `investments`, `loan_installments`
+- **Status:** ativa — *criada em 2026-04-11 (bug: cobranças de quem já pagou; contratos amortizados quitados não fechavam)*
+
 ---
 
 ## Pagamentos (PAG)
@@ -459,6 +469,20 @@ Categorias:
 - **Tabelas:** `loan_installments`, `investments.asset_name`, `profiles.photo_url`, `profiles.full_name`
 - **Status:** ativa
 - **Atualizado:** 10/04/2026 — substituiu modelo accordion expandido por flat card clicável
+
+### BR-REL-016: Histórico do Contrato é fonte única de verdade — acessível via ContractDetail
+- **Descrição:** Existe exatamente **um** Histórico do Contrato por investment, exibido em `InstallmentHistory`. Ele é a fonte canônica de todos os eventos financeiros do contrato: pagamentos de parcelas, pagamentos avulsos, surplus, reversões, late_auto. Acessível via botão dedicado em `ContractDetail`
+- **Condição:** Toda exibição de movimentações financeiras de um contrato específico
+- **Resultado:**
+  1. `InstallmentHistory` agrega: (a) `payment_transactions` via `SELECT * WHERE investment_id = ?` e (b) metadados de `loan_installments` para contexto de data/valor/status
+  2. Ambas as views ("Por Recebimento" e "Por Parcela") devem exibir avulsos — sem dependência de scroll para localizá-los
+  3. View "Por Parcela" exibe seção "◇ Pagamentos avulsos" **com contador visível no topo**, acima do header da tabela, quando houver avulsos
+  4. View "Por Recebimento" agrupa avulsos como receipt próprio; label mostra tipo (pagamento avulso) e destino (principal_reduction / general_credit / penalty_payment) quando disponível em `notes`
+  5. `ContractDetail` **não** duplica painel de avulsos — remove estado local `avulsoPayments` e query em `avulso_payments` e substitui por botão que abre `InstallmentHistory`
+- **Nível de detalhe obrigatório por transação:** data/hora, tipo (via `TX_META`), destino (para avulsos: lido de `payment_transactions.notes`), parcela afetada ou "nível contrato", método de pagamento, valor
+- **Exceções:** `SalaryDashboard` continua lendo `loan_installments` para o painel de recebimentos mensais do investidor — não é histórico de contrato individual, não cobre esta BR. Eventual unificação de `SalaryDashboard` com `payment_transactions` é escopo de BR futura
+- **Tabelas:** `payment_transactions`, `loan_installments`, `investments`
+- **Status:** ativa — *criada em 2026-04-11 (bug: avulsos sumindo em InstallmentHistory; duplicação de painel em ContractDetail)*
 
 ---
 

@@ -1,3 +1,7 @@
+/**
+ * @deprecated Coberto por e2e/e2e-full/role-views.spec.ts (canônico).
+ * Este arquivo foi excluído via testIgnore no playwright.config.ts.
+ */
 import { test, expect } from '@playwright/test';
 
 test('DEB-01: Dashboard do devedor lista contratos', async ({ page }) => {

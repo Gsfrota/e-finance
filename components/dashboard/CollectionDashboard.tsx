@@ -83,7 +83,11 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
   const d30   = addDaysBR(today, 30);
 
   const pendingInstallments = useMemo(
-    () => installments.filter((i) => i.status !== 'paid'),
+    () => installments.filter((i) =>
+      i.status !== 'paid' &&
+      (i.investment as any)?.status !== 'completed' &&
+      calcOutstanding(i) > 0.01
+    ),
     [installments],
   );
 

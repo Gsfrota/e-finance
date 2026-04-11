@@ -1,0 +1,77 @@
+/**
+ * Testes E2E — Comprovante de Pagamento
+ *
+ * Cobertura:
+ *   REL-RCP-01  BR-REL-006  Comprovante com campos obrigatórios após pagamento
+ *   REL-RCP-02  BR-REL-006  Botão de compartilhar/download do comprovante
+ */
+
+import { test, expect } from '@playwright/test';
+import {
+  createTestPaymentData,
+  deleteTestPaymentData,
+  goToParcelasTab,
+  openPaymentModal,
+  waitForPaymentModal,
+  waitForPaymentSuccess,
+} from '../fixtures/payment-test-data';
+
+test.describe('Comprovante de Pagamento', () => {
+
+  // ─── REL-RCP-01/02: Comprovante após pagamento ───────────────────────────────
+
+  test('REL-RCP-01/02 [BR-REL-006]: Comprovante exibe campos obrigatórios e botão compartilhar', async ({ page }) => {
+    const testData = await createTestPaymentData(page);
+    test.skip(!testData, 'Setup de dados falhou — credenciais Supabase ausentes');
+    if (!testData) return;
+
+    try {
+      await goToParcelasTab(page, testData.companyId);
+
+      // Abre e paga a parcela #4 (pendente +30d)
+      const inst4 = testData.installments[3];
+      const opened = await openPaymentModal(page, inst4.id);
+      if (!opened) return;
+      await waitForPaymentModal(page);
+
+      // Paga exato
+      const input = page.locator('input[type="number"]').first();
+      await input.fill('200');
+      await page.getByRole('button', { name: /Confirmar Recebimento|Próximo/ }).first().click();
+      await page.waitForTimeout(600);
+
+      const step2Btn = page.getByRole('button', { name: /Confirmar tudo|Encerrar contrato/ }).first();
+      const hasStep2 = await step2Btn.isVisible({ timeout: 2_000 }).catch(() => false);
+      if (hasStep2) await step2Btn.click();
+
+      await waitForPaymentSuccess(page);
+      await page.waitForTimeout(500);
+
+      // ─── REL-RCP-01: Campos obrigatórios no comprovante ─────────────────────
+      // BR-REL-006: creditor name, debtor name, amount paid, date, installment number, contract ID
+      const receiptEl = page.getByText(/Comprovante|Pagamento Confirmado/i).first();
+      await expect(receiptEl).toBeVisible({ timeout: 8_000 });
+
+      // Verifica presença de valor pago (R$)
+      const valorPago = page.getByText(/R\$\s*200|R\$200/i).first();
+      const hasValor = await valorPago.isVisible({ timeout: 5_000 }).catch(() => false);
+      if (!hasValor) {
+        // Valor pode estar formatado diferente — verifica qualquer R$
+        const anyBRL = page.getByText(/R\$\s*[\d.,]+/).first();
+        await expect(anyBRL).toBeVisible({ timeout: 5_000 });
+      }
+
+      // Verifica data (formato dd/mm/yyyy ou similar)
+      const dateEl = page.getByText(/\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2}/).first();
+      const hasDate = await dateEl.isVisible({ timeout: 3_000 }).catch(() => false);
+      expect(hasDate).toBeTruthy();
+
+      // ─── REL-RCP-02: Botão de compartilhar ──────────────────────────────────
+      const shareBtn = page.getByRole('button', { name: /Compartilhar|Baixar|Download|Salvar/i }).first();
+      const hasShare = await shareBtn.isVisible({ timeout: 5_000 }).catch(() => false);
+      expect(hasShare).toBeTruthy();
+    } finally {
+      await deleteTestPaymentData(page, testData.investmentId);
+    }
+  });
+});

@@ -299,6 +299,7 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
             *,
             investment:investments (
               id,
+              status,
               user_id,
               asset_name,
               interest_rate,
@@ -334,7 +335,10 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
         source_profit: normalizeNumber(inv.source_profit)
       }));
 
-      const uniqueInstallments = instRes.data || [];
+      // Exclui parcelas de contratos já concluídos (BR-CNT-011)
+      const uniqueInstallments = (instRes.data || []).filter(
+        (inst: any) => inst.investment?.status !== 'completed',
+      );
       
       const computedKPIs = buildKPIs(safeInvestments, uniqueInstallments, monthRange);
 

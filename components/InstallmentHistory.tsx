@@ -74,7 +74,7 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
       return acc;
     }, {});
 
-  const receipts: PaymentReceipt[] = Object.entries(receiptGroups)
+  const receipts: PaymentReceipt[] = (Object.entries(receiptGroups) as [string, PaymentTransaction[]][])
     .map(([key, txs]) => {
       const paymentTx = txs.find(t => t.transaction_type === 'payment');
       const isLegacy = !txs[0].receipt_id;
@@ -305,6 +305,18 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
         {/* ── VIEW: Por Parcela ─────────────────────────────────────────── */}
         {viewMode === 'installments' && (
           <>
+            {/* Contador de avulsos — visível antes da tabela (BR-REL-016) */}
+            {(() => {
+              const avulsoCount = transactions.filter(t => t.transaction_type === 'avulso').length;
+              if (avulsoCount === 0) return null;
+              return (
+                <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold"
+                  style={{ background: 'rgba(202,176,122,0.08)', borderBottom: '1px solid var(--border-subtle)', color: 'var(--accent-brass)' }}>
+                  ◇ {avulsoCount} pagamento{avulsoCount !== 1 ? 's' : ''} avulso{avulsoCount !== 1 ? 's' : ''} — ver abaixo
+                </div>
+              );
+            })()}
+
             {/* Table header */}
             <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 type-label"
               style={{ background: 'var(--bg-soft)', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
@@ -445,28 +457,48 @@ const InstallmentHistory: React.FC<InstallmentHistoryProps> = ({
             {(() => {
               const avulsoTxs = transactions.filter(t => t.transaction_type === 'avulso');
               if (avulsoTxs.length === 0) return null;
+              const DEST_LABEL: Record<string, string> = {
+                principal_reduction: 'Abate de principal',
+                general_credit:      'Crédito geral',
+                penalty_payment:     'Pagamento de encargos',
+              };
+              const extractDest = (notes: string | null | undefined): string | null => {
+                if (!notes) return null;
+                const m = notes.match(/destino:(\w+)/);
+                return m ? (DEST_LABEL[m[1]] ?? m[1]) : null;
+              };
               return (
                 <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 8 }}>
                   <div className="px-4 py-2 type-label" style={{ background: 'var(--bg-soft)', color: 'var(--accent-brass)' }}>
-                    ◇ Pagamentos avulsos
+                    ◇ Pagamentos avulsos ({avulsoTxs.length})
                   </div>
-                  {avulsoTxs.map(tx => (
-                    <div key={tx.id} className="flex items-center gap-2 px-4 py-2.5 text-xs"
-                      style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                      <span style={{ color: 'var(--accent-brass)' }}>◇</span>
-                      <span className="flex-1" style={{ color: 'var(--text-secondary)' }}>
-                        {fmtDate(tx.created_at)}
-                        {tx.notes && (
-                          <span className="ml-2 text-[10px] italic" style={{ color: 'var(--text-faint)' }}>
-                            {tx.notes}
-                          </span>
-                        )}
-                      </span>
-                      <span className="font-bold tabular-nums" style={{ color: 'var(--accent-brass)' }}>
-                        {fmtMoney(tx.amount)}
-                      </span>
-                    </div>
-                  ))}
+                  {avulsoTxs.map(tx => {
+                    const dest = extractDest(tx.notes);
+                    const userNote = tx.notes?.replace(/\s*\|\s*destino:\w+.*$/, '').trim() || null;
+                    return (
+                      <div key={tx.id} className="flex items-center gap-2 px-4 py-2.5 text-xs"
+                        style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                        <span style={{ color: 'var(--accent-brass)' }}>◇</span>
+                        <span className="flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>
+                          <span className="font-semibold">{fmtDate(tx.created_at)}</span>
+                          {dest && (
+                            <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                              style={{ background: 'rgba(202,176,122,0.12)', color: 'var(--accent-brass)' }}>
+                              {dest}
+                            </span>
+                          )}
+                          {userNote && (
+                            <span className="ml-2 text-[10px] italic" style={{ color: 'var(--text-faint)' }}>
+                              {userNote}
+                            </span>
+                          )}
+                        </span>
+                        <span className="font-bold tabular-nums shrink-0" style={{ color: 'var(--accent-brass)' }}>
+                          {fmtMoney(tx.amount)}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })()}

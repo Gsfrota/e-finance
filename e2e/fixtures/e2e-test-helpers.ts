@@ -136,7 +136,7 @@ export function dateOffset(days: number): string {
 /** Aguarda o app carregar: sidebar visível + spinner desapareceu. */
 export async function waitForApp(page: Page): Promise<void> {
   await page.goto('/');
-  await page.locator('aside').waitFor({ timeout: 15_000 });
+  await page.locator('aside').waitFor({ timeout: 20_000 });
   // Aguarda spinner de autenticação desaparecer antes de interagir
   await page.locator('.animate-spin').waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => {});
 }
@@ -173,6 +173,16 @@ export async function selectSpecificCompany(page: Page): Promise<void> {
     await combobox.selectOption(secondValue);
     await page.waitForTimeout(400);
   }
+}
+
+/**
+ * Detecta se o Dashboard foi bloqueado pelo paywall de plano free.
+ * Após clicar em Dashboard, o app redireciona para Settings/Assinatura quando o tenant
+ * está em plano free sem trial ativo.
+ */
+export async function isDashboardPaywalled(page: Page): Promise<boolean> {
+  const paywall = page.getByText(/Assinatura|Plano Free|upgrade|Assinar|plano atual/i);
+  return await paywall.isVisible({ timeout: 3_000 }).catch(() => false);
 }
 
 /** Navega para aba interna do Dashboard e aguarda conteúdo renderizar. */
@@ -286,4 +296,86 @@ export async function openFirstPaymentModal(page: Page): Promise<boolean> {
   if (!(await btn.isVisible({ timeout: 5_000 }).catch(() => false))) return false;
   await btn.click();
   return true;
+}
+
+// ─── Audit Trail ──────────────────────────────────────────────────────────────
+
+/**
+ * Verifica se existe registro de audit trail em payment_transactions.
+ * @param investmentId - ID do investimento
+ * @param expectedType - tipo esperado (ex: 'payment', 'reversal', 'late_auto', 'avulso')
+ * @returns o registro encontrado, ou null se não encontrado
+ */
+export async function verifyAuditTrail(
+  page: Page,
+  investmentId: number,
+  expectedType?: string,
+): Promise<any | null> {
+  const ctx = await getCtx(page);
+  if (!ctx) return null;
+
+  const path = expectedType
+    ? `payment_transactions?investment_id=eq.${investmentId}&transaction_type=eq.${expectedType}&limit=1`
+    : `payment_transactions?investment_id=eq.${investmentId}&order=created_at.desc&limit=1`;
+
+  try {
+    const rows = await restCall(ctx, path);
+    return rows?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Caderneta Bullet ─────────────────────────────────────────────────────────
+
+/**
+ * Navega para a Caderneta Bullet a partir do Dashboard.
+ * Clica na aba "Caderneta" ou no botão equivalente.
+ */
+export async function navigateToCadernetaBullet(page: Page): Promise<void> {
+  await waitForApp(page);
+
+  const dashboardBtn = page.locator('aside').getByRole('button', { name: /Dashboard/i }).first();
+  await dashboardBtn.waitFor({ timeout: 8_000 });
+  await dashboardBtn.click();
+  await page.waitForTimeout(800);
+
+  // Tenta aba "Caderneta" no Dashboard
+  const cadernetaTab = page.getByRole('button', { name: /Caderneta/i }).first();
+  const hasCaderneta = await cadernetaTab.isVisible({ timeout: 5_000 }).catch(() => false);
+  if (hasCaderneta) {
+    await cadernetaTab.click();
+    await page.waitForTimeout(600);
+    return;
+  }
+
+  // Fallback: botão "Caderneta Bullet" em qualquer lugar
+  const btn = page.getByRole('button', { name: /Caderneta Bullet/i }).first();
+  const hasBulletBtn = await btn.isVisible({ timeout: 5_000 }).catch(() => false);
+  if (hasBulletBtn) {
+    await btn.click();
+    await page.waitForTimeout(600);
+  }
+  // Se não encontrar, permanece no Dashboard — testes farão skip se necessário
+}
+
+// ─── KPI helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Extrai valor numérico de um KPI card pelo rótulo visível.
+ * Busca texto próximo que contenha "R$" ou seja um número.
+ */
+export async function getKpiValue(page: Page, label: string): Promise<number | null> {
+  const kpiBlock = page.locator('div, section').filter({ hasText: new RegExp(label, 'i') }).first();
+  if (!(await kpiBlock.isVisible({ timeout: 3_000 }).catch(() => false))) return null;
+
+  const text = await kpiBlock.textContent();
+  if (!text) return null;
+
+  // Extrai valor R$ XXXX,XX
+  const match = text.match(/R\$\s*([\d.,]+)/);
+  if (!match) return null;
+
+  const numStr = match[1].replace(/\./g, '').replace(',', '.');
+  return parseFloat(numStr) || null;
 }

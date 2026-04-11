@@ -114,8 +114,8 @@ export interface PaymentTransaction {
   id: string;
   tenant_id: string;
   investment_id: number;
-  installment_id: string;
-  transaction_type: 'payment' | 'surplus_applied' | 'surplus_received' | 'deferred' | 'missed' | 'reversal';
+  installment_id: string | null;
+  transaction_type: 'payment' | 'surplus_applied' | 'surplus_received' | 'deferred' | 'missed' | 'reversal' | 'avulso' | 'late_auto';
   amount: number;
   principal_portion: number;
   interest_portion: number;
