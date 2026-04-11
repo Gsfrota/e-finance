@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Relatório de testes E2E para Telegram
-# Envia resumo detalhado de resultados + screenshots de falhas com captions ricos
+# Envia resumo detalhado de resultados + todos os screenshots via sendMediaGroup
 # Variáveis obrigatórias: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 # Variáveis opcionais:   GITHUB_SHA, GITHUB_ACTOR, GITHUB_RUN_URL
 
@@ -19,14 +19,14 @@ ACTOR="${GITHUB_ACTOR:-unknown}"
 RUN_URL="${GITHUB_RUN_URL:-}"
 
 # ─── Parse detalhado dos JSONs do Playwright ─────────────────────────────────
-# Extrai: contadores, suites agrupadas, failures com erro e diretório de screenshot
+# Extrai: contadores, suites agrupadas, failures com erro
 
 PARSE_SCRIPT=$(cat <<'PYEOF'
 import json, sys, os, re
 
 tiers = {}
 all_suites = {}   # suite_title -> count
-all_failures = [] # {tier, suite, title, error, screenshot_dir}
+all_failures = [] # {tier, suite, title, error}
 total_passed = total_failed = total_skipped = 0
 
 for tier in [1, 2]:
@@ -48,10 +48,8 @@ for tier in [1, 2]:
             suite_title = suite.get("title", "")
             full_title = f"{parent_title} > {suite_title}".strip(" >") if parent_title else suite_title
 
-            # Walk nested suites
             walk_suites(suite.get("suites", []), full_title)
 
-            # Walk specs in this suite
             for spec in suite.get("specs", []):
                 spec_title = spec.get("title", "")
                 tests = spec.get("tests", [])
@@ -70,62 +68,29 @@ for tier in [1, 2]:
                     elif status in ("failed", "timedOut"):
                         failed += 1
                         all_suites[suite_key] += 1
-                        # Extrair mensagem de erro
                         error_msg = ""
                         for result in test.get("results", []):
                             err = result.get("error", {})
                             msg = err.get("message", "") if err else ""
                             if msg:
-                                # Limpa ANSI e pega primeira linha não-vazia
                                 clean = re.sub(r'\x1b\[[0-9;]*m', '', msg)
                                 lines = [l.strip() for l in clean.splitlines() if l.strip()]
                                 error_msg = lines[0][:200] if lines else ""
                                 break
-
-                        # Montar diretório esperado do screenshot
-                        # Playwright gera: test-results/{suite}-{spec}-{project}/test-failed-N.png
-                        # Simplificamos: guardamos suite e spec para busca posterior
                         all_failures.append({
                             "tier": tier,
                             "suite": suite_title,
                             "title": spec_title,
                             "error": error_msg,
-                            "screenshot_dir": "",  # preenchido depois
                         })
                     elif status == "skipped":
                         skipped += 1
 
     walk_suites(d.get("suites", []))
-
     tiers[tier] = {"passed": passed, "failed": failed, "skipped": skipped, "ok": True}
     total_passed += passed
     total_failed += failed
     total_skipped += skipped
-
-# Buscar screenshots para cada falha
-for fail in all_failures:
-    # Procura screenshot em qualquer subdiretório de test-results
-    found = ""
-    search_term = re.sub(r'[^a-zA-Z0-9]', '-', fail["title"])[:30].lower()
-    for root, dirs, files in os.walk("test-results"):
-        for f in files:
-            if f.startswith("test-failed") and f.endswith(".png"):
-                dir_lower = root.lower()
-                if search_term[:10] in dir_lower or fail["suite"][:8].lower() in dir_lower:
-                    found = os.path.join(root, f)
-                    break
-        if found:
-            break
-    # Fallback: primeiro screenshot disponível
-    if not found:
-        for root, dirs, files in os.walk("test-results"):
-            for f in files:
-                if f.startswith("test-failed") and f.endswith(".png"):
-                    found = os.path.join(root, f)
-                    break
-            if found:
-                break
-    fail["screenshot_dir"] = found
 
 output = {
     "total_passed": total_passed,
@@ -161,10 +126,7 @@ d = json.load(sys.stdin)
 lines = []
 for tier in [1, 2]:
     t = d['tiers'].get(str(tier)) or d['tiers'].get(tier)
-    if t is None:
-        lines.append(f'  ⚠️ Tier {tier}: sem dados')
-        continue
-    if not t.get('ok'):
+    if t is None or not t.get('ok'):
         lines.append(f'  ⚠️ Tier {tier}: sem dados')
         continue
     icon = '❌' if t['failed'] > 0 else '✅'
@@ -187,7 +149,6 @@ lines = []
 for name, count in sorted(suites.items(), key=lambda x: -x[1]):
     if name and count > 0:
         lines.append(f'  • {name} ({count} teste(s))')
-# Limitar a 10 suítes para não explodir a mensagem
 if len(lines) > 10:
     extra = len(lines) - 10
     lines = lines[:10]
@@ -249,71 +210,85 @@ curl -s -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
     \"disable_web_page_preview\": true
   }" > /dev/null
 
-# ─── Screenshots de falhas com captions ricos ─────────────────────────────
-if [[ "$total_failed" -eq 0 ]]; then
-  echo "[telegram-report] Nenhuma falha — relatório concluído."
-  exit 0
-fi
+# ─── Coletar TODOS os screenshots (passou e falhou) ────────────────────────
+echo "[telegram-report] Coletando screenshots..."
 
-echo "[telegram-report] Buscando screenshots de falhas..."
+# Com screenshot:'on', Playwright gera:
+#   test-results/{dir}/test-1.png         (passou)
+#   test-results/{dir}/test-failed-1.png  (falhou)
+# Coletamos todos os PNGs, exceto diretórios de setup de auth
+mapfile -t all_screenshots < <(
+  find test-results -name "*.png" -type f \
+    ! -path "*/auth.setup*" \
+    2>/dev/null \
+  | sort \
+  | head -50
+)
 
-# Extrair lista de {screenshot_path}|{suite}|{title}|{error} das falhas com screenshot
-FAILURE_PHOTOS=$(echo "$PARSE_RESULT" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-failures = d.get('failures', [])
-for f in failures:
-    shot = f.get('screenshot_dir', '')
-    if shot:
-        suite = f.get('suite', '').replace('|', ' ')
-        title = f.get('title', '').replace('|', ' ')
-        error = f.get('error', '').replace('|', ' ').replace('\n', ' ')
-        print(f\"{shot}|{suite}|{title}|{error}\")
-")
-
-# Fallback: encontrar screenshots não mapeados
-if [[ -z "$FAILURE_PHOTOS" ]]; then
-  echo "[telegram-report] Usando fallback de busca de screenshots..."
-  mapfile -t fallback_shots < <(find test-results -name "test-failed-*.png" -type f 2>/dev/null | head -8)
-  for shot in "${fallback_shots[@]}"; do
-    dir_name=$(basename "$(dirname "$shot")" | sed 's/-chromium$//' | sed 's/-/ /g')
-    FAILURE_PHOTOS+="${shot}|Falha|${dir_name}|
-"
-  done
-fi
-
-if [[ -z "$FAILURE_PHOTOS" ]]; then
+if [[ "${#all_screenshots[@]}" -eq 0 ]]; then
   echo "[telegram-report] Nenhum screenshot encontrado."
   exit 0
 fi
 
-sent=0
-while IFS='|' read -r screenshot suite title error; do
-  [[ -z "$screenshot" || ! -f "$screenshot" ]] && continue
-  [[ $sent -ge 8 ]] && break
+echo "[telegram-report] Total de screenshots: ${#all_screenshots[@]}"
 
-  # Montar caption rico (limite 1024 chars)
-  caption="❌ ${title:0:60}"
-  if [[ -n "$suite" ]]; then
-    caption+="
-📁 ${suite:0:50}"
-  fi
-  if [[ -n "$error" ]]; then
-    caption+="
-💬 ${error:0:200}"
-  fi
-  caption+="
-🔗 ${SHA_SHORT}"
+# ─── Enviar em lotes de 10 via sendMediaGroup ─────────────────────────────
+# sendMediaGroup aceita até 10 itens por requisição
+BATCH_SIZE=10
+total_screenshots=${#all_screenshots[@]}
+sent_total=0
+batch_num=0
 
-  echo "[telegram-report] Enviando screenshot: ${title:0:50}..."
-  curl -s -X POST "https://api.telegram.org/bot${TOKEN}/sendPhoto" \
+for (( i=0; i<total_screenshots; i+=BATCH_SIZE )); do
+  batch_num=$((batch_num + 1))
+  batch=("${all_screenshots[@]:i:BATCH_SIZE}")
+
+  echo "[telegram-report] Enviando lote ${batch_num} (${#batch[@]} screenshots)..."
+
+  # Montar JSON do media array e os -F de cada arquivo
+  media_json="["
+  curl_files=()
+  for j in "${!batch[@]}"; do
+    shot="${batch[$j]}"
+    attach_name="photo${j}"
+
+    # Caption apenas no primeiro item do lote (Telegram mostra no álbum)
+    if [[ $j -eq 0 ]]; then
+      # Extrair nome legível do diretório
+      dir_name=$(basename "$(dirname "$shot")" \
+        | sed 's/-chromium$//' \
+        | sed 's/-no-auth$//' \
+        | sed 's/-[0-9a-f]\{8\}-.*$//' \
+        | tr '-' ' ')
+      is_failure="false"
+      [[ "$shot" == *"test-failed"* ]] && is_failure="true"
+      if [[ "$is_failure" == "true" ]]; then
+        icon="❌"
+      else
+        icon="✅"
+      fi
+      caption="${icon} Lote ${batch_num}/${batch_num} | \`${SHA_SHORT}\`"
+      # Escapar aspas para JSON
+      caption_escaped=$(echo "$caption" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read())[1:-1])')
+      media_json+="{\"type\":\"photo\",\"media\":\"attach://${attach_name}\",\"caption\":\"${caption_escaped}\",\"parse_mode\":\"Markdown\"}"
+    else
+      # Sem caption nos demais — apenas icon no nome do attach
+      is_failure="false"
+      [[ "$shot" == *"test-failed"* ]] && is_failure="true"
+      media_json+=",{\"type\":\"photo\",\"media\":\"attach://${attach_name}\"}"
+    fi
+
+    curl_files+=(-F "${attach_name}=@${shot}")
+  done
+  media_json+="]"
+
+  curl -s -X POST "https://api.telegram.org/bot${TOKEN}/sendMediaGroup" \
     -F "chat_id=${CHAT_ID}" \
-    -F "photo=@${screenshot}" \
-    -F "caption=${caption}" \
-    -F "parse_mode=Markdown" > /dev/null
+    -F "media=${media_json}" \
+    "${curl_files[@]}" > /dev/null
 
-  sent=$((sent + 1))
-  sleep 0.3
-done <<< "$FAILURE_PHOTOS"
+  sent_total=$((sent_total + ${#batch[@]}))
+  sleep 0.5
+done
 
-echo "[telegram-report] Concluído — ${sent} screenshot(s) enviados."
+echo "[telegram-report] Concluído — ${sent_total} screenshot(s) enviados em ${batch_num} lote(s)."
