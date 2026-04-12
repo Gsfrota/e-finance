@@ -864,7 +864,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
   if (step === 2 && step2Mode === 'overpayment') {
     return (
       <div className="flex flex-col h-full">
-        <ModalHeader title="Pagamento excede a dívida" subtitle={`Contrato será encerrado · sobra ${formatCurrency(overpaymentAmount)}`} onClose={onClose}/>
+        <Header title="Pagamento excede a dívida" subtitle={`Contrato será encerrado · sobra ${formatCurrency(overpaymentAmount)}`} icon={<AlertTriangle size={20}/>} onClose={onClose} colorClass="text-amber-400"/>
         <form onSubmit={handleStep2OverpaymentConfirm} className="p-5 space-y-4 overflow-y-auto max-h-[70vh]">
           <div className="bg-amber-950/30 border border-amber-700/40 rounded-2xl p-4 space-y-1">
             <p className="text-sm font-bold text-amber-300">Valor excede a dívida total do contrato</p>

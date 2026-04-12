@@ -148,7 +148,7 @@ const TenantDetailOverlay: React.FC<TenantDetailOverlayProps> = ({ tenant, onClo
   useEffect(() => {
     const sb = getSupabase();
     if (!sb) return;
-    sb.rpc('platform_view_tenant_data', { p_tenant_id: tenant.id })
+    void Promise.resolve(sb.rpc('platform_view_tenant_data', { p_tenant_id: tenant.id }))
       .then(({ data }) => {
         setProfiles((data as TenantProfile[]) ?? []);
         setLoading(false);

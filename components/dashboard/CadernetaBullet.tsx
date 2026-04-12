@@ -114,7 +114,7 @@ const CadernetaBullet: React.FC<CadernetaBulletProps> = ({ tenant, onBack }) => 
   const handleInstallmentClick = (installmentId: string, investmentId: number) => {
     const inst = allInstPool.get(installmentId);
     if (!inst) return;
-    const siblings = Array.from(allInstPool.values()).filter(i => i.investment_id === investmentId);
+    const siblings = Array.from<LoanInstallment>(allInstPool.values()).filter(i => i.investment_id === investmentId);
     const enriched = { ...inst, investment: inst.investment ? { ...inst.investment, loan_installments: siblings } : inst.investment };
     setSelectedInstallment(enriched as LoanInstallment);
     setInstallmentAction(null);
