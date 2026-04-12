@@ -428,6 +428,21 @@ export async function waitForPaymentModal(page: Page): Promise<void> {
   await page.getByText('Baixa de Pagamento').waitFor({ timeout: 8_000 });
 }
 
+/**
+ * Na aba Parcelas, troca o filtro de data para "Período" (range mode sem datas)
+ * para exibir TODAS as parcelas independente do mês.
+ *
+ * Necessário quando a parcela-alvo tem due_date fora do mês corrente
+ * (parcelas atrasadas de meses anteriores ou vencimento no próximo mês).
+ */
+export async function switchToAllPeriods(page: Page): Promise<void> {
+  const periodBtn = page.getByRole('button', { name: /^Período$/i }).first();
+  if (await periodBtn.isVisible({ timeout: 4_000 }).catch(() => false)) {
+    await periodBtn.click();
+    await page.waitForTimeout(300);
+  }
+}
+
 /** Aguarda confirmação de sucesso (comprovante ou fallback sem tenant). */
 export async function waitForPaymentSuccess(page: Page): Promise<void> {
   await page.getByText(/Pagamento Confirmado!|foi paga|Comprovante/i).first().waitFor({ timeout: 15_000 });

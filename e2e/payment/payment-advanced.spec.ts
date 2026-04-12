@@ -22,6 +22,7 @@ import {
   fetchInstallment,
   goToParcelasTab,
   openPaymentModal,
+  switchToAllPeriods,
   waitForPaymentModal,
   waitForPaymentSuccess,
   createLateInstallmentViaREST,
@@ -514,6 +515,9 @@ test.describe('Pagamentos Avançados — Juros, Reversão, Override e Falta', ()
         ).toBeGreaterThan(0);
       }
 
+      // Muda filtro para "Período" — parcelas late de meses anteriores ficam ocultas no filtro padrão
+      await switchToAllPeriods(page);
+
       // Abre modal de pagamento para a parcela atrasada
       const opened = await openPaymentModal(page, lateInstId);
       expect(opened, 'Modal não abriu para parcela atrasada').toBe(true);
@@ -569,6 +573,9 @@ test.describe('Pagamentos Avançados — Juros, Reversão, Override e Falta', ()
       }
 
       await goToParcelasTab(page, freshData.companyId);
+
+      // Muda filtro para "Período" — parcelas late de meses anteriores ficam ocultas no filtro padrão
+      await switchToAllPeriods(page);
 
       // Abre modal
       const opened = await openPaymentModal(page, lateInst2Id);

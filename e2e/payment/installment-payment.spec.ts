@@ -26,6 +26,7 @@ import {
   fetchInstallment,
   goToParcelasTab,
   openPaymentModal,
+  switchToAllPeriods,
   waitForPaymentModal,
   waitForPaymentSuccess,
   TestPaymentData,
@@ -281,6 +282,10 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   test('PAY-PARTIAL: Pagamento parcial → parcela fica com status=partial no banco', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
     await goToParcelasTab(page, testData!.companyId);
+
+    // Muda filtro para "Período" (sem datas) → exibe parcelas de qualquer mês
+    // (parcelas futuras ficam ocultas no filtro "mês atual" padrão)
+    await switchToAllPeriods(page);
 
     // Seleciona parcela pendente diferente da currentInstallmentId
     const inst = testData!.installments.find(

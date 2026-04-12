@@ -38,14 +38,19 @@ async function startContractWizard(page: any): Promise<boolean> {
   return true;
 }
 
-/** Verifica se o wizard Step 1 está aberto. */
+/** Verifica se o wizard Step 1 está aberto (espera até 8s com waitFor, não snapshot). */
 async function isWizardOpen(page: any): Promise<boolean> {
-  // "Quem Empresta" é o label do campo credor no Step 1 (AdminContracts.tsx:853)
-  // e sempre aparece — mais confiável que "Partes Envolvidas" que pode demorar em CI
-  return page
-    .getByText(/Novo Contrato|Partes Envolvidas|Quem Empresta/i)
-    .isVisible({ timeout: 8_000 })
-    .catch(() => false);
+  // waitFor aguarda de verdade — isVisible() é snapshot e não respeita timeout em CI
+  // Prioridade: "Partes Envolvidas" (h3 no Step 1) ou "Quem Empresta" (label do credor)
+  try {
+    await page
+      .getByText(/Partes Envolvidas|Quem Empresta/i)
+      .first()
+      .waitFor({ state: 'visible', timeout: 8_000 });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
