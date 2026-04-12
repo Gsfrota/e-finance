@@ -62,10 +62,13 @@ for tier in [1, 2]:
 
                 for test in tests:
                     status = test.get("status", "")
-                    if status == "passed":
+                    # Playwright JSON usa "expected"/"unexpected"/"flaky"/"skipped"
+                    # no nível de test.status. Manter "passed"/"failed" para
+                    # compatibilidade com result-level status se necessário.
+                    if status in ("expected", "passed"):
                         passed += 1
                         all_suites[suite_key] += 1
-                    elif status in ("failed", "timedOut"):
+                    elif status in ("unexpected", "failed", "timedOut"):
                         failed += 1
                         all_suites[suite_key] += 1
                         error_msg = ""
@@ -83,7 +86,7 @@ for tier in [1, 2]:
                             "title": spec_title,
                             "error": error_msg,
                         })
-                    elif status == "skipped":
+                    elif status in ("skipped", "flaky"):
                         skipped += 1
 
     walk_suites(d.get("suites", []))
@@ -111,9 +114,13 @@ total_failed=$(echo "$PARSE_RESULT" | python3 -c "import json,sys; d=json.load(s
 total_skipped=$(echo "$PARSE_RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['total_skipped'])")
 
 # ─── Status geral ─────────────────────────────────────────────────────────
+total_all=$((total_passed + total_failed + total_skipped))
 if [[ "$total_failed" -gt 0 ]]; then
   overall_icon="❌"
   overall_text="FALHOU"
+elif [[ "$total_all" -eq 0 ]]; then
+  overall_icon="⚠️"
+  overall_text="SEM DADOS (JSONs não encontrados)"
 else
   overall_icon="✅"
   overall_text="PASSOU"
