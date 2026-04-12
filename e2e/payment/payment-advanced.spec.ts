@@ -19,6 +19,7 @@ import { test, expect } from '@playwright/test';
 import {
   createTestPaymentData,
   deleteTestPaymentData,
+  fetchInstallment,
   goToParcelasTab,
   openPaymentModal,
   waitForPaymentModal,
@@ -478,6 +479,125 @@ test.describe('Pagamentos Avançados — Juros, Reversão, Override e Falta', ()
         const confirmOk = await confirmBtn.isVisible({ timeout: 2_000 }).catch(() => false);
         expect(errVisible || !confirmOk).toBeTruthy();
       }
+    } finally {
+      await deleteTestPaymentData(page, freshData.investmentId);
+    }
+  });
+
+  // ─── PAG-ADV-JUROS-RETRO: Juros de mora exibidos e quitados ────────────────
+
+  test('PAG-ADV-JUROS-RETRO: Modal exibe "Multa + juros mora" e quita parcela atrasada', async ({ page }) => {
+    test.setTimeout(60_000);
+    if (!testData) return;
+
+    const freshData = await createTestPaymentData(page);
+    if (!freshData) { test.skip(true, 'Setup falhou'); return; }
+
+    try {
+      await goToParcelasTab(page, freshData.companyId);
+
+      // Usa parcela #1: status=late, fine_amount=4, interest_delay_amount=2
+      const lateInstId = freshData.lateInstallmentId;
+
+      // Verifica via REST antes: interest_delay_amount > 0
+      const ctx = await getCtx(page);
+      if (ctx) {
+        const rows = await restCall(
+          ctx,
+          `loan_installments?id=eq.${lateInstId}&select=fine_amount,interest_delay_amount,amount_total,amount_paid`,
+        );
+        const inst = rows?.[0];
+        expect(inst, 'Parcela atrasada não encontrada').toBeTruthy();
+        expect(
+          Number(inst.interest_delay_amount),
+          'interest_delay_amount deve ser > 0 para parcela late',
+        ).toBeGreaterThan(0);
+      }
+
+      // Abre modal de pagamento para a parcela atrasada
+      const opened = await openPaymentModal(page, lateInstId);
+      expect(opened, 'Modal não abriu para parcela atrasada').toBe(true);
+      await waitForPaymentModal(page);
+
+      // UI deve mostrar "Multa + juros mora" no breakdown de valor
+      await expect(
+        page.getByText(/Multa.*juros mora|juros mora/i).first(),
+      ).toBeVisible({ timeout: 5_000 });
+
+      // Paga o outstanding exato (200 + 4 + 2 = 206 para parcela #1)
+      // O modal pre-preenche com o outstanding calculado — apenas confirma
+      await submitStep1(page);
+
+      await waitForPaymentSuccess(page);
+      await page.waitForTimeout(500);
+
+      // Verifica no banco: status=paid
+      const after = await fetchInstallment(page, lateInstId);
+      expect(after, 'Parcela não encontrada após pagamento').not.toBeNull();
+      expect(after!.status, 'Parcela deveria estar paid após quitar com multa+juros').toBe('paid');
+    } finally {
+      await deleteTestPaymentData(page, freshData.investmentId);
+    }
+  });
+
+  // ─── PAG-ADV-MULTA: fine_amount visível e persistido ────────────────────────
+
+  test('PAG-ADV-MULTA: Parcela atrasada com multa — valor exibido no modal e parcela quitada', async ({ page }) => {
+    test.setTimeout(60_000);
+    if (!testData) return;
+
+    const freshData = await createTestPaymentData(page);
+    if (!freshData) { test.skip(true, 'Setup falhou'); return; }
+
+    try {
+      // Usa parcela #2: status=late, fine_amount=4, interest_delay_amount=1
+      const lateInst2Id = freshData.installments[1].id;
+
+      // Verifica via REST: fine_amount > 0
+      const ctx = await getCtx(page);
+      if (ctx) {
+        const rows = await restCall(
+          ctx,
+          `loan_installments?id=eq.${lateInst2Id}&select=fine_amount,interest_delay_amount`,
+        );
+        const inst = rows?.[0];
+        expect(inst, 'Parcela #2 não encontrada').toBeTruthy();
+        expect(
+          Number(inst.fine_amount),
+          'fine_amount deve ser > 0 para parcela late',
+        ).toBeGreaterThan(0);
+      }
+
+      await goToParcelasTab(page, freshData.companyId);
+
+      // Abre modal
+      const opened = await openPaymentModal(page, lateInst2Id);
+      expect(opened, 'Modal não abriu para parcela #2').toBe(true);
+      await waitForPaymentModal(page);
+
+      // UI deve mostrar "Multa + juros mora"
+      await expect(
+        page.getByText(/Multa.*juros mora|juros mora/i).first(),
+      ).toBeVisible({ timeout: 5_000 });
+
+      // Valor exibido deve ser > 0 (fine_amount=4 + interest_delay=1 = 5)
+      const multaLine = page.getByText(/Multa.*juros mora|juros mora/i).locator('..').getByText(/R\$/).first()
+        .or(page.locator('span.font-mono').filter({ hasText: /\+ R\$/ }).first());
+      if (await multaLine.isVisible({ timeout: 2_000 }).catch(() => false)) {
+        const text = await multaLine.textContent().catch(() => '');
+        const amount = parseFloat(text?.replace(/[^0-9,]/g, '').replace(',', '.') ?? '0');
+        expect(amount, 'Valor da multa+mora deve ser > 0 na UI').toBeGreaterThan(0);
+      }
+
+      // Quita com o outstanding pre-preenchido
+      await submitStep1(page);
+      await waitForPaymentSuccess(page);
+      await page.waitForTimeout(500);
+
+      // DB: status=paid
+      const after = await fetchInstallment(page, lateInst2Id);
+      expect(after, 'Parcela não encontrada após pagamento').not.toBeNull();
+      expect(after!.status, 'Status deve ser paid após quitar').toBe('paid');
     } finally {
       await deleteTestPaymentData(page, freshData.investmentId);
     }
