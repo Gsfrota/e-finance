@@ -4,15 +4,16 @@
  * Testa criação de contratos de todos os tipos via UI do AdminContracts.
  *
  * CNT-01  Abre wizard de criação de contrato
- * CNT-02  Contrato modo Auto (sistema calcula parcelas) — happy path
- * CNT-03  Contrato modo Manual (admin define valor da parcela) — happy path
- * CNT-04  Contrato modo Interest-Only / Bullet — happy path
- * CNT-05  Frequência semanal — campos de dia da semana aparecem
- * CNT-06  Frequência diária — campos específicos aparecem
- * CNT-07  Frequência freelancer — sem data fixa
- * CNT-08  Split de capital origem (capital próprio + lucro reinvestido)
- * CNT-09  Cancelar criação não cria contrato
- * CNT-10  Campos obrigatórios vazios bloqueiam avanço
+ * CNT-02  Avança para Step 2 com credor e tomador selecionados
+ * CNT-03  Modo Manual (Definir Parcela) — campo de valor da parcela aparece
+ * CNT-04  Modo Bullet / Juros Simples — campos específicos aparecem
+ * CNT-05  Frequência semanal — select de dia da semana aparece
+ * CNT-06  Frequência mensal — select "Todo dia" visível por padrão
+ * CNT-07  Frequência Livre/Freelancer — "Distribuição rápida" aparece
+ * CNT-08  Split de capital — range "Usar Lucro Acumulado" visível
+ * CNT-09  Cancelar criação fecha o wizard sem criar contrato
+ * CNT-10  Sem investidor — botão Próximo desabilitado
+ * CNT-11  Frequência diária — toggles "Pular Sábado/Domingo" aparecem
  *
  * Execução:
  *   npx playwright test e2e/e2e-full/contract-creation.spec.ts --project=chromium
@@ -21,12 +22,13 @@
 import { test, expect } from '@playwright/test';
 import { waitForApp, navigateToView } from '../fixtures/e2e-test-helpers';
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 /** Navega para Contratos e inicia wizard de criação. */
 async function startContractWizard(page: any): Promise<boolean> {
   await waitForApp(page);
   await navigateToView(page, 'Contratos');
 
-  // Botão para criar novo contrato
   const novoBtn = page.getByRole('button', { name: /Novo Contrato|Criar Contrato|Novo/i });
   if (!(await novoBtn.isVisible({ timeout: 8_000 }).catch(() => false))) {
     return false;
@@ -36,255 +38,191 @@ async function startContractWizard(page: any): Promise<boolean> {
   return true;
 }
 
-/** Verifica se o wizard de criação está aberto (formulário com campos de contrato). */
+/** Verifica se o wizard Step 1 está aberto. */
 async function isWizardOpen(page: any): Promise<boolean> {
-  return (
-    await page
-      .getByText(/Novo Contrato|Criar Contrato|Valor Principal|Valor Investido/i)
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false)
-  );
+  return page
+    .getByText(/Novo Contrato|Partes Envolvidas/i)
+    .isVisible({ timeout: 5_000 })
+    .catch(() => false);
 }
 
-/** Preenche os campos básicos do contrato. */
-async function fillBasicFields(
-  page: any,
-  opts: {
-    amount?: string;
-    installments?: string;
-    rate?: string;
-    dueDay?: string;
-  } = {},
-) {
-  const { amount = '5000', installments = '6', rate = '2', dueDay = '10' } = opts;
+/**
+ * Abre o wizard, seleciona o primeiro credor e tomador disponíveis e avança
+ * para o Step 2 ("Termos Financeiros").
+ * Retorna false se qualquer etapa não estiver disponível.
+ */
+async function gotoWizardStep2(page: any): Promise<boolean> {
+  const opened = await startContractWizard(page);
+  if (!opened) return false;
+  if (!(await isWizardOpen(page))) return false;
 
-  // Valor investido / principal
-  const amountInput = page
-    .getByPlaceholder(/Valor|Principal|Investido/i)
-    .or(page.locator('input[name="amount_invested"]'))
-    .first();
-  if (await amountInput.isVisible({ timeout: 2_000 }).catch(() => false)) {
-    await amountInput.fill('');
-    await amountInput.fill(amount);
-  }
+  // Selecionar credor: clicar no input e pegar primeiro item do dropdown
+  const investorInput = page.getByPlaceholder(/Selecione o credor/i);
+  if (!(await investorInput.isVisible({ timeout: 5_000 }).catch(() => false))) return false;
 
-  // Total de parcelas
-  const installmentsInput = page
-    .getByPlaceholder(/parcelas|Parcelas/i)
-    .or(page.locator('input[name="total_installments"]'))
-    .first();
-  if (await installmentsInput.isVisible({ timeout: 2_000 }).catch(() => false)) {
-    await installmentsInput.fill('');
-    await installmentsInput.fill(installments);
-  }
+  await investorInput.click();
+  await page.waitForTimeout(400);
 
-  // Taxa de juros
-  const rateInput = page
-    .getByPlaceholder(/taxa|Juros|%/i)
-    .or(page.locator('input[name="interest_rate"]'))
-    .first();
-  if (await rateInput.isVisible({ timeout: 2_000 }).catch(() => false)) {
-    await rateInput.fill('');
-    await rateInput.fill(rate);
+  // Dropdown: botões dentro de div.custom-scrollbar (renderizado ao focar o input)
+  const investorDrop = page.locator('.custom-scrollbar button').first();
+  if (await investorDrop.isVisible({ timeout: 4_000 }).catch(() => false)) {
+    await investorDrop.click();
+  } else {
+    return false;
   }
+  await page.waitForTimeout(300);
 
-  // Dia de vencimento
-  const dueDayInput = page
-    .getByPlaceholder(/dia.*venc|Vencimento|due_day/i)
-    .or(page.locator('input[name="due_day"]'))
-    .first();
-  if (await dueDayInput.isVisible({ timeout: 2_000 }).catch(() => false)) {
-    await dueDayInput.fill('');
-    await dueDayInput.fill(dueDay);
+  // Selecionar tomador (payer)
+  const payerInput = page.getByPlaceholder(/Busque ou selecione o cliente/i);
+  if (!(await payerInput.isVisible({ timeout: 5_000 }).catch(() => false))) return false;
+
+  await payerInput.click();
+  await page.waitForTimeout(400);
+
+  const payerDrop = page.locator('.custom-scrollbar button').first();
+  if (await payerDrop.isVisible({ timeout: 4_000 }).catch(() => false)) {
+    await payerDrop.click();
+  } else {
+    return false;
   }
+  await page.waitForTimeout(300);
+
+  // Avançar para Step 2
+  const nextBtn = page.getByRole('button', { name: /^Próximo/i });
+  const isEnabled = await nextBtn.isEnabled({ timeout: 5_000 }).catch(() => false);
+  if (!isEnabled) return false;
+
+  await nextBtn.click();
+
+  // Aguardar header do Step 2
+  return page
+    .getByText(/Termos Financeiros/i)
+    .isVisible({ timeout: 6_000 })
+    .catch(() => false);
 }
+
+// ─── Testes ───────────────────────────────────────────────────────────────────
 
 test.describe('Suite Contract Creation — Criação de Contratos', () => {
 
   test('CNT-01: Abre wizard de criação de contrato', async ({ page }) => {
     const opened = await startContractWizard(page);
-    if (!opened) {
-      test.skip(true, 'Botão de novo contrato não encontrado');
-    }
+    if (!opened) test.skip(true, 'Botão de novo contrato não encontrado');
 
     expect(await isWizardOpen(page)).toBe(true);
   });
 
-  test('CNT-02: Contrato modo Auto — happy path com investidor e devedor', async ({ page }) => {
-    const opened = await startContractWizard(page);
-    if (!opened) test.skip(true, 'Wizard não acessível');
+  test('CNT-02: Avança para Step 2 com credor e tomador selecionados', async ({ page }) => {
+    const atStep2 = await gotoWizardStep2(page);
+    if (!atStep2) test.skip(true, 'Não foi possível avançar ao Step 2 (sem usuários disponíveis)');
 
-    if (!(await isWizardOpen(page))) test.skip(true, 'Wizard não abriu');
-
-    // Selecionar modo "Auto"
-    const autoOption = page.getByText(/^Auto$|Automático/i).first();
-    if (await autoOption.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await autoOption.click();
-    }
-
-    // Buscar e selecionar investidor
-    const investorSearch = page.getByPlaceholder(/Buscar investidor|Investidor/i).first();
-    if (await investorSearch.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await investorSearch.fill('a');
-      await page.waitForTimeout(600);
-      const firstResult = page.getByRole('option').first();
-      if (await firstResult.isVisible({ timeout: 3_000 }).catch(() => false)) {
-        await firstResult.click();
-      }
-    }
-
-    // Buscar e selecionar devedor
-    const debtorSearch = page.getByPlaceholder(/Buscar devedor|Devedor|Pagador/i).first();
-    if (await debtorSearch.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await debtorSearch.fill('a');
-      await page.waitForTimeout(600);
-      const firstResult = page.getByRole('option').first();
-      if (await firstResult.isVisible({ timeout: 3_000 }).catch(() => false)) {
-        await firstResult.click();
-      }
-    }
-
-    await fillBasicFields(page);
-
-    // Tentar avançar ou submeter (só clica se o botão estiver habilitado)
-    const nextBtn = page.getByRole('button', { name: /Próximo|Avançar|Criar Contrato|Salvar/i });
-    if (await nextBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      const isEnabled = await nextBtn.isEnabled({ timeout: 500 }).catch(() => false);
-      if (isEnabled) {
-        await nextBtn.click();
-        await page.waitForTimeout(1_000);
-      }
-    }
-
-    // Sucesso: contrato criado ou passou para próximo step
-    const success = await page
-      .getByText(/Contrato criado|criado com sucesso|Resumo|Step 2|investimento/i)
-      .isVisible({ timeout: 10_000 })
-      .catch(() => false);
-
-    // Aceitável: continua no wizard (dependências de usuários no ambiente)
-    const stillInWizard = await page
-      .getByText(/Novo Contrato|Criar Contrato/i)
-      .isVisible({ timeout: 2_000 })
-      .catch(() => false);
-
-    expect(success || stillInWizard).toBe(true);
+    await expect(page.getByText(/Termos Financeiros/i)).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('button', { name: /^Próximo/i })).toBeVisible({ timeout: 3_000 });
   });
 
-  test('CNT-03: Modo Manual — campo de valor da parcela aparece', async ({ page }) => {
-    const opened = await startContractWizard(page);
-    if (!opened) test.skip(true, 'Wizard não acessível');
-    if (!(await isWizardOpen(page))) test.skip(true, 'Wizard não abriu');
+  test('CNT-03: Modo Manual — campo "Valor da Parcela" aparece', async ({ page }) => {
+    const atStep2 = await gotoWizardStep2(page);
+    if (!atStep2) test.skip(true, 'Step 2 não acessível');
 
-    // Seleciona modo "Manual"
-    const manualOption = page.getByText(/^Manual$/).first();
-    if (!(await manualOption.isVisible({ timeout: 3_000 }).catch(() => false))) {
-      test.skip(true, 'Opção Manual não encontrada no wizard');
+    // Clicar em "Definir Parcela" (toggle de modo de cálculo)
+    const manualBtn = page.getByRole('button', { name: /Definir Parcela/i });
+    if (!(await manualBtn.isVisible({ timeout: 4_000 }).catch(() => false))) {
+      test.skip(true, 'Toggle "Definir Parcela" não encontrado no Step 2');
     }
-    await manualOption.click();
+    await manualBtn.click();
+    await page.waitForTimeout(400);
 
-    // Campo de valor da parcela deve aparecer
-    await expect(
-      page.getByPlaceholder(/valor.*parcela|parcela.*valor/i)
-        .or(page.locator('input[name="installment_value"]')),
-    ).toBeVisible({ timeout: 5_000 });
+    // Label "Valor da Parcela" deve aparecer
+    await expect(page.getByText(/Valor da Parcela/i)).toBeVisible({ timeout: 5_000 });
+
+    // Taxa Implícita indica que estamos no modo manual
+    await expect(page.getByText(/Taxa Implícita/i)).toBeVisible({ timeout: 3_000 });
   });
 
-  test('CNT-04: Modo Bullet / Interest-Only — campos específicos aparecem', async ({ page }) => {
-    const opened = await startContractWizard(page);
-    if (!opened) test.skip(true, 'Wizard não acessível');
-    if (!(await isWizardOpen(page))) test.skip(true, 'Wizard não abriu');
+  test('CNT-04: Modo Bullet / Juros Simples — campos específicos aparecem', async ({ page }) => {
+    const atStep2 = await gotoWizardStep2(page);
+    if (!atStep2) test.skip(true, 'Step 2 não acessível');
 
-    // Seleciona modo "Somente Juros" ou "Bullet"
-    const bulletOption = page
-      .getByText(/Somente Juros|Bullet|Interest.Only|Juros Apenas/i)
-      .first();
-    if (!(await bulletOption.isVisible({ timeout: 3_000 }).catch(() => false))) {
-      test.skip(true, 'Opção Bullet/Interest-Only não encontrada');
+    // Clicar em "Juros Simples"
+    const bulletBtn = page.getByRole('button', { name: /Juros Simples/i });
+    if (!(await bulletBtn.isVisible({ timeout: 4_000 }).catch(() => false))) {
+      test.skip(true, 'Botão "Juros Simples" não encontrado no Step 2');
     }
-    await bulletOption.click();
+    await bulletBtn.click();
+    await page.waitForTimeout(400);
 
-    // Após selecionar bullet, deve mostrar opções de retorno do principal
-    await expect(
-      page.getByText(/Principal|Separado|Junto|Bullet/i),
-    ).toBeVisible({ timeout: 5_000 });
+    // Deve aparecer opções de prazo: "Indeterminado" e "Determinado"
+    await expect(page.getByRole('button', { name: /Indeterminado/i })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('button', { name: /Determinado/i })).toBeVisible({ timeout: 3_000 });
+
+    // Deve aparecer toggle de capitalização
+    await expect(page.getByText(/Capitalizar Juros/i)).toBeVisible({ timeout: 5_000 });
   });
 
-  test('CNT-05: Frequência semanal — campos de dia da semana aparecem', async ({ page }) => {
-    const opened = await startContractWizard(page);
-    if (!opened) test.skip(true, 'Wizard não acessível');
-    if (!(await isWizardOpen(page))) test.skip(true, 'Wizard não abriu');
+  test('CNT-05: Frequência semanal — select de dia da semana aparece', async ({ page }) => {
+    const atStep2 = await gotoWizardStep2(page);
+    if (!atStep2) test.skip(true, 'Step 2 não acessível');
 
-    // Seleciona frequência semanal
-    const freqSelector = page.getByRole('combobox', { name: /frequência|frequency/i }).first()
-      .or(page.locator('select[name="frequency"]'));
-
-    if (await freqSelector.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await freqSelector.selectOption({ label: /Semanal|semanal/i });
-    } else {
-      const semanalBtn = page.getByText(/^Semanal$/).first();
-      if (!(await semanalBtn.isVisible({ timeout: 3_000 }).catch(() => false))) {
-        test.skip(true, 'Seletor de frequência não encontrado');
-      }
-      await semanalBtn.click();
+    // Clicar no botão "Semanal" na grade de frequência
+    const semanalBtn = page.getByRole('button', { name: /^Semanal$/i });
+    if (!(await semanalBtn.isVisible({ timeout: 4_000 }).catch(() => false))) {
+      test.skip(true, 'Botão "Semanal" não encontrado no Step 2');
     }
+    await semanalBtn.click();
+    await page.waitForTimeout(400);
 
-    // Campo de dia da semana deve aparecer
-    await expect(
-      page.getByText(/Segunda|Terça|Quarta|Quinta|Sexta|dia.*semana/i),
-    ).toBeVisible({ timeout: 5_000 });
+    // Deve aparecer label "Toda" + select com dias da semana
+    await expect(page.getByText(/^Toda$/i)).toBeVisible({ timeout: 5_000 });
+
+    // Select contém as opções de dia da semana
+    const weekdaySelect = page.locator('select').filter({
+      has: page.locator('option:has-text("Segunda")'),
+    });
+    await expect(weekdaySelect).toBeVisible({ timeout: 5_000 });
   });
 
-  test('CNT-06: Frequência mensal — dia de vencimento é obrigatório', async ({ page }) => {
-    const opened = await startContractWizard(page);
-    if (!opened) test.skip(true, 'Wizard não acessível');
-    if (!(await isWizardOpen(page))) test.skip(true, 'Wizard não abriu');
+  test('CNT-06: Frequência mensal — select "Todo dia" visível por padrão', async ({ page }) => {
+    const atStep2 = await gotoWizardStep2(page);
+    if (!atStep2) test.skip(true, 'Step 2 não acessível');
 
-    // Frequência mensal deve ser o default — o seletor de dia (select precedido de "Todo dia") deve estar visível
-    await expect(
-      page.getByText('Todo dia').or(page.locator('select').first()),
-    ).toBeVisible({ timeout: 5_000 });
+    // Mensal é o default — "Todo dia" deve estar visível sem clicar nada
+    await expect(page.getByText('Todo dia')).toBeVisible({ timeout: 5_000 });
+
+    // Select com dias 1-31 deve estar visível
+    await expect(page.locator('select').first()).toBeVisible({ timeout: 3_000 });
   });
 
-  test('CNT-07: Frequência freelancer — campos de data fixa somem', async ({ page }) => {
-    const opened = await startContractWizard(page);
-    if (!opened) test.skip(true, 'Wizard não acessível');
-    if (!(await isWizardOpen(page))) test.skip(true, 'Wizard não abriu');
+  test('CNT-07: Frequência Livre — "Distribuição rápida" aparece', async ({ page }) => {
+    const atStep2 = await gotoWizardStep2(page);
+    if (!atStep2) test.skip(true, 'Step 2 não acessível');
 
-    const freqSelector = page.getByRole('combobox', { name: /frequência|frequency/i }).first()
-      .or(page.locator('select[name="frequency"]'));
-
-    if (await freqSelector.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await freqSelector.selectOption({ label: /Freelancer|freelancer|Sob Demanda/i });
-    } else {
-      const freelancerBtn = page.getByText(/^Freelancer$/).first();
-      if (!(await freelancerBtn.isVisible({ timeout: 3_000 }).catch(() => false))) {
-        test.skip(true, 'Seletor de frequência freelancer não encontrado');
-      }
-      await freelancerBtn.click();
+    // Clicar no botão "Livre" (frequência freelancer)
+    const livreBtn = page.getByRole('button', { name: /^Livre$/i });
+    if (!(await livreBtn.isVisible({ timeout: 4_000 }).catch(() => false))) {
+      test.skip(true, 'Botão "Livre" não encontrado no Step 2');
     }
+    await livreBtn.click();
+    await page.waitForTimeout(400);
 
-    // Campo de dia de vencimento deve desaparecer
-    await expect(
-      page.locator('input[name="due_day"]'),
-    ).not.toBeVisible({ timeout: 4_000 });
+    // Seção de distribuição rápida deve aparecer
+    await expect(page.getByText(/Distribuição rápida/i)).toBeVisible({ timeout: 5_000 });
+
+    // Campo de dia fixo NÃO deve existir no modo freelancer
+    await expect(page.locator('input[name="due_day"]')).not.toBeVisible({ timeout: 2_000 });
   });
 
-  test('CNT-08: Split de capital origem — campos de lucro reinvestido aparecem', async ({ page }) => {
-    const opened = await startContractWizard(page);
-    if (!opened) test.skip(true, 'Wizard não acessível');
-    if (!(await isWizardOpen(page))) test.skip(true, 'Wizard não abriu');
+  test('CNT-08: Split de capital — range "Usar Lucro Acumulado" aparece', async ({ page }) => {
+    const atStep2 = await gotoWizardStep2(page);
+    if (!atStep2) test.skip(true, 'Step 2 não acessível');
 
-    // Procura campo ou toggle de lucro reinvestido
-    const profitField = page
-      .getByPlaceholder(/lucro|profit|reinvestido/i)
-      .or(page.getByText(/Lucro Reinvestido|Capital Próprio|origem/i));
+    // Label do range slider deve estar visível (sempre presente no Step 2)
+    await expect(page.getByText(/Usar Lucro Acumulado/i)).toBeVisible({ timeout: 5_000 });
 
-    if (!(await profitField.isVisible({ timeout: 4_000 }).catch(() => false))) {
-      test.skip(true, 'Campo de split de capital não encontrado no wizard');
-    }
+    // O range slider deve estar presente
+    await expect(page.locator('input[type="range"]')).toBeVisible({ timeout: 3_000 });
 
-    await expect(profitField).toBeVisible();
+    // Seção "Fonte de Recursos" deve aparecer
+    await expect(page.getByText(/Fonte de Recursos/i)).toBeVisible({ timeout: 3_000 });
   });
 
   test('CNT-09: Cancelar criação fecha o wizard sem criar contrato', async ({ page }) => {
@@ -292,53 +230,66 @@ test.describe('Suite Contract Creation — Criação de Contratos', () => {
     if (!opened) test.skip(true, 'Wizard não acessível');
     if (!(await isWizardOpen(page))) test.skip(true, 'Wizard não abriu');
 
-    // O wizard tem um botão X no cabeçalho (ao lado do título "Novo Contrato")
-    // Estrutura: <div flex justify-between><div><h3>Novo Contrato</h3>…</div><button>X</button></div>
-    // Navegamos: h3 → pai (div com heading) → avô (div flex) → botão X
+    // Botão X no cabeçalho: h3 "Novo Contrato" → avô → primeiro button
     const xBtnInHeader = page.locator('h3', { hasText: 'Novo Contrato' }).locator('../..').getByRole('button').first();
 
     if (await xBtnInHeader.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await xBtnInHeader.click();
     } else {
-      // Fallback: botão Cancelar explícito (outras telas)
       const cancelBtn = page.getByRole('button', { name: /^Cancelar$/i }).first();
       if (await cancelBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
         await cancelBtn.click();
       }
     }
 
-    // Wizard deve fechar — botão "Novo Contrato" da lista de contratos fica visível
+    // Wizard deve fechar — botão "Novo Contrato" da lista fica visível
     await expect(
       page.getByRole('button', { name: 'Novo Contrato' }),
     ).toBeVisible({ timeout: 6_000 });
 
-    // O conteúdo do wizard não deve mais estar visível
-    await expect(
-      page.getByText('Valor Principal'),
-    ).not.toBeVisible();
+    // Conteúdo do wizard não deve mais estar visível
+    await expect(page.getByText('Valor Principal')).not.toBeVisible();
   });
 
-  test('CNT-10: Sem investidor selecionado — não avança para próximo step', async ({ page }) => {
+  test('CNT-10: Sem investidor selecionado — botão Próximo fica desabilitado', async ({ page }) => {
     const opened = await startContractWizard(page);
     if (!opened) test.skip(true, 'Wizard não acessível');
     if (!(await isWizardOpen(page))) test.skip(true, 'Wizard não abriu');
 
-    // Preenche campos numéricos mas não seleciona investidor
-    await fillBasicFields(page);
-
-    // O botão "Próximo" deve estar desabilitado quando não há investidor selecionado
-    const nextBtn = page.getByRole('button', { name: /Próximo|Avançar|Criar Contrato|Salvar/i });
-    if (await nextBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      // Só clica se estiver habilitado (não deveria estar — essa é a validação do teste)
-      const isEnabled = await nextBtn.isEnabled({ timeout: 500 }).catch(() => false);
-      if (isEnabled) {
-        await nextBtn.click();
-      }
+    // Não seleciona nenhuma parte — botão deve estar desabilitado
+    const nextBtn = page.getByRole('button', { name: /^Próximo/i });
+    if (await nextBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await expect(nextBtn).toBeDisabled({ timeout: 3_000 });
+    } else {
+      // Sem botão Próximo ainda: Step 1 em estado inicial — confirma que está no wizard
+      await expect(
+        page.getByText(/Partes Envolvidas|Quem Empresta/i),
+      ).toBeVisible({ timeout: 5_000 });
     }
+  });
 
-    // Deve ficar no wizard (não avança)
-    await expect(
-      page.getByText(/Novo Contrato|Criar Contrato|investidor|obrigatório/i),
-    ).toBeVisible({ timeout: 5_000 });
+  test('CNT-11: Frequência diária — toggles "Pular Sábado/Domingo" aparecem', async ({ page }) => {
+    const atStep2 = await gotoWizardStep2(page);
+    if (!atStep2) test.skip(true, 'Step 2 não acessível');
+
+    // Clicar no botão "Diário" na grade de frequência
+    const diarioBtn = page.getByRole('button', { name: /^Diário$/i });
+    if (!(await diarioBtn.isVisible({ timeout: 4_000 }).catch(() => false))) {
+      test.skip(true, 'Botão "Diário" não encontrado no Step 2');
+    }
+    await diarioBtn.click();
+    await page.waitForTimeout(400);
+
+    // Toggles de pular fim de semana devem aparecer
+    await expect(page.getByText(/Pular Sábado/i)).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText(/Pular Domingo/i)).toBeVisible({ timeout: 5_000 });
+
+    // Clicar "Pular Sábado" não deve gerar erro
+    const pulasSabadoBtn = page.getByRole('button').filter({ hasText: /Pular Sábado/i }).first();
+    await pulasSabadoBtn.click();
+    await page.waitForTimeout(300);
+
+    // Toggle ainda visível (não crashou)
+    await expect(page.getByText(/Pular Sábado/i)).toBeVisible({ timeout: 2_000 });
   });
 });
