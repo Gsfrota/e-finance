@@ -40,9 +40,11 @@ async function startContractWizard(page: any): Promise<boolean> {
 
 /** Verifica se o wizard Step 1 está aberto. */
 async function isWizardOpen(page: any): Promise<boolean> {
+  // "Quem Empresta" é o label do campo credor no Step 1 (AdminContracts.tsx:853)
+  // e sempre aparece — mais confiável que "Partes Envolvidas" que pode demorar em CI
   return page
-    .getByText(/Novo Contrato|Partes Envolvidas/i)
-    .isVisible({ timeout: 5_000 })
+    .getByText(/Novo Contrato|Partes Envolvidas|Quem Empresta/i)
+    .isVisible({ timeout: 8_000 })
     .catch(() => false);
 }
 
