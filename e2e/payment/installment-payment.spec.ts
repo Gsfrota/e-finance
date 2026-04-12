@@ -23,6 +23,7 @@ import { test, expect } from '@playwright/test';
 import {
   createTestPaymentData,
   deleteTestPaymentData,
+  fetchInstallment,
   goToParcelasTab,
   openPaymentModal,
   waitForPaymentModal,
@@ -274,6 +275,49 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
     await expect(
       page.getByText(/Confirmado|Pagamento/i).first()
     ).toBeVisible({ timeout: 15_000 });
+  });
+
+  // ── PAY-PARTIAL: Pagamento parcial → status=partial no banco ────────────
+  test('PAY-PARTIAL: Pagamento parcial → parcela fica com status=partial no banco', async ({ page }) => {
+    test.skip(!testData, 'Sem dados de teste');
+    await goToParcelasTab(page, testData!.companyId);
+
+    // Seleciona parcela pendente diferente da currentInstallmentId
+    const inst = testData!.installments.find(
+      (i) => i.status === 'pending' && i.id !== testData!.currentInstallmentId
+    ) ?? testData!.installments[3];
+    test.skip(!inst, 'Nenhuma parcela pendente disponível para PAY-PARTIAL');
+
+    const opened = await openPaymentModal(page, inst.id);
+    expect(opened, 'Botão BAIXA não encontrado').toBe(true);
+    await waitForPaymentModal(page);
+
+    // Paga metade do valor (parcela é 200, paga 100)
+    const halfValue = Math.floor(inst.amount_total / 2);
+    await fillAmount(page, String(halfValue));
+
+    // Confirma que o alerta "Faltam" aparece (validação de UI)
+    await expect(page.getByText('Faltam')).toBeVisible({ timeout: 3_000 });
+
+    // Avança para Step 2
+    await submitStep1(page);
+
+    // Step 2: seleciona "Próxima parcela" e confirma
+    await expect(page.getByText('Próxima parcela')).toBeVisible({ timeout: 5_000 });
+    await page.getByText('Próxima parcela').click();
+    await submitStep2(page);
+
+    // UI confirma sucesso
+    await expect(
+      page.getByText(/Confirmado|Pagamento|sucesso/i).first()
+    ).toBeVisible({ timeout: 10_000 });
+
+    // Verifica no banco: status=partial e 0 < amount_paid < amount_total
+    const after = await fetchInstallment(page, inst.id);
+    expect(after, 'Não foi possível buscar parcela no banco após pagamento').not.toBeNull();
+    expect(after!.status, 'Parcela deveria estar com status=partial').toBe('partial');
+    expect(after!.amount_paid, 'amount_paid deve ser > 0').toBeGreaterThan(0);
+    expect(after!.amount_paid, 'amount_paid deve ser < amount_total').toBeLessThan(after!.amount_total);
   });
 
   // ── PAY-09: Parcela já paga → checkStaleAndRefresh bloqueia ─────────────

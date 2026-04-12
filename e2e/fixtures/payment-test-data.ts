@@ -640,3 +640,24 @@ export async function createLateInstallmentViaREST(
 
   return { investmentId, installmentId: insts[0].id };
 }
+
+/**
+ * Busca o estado atual de uma parcela diretamente via REST do Supabase.
+ * Útil para verificar mudanças de status após ações UI nos testes.
+ */
+export async function fetchInstallment(
+  page: Page,
+  installmentId: string,
+): Promise<{ status: string; amount_paid: number; amount_total: number } | null> {
+  const ctx = await getSupabaseContext(page);
+  if (!ctx || !ctx.url) return null;
+  try {
+    const rows = await restCall(
+      ctx,
+      `loan_installments?id=eq.${installmentId}&select=status,amount_paid,amount_total&limit=1`,
+    );
+    return rows?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
