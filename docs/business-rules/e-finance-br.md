@@ -262,6 +262,7 @@ Categorias:
 - **Descrição:** `update_overdue_installments` marca como `late` parcelas com `due_date < (today - carência)`. A carência padrão é 0 dias (sem carência). Após marcar, deve haver trigger de notificação configurável por tenant
 - **Condição:** Cron diário executando `update_overdue_installments`
 - **Resultado:** `WHERE due_date < (CURRENT_DATE - carencia_dias) AND status = 'pending'` → `status = 'late'`. Aplicar `fine_amount` conforme BR-CNT-010. Registrar evento de notificação pendente. Inserir registro em `payment_transactions` conforme **BR-PAG-021**
+- **Limitação conhecida (ver BR-PAG-024):** O cron **não** transiciona parcelas `partial → late`. Parcelas com pagamento parcial que vencem ficam com `status = 'partial'` mesmo estando em atraso. A detecção de atraso para fins de cobrança deve usar comparação de data, não apenas o campo `status` (ver BR-PAG-024)
 - **Exceções:** Parcelas de contratos com `status = 'completed'` ou `status = 'renewed'` não são marcadas
 - **Tabelas:** `loan_installments`, `tenants`, `payment_transactions`
 - **Status:** ativa
@@ -330,6 +331,21 @@ Categorias:
 - **Exceções:** Se o `general_credit` quitar integralmente uma parcela específica, a RPC PODE vincular a transação à parcela quitada — mas o avulso raiz permanece com `installment_id = NULL`
 - **Tabelas:** `payment_transactions`, `avulso_payments`, `investments`
 - **Status:** ativa — *criada em 2026-04-09 (incidente #789 MD Veículos — avulso não aparecia no histórico por ter installment_id vinculado incorretamente)*
+
+### BR-PAG-024: Detecção de parcelas atrasadas no fluxo de surplus — por data, não por status
+- **Descrição:** O cron `update_overdue_installments` transiciona apenas `pending → late`; parcelas com `status = 'partial'` que vencem **nunca** são promovidas a `late` automaticamente. Por isso, qualquer lógica de negócio que precise identificar "parcelas atrasadas" para fins de cobrança ou de alocação de surplus **deve usar comparação de data**, não o campo `status` isolado.
+- **Regra de detecção:** Uma parcela é considerada atrasada se: `due_date < hoje AND status NOT IN ('paid') AND outstanding > 0.01`, independente do valor de `status` ser `'pending'`, `'partial'` ou `'late'`
+- **Condição:** Qualquer componente, hook ou RPC que lista ou filtra parcelas atrasadas para fins de: (a) alocação de surplus (`pay_late`); (b) exibição de badge "Atrasado" na UI; (c) cálculo de KPIs de inadimplência; (d) relatórios de cobrança
+- **Resultado:**
+  - `InstallmentModals.tsx` e `InstallmentDetailFlow.tsx`: `lateRows` filtrado por `due_date < getBrazilToday() && outstanding > 0.01 && status !== 'paid'`
+  - `DashboardWidgets.tsx`: `isInstallmentOverdue = due_date < getBrazilToday() && outstanding > 0.01 && status !== 'paid'`
+  - `apply_surplus_action` (DB): `WHERE status IN ('pending', 'partial', 'late')` — já inclui `partial`, correto
+- **Motivação:** Caso real — MD Veículos / Silaucia (2026-04-12): parcela #15 recebeu surplus parcial → virou `partial`. Subsequent surplus ignorava a parcela porque o filtro era `status === 'late'`. O excedente ia para parcelas futuras em vez de quitar o saldo devedor atrasado. Fix: `8592d05`
+- **Exceções:** O cron `update_overdue_installments` mantém sua lógica atual (`pending → late`); não é necessário promover `partial → late` pois a detecção por data resolve o problema sem alterar o DB
+- **Tabelas:** `loan_installments`
+- **Componentes afetados:** `InstallmentModals.tsx`, `InstallmentDetailFlow.tsx`, `DashboardWidgets.tsx`
+- **Teste:** `e2e/payment/surplus-partial-overdue.spec.ts` (PAY-SURPLUS-PARTIAL-01/02)
+- **Status:** ativa — *criada em 2026-04-13 (incidente MD Veículos — surplus não quitava parcelas partial+vencidas)*
 
 ---
 
