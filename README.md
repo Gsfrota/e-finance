@@ -34,9 +34,14 @@ O **Juros Certo** resolve um problema real de gestores de carteiras de crédito 
 
 ## Screenshots
 
+### Login
+
+![Login](docs/screenshots/login.png)
+*Tela de acesso com autenticação por e-mail/senha ou Google.*
+
 ### Painel Admin — Dashboard
 
-![Dashboard](docs/screenshots/dashboard.png)
+![Dashboard Admin](docs/screenshots/dashboard-admin.png)
 *Visão geral com métricas de contratos vigentes, vencimentos próximos, inadimplências e avisos do dia.*
 
 ### Wizard de Criação de Contrato
@@ -182,6 +187,47 @@ Produção roda no **Google Cloud Run** via Docker multi-stage (Node 22 builder 
 ```
 
 Secrets gerenciados pelo **Google Secret Manager**. Nenhuma credencial no código ou no repositório.
+
+---
+
+## Arquitetura de Testes
+
+Testes E2E com **Playwright**, cobrindo os três roles da plataforma e os fluxos críticos de negócio.
+
+### Pré-requisitos
+
+```bash
+npm run preview          # servidor na porta 4173 (obrigatório)
+# Variáveis em .env.local: TEST_ADMIN_EMAIL/PASSWORD, TEST_INVESTOR_EMAIL/PASSWORD, TEST_DEBTOR_EMAIL/PASSWORD
+```
+
+### Comandos
+
+```bash
+npm run test:e2e          # todos os testes (headless)
+npm run test:e2e:ui       # UI interativa do Playwright
+npm run test:e2e:headed   # browser visível
+npm run test:e2e:report   # relatório do último run
+npm run test:qa           # smoke tests pré-deploy
+```
+
+### Organização (`e2e/`)
+
+| Diretório | Escopo |
+|-----------|--------|
+| `auth/` | Login, isolamento entre roles |
+| `admin/` | Dashboard, contratos, usuários, multi-tenant, yield |
+| `investor/` | Dashboard do investidor |
+| `debtor/` | Dashboard do devedor |
+| `payment/` | PIX, boleto, parcelado, quitação, surplus, histórico |
+| `contract/` | Criação, ciclo de vida, validação |
+| `reports/` | KPIs, relatórios mensais, caderneta, recibos |
+| `system/` | Planos de assinatura, regras de sistema |
+| `e2e-full/` | Flows integrados ponta a ponta |
+
+### Autenticação
+
+`e2e/auth.setup.ts` faz login para cada role e persiste o estado em `e2e/.auth/{role}.json`. O setup também grava o `EF_ACTIVE_COMPANY_SCOPE` no `localStorage` para garantir que o scope de empresa ativa esteja correto antes de salvar o estado — sem isso, views com `companyId` falham por retornar scope agregado.
 
 ---
 
