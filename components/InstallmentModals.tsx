@@ -255,7 +255,16 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         const pendingAfter = pending.filter(r => r.number > installment.number);
         setPendingInstallments(pendingAfter.map(r => ({ id: r.id, number: r.number, amount_total: r.amount_total, amount_paid: r.amount_paid || 0, fine_amount: r.fine_amount || 0, interest_delay_amount: r.interest_delay_amount || 0 })));
         // Parcelas atrasadas para surplus 'pay_late'
-        const lateRows = rows.filter(r => r.status === 'late');
+        // Usa comparação de data (igual à UI) para capturar 'partial' vencidas que o cron não promove a 'late'
+        const todayYMD = getBrazilToday();
+        const lateRows = rows.filter(r => {
+          if (r.status === 'paid') return false;
+          const ost = Math.max(0,
+            (normalizeNumber(r.amount_total) + normalizeNumber(r.fine_amount || 0) + normalizeNumber(r.interest_delay_amount || 0))
+            - normalizeNumber(r.amount_paid || 0)
+          );
+          return r.due_date < todayYMD && ost > 0.01;
+        });
         const lateWithOutstanding = lateRows.map(r => {
           const ost = Math.max(0,
             (normalizeNumber(r.amount_total) + normalizeNumber(r.fine_amount || 0) + normalizeNumber(r.interest_delay_amount || 0))
