@@ -120,10 +120,19 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
     test.skip(!testData, 'Sem dados de teste');
     await goToParcelasTab(page, testData!.companyId);
 
+    // Muda filtro para "Período" para exibir parcelas fora do mês corrente
+    // (parcela #4 tem due_date=+30d que pode estar no próximo mês)
+    await switchToAllPeriods(page);
+
     // Abre uma parcela pendente (#4 ou #5, pois #3 pode estar paga por PAY-01)
     const inst = testData!.installments.find(
       (i) => i.status === 'pending' && i.id !== testData!.currentInstallmentId
     ) ?? testData!.installments[3];
+
+    // Aguarda a parcela alvo aparecer na tabela após mudança de filtro
+    await page.locator(`[data-installment-id="${inst.id}"]`).first()
+      .waitFor({ timeout: 10_000 }).catch(() => {});
+
     const opened = await openPaymentModal(page, inst.id);
     expect(opened, 'Nenhuma parcela pendente disponível').toBe(true);
     await waitForPaymentModal(page);
@@ -138,9 +147,10 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
     await submitStep1(page);
 
     // Step 2 deve mostrar as 3 opções de destino do restante
-    await expect(page.getByText('Próxima parcela')).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByText('Última parcela')).toBeVisible();
-    await expect(page.getByText('Nova parcela')).toBeVisible();
+    // Usa .first() para evitar strict mode caso haja elementos duplicados no DOM
+    await expect(page.getByText('Próxima parcela').first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('Última parcela').first()).toBeVisible();
+    await expect(page.getByText('Nova parcela').first()).toBeVisible();
   });
 
   // ── PAY-03: Parcial + next → apply_remainder_action ─────────────────────
@@ -292,6 +302,12 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
       (i) => i.status === 'pending' && i.id !== testData!.currentInstallmentId
     ) ?? testData!.installments[3];
     test.skip(!inst, 'Nenhuma parcela pendente disponível para PAY-PARTIAL');
+
+    // Aguarda a parcela alvo aparecer na tabela após mudança de filtro
+    // Sem esse wait, switchToAllPeriods (300ms) pode não ser suficiente para a tabela
+    // re-renderizar; openPaymentModal fallback clicaria na parcela errada.
+    await page.locator(`[data-installment-id="${inst.id}"]`).first()
+      .waitFor({ timeout: 10_000 }).catch(() => {});
 
     const opened = await openPaymentModal(page, inst.id);
     expect(opened, 'Botão BAIXA não encontrado').toBe(true);
