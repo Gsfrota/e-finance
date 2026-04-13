@@ -353,11 +353,11 @@ Categorias:
 
 ### BR-REL-001: Histórico de recebimentos agrupado por evento
 - **Descrição:** O histórico de recebimentos do investidor deve agrupar transações por evento de pagamento (mesmo `receipt_id` ou mesmo minuto para transações legadas), exibindo uma linha por evento com valor total e detalhes expandíveis
-- **Condição:** Tela de histórico do investidor (`InvestorDashboard`)
-- **Resultado:** Uma linha por pagamento real, não uma linha por `payment_transaction`
-- **Exceções:** Transações sem `receipt_id` agrupam por `investment_id + minuto`
+- **Condição:** Tela de histórico do investidor (`InvestorDashboard`) e view "Por Recebimento" em `InstallmentHistory`
+- **Resultado:** Uma linha por pagamento real, não uma linha por `payment_transaction`. Cada card exibe: data, valor total recebido, método de pagamento. Ao expandir: lista de parcelas afetadas com valor aplicado e status atual. Texto descritivo usa linguagem do usuário: "1 parcela paga", "X parcelas pagas", "Pagamento avulso", "Pagamento geral"
+- **Exceções:** Transações sem `receipt_id` agrupam por `investment_id + minuto` (dados legados). O indicador visual de dado legado (badge "histórico") não é exibido ao usuário — é detalhe de implementação interno
 - **Tabelas:** `payment_transactions`, `loan_installments`
-- **Status:** ativa
+- **Status:** ativa — *atualizada em 2026-04-13 (redesign UX InstallmentHistory)*
 - **Stories:** feat 311f8ca
 
 ### BR-REL-002: Parcelas fantasmas (deferidas) são omitidas das métricas financeiras do investidor
@@ -495,10 +495,15 @@ Categorias:
   3. View "Por Parcela" exibe seção "◇ Pagamentos avulsos" **com contador visível no topo**, acima do header da tabela, quando houver avulsos
   4. View "Por Recebimento" agrupa avulsos como receipt próprio; label mostra tipo (pagamento avulso) e destino (principal_reduction / general_credit / penalty_payment) quando disponível em `notes`
   5. `ContractDetail` **não** duplica painel de avulsos — remove estado local `avulsoPayments` e query em `avulso_payments` e substitui por botão que abre `InstallmentHistory`
-- **Nível de detalhe obrigatório por transação:** data/hora, tipo (via `TX_META`), destino (para avulsos: lido de `payment_transactions.notes`), parcela afetada ou "nível contrato", método de pagamento, valor
+- **Nível de detalhe por transação (visível ao usuário):** data/hora, destino (para avulsos: lido de `payment_transactions.notes`), parcela afetada ou "nível contrato", método de pagamento, valor. Tipos visíveis ao usuário: `payment`, `avulso`, `reversal`, `missed`. Tipos internos (`late_auto`, `surplus_applied`, `deferred`) são registrados mas **ocultos por padrão** na UI — são eventos de roteamento interno sem valor informativo para o usuário final
+- **UX obrigatória (redesign 2026-04-13):**
+  - **Hero Card de Progresso:** exibido imediatamente abaixo do cabeçalho de identificação do devedor, visível sem scroll. Contém: barra de progresso (parcelas pagas / total), e 3 métricas — Pagas (valor + contagem), Pendentes (valor + contagem), Atrasadas (valor + contagem). Substitui o rodapé de tiles que ficava oculto sem scroll
+  - **Badge de saúde global:** exibido junto ao ID do contrato no cabeçalho — "Em dia" (azul), "X atrasada(s)" (vermelho), "Quitado" (verde)
+  - **Status badges padronizados:** exibidos como pills coloridos. Mapeamento obrigatório: `paid` → "Paga" (verde), `pending` → "Pendente" (âmbar), `late` → "Atrasada" (vermelho), `partial` → "Parcial" (azul), `missed/absorbed` → "Falta" (vermelho)
+  - **Expand por parcela:** na view "Por Parcela", cada linha é expandível via clique — exibe data de pagamento, método, dias de atraso (quando positivo), nota, falta registrada e transações visíveis
 - **Exceções:** `SalaryDashboard` continua lendo `loan_installments` para o painel de recebimentos mensais do investidor — não é histórico de contrato individual, não cobre esta BR. Eventual unificação de `SalaryDashboard` com `payment_transactions` é escopo de BR futura
 - **Tabelas:** `payment_transactions`, `loan_installments`, `investments`
-- **Status:** ativa — *criada em 2026-04-11 (bug: avulsos sumindo em InstallmentHistory; duplicação de painel em ContractDetail)*
+- **Status:** ativa — *atualizada em 2026-04-13 (redesign UX: hero card de progresso, status pills, eventos internos ocultos, expand por parcela)*
 
 ---
 
