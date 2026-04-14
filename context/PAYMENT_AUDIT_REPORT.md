@@ -24,6 +24,59 @@ Foram executados **19 testes** cobrindo todos os fluxos de pagamento do sistema.
 
 ---
 
+## ADENDO — Auditoria de 14/04/2026
+
+**Data:** 14/04/2026
+**Gatilho:** Reclamação de cliente (Leonice Bar / tenant MD Veículos) sobre excedente não aplicado conforme esperado + 5 falhas consecutivas no CI/CD (PAY-PARTIAL).
+
+### BUG-1-v2: Regressão — `apply_surplus_action` 'next'/'spread' sem filtro `number > v_src.number`
+
+- **Severidade:** CRÍTICA
+- **Causa raiz:** Migration V35 (`migration_v35_fix_apply_surplus_action.sql`) reescreveu completamente a função preservando os 5 fixes (P1–P5) mas omitiu o filtro `AND number > v_src.number` que havia sido introduzido na V31 (correção original do BUG-1). Regressão silenciosa.
+- **Confirmação em produção:** Log de reversão às 16:59:49 de 14/04/2026 registra textualmente `"surplus revertido na parcela #20; surplus revertido na parcela #11"` — parcela #11 < fonte #19, violação direta do BR-PAG-007.
+- **Correção:** Migration V43 (`migration_v43_fix_apply_surplus_next_spread.sql`) aplicada em produção em 14/04/2026. Adiciona `AND number > v_src.number` em 3 pontos: query do `next`, query do `spread` passo-1 (soma), e query do `spread` passo-2 (loop).
+
+### Contratos afetados (BUG-1-v2)
+
+Scan via query forense em `loan_installments.notes` + `payment_transactions`:
+
+| Contrato | Devedor | Status | Parcelas corrompidas | Outstanding gerado pelo bug | Situação |
+|----------|---------|--------|---------------------|----------------------------|----------|
+| 495 | Carlinho piscina | completed | #2, #8, #15, #16 (amount_total inflado) | R$ 0 (contrato encerrado) | Documentado, sem ação técnica necessária |
+| 521 | Andreza manicure | active | #1 (R$6 crédito indevido de #11) | R$ 54 outstanding na #1 | **Pendente correção de dados** |
+| 552 | Bruno moto taxi | active | #7 (R$5 crédito indevido de #11) | R$ 45 outstanding na #7 | **Pendente correção de dados** |
+| 575 | Leonice Bar | completed | #11 e #20 (amount_total=R$90 cada, deveria ser R$30) | R$ 0 (contrato encerrado) | Documentado, sem ação técnica necessária |
+
+> **Nota sobre 521 e 552:** A correção de dados das parcelas corrompidas (#1 e #7) foi adiada a pedido do proprietário do tenant. Aplicar quando conveniente via:
+> ```sql
+> -- Investment 521 (#1):
+> UPDATE loan_installments SET amount_paid=0, status='pending',
+>   notes='Correção BUG-1 V35 (2026-04-14): excedente de #11 aplicado indevidamente'
+> WHERE investment_id=521 AND number=1;
+>
+> -- Investment 552 (#7):
+> UPDATE loan_installments SET amount_paid=0, status='late',
+>   notes='Correção BUG-1 V35 (2026-04-14): excedente de #11 aplicado indevidamente'
+> WHERE investment_id=552 AND number=7;
+> ```
+
+### BUG-E2E-1: PAY-PARTIAL — race condition + fallback silencioso
+
+- **Severidade:** BLOCKER CI/CD (5 runs falhando desde 13/04/2026)
+- **Causa raiz 1:** `waitFor({timeout:10_000}).catch(()=>{})` engolia timeout silenciosamente. Se a tabela não re-renderizou após `switchToAllPeriods`, `openPaymentModal` caía no fallback "primeira BAIXA visível" e pagava a parcela errada. `fetchInstallment(inst.id)` lia `amount_paid=0` pois ninguém havia pago aquela parcela.
+- **Causa raiz 2:** `fetchInstallment` era chamado imediatamente após UI mostrar "Confirmado", sem aguardar o commit do PostgREST. Latência de rede causava leitura de estado stale (`status=pending, amount_paid=0`).
+- **Correção (`e2e/payment/installment-payment.spec.ts`, commit ae56b45):**
+  - `waitFor` sem `.catch()` — falha explícita se parcela não aparecer na tabela
+  - `expect.poll()` com timeout 5s no `fetchInstallment` para tolerar latência PostgREST
+
+### Migrations aplicadas neste adendo
+
+| Migration | Data | Descrição |
+|-----------|------|-----------|
+| `v43_fix_apply_surplus_next_spread` | 14/04/2026 | Corrige regressão BUG-1 em V35 — 3 ocorrências de `AND number > v_src.number` |
+
+---
+
 ## 2. Bugs Encontrados e Corrigidos
 
 ### BUG-1: `apply_surplus_action` — ação `next` aplicava no destino errado
@@ -81,7 +134,7 @@ Foram executados **19 testes** cobrindo todos os fluxos de pagamento do sistema.
 
 ## 4. Auditoria de Dados Reais
 
-### Verificação de inversões em contratos de clientes
+### Verificação de inversões em contratos de clientes (auditoria 23/03/2026)
 
 Todos os contratos com notas de excedente foram analisados:
 
@@ -93,6 +146,15 @@ Todos os contratos com notas de excedente foram analisados:
 | 497 | Contrato Amanda | ❌ #8←#16 (deveria ser #17) | **Corrigido**: swap #8/#17 |
 | 499 | teste 1 | ✅ OK | Nenhuma |
 | 508 | 1000 | ✅ OK | Nenhuma |
+
+### Verificação de inversões — re-scan 14/04/2026 (após detecção BUG-1-v2)
+
+| Contrato | Devedor | Parcela | Fonte | Tipo | Ação |
+|----------|---------|---------|-------|------|------|
+| 495 | Carlinho piscina | #2, #8, #15, #16 ← #21 | #21 | ❌ BUG-1-v2 (spread sem filtro) | Completed — documentado |
+| 521 | Andreza manicure | #1 ← #11 | #11 | ❌ BUG-1-v2 | Active — **pendente correção** |
+| 552 | Bruno moto taxi | #7 ← #11 | #11 | ❌ BUG-1-v2 | Active — **pendente correção** |
+| 575 | Leonice Bar | #11 ← #19 | #19 | ❌ BUG-1-v2 | Completed — documentado |
 
 ### Correção aplicada — Contrato 497 (Amanda)
 
