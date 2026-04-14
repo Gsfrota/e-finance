@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { fetchProfileByAuthUserId, getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
+import { logEvent } from '../services/eventLog';
 import { Investment, Tenant, Profile, AppView } from '../types';
 import { useCompanyContext } from '../services/companyScope';
 import { getBrazilToday, addDaysBR, toBrazilYMD } from '../services/dateUtils';
@@ -508,6 +509,14 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
           });
 
           if (rpcError) throw rpcError;
+          if (currentTenant && currentUserId) {
+            logEvent({
+              tenant_id: currentTenant.id, user_id: currentUserId,
+              event_category: 'contract', event_type: 'contract_created',
+              entity_type: 'investment', entity_id: String(rpcData),
+              after: { investor_id: selectedInvestor.id, payer_id: selectedPayer.id, amount_invested: formData.amount_invested, frequency: formData.frequency, calculation_mode: formData.calculation_mode },
+            });
+          }
           setContractsSubView('list');
           fetchData();
 
@@ -619,6 +628,14 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
           await supabase.from('loan_installments').delete().eq('investment_id', contractToDelete.id);
           const { error } = await supabase.from('investments').delete().eq('id', contractToDelete.id);
           if (error) throw error;
+          if (currentTenant && currentUserId) {
+            logEvent({
+              tenant_id: currentTenant.id, user_id: currentUserId,
+              event_category: 'contract', event_type: 'contract_deleted',
+              entity_type: 'investment', entity_id: String(contractToDelete.id),
+              before: { asset_name: contractToDelete.asset_name, amount_invested: contractToDelete.amount_invested, status: contractToDelete.status },
+            });
+          }
           setIsDeleteConfirmOpen(false);
           setContractToDelete(null);
           fetchData();
@@ -789,6 +806,15 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
           const installmentError = installmentResults.find((result) => result.error)?.error;
           if (installmentError) throw installmentError;
 
+          if (currentTenant && currentUserId && contractToEdit) {
+            logEvent({
+              tenant_id: currentTenant.id, user_id: currentUserId,
+              event_category: 'contract', event_type: 'contract_edited',
+              entity_type: 'investment', entity_id: String(contractToEdit.id),
+              before: { asset_name: contractToEdit.asset_name, amount_invested: contractToEdit.amount_invested, installment_value: contractToEdit.installment_value },
+              after: { asset_name: editContractName.trim(), amount_invested: roundCurrency(Number(editContractPrincipal)), installment_value: roundCurrency(Number(editContractInstallmentValue)) },
+            });
+          }
           setContractsSubView('list');
           setContractToEdit(null);
           setEditInstallments([]);

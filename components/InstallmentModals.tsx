@@ -8,6 +8,7 @@ import { X, CheckCircle2, Calendar, DollarSign, Loader2, AlertTriangle, RefreshC
 import { parseSupabaseError } from '../services/supabase';
 import ReceiptTemplate from './ReceiptTemplate';
 import { logPaymentTransaction, calcBreakdown } from '../services/paymentAudit';
+import { logEventFromSession } from '../services/eventLog';
 import { useCompanyContext } from '../services/companyScope';
 
 // --- SHARED TYPES & HELPERS ---
@@ -1583,6 +1584,18 @@ export const EditModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess
       });
 
       if (rpcError) throw rpcError;
+
+      // BR-SYS-008 + BR-PAG-013: log de override admin com before/after
+      logEventFromSession({
+        tenant_id: installment.tenant_id,
+        event_category: 'installment_admin',
+        event_type: 'installment_overridden',
+        entity_type: 'loan_installment',
+        entity_id: installment.id,
+        before: { amount_total: installment.amount_total, due_date: installment.due_date },
+        after:  { amount_total: val, due_date: dueDate },
+      });
+
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -1596,7 +1609,7 @@ export const EditModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess
 
   return (
     <ModalBackdrop onClose={onClose}>
-      <Header 
+      <Header
         title="Edição Administrativa" 
         subtitle="Correção Manual de Dados" 
         icon={<Pencil size={24}/>} 

@@ -30,6 +30,7 @@ interface ActionSummary {
 }
 import { getSupabase, parseSupabaseError } from '../services/supabase';
 import { logPaymentTransaction, calcBreakdown } from '../services/paymentAudit';
+import { logEventFromSession } from '../services/eventLog';
 import ReceiptTemplate from './ReceiptTemplate';
 import { useCompanyContext } from '../services/companyScope';
 
@@ -993,6 +994,17 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
       installment.amount_paid = (installment.amount_paid || 0) + val;
       installment.status = isPartialPayment ? 'partial' : 'paid';
       if (!isPartialPayment) installment.paid_at = new Date().toISOString();
+
+      // BR-SYS-008: log de evento de pagamento confirmado
+      logEventFromSession({
+        tenant_id: installment.tenant_id,
+        event_category: 'payment',
+        event_type: isPartialPayment ? 'payment_partial' : 'payment_confirmed',
+        entity_type: 'loan_installment',
+        entity_id: installment.id,
+        context: { installment_number: installment.number, amount: val, payment_method: paymentMethod },
+      });
+
       onSuccess(); setIsReceiptMode(true);
     } catch (e: any) { setError(parseSupabaseError(e)); }
     finally { setLoading(false); }
@@ -1022,6 +1034,16 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         }`,
       });
 
+      // BR-SYS-008
+      logEventFromSession({
+        tenant_id: installment.tenant_id,
+        event_category: 'installment_admin',
+        event_type: 'installment_missed_marked',
+        entity_type: 'loan_installment',
+        entity_id: installment.id,
+        context: { installment_number: installment.number, defer_action: missDeferAction, outstanding: calcOutstanding(installment) },
+      });
+
       onSuccess(); onBack();
     } catch (e: any) { setError(parseSupabaseError(e)); }
     finally { setLoading(false); }
@@ -1045,6 +1067,17 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         p_installment_id: installment.id,
       });
       if (err) throw err;
+
+      // BR-SYS-008
+      logEventFromSession({
+        tenant_id: installment.tenant_id,
+        event_category: 'payment',
+        event_type: 'payment_reversed',
+        entity_type: 'loan_installment',
+        entity_id: installment.id,
+        before: { status: installment.status, amount_paid: installment.amount_paid, paid_at: installment.paid_at },
+      });
+
       onSuccess(); onBack();
     } catch (e: any) { setError(parseSupabaseError(e)); }
     finally { setLoading(false); }
@@ -1134,6 +1167,18 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     try {
       const { error: err } = await supabase.rpc('admin_update_installment', { p_installment_id: installment.id, p_new_amount_total: val, p_new_due_date: dueDate });
       if (err) throw err;
+
+      // BR-SYS-008 + BR-PAG-013: log de override admin com before/after
+      logEventFromSession({
+        tenant_id: installment.tenant_id,
+        event_category: 'installment_admin',
+        event_type: 'installment_overridden',
+        entity_type: 'loan_installment',
+        entity_id: installment.id,
+        before: { amount_total: installment.amount_total, due_date: installment.due_date },
+        after:  { amount_total: val, due_date: dueDate },
+      });
+
       onSuccess(); onBack();
     } catch (e: any) { setError(parseSupabaseError(e)); }
     finally { setLoading(false); }

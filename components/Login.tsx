@@ -11,6 +11,17 @@ import {
   Settings2,
 } from 'lucide-react';
 import { getSupabase, isProduction, clearExternalConfig, parseSupabaseError } from '../services/supabase';
+import { logEvent } from '../services/eventLog';
+
+/** Busca tenant_id do profile e registra evento de auth (non-blocking). */
+async function logAuthEvent(supabase: ReturnType<typeof import('../services/supabase').getSupabase>, userId: string, eventType: string, email: string) {
+  try {
+    const { data } = await supabase!.from('profiles').select('tenant_id').eq('id', userId).single();
+    if (data?.tenant_id) {
+      logEvent({ tenant_id: data.tenant_id, user_id: userId, event_category: 'auth', event_type: eventType, context: { email } });
+    }
+  } catch { /* non-blocking */ }
+}
 
 interface LoginProps {
   onLoginSuccess: () => void;
@@ -104,7 +115,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         if (signUpError) throw signUpError;
         if (data.user && !data.session) {
           setError("Registro iniciado! Verifique seu e-mail para confirmar o cadastro.");
-        } else if (data.session) onLoginSuccess();
+        } else if (data.session) {
+          void logAuthEvent(supabase, data.user!.id, 'signup_admin', email);
+          onLoginSuccess();
+        }
 
       } else if (authMode === 'signUpInvited') {
           const { data, error: signUpError } = await supabase.auth.signUp({
@@ -120,12 +134,18 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           if (signUpError) throw signUpError;
           if (data.user && !data.session) {
               setError("Conta criada! Verifique seu e-mail de confirmação para poder fazer login.");
-          } else if (data.session) onLoginSuccess();
+          } else if (data.session) {
+              void logAuthEvent(supabase, data.user!.id, 'signup_invited', email);
+              onLoginSuccess();
+          }
 
       } else { // Login
         const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
-        if (data.session) onLoginSuccess();
+        if (data.session) {
+          void logAuthEvent(supabase, data.user!.id, 'login_success', email);
+          onLoginSuccess();
+        }
       }
     } catch (err: any) {
       setError(parseSupabaseError(err));

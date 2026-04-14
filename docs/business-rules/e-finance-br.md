@@ -681,6 +681,15 @@ Categorias:
 - **Story:** Implementa BR-SYS-003 (deploy via CI/CD)
 - **Status:** ativa
 
+### BR-SYS-008: Toda ação de cliente com efeito colateral deve ser registrada em `tenant_events`
+- **Descrição:** Qualquer ação iniciada por usuário autenticado que modifique dados ou produza efeito observável (autenticar, criar/editar/excluir contrato, pagar, override administrativo) DEVE gerar um registro não-bloqueante em `tenant_events` com contexto suficiente para reproduzir o estado no momento do erro
+- **Motivação:** Tenants em fase de teste realizam ações que resultam em estados inconsistentes. Sem log de atividade, é impossível reproduzir erros ou entender o que o usuário fez antes do problema
+- **Condição:** Usuário autenticado realiza ação nas categorias: `auth`, `contract`, `payment`, `installment_admin`
+- **Resultado:** INSERT em `tenant_events` (non-blocking, fire-and-forget via `services/eventLog.ts`) com `before`/`after` snapshot e `context` em JSONB
+- **Exceções:** Leituras puras (GET sem side-effect); navegação entre páginas; falhas de autenticação sem sessão estabelecida
+- **Tabelas:** `tenant_events` (nova — migration v42)
+- **Status:** ativa
+
 ### BR-DB-001: Migrations de RPC devem dropar overloads anteriores explicitamente
 - **Descrição:** Ao adicionar parâmetros a uma função PostgreSQL existente, `CREATE OR REPLACE FUNCTION` com assinatura diferente NÃO substitui a versão anterior — cria um novo overload. Múltiplos overloads com parâmetros opcionais causam erro "Could not choose the best candidate function" em runtime
 - **Condição:** Qualquer migration que modifique a assinatura de uma função em `public.*`
