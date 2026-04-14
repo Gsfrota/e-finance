@@ -303,11 +303,12 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
     ) ?? testData!.installments[3];
     test.skip(!inst, 'Nenhuma parcela pendente disponível para PAY-PARTIAL');
 
-    // Aguarda a parcela alvo aparecer na tabela após mudança de filtro
-    // Sem esse wait, switchToAllPeriods (300ms) pode não ser suficiente para a tabela
-    // re-renderizar; openPaymentModal fallback clicaria na parcela errada.
+    // Aguarda a parcela alvo aparecer na tabela após mudança de filtro.
+    // NÃO pode engolir o timeout: se a linha não aparecer, openPaymentModal
+    // cairia no fallback "primeira BAIXA visível" e pagaria a parcela errada,
+    // fazendo fetchInstallment(inst.id) retornar amount_paid=0.
     await page.locator(`[data-installment-id="${inst.id}"]`).first()
-      .waitFor({ timeout: 10_000 }).catch(() => {});
+      .waitFor({ timeout: 10_000 });
 
     const opened = await openPaymentModal(page, inst.id);
     expect(opened, 'Botão BAIXA não encontrado').toBe(true);
@@ -333,9 +334,18 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
       page.getByText(/Confirmado|Pagamento|sucesso/i).first()
     ).toBeVisible({ timeout: 10_000 });
 
-    // Verifica no banco: parcela registrou pagamento parcial
+    // Verifica no banco: parcela registrou pagamento parcial.
+    // Usa polling para tolerar latência entre UI success e commit do PostgREST
+    // (race condition: UI mostra "Confirmado" antes do row ser visível via REST API).
     // - status='partial': implementação explícita de pagamento parcial
     // - status='pending' com amount_paid > 0: business logic que mantém 'pending' até quitação total
+    await expect.poll(
+      async () => {
+        const row = await fetchInstallment(page, inst.id);
+        return row ? (row.status === 'partial' || row.amount_paid > 0) : false;
+      },
+      { timeout: 5_000, message: 'Parcela não refletiu pagamento parcial no banco após 5s' }
+    ).toBe(true);
     const after = await fetchInstallment(page, inst.id);
     expect(after, 'Não foi possível buscar parcela no banco após pagamento').not.toBeNull();
     const isPartialState = after!.status === 'partial' || (after!.status === 'pending' && after!.amount_paid > 0);
