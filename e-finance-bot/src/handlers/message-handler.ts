@@ -34,6 +34,7 @@ import { executeActionPlan } from '../assistant/tool-executor';
 import { runPolicyCheck } from '../assistant/policy-engine';
 import type { ActionPlan, CommandUnderstanding, StructuredResponse } from '../assistant/contracts';
 import { formatCobrancaList, formatReceivablesList, formatComprovante, formatRelatorioCompleto, formatContractConfirmationMessage, formatContractCreatedMessage } from '../tools/formatters';
+import { runConversation } from '../ai/conversation-orchestrator';
 
 export interface IncomingMessage {
   messageId: string;
@@ -901,6 +902,15 @@ function shouldSkipConversationalLayer(action: string): boolean {
     || action === 'capability:help';
 }
 
+function shouldTryAiNative(tenantId: string | null | undefined): boolean {
+  if (!tenantId) return false;
+  if (config.aiNative.killSwitch) return false;
+  if (!config.aiNative.enabled) return false;
+  const allowlist = config.aiNative.tenantAllowlist;
+  if (allowlist.length > 0 && !allowlist.includes(tenantId)) return false;
+  return true;
+}
+
 function isPendingOperationCancel(text: string): boolean {
   return /^(não|nao|cancela|cancelar|para|sair)$/i.test(text.trim());
 }
@@ -1373,6 +1383,73 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
     const tenantId = session.profile.tenant_id;
     const profileId = session.profile.id;
     let workingState = getWorkingState(session.context);
+
+    // ─── AI-native gate (BR-BOT-007/008) — rollout canário ─────────────────
+    // Se AI_NATIVE_ENABLED=true e tenantId permitido, tenta responder via
+    // conversation-orchestrator. Se desabilitado/kill/error → fallback legado.
+    if (shouldTryAiNative(tenantId)) {
+      const aiStartedAt = Date.now();
+      try {
+        const pending = getPendingConfirmationState(session);
+        const history = await timed('dbReadMs', async () => {
+          try {
+            const rows = await withTimeout(
+              () => getRecentMessages(session.id, 8),
+              config.assistant.historyReadTimeoutMs,
+              'ai_history_timeout',
+            );
+            return rows
+              .filter(r => typeof r.content === 'string' && r.content.length > 0)
+              .map(r => ({
+                role: (r.role === 'assistant' ? 'model' : 'user') as 'user' | 'model',
+                text: r.content,
+              }));
+          } catch {
+            return [] as Array<{ role: 'user' | 'model'; text: string }>;
+          }
+        });
+
+        const result = await runConversation({
+          session,
+          userMessage: textToProcess,
+          history,
+          hasPendingConfirmation: !!pending,
+          turnId: msg.messageId,
+        });
+
+        const aiLatency = Date.now() - aiStartedAt;
+        logStructuredMessage('ai_native_turn', {
+          channel: msg.channel,
+          messageId: msg.messageId,
+          sessionId: session.id,
+          tenantId,
+          source: result.source,
+          reply_len: result.reply.length,
+          tool_calls: result.toolCalls.length,
+          tokens_in: result.tokensIn,
+          tokens_out: result.tokensOut,
+          cost_cents: result.estimatedCostCents,
+          latency_ms: aiLatency,
+        });
+
+        // Handled pela pipeline nova
+        if (result.reply && (result.source === 'fast_path' || result.source === 'llm' || result.source === 'budget_blocked')) {
+          await saveMessageTimed(session.id, 'user', textToProcess, userMediaType, `ai:${result.source}`);
+          await saveMessageTimed(session.id, 'assistant', result.reply, 'text', `ai:${result.source}`);
+          return { text: result.reply };
+        }
+        // Caso 'ai_disabled', 'kill_switch', 'error' → fallthrough para pipeline antiga
+      } catch (err) {
+        logStructuredMessage('ai_native_error', {
+          channel: msg.channel,
+          messageId: msg.messageId,
+          sessionId: session.id,
+          tenantId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // fallthrough
+      }
+    }
 
     const legacyExecuteIntent = async (legacyIntent: string, args: Record<string, unknown>): Promise<string> => (
       dispatchIntent(

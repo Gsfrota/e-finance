@@ -505,6 +505,24 @@ Categorias:
 - **Tabelas:** `payment_transactions`, `loan_installments`, `investments`
 - **Status:** ativa — *atualizada em 2026-04-13 (redesign UX: hero card de progresso, status pills, eventos internos ocultos, expand por parcela)*
 
+### BR-REL-017: Aba Salário — holerite mensal do operador de crédito
+- **Descrição:** A aba Salário exibe o rendimento do operador como um holerite: um único número hero que responde "quanto ganhei este mês?". A métrica hero é o **Lucro do período** = soma de `amount_interest + fine_amount + interest_delay_amount` das parcelas com `status IN ('paid','partial')` e `paid_at` no período selecionado (timezone `America/Sao_Paulo`, conforme BR-TZ-001). Abaixo do hero, duas linhas finas decompõem em: (1) juros contratuais (`amount_interest`) e (2) atraso/multa (`fine_amount + interest_delay_amount`). A linha de atraso é omitida quando zero. Cards secundários exibem: "Caiu na mão" (soma de `amount_paid`) e "Dinheiro que voltou" (soma de `amount_principal`). Período default: mês corrente.
+- **Condição:** `SalaryDashboard` — única tela que exibe este holerite
+- **Resultado:** Hero = `SUM(amount_interest + fine_amount + interest_delay_amount)` filtrado por `paid_at` no período. Inclui parcelas de contratos com `status = 'completed'` — contratos quitados fazem parte do histórico real de rendimento. Parcelas fantasmas (BR-REL-002) são excluídas. Parcelas com `paid_at = NULL` são incluídas apenas no filtro "Tudo", com indicação visual.
+- **Motivação (auditada via MCP 2026-04-15):** 192 parcelas (R$ 61.126,55 = 18,6% do total pago) estavam sumindo do histórico por filtro indevido em contratos `completed`. Operador não conseguia ver sua renda histórica correta.
+- **Exceções:** Parcelas com `amount_total=0 AND amount_paid=0 AND status='paid'` (fantasmas BR-REL-002) são sempre excluídas. Período custom usa `paid_at` da parcela, nunca `due_date`.
+- **Tabelas:** `loan_installments` (leitura via `paid_at`, `amount_interest`, `fine_amount`, `interest_delay_amount`, `amount_principal`, `amount_paid`, `status`)
+- **Status:** ativa — *criada em 2026-04-15*
+
+### BR-REL-018: Fórmula única de rendimento — `calcSalaryPortions`
+- **Descrição:** Toda tela ou hook que exiba renda do operador (juros, atraso, principal, bruto recebido) DEVE consumir a função pura `calcSalaryPortions(installment)` de `services/salary.ts`. É proibido recalcular porções de rendimento inline em componentes ou hooks. A função retorna `{ juros: number, atraso: number, principal: number, bruto: number }` onde: `juros = amount_interest (proporcional ao pago em parciais)`, `atraso = fine_amount + interest_delay_amount (proporcional)`, `principal = amount_principal (proporcional)`, `bruto = amount_paid`. Para parcelas `paid` integrais, usa valores diretos; para `partial`, distribui proporcionalmente via `ratio = amount_paid / (amount_principal + amount_interest + fine_amount + interest_delay_amount)`.
+- **Condição:** Qualquer exibição de breakdown de rendimento: `SalaryDashboard`, `buildKPIs` em `useDashboardData`, futuros relatórios de rendimento
+- **Resultado:** KPIs do dashboard (`totalProfitReceived`) e aba Salário (`lucroReal`) usam a mesma função → valores sempre consistentes entre si
+- **Motivação:** Dupla fórmula divergente identificada em 2026-04-15: hook usava `amountPaid - amountPrincipal` (ignora fine/delay); componente usava `juros + fine + delay` separado. Valores eram diferentes.
+- **Exceções:** Parcelas com `obligation = 0` retornam `{ juros: 0, atraso: 0, principal: 0, bruto: 0 }` sem divisão por zero
+- **Tabelas:** N/A — função frontend pura
+- **Status:** ativa — *criada em 2026-04-15*
+
 ---
 
 ## Usuários e Perfis (USR)
@@ -788,6 +806,22 @@ Categorias:
 - **Exceções:** Se ambos desconectados, registrar em log do sistema sem envio
 - **Tabelas:** `bot_tenant_config`
 - **Status:** ativa
+
+### BR-BOT-007: Personalização do assistente IA por tenant
+- **Descrição:** Cada tenant pode configurar seu próprio assistente IA com identidade própria, sem tocar em código. Campos configuráveis: `ai_enabled` (bool), `ai_persona_name` (texto, máx 40 chars, default "Assistente"), `ai_tone` (enum: `profissional` | `casual` | `amigavel` | `formal`, default `profissional`), `ai_system_prompt` (texto livre do admin, máx 3000 chars / ~3KB), `ai_faq_entries` (jsonb array de `{pergunta, resposta}`, máx 20 entries, cada resposta máx 500 chars), `ai_model_preference` (enum: `flash` | `pro`, default `flash`). **Modelo `flash` é o padrão universal para todos os tenants** (sem tier por plano) — tier por plano afeta apenas budget (BR-BOT-008). O pipeline LLM-first injeta essas configurações no system prompt ANTES de cada chamada ao Gemini. Mudanças refletem em ≤60s (cache TTL). O prompt do tenant é anexado a um prompt-base imutável que garante regras inegociáveis (não inventar dados, confirmar mutações, respeitar role) — admin NÃO pode sobrescrever essas regras
+- **Condição:** `bot_tenant_config` (colunas `ai_*`), `e-finance-bot/src/ai/system-prompt-builder.ts`, `components/admin/AdminBotAI.tsx`
+- **Resultado:** Admin do tenant acessa `/admin/bot-ai` e edita persona + tom + prompt customizado + FAQ. Validação: `system_prompt` ≤ 3KB; `faq_entries` ≤ 20 itens e cada resposta ≤ 500 chars; `persona_name` ≤ 40 chars. Preview em tempo real mostra como a persona responde a uma mensagem de teste. Ao salvar, cache é invalidado e próxima mensagem usa config nova. Apenas usuários com `role='admin'` do tenant podem editar (RLS policy). FAQ é injetada no prompt apenas se mensagem do usuário contém keyword relacionada (pre-filtro) para não estourar budget de tokens. Tom injeta instruções fixas no prompt-base (ex. `casual` → "Fale de forma descontraída")
+- **Exceções:** Platform owner (`guifrotasouza@gmail.com`) pode editar qualquer tenant e usar `ai_model_preference='pro'`. Se `ai_enabled=false`, pipeline IA é ignorado e bot responde com mensagem padrão "Assistente IA desativado pelo admin"
+- **Tabelas:** `bot_tenant_config`, `bot_messages`
+- **Status:** ativa (pendente aplicação da migration `027_bot_tenant_ai_config.sql`)
+
+### BR-BOT-008: Budget LLM por tenant e rate limit por usuário
+- **Descrição:** Custo de tokens LLM é controlado em duas dimensões: (1) **budget mensal por tenant** em centavos de USD, calibrado para volume inicial de ~50-60 msgs/dia/tenant (~1.800 msgs/mês, dos quais ~60% vão ao LLM após fast-path): plano `free` 50¢, `caderneta` 100¢, `empresarial` 300¢. Cálculo de calibração: com medidas de economia (Parte 10 do plano), custo médio é ~$0.00014/call Flash → $0.15/mês estimado → margem de segurança 3x para picos. (2) **Rate limit por usuário final** — 20 msgs/min (mantido) + **20 msgs/dia** por `channel_user_id` (considerando tenant médio com 2-5 usuários ativos). Budget é incrementado em tempo real após cada chamada ao Gemini usando custo real (`tokens_in * 0.075/1M + tokens_out * 0.30/1M` para Flash; 16x para Pro). Reset mensal: dia 1 do mês às 00:00 BRT via Cloud Scheduler. Reset diário de rate limit: 00:00 BRT. Fast-path regex (saudações, confirmações, slash commands) NÃO conta no budget — não chama LLM
+- **Condição:** `bot_tenant_config` (colunas `ai_monthly_budget_cents`, `ai_current_month_cents_spent`, `ai_budget_month_start`), `e-finance-bot/src/ai/conversation-orchestrator.ts`, `e-finance-bot/src/ai/budget-guard.ts`
+- **Resultado:** Ao atingir **80%** do budget, sistema envia email ao admin do tenant ("seu bot atingiu 80% do limite mensal"). Ao atingir **100%**, bot responde com mensagem fixa: "Limite mensal do assistente IA atingido. Fale com o administrador para aumentar o plano." até o reset mensal. Fast-path continua funcionando mesmo após 100% (saudação/ajuda não usa tokens). Rate limit diário por usuário: ao atingir 20 msgs/dia, bot responde "Pausa, você mandou muitas mensagens hoje 😅, volta amanhã". Custo por chamada é registrado em `bot_messages.tokens_in`, `tokens_out`, `latency_ms`. Kill switch global: env `AI_NATIVE_KILL_SWITCH=true` desliga IA para todos tenants (fallback pipeline antiga). Budgets podem ser ajustados por tenant individualmente (admin não edita — apenas platform owner via SQL ou endpoint protegido) à medida que volume real for medido e calibração evoluir
+- **Exceções:** Platform owner (`guifrotasouza@gmail.com`) é isento de budget e rate limit (para testes em produção). Se custo do Gemini subir (>3x preço atual), kill switch é acionado manualmente e budgets são recalculados
+- **Tabelas:** `bot_tenant_config`, `bot_messages`, `bot_user_rate_limits` (nova — contador diário por `channel_user_id`)
+- **Status:** ativa (pendente aplicação das migrations `027_bot_tenant_ai_config.sql` e `028_bot_user_rate_limits.sql`)
 
 ### BR-TZ-001: Timezone operacional do frontend
 - **Descrição:** Toda computação de "hoje" e comparação de datas no frontend deve usar o fuso horário `America/Sao_Paulo`. Proibido usar `new Date().toISOString().split('T')[0]` para obter a data atual (retorna UTC — às 21h BRT já é dia seguinte em UTC). Proibido usar `new Date().getFullYear()/.getMonth()/.getDate()` sem timezone explícito.

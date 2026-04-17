@@ -126,6 +126,16 @@ export const config = {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
   },
 
+  // AI-native (LLM-first com function calling) — BR-BOT-007/008
+  aiNative: {
+    // Global: se true, roteia para conversation-orchestrator quando tenant tem ai_enabled=true
+    enabled: process.env.AI_NATIVE_ENABLED === 'true',
+    // Kill switch (prioritário): força pipeline antiga em TODO o serviço
+    killSwitch: process.env.AI_NATIVE_KILL_SWITCH === 'true',
+    // Rollout por tenant (csv de UUIDs) — se vazio, respeita bot_tenant_config.ai_enabled
+    tenantAllowlist: (process.env.AI_NATIVE_TENANT_ALLOWLIST || '').split(',').map(s => s.trim()).filter(Boolean),
+  },
+
   // Alertas de conexão UazAPI
   alerts: {
     emergencyTelegramChatId: process.env.ALERT_TELEGRAM_CHAT_ID || '',
