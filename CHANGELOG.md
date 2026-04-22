@@ -1,6 +1,6 @@
 # Changelog — E-Finance
 
-## [Não publicado] — 2026-04-22
+## [v1.0.0-2026-04-22] — 2026-04-22 · commit `1342e1f` · Cloud Run ✅
 
 ### feat(users): indicadores de inadimplência na listagem e seleção de devedores — BR-USR-003
 
