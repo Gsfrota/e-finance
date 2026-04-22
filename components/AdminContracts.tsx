@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { fetchProfileByAuthUserId, getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
+import { useDebtorLateMap } from '../hooks/useDebtorLateMap';
 import { logEvent } from '../services/eventLog';
 import { Investment, Tenant, Profile, AppView } from '../types';
 import { useCompanyContext } from '../services/companyScope';
@@ -29,9 +30,10 @@ const UserSelectionCard: React.FC<{
     profiles: Profile[];
     onSelect: (p: Profile) => void;
     onClear: () => void;
-    onCreateNew?: () => void; 
+    onCreateNew?: () => void;
     isDefault?: boolean;
-}> = ({ label, role, selectedProfile, profiles, onSelect, onClear, onCreateNew, isDefault }) => {
+    lateCountsMap?: Map<string, number>;
+}> = ({ label, role, selectedProfile, profiles, onSelect, onClear, onCreateNew, isDefault, lateCountsMap }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showDropdown, setShowDropdown] = useState(false);
 
@@ -72,6 +74,11 @@ const UserSelectionCard: React.FC<{
                                 <div className="bg-[color:var(--bg-elevated)] p-1 rounded-md border border-[color:var(--border-subtle)]" title="Administrador">
                                     <ShieldCheck size={12} className="text-[color:var(--accent-positive)]"/>
                                 </div>
+                            )}
+                            {role === 'payer' && (lateCountsMap?.get(selectedProfile.id) ?? 0) > 0 && (
+                                <span className="chip chip-late">
+                                    {lateCountsMap!.get(selectedProfile.id)} em atraso
+                                </span>
                             )}
                         </div>
                         <p className="text-[color:var(--text-muted)] text-xs mt-0.5 font-medium">{selectedProfile.email}</p>
@@ -126,7 +133,12 @@ const UserSelectionCard: React.FC<{
                                             <p className="text-[color:var(--text-muted)] text-[10px]">{p.email}</p>
                                         </div>
                                     </div>
-                                    {p.role === 'admin' && <span className="type-micro bg-[color:var(--accent-positive-subtle)] text-[color:var(--accent-positive)] px-2 py-1 rounded border border-[color:var(--accent-positive-border)]">Admin</span>}
+                                    <div className="flex items-center gap-1.5">
+                                        {p.role === 'admin' && <span className="type-micro bg-[color:var(--accent-positive-subtle)] text-[color:var(--accent-positive)] px-2 py-1 rounded border border-[color:var(--accent-positive-border)]">Admin</span>}
+                                        {role === 'payer' && (lateCountsMap?.get(p.id) ?? 0) > 0 && (
+                                            <span className="chip chip-late">{lateCountsMap!.get(p.id)} em atraso</span>
+                                        )}
+                                    </div>
                                 </button>
                             ))}
                         </div>
@@ -162,6 +174,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const lateCountsMap = useDebtorLateMap(currentTenant?.id, activeCompanyId);
 
   const [isNLContractOpen, setIsNLContractOpen] = useState(false);
   const [step, setStep] = useState(1);
@@ -897,6 +910,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                         onSelect={setSelectedPayer}
                         onClear={() => setSelectedPayer(null)}
                         onCreateNew={() => setContractsSubView('create-client')}
+                        lateCountsMap={lateCountsMap}
                     />
                 </div>
             )}

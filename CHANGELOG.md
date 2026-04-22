@@ -1,5 +1,53 @@
 # Changelog — E-Finance
 
+## [Não publicado] — 2026-04-22
+
+### feat(users): indicadores de inadimplência na listagem e seleção de devedores — BR-USR-003
+
+**Problema:** Ao criar um novo contrato ou visualizar a lista de usuários, não havia como saber se um devedor já possuía parcelas em atraso sem abrir o detalhe do contrato.
+
+**Solução:**
+
+- **Criado `hooks/useDebtorLateMap.ts`** — hook que agrega contagem de parcelas atrasadas por `payer_id` via query em `loan_installments`, seguindo a regra de detecção da BR-PAG-024 (`due_date < hoje AND status != 'paid' AND amount_total > 0.01`, excluindo contratos `completed`/`renewed`).
+- **`components/AdminUsers.tsx`** — cards de devedores exibem badge `chip chip-late` "X em atraso" quando `lateCount > 0`. Badge é o único elemento vermelho do card, garantindo foco visual.
+- **`components/AdminContracts.tsx`** — `UserSelectionCard` recebe prop `lateCountsMap?: Map<string, number>`; badge aparece nos itens do dropdown e no card do devedor já selecionado.
+
+**Regra de detecção:** faltas (`missed`) geram parcela substituta que entra naturalmente no mesmo filtro quando vencer — sem badge separado necessário.
+
+---
+
+### fix(ui): paleta de cores da tela de Usuários migrada para tokens do Design System
+
+**Problema:** `AdminUsers.tsx` usava cores Tailwind hardcoded (`red-400/900`, `indigo-400/900`, `teal-400/900`, `purple-400/900`) causando saturação excessiva e colisão semântica com o badge de inadimplência recém-introduzido.
+
+**Solução:** Substituição por tokens semânticos já existentes em `index.css`, sem alteração de CSS:
+
+| Papel | Antes | Depois |
+|-------|-------|--------|
+| Devedor | `red-400` | `--accent-steel` (azul suave) |
+| Administrador | `indigo-400` | `--accent-purple` |
+| Investidor | `teal-400` (hardcoded) | `--accent-positive` (token) |
+| Proprietário | `purple-400` | `--accent-brass` (dourado) |
+
+O vermelho (`chip-late`) agora é exclusivo de alerta de atraso — sem concorrência visual.
+
+---
+
+### fix(db): propagação de `company_id` nas RPCs que criam parcelas — BR-DB-001
+
+**Problema:** Três RPCs criavam `loan_installments` sem herdar `company_id` do contrato pai, causando parcelas invisíveis na Cobrança do Dia para tenants multi-empresa. Caso confirmado: MD Veículos / Claudia lanche (parcela atrasada sumida). PRIMO CASH também afetado (11 parcelas órfãs preventivamente corrigidas).
+
+**RPCs corrigidas** (migration `fix_company_id_propagation_in_installment_rpcs`):
+- `defer_remaining_to_last` — `SELECT company_id FROM investments` adicionado antes do INSERT
+- `apply_remainder_action` — mesma correção no branch `v_do_create`
+- `mark_installment_missed` — mesma correção no branch `new`
+
+**Dados históricos:** corrigidos via `UPDATE loan_installments SET company_id = i.company_id FROM investments i WHERE li.company_id IS NULL AND i.company_id IS NOT NULL` — 0 parcelas órfãs ativas remanescentes em produção.
+
+**Tenants afetados com atividade real:** MD Veículos, Emprestimo Silva, PRIMO CASH, GRUPO XYZ, Guilherme juros.
+
+---
+
 ## [Não publicado] — 2026-04-10
 
 ### fix(timezone): centralizar cálculo de "hoje" em America/Sao_Paulo — BR-TZ-001

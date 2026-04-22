@@ -4,6 +4,7 @@ import { getSupabase, withRetry } from '../services/supabase';
 import { getCached, setCached } from '../services/cache';
 import { Investment, LoanInstallment, AdminDashboardStats, DashboardKPIs } from '../types';
 import { getBrazilToday, isoToBrazilYMD, getMonthRangeBR } from '../services/dateUtils';
+import { calcSalaryPortions, isSalaryPhantom } from '../services/salary';
 
 // --- TYPES ---
 
@@ -108,23 +109,10 @@ const buildKPIs = (
         const isOverdue = (inst.due_date < todayYMD) && !isPaid && (outstanding > 0.01);
 
         if (amountPaid > 0) {
-            // Usa amount_principal diretamente em vez de proporção calculada
-            // Para parcelas pagas integralmente, o principal pago é o amount_principal
-            // Para parcelas parciais, usa proporção do que foi pago
-            const isPaidFull = inst.status === 'paid';
-            let principalPartPaid: number;
-            let profitPartPaid: number;
-
-            if (isPaidFull) {
-                principalPartPaid = amountPrincipal;
-                profitPartPaid = amountPaid - amountPrincipal;
-            } else {
-                // Parcial: proporção baseada nos campos reais
-                const contractualTotal = amountPrincipal + amountInterest;
-                const principalRatio = contractualTotal > 0 ? amountPrincipal / contractualTotal : 0;
-                principalPartPaid = amountPaid * principalRatio;
-                profitPartPaid = amountPaid * (1 - principalRatio);
-            }
+            // BR-REL-018: usa calcSalaryPortions como fonte única de verdade
+            const portions = calcSalaryPortions(inst);
+            const principalPartPaid = portions.principal;
+            const profitPartPaid = portions.juros + portions.atraso;
 
             kpis.totalPrincipalRepaid += principalPartPaid;
             kpis.totalProfitReceived += profitPartPaid;
@@ -390,10 +378,13 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
       });
 
       // Todas as parcelas pagas/parciais (sem filtro de mês) para o SalaryDashboard
-      // BR-REL-002: exclui parcelas fantasmas (deferidas via mark_installment_missed)
-      const allPaidInstallments: LoanInstallment[] = uniqueInstallments
-        .filter((inst: any) => (inst.status === 'paid' || inst.status === 'partial') &&
-          !(normalizeNumber(inst.amount_total) === 0 && normalizeNumber(inst.amount_paid) === 0 && inst.status === 'paid'))
+      // BR-REL-017: inclui parcelas de contratos 'completed' — fazem parte do histórico real de rendimento
+      // BR-REL-002 + BR-REL-018: usa isSalaryPhantom como predicado único para excluir fantasmas
+      const allPaidInstallments: LoanInstallment[] = (instRes.data || [])
+        .filter((inst: any) =>
+          (inst.status === 'paid' || inst.status === 'partial') &&
+          !isSalaryPhantom(inst)
+        )
         .map((inst: any) => ({
           ...inst,
           amount_total: normalizeNumber(inst.amount_total),

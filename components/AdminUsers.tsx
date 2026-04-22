@@ -4,6 +4,7 @@ import { fetchProfileByAuthUserId, getSupabase, logError, parseSupabaseError, is
 import { Profile, UserRole, Tenant, Invite } from '../types';
 import { useCompanyContext } from '../services/companyScope';
 import { useAdminMetrics } from '../hooks/useAdminMetrics';
+import { useDebtorLateMap } from '../hooks/useDebtorLateMap';
 import { User, PlusCircle, Search, X, DollarSign, Activity, Users, CreditCard, Pencil, AlertTriangle, FileSearch, RefreshCw, Crown, Shield, Clipboard, Check, Key, Mail, Phone, Briefcase, Send, Trash2, Hourglass, UserPlus, MapPin, Upload, CheckCircle2, ArrowLeft } from 'lucide-react';
 
 // View Model para unificar a exibição
@@ -26,6 +27,7 @@ type DisplayUser = {
   bairro?: string;
   cidade?: string;
   uf?: string;
+  lateCount?: number;
 };
 
 const maskCPF = (v: string) =>
@@ -42,6 +44,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
   const { activeCompanyId } = useCompanyContext();
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
   const { metricsMap } = useAdminMetrics(currentTenant?.id ?? null, activeCompanyId);
+  const lateMap = useDebtorLateMap(currentTenant?.id, activeCompanyId);
   const [displayUsers, setDisplayUsers] = useState<DisplayUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -653,11 +656,11 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
       )}
 
       <div className="flex gap-2 border-b border-[color:var(--border-subtle)] pb-px overflow-x-auto scrollbar-hide">
-        <button onClick={() => setActiveTab('all')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'all' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><Users size={16}/> Base Geral ({counts.all})</button>
+        <button onClick={() => setActiveTab('all')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'all' ? 'text-[color:var(--accent-positive)] border-[color:var(--accent-positive)]' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><Users size={16}/> Base Geral ({counts.all})</button>
         <button onClick={() => setActiveTab('pending')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'pending' ? 'text-[color:var(--accent-caution)] border-[color:var(--accent-caution)]' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><Hourglass size={16}/> Pendentes ({counts.pending})</button>
-        <button onClick={() => setActiveTab('investor')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'investor' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><DollarSign size={16}/> Investidores ({counts.investor})</button>
-        <button onClick={() => setActiveTab('debtor')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'debtor' ? 'text-teal-400 border-teal-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><CreditCard size={16}/> Devedores ({counts.debtor})</button>
-        <button onClick={() => setActiveTab('admin')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'admin' ? 'text-indigo-400 border-indigo-400' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><Shield size={16}/> Administradores ({counts.admin})</button>
+        <button onClick={() => setActiveTab('investor')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'investor' ? 'text-[color:var(--accent-positive)] border-[color:var(--accent-positive)]' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><DollarSign size={16}/> Investidores ({counts.investor})</button>
+        <button onClick={() => setActiveTab('debtor')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'debtor' ? 'text-[color:var(--accent-steel)] border-[color:var(--accent-steel)]' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><CreditCard size={16}/> Devedores ({counts.debtor})</button>
+        <button onClick={() => setActiveTab('admin')} className={`px-4 py-3 type-label transition-colors border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === 'admin' ? 'text-[color:var(--accent-purple)] border-[color:var(--accent-purple)]' : 'text-[color:var(--text-muted)] border-transparent hover:text-[color:var(--text-secondary)]'}`}><Shield size={16}/> Administradores ({counts.admin})</button>
       </div>
 
        {loading && displayUsers.length === 0 ? (
@@ -677,7 +680,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
 
                 const cardStyles = isPending
                     ? 'border-[color:var(--accent-caution-border)] bg-[color:var(--bg-elevated)]'
-                    : isOwner ? 'border-purple-500/50 shadow-purple-900/20' : isAdmin ? 'border-[color:var(--border-subtle)] shadow-slate-900/10' : 'border-[color:var(--border-subtle)] hover:border-teal-900';
+                    : isOwner ? 'border-[color:var(--accent-brass-border)] shadow-[0_4px_16px_rgba(240,180,41,0.08)]' : isAdmin ? 'border-[color:var(--border-subtle)] shadow-slate-900/10' : 'border-[color:var(--border-subtle)] hover:border-[color:var(--accent-steel-border)]';
 
                 return (
                     <div key={user.id} className={`bg-[color:var(--bg-elevated)] border rounded-[2rem] p-6 shadow-lg transition-all flex flex-col justify-between relative group/card ${cardStyles}`}>
@@ -712,9 +715,9 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                             <div className="flex items-center gap-4 mb-4">
                                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-semibold text-lg overflow-hidden ${
                                     isPending ? 'bg-[color:var(--accent-caution-bg-strong)] text-[color:var(--accent-caution)] border border-[color:var(--accent-caution-border)]' :
-                                    isOwner ? 'bg-purple-900/40 text-purple-400 border border-purple-500/30' :
-                                    isAdmin ? 'bg-indigo-900/40 text-indigo-400' :
-                                    user.role === 'investor' ? 'bg-teal-900/40 text-teal-400' : 'bg-red-900/40 text-red-400'
+                                    isOwner ? 'bg-[color:var(--accent-brass-subtle)] text-[color:var(--accent-brass)] border border-[color:var(--accent-brass-border)]' :
+                                    isAdmin ? 'bg-[rgba(192,132,252,0.14)] text-[color:var(--accent-purple)] border border-[rgba(192,132,252,0.24)]' :
+                                    user.role === 'investor' ? 'bg-[color:var(--accent-positive-subtle)] text-[color:var(--accent-positive)] border border-[color:var(--accent-positive-border)]' : 'bg-[color:var(--accent-steel-subtle)] text-[color:var(--accent-steel)] border border-[color:var(--accent-steel-border)]'
                                 }`}>
                                     {!isPending && user.photo_url ? (
                                         <img src={user.photo_url} alt={user.fullName} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -725,12 +728,17 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                                     <p className="type-caption text-[color:var(--text-muted)] truncate font-mono">{user.email}</p>
                                     <span className={`inline-block mt-1 px-2 py-0.5 rounded type-micro ${
                                         isPending ? 'bg-[color:var(--accent-caution-bg)] text-[color:var(--accent-caution)] border border-[color:var(--accent-caution-border)]' :
-                                        isOwner ? 'bg-purple-900/30 text-purple-400 border border-purple-500/20' :
-                                        isAdmin ? 'bg-indigo-900/30 text-indigo-400' :
-                                        user.role === 'investor' ? 'bg-teal-900/30 text-teal-400' : 'bg-red-900/30 text-red-400'
+                                        isOwner ? 'bg-[color:var(--accent-brass-subtle)] text-[color:var(--accent-brass)] border border-[color:var(--accent-brass-border)]' :
+                                        isAdmin ? 'bg-[rgba(192,132,252,0.10)] text-[color:var(--accent-purple)] border border-[rgba(192,132,252,0.20)]' :
+                                        user.role === 'investor' ? 'bg-[color:var(--accent-positive-subtle)] text-[color:var(--accent-positive)] border border-[color:var(--accent-positive-border)]' : 'bg-[color:var(--accent-steel-subtle)] text-[color:var(--accent-steel)] border border-[color:var(--accent-steel-border)]'
                                     }`}>
                                         {isPending ? 'Pendente' : isOwner ? 'Proprietário' : isAdmin ? 'Admin' : user.role === 'investor' ? 'Investidor' : 'Pagador'}
                                     </span>
+                                    {!isPending && user.role === 'debtor' && (lateMap.get(user.id) ?? 0) > 0 && (
+                                        <span className="chip chip-late ml-1">
+                                            {lateMap.get(user.id)} em atraso
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         </div>
