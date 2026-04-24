@@ -7,7 +7,7 @@ import { useCompanyContext } from '../services/companyScope';
 import { InstallmentsTable } from './dashboard/DashboardWidgets';
 import { CollectionDashboard } from './dashboard/CollectionDashboard';
 import { SalaryDashboard } from './dashboard/SalaryDashboard';
-import { getBrazilToday, isoToBrazilYMD } from '../services/dateUtils';
+import { getBrazilToday, isoToBrazilYMD, addDaysBR } from '../services/dateUtils';
 import {
   InstallmentDetailScreen,
   InstallmentFormScreen,
@@ -72,7 +72,7 @@ const useHomeData = (tenantId?: string, companyId?: string | null) => {
   const today = getBrazilToday();
 
   const contratosHoje = useMemo(
-    () => investments.filter(inv => inv.created_at?.startsWith(today)),
+    () => investments.filter(inv => inv.created_at ? isoToBrazilYMD(inv.created_at) === today : false),
     [investments, today]
   );
 
@@ -246,11 +246,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
   }, [parcelasPagasHoje]);
 
   // ─── KPI data para avisos (declarado antes dos early returns) ───────────────
-  const in3Days = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 3);
-    return d.toISOString().split('T')[0];
-  }, []);
+  const in3Days = useMemo(() => addDaysBR(today, 3), [today]);
   const parcelasVencendo = useMemo(
     () => installments.filter(i => i.due_date >= today && i.due_date <= in3Days && i.status !== 'paid').length,
     [installments, today, in3Days],

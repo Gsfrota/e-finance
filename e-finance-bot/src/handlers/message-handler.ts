@@ -2961,7 +2961,7 @@ async function handlePendingAction(
 
       const merged15: Record<string, unknown> = { ...partialDraft15, frequency: frequency15 };
       if (frequency15 === 'daily') {
-        merged15.start_date = new Date().toISOString().split('T')[0];
+        merged15.start_date = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
       }
 
       const nextStep15 = getNextMissingStep(merged15);

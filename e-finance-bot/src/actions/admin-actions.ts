@@ -673,7 +673,8 @@ export async function getInstallments(
     query = query.eq('company_id', companyId);
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const brtFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' });
+  const today = brtFmt.format(new Date());
 
   if (filter === 'pending') {
     query = query.in('status', ['pending', 'partial']);
@@ -685,7 +686,7 @@ export async function getInstallments(
     query = query
       .in('status', ['pending', 'late', 'partial'])
       .gte('due_date', today)
-      .lte('due_date', weekEnd.toISOString().split('T')[0]);
+      .lte('due_date', brtFmt.format(weekEnd));
   }
 
   const { data, error } = await query;
