@@ -889,7 +889,7 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
       {
         input: { text: 'desconectar' },
         expect: {
-          textIncludes: ['Desconectar este chat'],
+          textIncludes: ['desconectar este chat'],
           workingState: {
             pendingConfirmation: expect.anything(),
           },
