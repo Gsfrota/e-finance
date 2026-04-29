@@ -100,12 +100,39 @@ export function formatFastPathReply(hit: FastPathHit, ctx: FastPathContext): str
 }
 
 function helpText(role: 'admin' | 'investor' | 'debtor', persona: string): string {
-  const header = `Eu sou ${persona}. Aqui está o que posso fazer:`;
+  const header = `Sou ${persona}. Posso te ajudar com:`;
   if (role === 'admin') {
-    return `${header}\n\n• *Ver dashboard* — "me mostra o dashboard"\n• *Recebíveis* — "quanto vou receber na semana?"\n• *Cobrar* — "quem tenho que cobrar hoje?"\n• *Saldo devedor* — "quanto o João me deve?"\n• *Criar contrato* — "emprestar R$ 2.000 pro Felipe em 10x"\n• *Marcar pago* — "marca parcela 3 do João como paga"\n• *Relatório* — "gera relatório do mês"\n• *Convite* — "gera um convite"\n\nPode me perguntar em português natural — eu te entendo.`;
+    return [
+      header,
+      '',
+      '*Consultas*',
+      '• Dashboard do mês — _"como tá o mês?"_',
+      '• Recebíveis — _"quanto vou receber na semana?"_',
+      '• Cobranças — _"quem cobro hoje?"_',
+      '• Saldo de um cliente — _"quanto o João me deve?"_',
+      '',
+      '*Operações*',
+      '• Criar contrato — _"empresta R$ 2.000 pro Felipe em 10× a 5%"_',
+      '• Marcar parcela paga — _"baixa parcela 3 do João"_',
+      '• Relatório do mês — _"gera relatório"_',
+      '• Convite — _"gera um convite"_',
+      '',
+      'Pode falar comigo em português natural.',
+    ].join('\n');
   }
   if (role === 'investor') {
-    return `${header}\n\n• *Meu portfólio* — "como está meu capital?"\n• *Desconectar* — "me desconecta"`;
+    return [
+      header,
+      '',
+      '• Seu portfólio — _"como está meu capital?"_',
+      '• Desconectar — _"me desconecta"_',
+    ].join('\n');
   }
-  return `${header}\n\n• *Minhas parcelas* — "quais as próximas?"\n• *Meu saldo devedor* — "quanto eu devo?"\n• *Desconectar* — "me desconecta"`;
+  return [
+    header,
+    '',
+    '• Suas parcelas — _"quais as próximas?"_',
+    '• Saldo devedor — _"quanto eu devo?"_',
+    '• Desconectar — _"me desconecta"_',
+  ].join('\n');
 }

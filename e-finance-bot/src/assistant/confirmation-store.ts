@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { config } from '../config';
 import type { ActionCapability, ConversationWorkingState } from './contracts';
 import type { Session } from '../session/session-manager';
@@ -34,7 +34,8 @@ export async function createPendingConfirmation(
   safePreview: string,
 ): Promise<{ confirmationId: string; idempotencyKey: string; safeUserMessage: string }> {
   const idempotencyKey = createIdempotencyKey(session.id, capability, argsSnapshot);
-  const confirmationId = `${capability}:${Date.now()}`;
+  // Sufixo aleatório elimina colisão se duas confirmações forem criadas no mesmo ms.
+  const confirmationId = `${capability}:${Date.now()}:${randomBytes(3).toString('hex')}`;
   const expiresAt = new Date(Date.now() + config.assistant.confirmationTtlMs).toISOString();
 
   await patchWorkingState(session, {

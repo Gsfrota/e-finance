@@ -20,14 +20,21 @@ export function formatCobrancaList(debtors: DebtorItem[], windowLabel: string): 
   const total = debtors.reduce((sum, d) => sum + d.totalDue, 0);
   const visibleItems = debtors.slice(0, 8);
   const lines = visibleItems.map((d, idx) => {
-    const parcelas = d.installmentCount > 1 ? ` — ${d.installmentCount} parcelas` : '';
-    const atraso = d.daysLate > 0 ? ` *(${d.daysLate}d atrasado)*` : '';
-    return `${idx + 1}. ${d.name} — ${formatCurrency(d.totalDue)}${parcelas}${atraso}`;
+    const parcelas = d.installmentCount > 1 ? `  ·  ${d.installmentCount} parcelas` : '';
+    const atraso = d.daysLate > 0 ? `  ·  _${d.daysLate}d atrasado_` : '';
+    return `*${idx + 1}.* ${d.name}  ·  *${formatCurrency(d.totalDue)}*${parcelas}${atraso}`;
   });
   const extra = debtors.length > visibleItems.length
-    ? `\n\n...e mais ${debtors.length - visibleItems.length} devedores no período.`
+    ? `\n_…e mais ${debtors.length - visibleItems.length} devedores no período._`
     : '';
-  return `🔔 *Cobranças — ${windowLabel}* — ${debtors.length} devedor${debtors.length !== 1 ? 'es' : ''}\n\n${lines.join('\n')}\n\n💰 Total em aberto: *${formatCurrency(total)}*${extra}`;
+  const word = debtors.length === 1 ? 'devedor' : 'devedores';
+  return [
+    `*Cobranças — ${windowLabel}*`,
+    `${debtors.length} ${word}  ·  total *${formatCurrency(total)}*`,
+    '',
+    lines.join('\n'),
+    extra,
+  ].filter(Boolean).join('\n');
 }
 
 /**
@@ -37,14 +44,21 @@ export function formatReceivablesList(installments: Installment[], windowLabel: 
   const total = installments.reduce((sum, i) => sum + i.amount, 0);
   const visibleItems = installments.slice(0, 8);
   const lines = visibleItems.map((item, idx) => {
-    const dateStr = item.dueDate ? ` — ${formatDate(item.dueDate)}` : '';
-    const atraso = item.daysLate > 0 ? ` *(atrasado)*` : '';
-    return `${idx + 1}. ${item.debtorName} — ${formatCurrency(item.amount)}${dateStr}${atraso}`;
+    const dateStr = item.dueDate ? `  ·  ${formatDate(item.dueDate)}` : '';
+    const atraso = item.daysLate > 0 ? `  ·  _atrasado_` : '';
+    return `*${idx + 1}.* ${item.debtorName}  ·  *${formatCurrency(item.amount)}*${dateStr}${atraso}`;
   });
   const extra = installments.length > visibleItems.length
-    ? `\n\n...e mais ${installments.length - visibleItems.length} itens no período.`
+    ? `\n_…e mais ${installments.length - visibleItems.length} parcelas no período._`
     : '';
-  return `📅 *Recebíveis — ${windowLabel}* — ${installments.length} parcela${installments.length !== 1 ? 's' : ''}\n\n${lines.join('\n')}\n\n💰 Total previsto: *${formatCurrency(total)}*${extra}`;
+  const word = installments.length === 1 ? 'parcela' : 'parcelas';
+  return [
+    `*Recebíveis — ${windowLabel}*`,
+    `${installments.length} ${word}  ·  previsto *${formatCurrency(total)}*`,
+    '',
+    lines.join('\n'),
+    extra,
+  ].filter(Boolean).join('\n');
 }
 
 /**
@@ -55,30 +69,25 @@ export function formatComprovante(data: ComprovanteData): string {
   const paidDateStr = paidDate.toLocaleDateString('pt-BR');
   const paidTimeStr = paidDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-  const lines: string[] = [
-    '✅ *Comprovante de Pagamento*',
-    '─────────────────────────',
-    `Devedor: ${data.debtorName}`,
-  ];
-
-  if (data.contractId) {
-    lines.push(`Contrato: #${data.contractId}`);
-  }
-
+  const headerParts: string[] = [data.debtorName];
+  if (data.contractId) headerParts.push(`Contrato #${data.contractId}`);
   if (data.installmentNumber !== undefined) {
     const totalStr = data.totalInstallments ? `/${data.totalInstallments}` : '';
-    lines.push(`Parcela: ${data.installmentNumber}${totalStr}`);
+    headerParts.push(`Parcela ${data.installmentNumber}${totalStr}`);
   }
 
-  lines.push(`Valor: ${formatCurrency(data.amount)}`);
+  const lines: string[] = [
+    '*Pagamento confirmado*',
+    '',
+    headerParts.join('  ·  '),
+    '',
+    `Valor: *${formatCurrency(data.amount)}*`,
+  ];
 
   if (data.dueDate) {
     lines.push(`Vencimento: ${formatDate(data.dueDate)}`);
   }
-
   lines.push(`Pago em: ${paidDateStr} às ${paidTimeStr}`);
-  lines.push('─────────────────────────');
-  lines.push('Para mais detalhes, acesse o dashboard web.');
 
   return lines.join('\n');
 }
@@ -91,42 +100,41 @@ export function formatRelatorioCompleto(report: MonthlyReport, month: string): s
   const receivedByPaymentMonth = d.receivedByPaymentMonth ?? d.receivedMonth;
   const receivedByDueMonth = d.receivedByDueMonth ?? d.receivedMonth;
 
-  const sep = '━━━━━━━━━━━━━━━━━━';
+  const sections: string[] = [];
 
-  let text = `📊 *Relatório — ${month}*\n${sep}\n\n`;
+  sections.push(`*Relatório — ${month}*`);
 
-  text += `💼 *RESUMO*\n`;
-  text += `✅ Recebido (pagamento no mês): ${formatCurrency(receivedByPaymentMonth)}\n`;
-  text += `📅 Recebido (por vencimento): ${formatCurrency(receivedByDueMonth)}\n`;
-  text += `📈 Previsto para receber: ${formatCurrency(d.expectedMonth)}\n`;
-  text += `⚠️ Em atraso: ${formatCurrency(d.totalOverdue)}\n`;
-  text += `📋 Contratos ativos: ${d.activeContracts}\n`;
+  sections.push([
+    '*Resumo*',
+    `• Recebido (data do pagamento): *${formatCurrency(receivedByPaymentMonth)}*`,
+    `• Recebido (por vencimento): *${formatCurrency(receivedByDueMonth)}*`,
+    `• Previsto para receber: *${formatCurrency(d.expectedMonth)}*`,
+    `• Em atraso: *${formatCurrency(d.totalOverdue)}*`,
+    `• Contratos ativos: *${d.activeContracts}*`,
+  ].join('\n'));
 
   if (report.todayInstallments.length > 0) {
-    text += `\n${sep}\n`;
-    text += `📅 *VENCE HOJE* (${report.todayInstallments.length})\n`;
-    report.todayInstallments.slice(0, 5).forEach(i => {
-      text += `• ${i.debtorName} — ${formatCurrency(i.amount)}\n`;
-    });
+    const list = report.todayInstallments.slice(0, 5)
+      .map(i => `• ${i.debtorName}  ·  *${formatCurrency(i.amount)}*`)
+      .join('\n');
+    sections.push(`*Vence hoje (${report.todayInstallments.length})*\n${list}`);
   }
 
   if (report.overdueDebtors.length > 0) {
-    text += `\n${sep}\n`;
-    text += `🔴 *INADIMPLENTES* (${report.overdueDebtors.length})\n`;
-    report.overdueDebtors.slice(0, 5).forEach(debtor => {
-      text += `• ${debtor.name} — ${formatCurrency(debtor.totalDue)} (${debtor.daysLate}d)\n`;
-    });
+    const list = report.overdueDebtors.slice(0, 5)
+      .map(debtor => `• ${debtor.name}  ·  *${formatCurrency(debtor.totalDue)}*  ·  _${debtor.daysLate}d_`)
+      .join('\n');
+    sections.push(`*Inadimplentes (${report.overdueDebtors.length})*\n${list}`);
   }
 
   if (report.topDebtors.length > 0) {
-    text += `\n${sep}\n`;
-    text += `👥 *MAIORES DEVEDORES*\n`;
-    report.topDebtors.forEach((debtor, idx) => {
-      text += `${idx + 1}. ${debtor.name} — ${formatCurrency(debtor.totalDebt)}\n`;
-    });
+    const list = report.topDebtors
+      .map((debtor, idx) => `*${idx + 1}.* ${debtor.name}  ·  *${formatCurrency(debtor.totalDebt)}*`)
+      .join('\n');
+    sections.push(`*Maiores devedores*\n${list}`);
   }
 
-  return text.trim();
+  return sections.join('\n\n');
 }
 
 // ── Formatadores de criação de contrato ─────────────────────────────────────
@@ -187,41 +195,38 @@ export function formatContractConfirmationMessage(draft: ContractDraft): string 
   const previewCount = Math.min(3, draft.installments);
   const dates = generateInstallmentDates(draft, previewCount);
   const previewLines = dates.map((d, i) =>
-    `${ordinal(i + 1)} — ${formatDateBR(d)} — ${formatCurrency(installmentValue)}`
+    `${ordinal(i + 1)}  ·  ${formatDateBR(d)}  ·  *${formatCurrency(installmentValue)}*`
   );
   const remaining = draft.installments - previewCount;
-  const previewExtra = remaining > 0 ? `...e mais ${remaining} parcela${remaining > 1 ? 's' : ''}` : '';
+  const previewExtra = remaining > 0 ? `…e mais ${remaining} parcela${remaining > 1 ? 's' : ''}` : '';
 
-  const cpfLine = draft.debtor_cpf ? `\n🪪 CPF: *${maskCpf(draft.debtor_cpf)}*` : '';
+  const cpfLabel = draft.debtor_cpf ? `  ·  CPF ${maskCpf(draft.debtor_cpf)}` : '';
 
-  const modalidadeLine = draft.frequency === 'monthly'
-    ? (draft.due_day ? `📆 Modalidade: *Mensal — dia ${draft.due_day}*` : `📆 Modalidade: *Mensal*`)
+  const modalidadeText = draft.frequency === 'monthly'
+    ? (draft.due_day ? `mensal, todo dia ${draft.due_day}` : 'mensal')
     : draft.frequency === 'weekly'
-      ? `📆 Modalidade: *Semanal — ${draft.due_day !== undefined ? (WEEKDAY_NAMES[draft.due_day % 7] ?? 'semanal') : 'semanal'}*`
-      : draft.frequency === 'daily'
-        ? `📆 Modalidade: *Diária*`
-        : `📆 Modalidade: *${draft.frequency}*`;
+      ? (draft.due_day !== undefined ? `semanal (${WEEKDAY_NAMES[draft.due_day % 7] ?? 'semanal'})` : 'semanal')
+      : draft.frequency === 'daily' ? 'diária'
+      : draft.frequency;
 
+  void sep; // legacy ribbon não é mais usado
   return [
-    `📋 *Resumo do Contrato*`,
-    sep,
-    ``,
-    `👤 Devedor: *${draft.debtor_name}*${cpfLine}`,
-    ``,
-    `💰 Principal: *${formatCurrency(draft.amount)}*`,
-    `📈 Taxa: *${draft.rate}% a.m.*`,
-    `📅 Parcelas: *${draft.installments}x ${freqLabel}*`,
-    modalidadeLine,
-    `💵 Valor por parcela: *${formatCurrency(installmentValue)}*`,
-    ``,
-    `🧾 Total a pagar: *${formatCurrency(total)}*`,
-    `💹 Rentabilidade: *${formatCurrency(lucro)}* (${lucroPercent}%)`,
-    ``,
-    `📆 *Preview das parcelas:*`,
+    '*Novo contrato — confirmar*',
+    '',
+    `*${draft.debtor_name}*${cpfLabel}`,
+    '',
+    `Principal: *${formatCurrency(draft.amount)}*`,
+    `Taxa: *${draft.rate}%* a.m.`,
+    `Parcelas: *${draft.installments}×* ${freqLabel} de *${formatCurrency(installmentValue)}* (${modalidadeText})`,
+    '─────────────',
+    `Total a pagar: *${formatCurrency(total)}*`,
+    `Rentabilidade: *${formatCurrency(lucro)}* (${lucroPercent}%)`,
+    '',
+    '*Próximas parcelas:*',
     ...previewLines,
-    ...(previewExtra ? [previewExtra] : []),
-    ``,
-    `Confirma? (sim/não)`,
+    ...(previewExtra ? [`_${previewExtra}_`] : []),
+    '',
+    'Responda *sim* para criar ou *não* para cancelar.',
   ].join('\n');
 }
 
@@ -248,31 +253,31 @@ export function formatContractCreatedMessage(result: ContractCreatedResult, draf
   const previewCount = Math.min(4, draft.installments);
   const dates = generateInstallmentDates(draft, previewCount);
   const previewLines = dates.map((d, i) =>
-    `${ordinal(i + 1)} — ${formatDateBR(d)} — ${formatCurrency(installmentValue)}`
+    `${ordinal(i + 1)}  ·  ${formatDateBR(d)}  ·  *${formatCurrency(installmentValue)}*`
   );
 
+  void sep;
   const lines = [
-    `✅ *Contrato #${result.id} criado com sucesso!*`,
-    sep,
-    ``,
-    `👤 Devedor: *${result.debtorName}*`,
-    `🪪 CPF: *${maskCpf(result.debtorCpf)}*`,
-    ``,
-    `💰 Principal: *${formatCurrency(draft.amount)}*`,
-    `📈 Taxa: *${draft.rate}% a.m.* | 📅 *${draft.installments}x ${FREQ_LABEL[draft.frequency] ?? draft.frequency}*`,
-    `💵 Parcela: *${formatCurrency(installmentValue)}*`,
-    `🧾 Total a pagar: *${formatCurrency(total)}*`,
-    `💹 Retorno: *${formatCurrency(lucro)}* (${lucroPercent}%)`,
-    ``,
-    `📆 *Próximas parcelas:*`,
+    `*Contrato #${result.id} criado*`,
+    '',
+    `*${result.debtorName}*  ·  CPF ${maskCpf(result.debtorCpf)}`,
+    '',
+    `Principal: *${formatCurrency(draft.amount)}*`,
+    `Taxa: *${draft.rate}%* a.m.  ·  *${draft.installments}×* ${FREQ_LABEL[draft.frequency] ?? draft.frequency}`,
+    `Parcela: *${formatCurrency(installmentValue)}*`,
+    '─────────────',
+    `Total a pagar: *${formatCurrency(total)}*`,
+    `Retorno: *${formatCurrency(lucro)}* (${lucroPercent}%)`,
+    '',
+    '*Próximas parcelas:*',
     ...previewLines,
   ];
 
   if (result.debtorResolution === 'reused') {
-    lines.push(`♻️ _Devedor já cadastrado — contrato vinculado ao perfil existente._`);
+    lines.push('', '_Devedor já cadastrado — contrato vinculado ao perfil existente._');
   }
 
-  lines.push(``, `Para baixar, diga: *baixar contrato ${result.id}*`);
+  lines.push('', `Para registrar baixa depois, diga *"baixar contrato ${result.id}"*.`);
 
   return lines.join('\n');
 }

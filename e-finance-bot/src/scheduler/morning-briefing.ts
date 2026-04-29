@@ -59,17 +59,33 @@ export async function buildBriefingMessage(profile: ProfileChannel, tenantId: st
     const totalToday = collection.reduce((sum, d) => sum + d.totalDue, 0);
 
     if (collection.length === 0) {
-      return `Bom dia ${firstName}! 🌅\nHoje não há cobranças programadas.\n\nQuer ver o resumo completo?`;
+      return [
+        `Bom dia, ${firstName}.`,
+        '',
+        'Hoje não há cobranças programadas.',
+        '',
+        'Posso te mostrar o resumo do mês — é só pedir.',
+      ].join('\n');
     }
 
-    const lines = collection.slice(0, 5).map(d =>
-      `• *${d.name}* — ${d.installmentCount} parcela(s) — *${formatCurrency(d.totalDue)}*`
-    );
+    const lines = collection.slice(0, 5).map(d => {
+      const parcelas = d.installmentCount > 1 ? `  ·  ${d.installmentCount} parcelas` : '';
+      return `• ${d.name}  ·  *${formatCurrency(d.totalDue)}*${parcelas}`;
+    });
 
     const extraCount = collection.length - 5;
-    const extraLine = extraCount > 0 ? `\n_...e mais ${extraCount} cobrança(s)_` : '';
+    const extraLine = extraCount > 0 ? `\n_…e mais ${extraCount} cobrança${extraCount > 1 ? 's' : ''}._` : '';
 
-    return `Bom dia ${firstName}! 🌅\nHoje você tem *${formatCurrency(totalToday)}* para receber.\n\n📋 *Cobranças do dia:*\n${lines.join('\n')}${extraLine}\n\nQuer ver o detalhamento completo?`;
+    return [
+      `Bom dia, ${firstName}.`,
+      `Hoje você tem *${formatCurrency(totalToday)}* a receber.`,
+      '',
+      '*Cobranças do dia:*',
+      lines.join('\n'),
+      extraLine,
+      '',
+      'Quer ver o dashboard completo?',
+    ].filter(Boolean).join('\n');
   } catch (err) {
     console.error('[buildBriefingMessage] erro:', err);
     return `Bom dia ${firstName}! 🌅\nOcorreu um problema ao carregar seu resumo. Tente acessar o dashboard.`;

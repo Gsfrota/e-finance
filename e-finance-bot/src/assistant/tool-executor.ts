@@ -48,16 +48,21 @@ interface ToolExecutorDeps {
 function formatDashboard(summary: Awaited<ReturnType<typeof getDashboardSummary>>): string {
   const receivedByPaymentMonth = summary.receivedByPaymentMonth ?? summary.receivedMonth;
   const receivedByDueMonth = summary.receivedByDueMonth ?? summary.receivedMonth;
+  const monthLabel = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
-  return `📊 *Dashboard — ${new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}*
-
-💰 Recebido (pagamento no mês): *${formatCurrency(receivedByPaymentMonth)}*
-🗓️ Recebido (vencimento no mês): *${formatCurrency(receivedByDueMonth)}*
-📅 Esperado no mês: *${formatCurrency(summary.expectedMonth)}*
-⚠️ Em atraso: *${formatCurrency(summary.totalOverdue)}*
-
-📋 Contratos ativos: *${summary.activeContracts}*
-🔴 Com atraso: *${summary.overdueContracts}*`;
+  return [
+    `*Dashboard — ${monthLabel}*`,
+    '',
+    '*No mês*',
+    `• Recebido (data do pagamento): *${formatCurrency(receivedByPaymentMonth)}*`,
+    `• Recebido (data de vencimento): *${formatCurrency(receivedByDueMonth)}*`,
+    `• Previsto: *${formatCurrency(summary.expectedMonth)}*`,
+    `• Em atraso: *${formatCurrency(summary.totalOverdue)}*`,
+    '',
+    '*Carteira*',
+    `• Contratos ativos: *${summary.activeContracts}*`,
+    `• Em atraso: *${summary.overdueContracts}*`,
+  ].join('\n');
 }
 
 function formatOpenInstallments(installments: Array<{ debtorName: string; amount: number; dueDate: string; daysLate: number }>): string {

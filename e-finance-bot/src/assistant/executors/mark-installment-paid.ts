@@ -111,13 +111,20 @@ function formatPaymentConfirmationPreview(
   installment: ContractOpenInstallment,
   contractId?: number,
 ): string {
-  const dueDateLine = installment.dueDate
-    ? `\n📅 Vencimento: *${formatDate(installment.dueDate)}*`
-    : '';
-  const contractLine = contractId ? `\n📄 Contrato: *#${contractId}*` : '';
-  const installmentLine = installment.number ? `\n🔢 Parcela: *${installment.number}*` : '';
+  const headerParts: string[] = [`*${installment.debtorName || 'Desconhecido'}*`];
+  if (contractId) headerParts.push(`Contrato *#${contractId}*`);
+  if (installment.number) headerParts.push(`Parcela *${installment.number}*`);
 
-  return `Confirma a baixa desta parcela?\n\n👤 Devedor: *${installment.debtorName || 'Desconhecido'}*${contractLine}${installmentLine}\n💰 Valor: *${formatCurrency(installment.amount)}*${dueDateLine}`;
+  const lines = [
+    '*Baixar parcela — confirmar*',
+    '',
+    headerParts.join('  ·  '),
+    '',
+    `Valor: *${formatCurrency(installment.amount)}*`,
+  ];
+  if (installment.dueDate) lines.push(`Vencimento: ${formatDate(installment.dueDate)}`);
+  lines.push('', 'Responda *sim* para confirmar a baixa ou *não* para cancelar.');
+  return lines.join('\n');
 }
 
 function textToStructuredResponse(message: string) {

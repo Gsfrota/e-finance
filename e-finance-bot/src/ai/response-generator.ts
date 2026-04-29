@@ -67,6 +67,42 @@ function structuredResponseToText(response: StructuredResponse): string {
   return lines.filter(Boolean).join('\n');
 }
 
+// Regex para extrair "fatos" (valores que não podem mudar entre baseText e rewrite).
+// MONEY_RE captura formato BR completo (R$ 1.234,56) sem incluir pontuação final
+// da frase: termina sempre em dígito.
+const MONEY_RE = /R\$\s*\d[\d.,]*\d|R\$\s*\d/g;
+const DATE_RE = /\b\d{2}\/\d{2}\/\d{2,4}\b/g;
+const CPF_MASK_RE = /\*{3}\.\*{3}\.\*{3}-\d{2}/g;
+const PERCENT_RE = /\b\d+(?:[.,]\d+)?\s*%/g;
+
+function normalizeFact(s: string): string {
+  // Remove espaço/NBSP entre R$ e dígitos para que "R$ 100" e "R$100" colidam no Set.
+  return s.replace(/\s+/g, '').replace(/ /g, '');
+}
+
+function extractFacts(text: string): Set<string> {
+  const facts = new Set<string>();
+  for (const re of [MONEY_RE, DATE_RE, CPF_MASK_RE, PERCENT_RE]) {
+    const matches = text.match(re);
+    if (matches) for (const m of matches) facts.add(normalizeFact(m));
+  }
+  return facts;
+}
+
+/**
+ * P5: Garante que valores/datas/CPFs do `baseText` não sumiram nem mudaram em `rewritten`.
+ * Retorna `true` se rewritten preserva todos os fatos numéricos/temporais do base.
+ */
+export function preservesAllFacts(baseText: string, rewritten: string): boolean {
+  const baseFacts = extractFacts(baseText);
+  if (baseFacts.size === 0) return true;
+  const rewrittenFacts = extractFacts(rewritten);
+  for (const fact of baseFacts) {
+    if (!rewrittenFacts.has(fact)) return false;
+  }
+  return true;
+}
+
 async function generateWithTimeout(
   prompt: string,
   maxOutputTokens: number,
@@ -158,11 +194,18 @@ Contexto:
 
 Retorne somente o texto final.`;
 
-    return await generateWithTimeout(
+    const rewrite = await generateWithTimeout(
       prompt,
       Math.min(config.llmResponse.maxOutputTokens, 80),
       config.llmResponse.timeoutMs,
     );
+
+    // P5: Se a reescrita perdeu/alterou algum fato numérico, descartamos e
+    // devolvemos o baseText original. Preferir ser literal a inventar.
+    if (rewrite.text && !preservesAllFacts(baseText, rewrite.text)) {
+      return { text: baseText, tokensIn: rewrite.tokensIn, tokensOut: rewrite.tokensOut };
+    }
+    return rewrite;
   } catch {
     return empty;
   }

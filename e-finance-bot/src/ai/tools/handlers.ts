@@ -1,13 +1,14 @@
 /**
- * Handlers concretos das tools (AI-S5) — wrappers sobre admin-actions.ts.
+ * Handlers concretos das tools (AI-S5/S6) — wrappers sobre admin-actions.ts.
  *
  * Cada handler:
  *  - recebe input Zod-parsed + ToolContext (tenantId, role, userId)
  *  - chama a função de admin-actions/querying equivalente
  *  - retorna ToolOutcome com `summary` (para o LLM parafrasear) e `data` (truncada pelo serializeOutcome)
  *
- * Mutações permanecem stubs (notWired) até AI-S6 — envolvem confirmation-store
- * e idempotency key; fluxo não-trivial.
+ * Mutações (S6): retornam `kind: 'preview'` com confirmation já registrada
+ * via confirmation-store. A próxima mensagem do usuário ("sim"/"não") é
+ * resolvida pelo pipeline legado em message-handler.ts (pendingConfirmation).
  */
 
 import type { ToolHandler, ToolOutcome } from './types';
@@ -22,18 +23,30 @@ import {
   getUserDebt,
   getInvestorPortfolio,
   generateInvite,
+  getProfileById,
+  getContractOpenInstallments,
+  getContractOpenInstallmentByNumber,
+  getContractOpenInstallmentByMonth,
+  getInstallmentByDebtorAndMonth,
+  isValidCpf,
+  normalizeCpf,
+  formatDate,
+  type ContractOpenInstallment,
 } from '../../actions/admin-actions';
+import { createPendingConfirmation } from '../../assistant/confirmation-store';
+import { getBotTenantConfig, upsertBotTenantConfig } from '../../actions/bot-config-actions';
+import { buildBriefingMessage } from '../../scheduler/morning-briefing';
 import { logStructuredMessage } from '../../observability/logger';
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmt = (n: number) => BRL.format(Number(n) || 0);
 
-function notWired(name: string): ToolOutcome {
-  return {
-    kind: 'error',
-    message: `Tool ${name} ainda não foi conectada ao handler.`,
-    retryable: false,
-  };
+/** Formata YYYY-MM-DD em DD/MM/YYYY para exibição. */
+function fmtDateBR(iso?: string | null): string {
+  if (!iso) return '';
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return iso;
+  return `${m[3]}/${m[2]}/${m[1]}`;
 }
 
 // ─── Queries: Admin ──────────────────────────────────────────────────────────
@@ -144,6 +157,22 @@ export const queryDebtorBalanceHandler: ToolHandler<{ debtor_name?: string; debt
 
   if (!profileId) {
     return { kind: 'error', message: 'debtor_name ou debtor_profile_id obrigatório.', retryable: false };
+  }
+
+  // P4: validar que o profileId pertence ao tenant atual (defesa em profundidade,
+  // RLS Supabase já protege, mas evita confusão se o LLM chutar um UUID).
+  if (input.debtor_profile_id) {
+    const profile = await getProfileById(profileId);
+    if (!profile || profile.tenant_id !== ctx.tenantId) {
+      logStructuredMessage('ai_tool_cross_tenant_access_blocked', {
+        tool: 'query_debtor_balance',
+        tenantId: ctx.tenantId,
+        profileId,
+        turnId: ctx.turnId,
+      });
+      return { kind: 'text', text: 'Não encontrei esse devedor.' };
+    }
+    displayName = profile.full_name;
   }
 
   const details = await getUserDebtDetails(ctx.tenantId, profileId);
@@ -266,16 +295,384 @@ export const smalltalkDatetimeHandler: ToolHandler = async (_input, ctx) => {
   return { kind: 'text', text: `Agora é ${fmtDate.format(ctx.now)}.` };
 };
 
-// ─── Mutations — ainda stubs (AI-S6) ────────────────────────────────────────
-// create_contract, mark_installment_paid, disconnect_bot, configure_briefing,
-// preview_lembrete ficam como notWired até termos confirmation-store integrado.
+// ─── Mutations (AI-S6) ──────────────────────────────────────────────────────
+// Devolvem `kind: 'preview'` com confirmation já registrada. A confirmação real
+// ("sim"/"não") é resolvida pelo pipeline legado em message-handler.ts:1469.
 
-export const createContractHandler: ToolHandler = async () => notWired('create_contract');
-export const markInstallmentPaidHandler: ToolHandler = async () => notWired('mark_installment_paid');
-export const disconnectBotHandler: ToolHandler = async () => notWired('disconnect_bot');
-export const configureBriefingHandler: ToolHandler = async () => notWired('configure_briefing');
-export const previewLembreteHandler: ToolHandler = async () => notWired('preview_lembrete');
+const ASSISTENT_PERSONA = 'assistente';
+
+export const disconnectBotHandler: ToolHandler = async (_input, ctx) => {
+  if (!ctx.session.profile?.id) {
+    return { kind: 'error', message: 'Perfil não encontrado.', retryable: false };
+  }
+
+  const safePreview = [
+    '*Desconectar este chat*',
+    '',
+    'Você perde acesso pelo bot até gerar um novo código no dashboard web.',
+    '',
+    'Confirma com *sim* ou cancele com *não*.',
+  ].join('\n');
+  const argsSnapshot = { capability: 'disconnect_bot' };
+
+  const { confirmationId, idempotencyKey, safeUserMessage } = await createPendingConfirmation(
+    ctx.session,
+    'disconnect_bot',
+    argsSnapshot,
+    safePreview,
+  );
+
+  return {
+    kind: 'preview',
+    preview: safeUserMessage,
+    confirmationId,
+    idempotencyKey,
+    argsSnapshot,
+  };
+};
+
+interface ConfigureBriefingInput {
+  briefing_time?: string;
+  briefing_enabled?: boolean;
+}
+
+function isValidBriefingTime(time: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(time.trim());
+}
+
+export const configureBriefingHandler: ToolHandler<ConfigureBriefingInput> = async (input, ctx) => {
+  if (input.briefing_enabled === false) {
+    try {
+      await upsertBotTenantConfig(ctx.tenantId, { morning_briefing_enabled: false });
+      return {
+        kind: 'mutation_applied',
+        summary: '*Briefing matinal desativado.*\n\nVocê não vai mais receber o resumo automático todo dia. Para reativar, é só me pedir.',
+      };
+    } catch (err) {
+      logStructuredMessage('configure_briefing_failed', {
+        tenantId: ctx.tenantId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return { kind: 'error', message: 'Não consegui salvar a configuração agora.', retryable: true };
+    }
+  }
+
+  const time = (input.briefing_time || '').trim();
+  if (!time || !isValidBriefingTime(time)) {
+    return {
+      kind: 'error',
+      message: 'Horário inválido. Use formato HH:MM (24h), por exemplo 07:30.',
+      retryable: false,
+    };
+  }
+
+  try {
+    await upsertBotTenantConfig(ctx.tenantId, {
+      morning_briefing_enabled: true,
+      morning_briefing_time: time,
+    });
+    return {
+      kind: 'mutation_applied',
+      summary: `*Briefing matinal ativado*\n\nTodo dia às *${time}* (horário de Brasília) eu te mando o resumo das cobranças. Para ver um exemplo agora, peça *"como fica o lembrete"*.`,
+    };
+  } catch (err) {
+    logStructuredMessage('configure_briefing_failed', {
+      tenantId: ctx.tenantId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { kind: 'error', message: 'Não consegui salvar a configuração agora.', retryable: true };
+  }
+};
+
+export const previewLembreteHandler: ToolHandler = async (_input, ctx) => {
+  const profile = ctx.session.profile;
+  if (!profile?.id) {
+    return { kind: 'error', message: 'Perfil não encontrado.', retryable: false };
+  }
+
+  try {
+    const message = await buildBriefingMessage(
+      {
+        id: profile.id,
+        full_name: profile.name,
+        whatsapp_phone: null,
+        telegram_chat_id: null,
+      },
+      ctx.tenantId,
+    );
+    const config = await getBotTenantConfig(ctx.tenantId);
+    const horario = config?.morning_briefing_time || '07:30';
+    const status = config?.morning_briefing_enabled ? 'ativo' : 'desativado';
+
+    return {
+      kind: 'data',
+      summary: `Exemplo do lembrete matinal (horário ${horario}, ${status}).`,
+      data: { sample_message: message, briefing_time: horario, enabled: status === 'ativo' },
+    };
+  } catch (err) {
+    logStructuredMessage('preview_lembrete_failed', {
+      tenantId: ctx.tenantId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { kind: 'error', message: 'Não consegui montar o exemplo agora.', retryable: true };
+  }
+};
+
+interface CreateContractInput {
+  debtor_name?: string;
+  debtor_cpf?: string;
+  amount?: number;
+  rate?: number;
+  installments?: number;
+  frequency?: 'monthly' | 'weekly' | 'biweekly';
+  due_day?: number;
+  start_date?: string;
+  total_repayment?: number;
+}
+
+const FREQUENCY_LABEL: Record<string, string> = {
+  monthly: 'mensais',
+  weekly: 'semanais',
+  biweekly: 'quinzenais',
+};
+
+export const createContractHandler: ToolHandler<CreateContractInput> = async (input, ctx) => {
+  const cpfRaw = (input.debtor_cpf || '').replace(/\D/g, '');
+  const cpfNormalized = normalizeCpf(cpfRaw);
+  if (!cpfNormalized || !isValidCpf(cpfNormalized)) {
+    return {
+      kind: 'error',
+      message: 'Para criar contrato preciso do CPF válido do devedor (11 dígitos).',
+      retryable: false,
+    };
+  }
+
+  if (!input.amount || input.amount <= 0) {
+    return {
+      kind: 'error',
+      message: 'Preciso do valor principal do empréstimo (em reais, maior que zero).',
+      retryable: false,
+    };
+  }
+
+  // Não inventar: precisa de OU taxa explícita OU total_repayment para back-calc.
+  // Sem nenhum dos dois, perguntar antes de criar (BR-BOT: não inventar dados financeiros).
+  const hasRate = typeof input.rate === 'number' && input.rate >= 0;
+  const hasTotalRepayment = typeof input.total_repayment === 'number' && input.total_repayment > 0;
+  if (!hasRate && !hasTotalRepayment) {
+    return {
+      kind: 'error',
+      message: 'Falta a taxa de juros (em % por período) OU o valor total a ser pago. Sem isso eu não posso criar o contrato.',
+      retryable: false,
+    };
+  }
+
+  const installmentsRaw = input.installments && input.installments > 0 ? input.installments : 1;
+
+  // Back-calcular taxa quando temos total_repayment
+  let rate: number;
+  if (hasRate) {
+    rate = input.rate as number;
+  } else {
+    // total = principal * (1 + rate * n) → rate = (total/principal - 1) / n
+    const total = input.total_repayment as number;
+    const principal = input.amount;
+    const n = installmentsRaw;
+    rate = ((total / principal) - 1) / n * 100;
+    if (!Number.isFinite(rate) || rate < 0) {
+      return {
+        kind: 'error',
+        message: 'O valor total a pagar parece inconsistente com o principal e número de parcelas. Confirma os números?',
+        retryable: false,
+      };
+    }
+    rate = Math.round(rate * 100) / 100;
+  }
+
+  const installments = installmentsRaw;
+  const frequency = input.frequency || 'monthly';
+  const debtorName = (input.debtor_name || 'devedor').trim();
+
+  const cpfMasked = `***.***.***-${cpfNormalized.slice(-2)}`;
+  const installmentValue = hasTotalRepayment
+    ? (input.total_repayment as number) / installments
+    : (input.amount * (1 + rate / 100 * installments)) / installments;
+  const totalToPay = hasTotalRepayment
+    ? (input.total_repayment as number)
+    : installmentValue * installments;
+
+  const periodLabel = {
+    monthly: { adj: 'mensais', short: 'a.m.' },
+    weekly: { adj: 'semanais', short: 'a.s.' },
+    biweekly: { adj: 'quinzenais', short: 'a.q.' },
+    daily: { adj: 'diárias', short: 'a.d.' },
+  }[frequency] || { adj: 'mensais', short: 'a.m.' };
+
+  const periodicidade = frequency === 'monthly' && input.due_day
+    ? `*${installments}×* de *${fmt(installmentValue)}* ${periodLabel.adj}, todo dia *${input.due_day}*`
+    : `*${installments}×* de *${fmt(installmentValue)}* ${periodLabel.adj}`;
+
+  const startLine = input.start_date ? `\nInício em *${fmtDateBR(input.start_date)}*.` : '';
+
+  const safePreview = [
+    '*Novo contrato — confirmar*',
+    '',
+    `*${debtorName}*  ·  CPF ${cpfMasked}`,
+    '',
+    `Principal: *${fmt(input.amount)}*`,
+    `Taxa: *${rate.toFixed(2)}%* ${periodLabel.short}`,
+    `Parcelas: ${periodicidade}`,
+    '─────────────',
+    `Total a pagar: *${fmt(totalToPay)}*${startLine}`,
+    '',
+    'Responda *sim* para criar ou *não* para cancelar.',
+  ].join('\n');
+  void formatDate; // mantido pra compat — não usado neste preview
+
+  const argsSnapshot: Record<string, unknown> = {
+    debtor_name: debtorName,
+    debtor_cpf: cpfNormalized,
+    amount: input.amount,
+    rate,
+    installments,
+    frequency,
+    ...(input.due_day !== undefined ? { due_day: input.due_day } : {}),
+    ...(input.start_date ? { start_date: input.start_date } : {}),
+    ...(hasTotalRepayment ? { total_repayment: input.total_repayment } : {}),
+  };
+
+  const { confirmationId, idempotencyKey, safeUserMessage } = await createPendingConfirmation(
+    ctx.session,
+    'create_contract',
+    argsSnapshot,
+    safePreview,
+  );
+
+  return {
+    kind: 'preview',
+    preview: safeUserMessage,
+    confirmationId,
+    idempotencyKey,
+    argsSnapshot,
+  };
+};
+
+interface MarkInstallmentPaidInput {
+  contract_id?: number;
+  installment_id?: string;
+  installment_number?: number;
+  installment_month?: number;
+  installment_year?: number;
+  debtor_name?: string;
+  amount?: number;
+  paid_at?: string;
+}
+
+async function resolveInstallmentForPayment(
+  input: MarkInstallmentPaidInput,
+  ctx: Parameters<ToolHandler>[1],
+): Promise<{ kind: 'ok'; installment: ContractOpenInstallment } | { kind: 'ambiguous'; options: ContractOpenInstallment[] } | { kind: 'not_found' }> {
+  if (input.contract_id && input.installment_number) {
+    const found = await getContractOpenInstallmentByNumber(ctx.tenantId, input.contract_id, input.installment_number);
+    return found ? { kind: 'ok', installment: found } : { kind: 'not_found' };
+  }
+  if (input.contract_id && input.installment_month) {
+    const found = await getContractOpenInstallmentByMonth(
+      ctx.tenantId,
+      input.contract_id,
+      input.installment_month,
+      input.installment_year,
+    );
+    return found ? { kind: 'ok', installment: found } : { kind: 'not_found' };
+  }
+  if (input.contract_id) {
+    const page = await getContractOpenInstallments(ctx.tenantId, input.contract_id);
+    const items = page.items;
+    if (items.length === 0) return { kind: 'not_found' };
+    if (items.length === 1) return { kind: 'ok', installment: items[0] };
+    return { kind: 'ambiguous', options: items };
+  }
+  if (input.debtor_name && input.installment_month) {
+    const found = await getInstallmentByDebtorAndMonth(
+      ctx.tenantId,
+      input.debtor_name,
+      input.installment_month,
+      input.installment_year,
+    );
+    if (!found) return { kind: 'not_found' };
+    if (found.installments.length === 0) return { kind: 'not_found' };
+    if (found.installments.length === 1) return { kind: 'ok', installment: found.installments[0] };
+    return { kind: 'ambiguous', options: found.installments };
+  }
+  return { kind: 'not_found' };
+}
+
+export const markInstallmentPaidHandler: ToolHandler<MarkInstallmentPaidInput> = async (input, ctx) => {
+  const resolution = await resolveInstallmentForPayment(input, ctx);
+
+  if (resolution.kind === 'not_found') {
+    return {
+      kind: 'error',
+      message: 'Não encontrei a parcela. Me diga o número do contrato e o número (ou mês) da parcela.',
+      retryable: false,
+    };
+  }
+
+  if (resolution.kind === 'ambiguous') {
+    const lines = resolution.options.slice(0, 5).map((it, idx) => (
+      `*${idx + 1}.* Parcela ${it.number}  ·  ${fmt(it.amount)}  ·  vence ${fmtDateBR(it.dueDate)}`
+    ));
+    const more = resolution.options.length > 5 ? `\n_…e mais ${resolution.options.length - 5} parcelas._` : '';
+    return {
+      kind: 'data',
+      summary: `Encontrei ${resolution.options.length} parcelas em aberto neste contrato.`,
+      data: {
+        prompt: `Qual delas você quer baixar?\n\n${lines.join('\n')}${more}\n\nResponda com o *número* da opção.`,
+      },
+    };
+  }
+
+  const installment = resolution.installment;
+  const paidAt = (input.paid_at && /^\d{4}-\d{2}-\d{2}$/.test(input.paid_at))
+    ? input.paid_at
+    : new Date().toISOString().slice(0, 10);
+
+  const safePreview = [
+    '*Baixar parcela — confirmar*',
+    '',
+    `*${installment.debtorName}*  ·  Contrato *#${installment.contractId}*  ·  Parcela *${installment.number}*`,
+    '',
+    `Valor: *${fmt(installment.amount)}*`,
+    `Vencimento: ${fmtDateBR(installment.dueDate)}`,
+    '',
+    'Responda *sim* para confirmar a baixa ou *não* para cancelar.',
+  ].join('\n');
+
+  const argsSnapshot: Record<string, unknown> = {
+    installment_id: installment.id,
+    contract_id: installment.contractId,
+    installment_number: installment.number,
+    amount: input.amount ?? installment.amount,
+    paid_at: paidAt,
+  };
+
+  const { confirmationId, idempotencyKey, safeUserMessage } = await createPendingConfirmation(
+    ctx.session,
+    'mark_installment_paid',
+    argsSnapshot,
+    safePreview,
+  );
+
+  return {
+    kind: 'preview',
+    preview: safeUserMessage,
+    confirmationId,
+    idempotencyKey,
+    argsSnapshot,
+  };
+};
 
 // Silencia unused imports (helpers existem para wiring futuro)
 void getDebtorsToCollectByDateRange;
-void logStructuredMessage;
+void getProfileById;
+void ASSISTENT_PERSONA;

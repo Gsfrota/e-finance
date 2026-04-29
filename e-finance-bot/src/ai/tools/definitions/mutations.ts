@@ -1,17 +1,17 @@
 import { z } from 'zod';
-import type { ToolDefinition, ToolOutcome } from '../types';
-import { generateInviteHandler } from '../handlers';
-
-const notWired = (name: string): ToolOutcome => ({
-  kind: 'error',
-  message: `Tool ${name} ainda não foi conectada ao handler — AI-S6 pendente.`,
-  retryable: false,
-});
+import type { ToolDefinition } from '../types';
+import {
+  generateInviteHandler,
+  createContractHandler,
+  markInstallmentPaidHandler,
+  disconnectBotHandler,
+  configureBriefingHandler,
+} from '../handlers';
 
 export const createContractTool: ToolDefinition = {
   name: 'create_contract',
   kind: 'mutation',
-  description: 'Cria um novo contrato de empréstimo para um devedor. Requer CPF do devedor, valor e condições. Retorna sempre um PREVIEW primeiro — o contrato só é criado após confirmação explícita do usuário ("sim"). Use para "criar contrato", "emprestar X para Y", "novo empréstimo".',
+  description: 'Cria um novo contrato de empréstimo. CAMPOS OBRIGATÓRIOS: debtor_cpf (11 dígitos), amount (principal em reais), installments (nº de parcelas) E (rate OU total_repayment). NUNCA chame esta tool sem rate ou total_repayment — peça ao usuário antes. Se o usuário falou "10 parcelas de 200 com principal de 1500", calcule total_repayment = 10*200 = 2000. Retorna PREVIEW; o contrato só é criado após "sim" explícito. Use para "criar contrato", "emprestar X para Y", "novo empréstimo".',
   rolesAllowed: ['admin'],
   requiresConfirmation: true,
   parameters: {
@@ -40,7 +40,7 @@ export const createContractTool: ToolDefinition = {
     start_date: z.string().min(1).optional(),
     total_repayment: z.number().positive().optional(),
   }).passthrough(),
-  handler: async () => notWired('create_contract'),
+  handler: createContractHandler as unknown as ToolDefinition['handler'],
 };
 
 export const markInstallmentPaidTool: ToolDefinition = {
@@ -53,20 +53,26 @@ export const markInstallmentPaidTool: ToolDefinition = {
     type: 'object',
     properties: {
       debtor_name: { type: 'string', description: 'Nome do devedor que pagou.' },
+      contract_id: { type: 'integer', description: 'ID numérico do contrato, se conhecido.' },
       installment_id: { type: 'string', description: 'UUID da parcela, se conhecido.' },
       installment_number: { type: 'integer', description: 'Nº da parcela (1-N) dentro do contrato.' },
+      installment_month: { type: 'integer', description: 'Mês da parcela (1-12) quando o usuário menciona o mês.' },
+      installment_year: { type: 'integer', description: 'Ano da parcela (4 dígitos), opcional.' },
       amount: { type: 'number', description: 'Valor pago em reais. Se omitido, assume-se o valor total da parcela.' },
       paid_at: { type: 'string', description: 'Data do pagamento (YYYY-MM-DD). Default: hoje.' },
     },
   },
   inputSchema: z.object({
     debtor_name: z.string().min(1).optional(),
+    contract_id: z.number().int().positive().optional(),
     installment_id: z.string().min(1).optional(),
     installment_number: z.number().int().positive().optional(),
+    installment_month: z.number().int().min(1).max(12).optional(),
+    installment_year: z.number().int().min(2000).max(2100).optional(),
     amount: z.number().positive().optional(),
     paid_at: z.string().min(1).optional(),
   }).passthrough(),
-  handler: async () => notWired('mark_installment_paid'),
+  handler: markInstallmentPaidHandler as unknown as ToolDefinition['handler'],
 };
 
 export const disconnectBotTool: ToolDefinition = {
@@ -77,7 +83,7 @@ export const disconnectBotTool: ToolDefinition = {
   requiresConfirmation: true,
   parameters: { type: 'object', properties: {} },
   inputSchema: z.object({}).passthrough(),
-  handler: async () => notWired('disconnect_bot'),
+  handler: disconnectBotHandler,
 };
 
 export const generateInviteTool: ToolDefinition = {
@@ -108,7 +114,7 @@ export const configureBriefingTool: ToolDefinition = {
     briefing_time: z.string().min(1).optional(),
     briefing_enabled: z.boolean().optional(),
   }).passthrough(),
-  handler: async () => notWired('configure_briefing'),
+  handler: configureBriefingHandler as unknown as ToolDefinition['handler'],
 };
 
 export const mutationTools: ToolDefinition[] = [

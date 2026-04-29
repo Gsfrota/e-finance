@@ -35,6 +35,52 @@ import {
 } from './tools/registry';
 import type { ToolContext, ToolOutcome } from './tools/types';
 
+// ─── Circuit-breaker por tool (P10) ─────────────────────────────────────────
+const CB_MAX_FAILS = 5;
+const CB_WINDOW_MS = 60_000;
+interface CircuitState { fails: number; firstFailAt: number; openUntil: number }
+const circuitState = new Map<string, CircuitState>();
+
+function circuitKey(tenantId: string, toolName: string): string {
+  return `${tenantId}:${toolName}`;
+}
+
+function isCircuitOpen(tenantId: string, toolName: string): boolean {
+  const entry = circuitState.get(circuitKey(tenantId, toolName));
+  if (!entry) return false;
+  if (Date.now() < entry.openUntil) return true;
+  if (Date.now() - entry.firstFailAt > CB_WINDOW_MS) {
+    circuitState.delete(circuitKey(tenantId, toolName));
+    return false;
+  }
+  return false;
+}
+
+function recordCircuitOutcome(tenantId: string, toolName: string, ok: boolean): void {
+  const key = circuitKey(tenantId, toolName);
+  const now = Date.now();
+  if (ok) {
+    circuitState.delete(key);
+    return;
+  }
+  const entry = circuitState.get(key) || { fails: 0, firstFailAt: now, openUntil: 0 };
+  if (now - entry.firstFailAt > CB_WINDOW_MS) {
+    entry.fails = 1;
+    entry.firstFailAt = now;
+  } else {
+    entry.fails += 1;
+  }
+  if (entry.fails >= CB_MAX_FAILS) {
+    entry.openUntil = now + CB_WINDOW_MS;
+    logStructuredMessage('ai_tool_circuit_open', { tenantId, toolName, openUntil: entry.openUntil });
+  }
+  circuitState.set(key, entry);
+}
+
+export function __resetCircuitBreakerForTests(): void {
+  circuitState.clear();
+}
+
 export interface OrchestratorInput {
   session: Session;
   userMessage: string;
@@ -172,10 +218,18 @@ export async function runConversation(input: OrchestratorInput): Promise<Orchest
   const latencyMs = Date.now() - started;
 
   if (!result) {
-    logStructuredMessage('ai_orchestrator_timeout', { tenantId, turnId: input.turnId, latencyMs });
+    // Distinguir timeout real (>=20s) de erro upstream Gemini (curto)
+    const isLikelyUpstream = latencyMs < 10_000;
+    logStructuredMessage(
+      isLikelyUpstream ? 'ai_orchestrator_upstream_failure' : 'ai_orchestrator_timeout',
+      { tenantId, turnId: input.turnId, latencyMs },
+    );
+    const reply = isLikelyUpstream
+      ? 'Estou com instabilidade no motor de IA agora. Pode tentar de novo em alguns segundos?'
+      : 'Meu processamento demorou muito. Pode repetir ou ser mais direto?';
     return {
       ...empty,
-      reply: 'Meu processamento demorou muito. Pode repetir ou ser mais direto?',
+      reply,
       latencyMs,
     };
   }
@@ -221,18 +275,7 @@ async function runLlmLoop(args: LlmLoopInput): Promise<LlmLoopOutput> {
   let tokensOut = 0;
 
   for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
-    const response = await getGeminiClient().models.generateContent({
-      model: args.model,
-      contents,
-      config: {
-        temperature: 0.3,
-        maxOutputTokens: MAX_OUTPUT_TOKENS,
-        systemInstruction: args.systemPrompt,
-        tools: args.functionDeclarations.length > 0
-          ? [{ functionDeclarations: args.functionDeclarations } as unknown as Record<string, unknown>]
-          : undefined,
-      },
-    });
+    const response = await callGeminiWithRetry(args, contents);
 
     const usage = response.usageMetadata as Record<string, number> | undefined;
     tokensIn += usage?.promptTokenCount ?? 0;
@@ -248,14 +291,45 @@ async function runLlmLoop(args: LlmLoopInput): Promise<LlmLoopOutput> {
       return { reply: text, toolCalls, tokensIn, tokensOut };
     }
 
-    // Executa todas as tools em paralelo
-    const toolResults = await Promise.all(
-      functionCalls.map(async (call) => {
+    // P8: Serializar mutations (não pode haver race), paralelizar queries.
+    const queryCalls: typeof functionCalls = [];
+    const mutationCalls: typeof functionCalls = [];
+    for (const call of functionCalls) {
+      const def = getTool(call.name as ActionCapability);
+      if (def && def.kind === 'mutation') {
+        mutationCalls.push(call);
+      } else {
+        queryCalls.push(call);
+      }
+    }
+
+    const queryResults = await Promise.all(
+      queryCalls.map(async (call) => {
         const outcome = await executeTool(call.name, call.args, args.input);
         toolCalls.push({ name: call.name as ActionCapability, args: call.args, outcome });
         return { call, outcome };
       }),
     );
+    const mutationResults: Array<{ call: { name: string; args: Record<string, unknown> }; outcome: ToolOutcome }> = [];
+    for (const call of mutationCalls) {
+      const outcome = await executeTool(call.name, call.args, args.input);
+      toolCalls.push({ name: call.name as ActionCapability, args: call.args, outcome });
+      mutationResults.push({ call, outcome });
+    }
+
+    const toolResults = [...queryResults, ...mutationResults];
+
+    // P1: Se alguma tool retornou preview (confirmação pendente registrada) ou
+    // mutation_applied, paramos imediatamente e devolvemos a resposta ao usuário.
+    // O LLM NÃO deve seguir chamando tools depois de preview/mutation_applied.
+    const previewResult = toolResults.find(r => r.outcome.kind === 'preview');
+    if (previewResult && previewResult.outcome.kind === 'preview') {
+      return { reply: previewResult.outcome.preview, toolCalls, tokensIn, tokensOut };
+    }
+    const mutationApplied = mutationResults.find(r => r.outcome.kind === 'mutation_applied');
+    if (mutationApplied && mutationApplied.outcome.kind === 'mutation_applied') {
+      return { reply: mutationApplied.outcome.summary, toolCalls, tokensIn, tokensOut };
+    }
 
     // Adiciona ao histórico: resposta do modelo (function calls) + resultados
     contents.push({
@@ -284,6 +358,52 @@ async function runLlmLoop(args: LlmLoopInput): Promise<LlmLoopOutput> {
     tokensIn,
     tokensOut,
   };
+}
+
+function isTransientGeminiError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  // 503 UNAVAILABLE, 429 RESOURCE_EXHAUSTED, 500 INTERNAL — transientes
+  return /\b(503|429|500|UNAVAILABLE|RESOURCE_EXHAUSTED|INTERNAL|high\s+demand|temporarily)\b/i.test(msg);
+}
+
+async function callGeminiWithRetry(
+  args: LlmLoopInput,
+  contents: Array<{ role: string; parts: Array<Record<string, unknown>> }>,
+): Promise<any> {
+  const MAX_RETRIES = 2;
+  const BASE_DELAY_MS = 800;
+  let lastErr: unknown;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await getGeminiClient().models.generateContent({
+        model: args.model,
+        contents,
+        config: {
+          temperature: 0.3,
+          maxOutputTokens: MAX_OUTPUT_TOKENS,
+          systemInstruction: args.systemPrompt,
+          tools: args.functionDeclarations.length > 0
+            ? [{ functionDeclarations: args.functionDeclarations } as unknown as Record<string, unknown>]
+            : undefined,
+        },
+      });
+    } catch (err) {
+      lastErr = err;
+      if (attempt < MAX_RETRIES && isTransientGeminiError(err)) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt) + Math.random() * 200;
+        logStructuredMessage('ai_orchestrator_gemini_retry', {
+          attempt: attempt + 1,
+          delayMs: Math.round(delay),
+          tenantId: args.tenantConfig.tenantId,
+        });
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
 }
 
 function extractFunctionCalls(
@@ -322,6 +442,17 @@ async function executeTool(
   }
 
   const tenantId = input.session.profile?.tenant_id ?? '';
+
+  // P10: Circuit-breaker — fail-fast se tool quebrou repetidamente
+  if (isCircuitOpen(tenantId, name)) {
+    logStructuredMessage('ai_tool_circuit_blocked', { tool: name, tenantId, turnId: input.turnId });
+    return {
+      kind: 'error',
+      message: 'Operação temporariamente indisponível. Tente daqui a um minuto.',
+      retryable: true,
+    };
+  }
+
   const ctx: ToolContext = {
     session: input.session,
     tenantId,
@@ -333,8 +464,11 @@ async function executeTool(
   };
 
   try {
-    return await tool.handler(parsed.data, ctx);
+    const outcome = await tool.handler(parsed.data, ctx);
+    recordCircuitOutcome(tenantId, name, outcome.kind !== 'error');
+    return outcome;
   } catch (err) {
+    recordCircuitOutcome(tenantId, name, false);
     logStructuredMessage('ai_tool_execution_failed', {
       tool: name,
       tenantId,
@@ -394,10 +528,14 @@ function runWithTimeout<T>(fn: () => Promise<T>, timeoutMs: number): Promise<T |
           resolve(value);
         }
       },
-      () => {
+      (err) => {
         if (!settled) {
           settled = true;
           clearTimeout(timer);
+          logStructuredMessage('ai_orchestrator_internal_error', {
+            error: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack?.slice(0, 500) : undefined,
+          });
           resolve(null);
         }
       },

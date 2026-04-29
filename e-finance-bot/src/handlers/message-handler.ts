@@ -35,6 +35,7 @@ import { runPolicyCheck } from '../assistant/policy-engine';
 import type { ActionPlan, CommandUnderstanding, StructuredResponse } from '../assistant/contracts';
 import { formatCobrancaList, formatReceivablesList, formatComprovante, formatRelatorioCompleto, formatContractConfirmationMessage, formatContractCreatedMessage } from '../tools/formatters';
 import { runConversation } from '../ai/conversation-orchestrator';
+import { mapErrorToUserMessage } from '../errors/bot-error';
 
 export interface IncomingMessage {
   messageId: string;
@@ -88,10 +89,19 @@ function getAudioPreview(text: string): string {
 }
 
 function shouldPrependAudioPreview(response: string): boolean {
-  return /^Vou criar o seguinte contrato:/i.test(response)
-    || /^Confirma a baixa desta parcela\?/i.test(response)
+  // P6: cobrir todas operações com side-effect/confirmação E queries
+  // disambíguas (escolha de devedor, parcela, empresa) — onde o usuário
+  // precisa ver o que foi transcrito antes de tomar decisão.
+  return /Novo contrato — confirmar/i.test(response)
+    || /Baixar parcela — confirmar/i.test(response)
+    || /Desconectar este chat/i.test(response)
     || /Confirma\?\s*\(sim\/n[aã]o\)/i.test(response)
-    || /Se estiver certo, responda \*sim\*/i.test(response)
+    || /Responda \*sim\*/i.test(response)
+    || /Encontrei mais de um/i.test(response)
+    || /Encontrei estas parcelas/i.test(response)
+    || /Encontrei \d+ parcelas/i.test(response)
+    || /Qual deles\?/i.test(response)
+    || /Empresas dispon[ií]veis:/i.test(response)
     || /taxa de juros|CPF do devedor|data da primeira parcela|dia do mês|dia da semana/i.test(response);
 }
 
@@ -1965,11 +1975,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
   } catch (err) {
     console.error('[handleMessage error]', err);
     telemetry.result = 'error';
-    const message = err instanceof Error && err.message === 'session_get_timeout'
-      ? 'A abertura da sua sessão demorou mais do que o esperado. Tente novamente em instantes.'
-      : err instanceof Error && err.message === 'session_sync_timeout'
-        ? 'A validação do vínculo deste chat demorou demais. Tente novamente em instantes.'
-        : '❌ Ocorreu um erro ao processar sua mensagem. Tente novamente em instantes.';
+    const message = mapErrorToUserMessage(err);
     return finalize(message, { action: 'internal_error' });
   } finally {
     const totalMs = Date.now() - startedAt;
@@ -3435,13 +3441,20 @@ function formatPaymentConfirmation(
   installment: { debtorName?: string; amount: number; dueDate?: string; number?: number },
   contractId?: number
 ): string {
-  const dueDateLine = installment.dueDate
-    ? `\n📅 Vencimento: *${formatDate(installment.dueDate)}*`
-    : '';
-  const contractLine = contractId ? `\n📄 Contrato: *#${contractId}*` : '';
-  const installmentLine = installment.number ? `\n🔢 Parcela: *${installment.number}*` : '';
+  const headerParts: string[] = [`*${installment.debtorName || 'Desconhecido'}*`];
+  if (contractId) headerParts.push(`Contrato *#${contractId}*`);
+  if (installment.number) headerParts.push(`Parcela *${installment.number}*`);
 
-  return `Confirma a baixa desta parcela?\n\n👤 Devedor: *${installment.debtorName || 'Desconhecido'}*${contractLine}${installmentLine}\n💰 Valor: *${formatCurrency(installment.amount)}*${dueDateLine}\n\nResponda *sim* para confirmar ou *não* para cancelar.`;
+  const lines = [
+    '*Baixar parcela — confirmar*',
+    '',
+    headerParts.join('  ·  '),
+    '',
+    `Valor: *${formatCurrency(installment.amount)}*`,
+  ];
+  if (installment.dueDate) lines.push(`Vencimento: ${formatDate(installment.dueDate)}`);
+  lines.push('', 'Responda *sim* para confirmar ou *não* para cancelar.');
+  return lines.join('\n');
 }
 
 function suggestFirstInstallmentDate(dueDay: number, baseDate: Date = new Date()): string {
