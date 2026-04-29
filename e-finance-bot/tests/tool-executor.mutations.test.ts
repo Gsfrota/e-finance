@@ -226,8 +226,8 @@ describe('tool-executor mutations', () => {
     );
 
     expect(result.status).toBe('needs_confirmation');
-    expect(result.safeUserMessage).toContain('Resumo do Contrato');
-    expect(result.safeUserMessage).toContain('responda *sim*');
+    expect(result.safeUserMessage).toMatch(/Novo contrato — confirmar/);
+    expect(result.safeUserMessage).toMatch(/[Rr]esponda \*sim\*/);
     expect(session.context.pendingAction).toBeUndefined();
     expect((session.context as any).workingStateV2).toEqual(expect.objectContaining({
       pendingCapability: 'create_contract',
@@ -267,8 +267,8 @@ describe('tool-executor mutations', () => {
     );
 
     expect(result.status).toBe('ok');
-    expect(result.safeUserMessage).toContain('Contrato #42 criado com sucesso');
-    expect(result.structuredResponse?.title).toContain('Contrato #42 criado com sucesso');
+    expect(result.safeUserMessage).toContain('Contrato #42 criado');
+    expect(result.structuredResponse?.title).toContain('Contrato #42 criado');
     expect(mocks.createContract).toHaveBeenCalledTimes(1);
     expect(legacyDispatch).not.toHaveBeenCalled();
   });
@@ -373,7 +373,7 @@ describe('tool-executor mutations', () => {
     );
 
     expect(result.status).toBe('needs_confirmation');
-    expect(result.safeUserMessage).toContain('Confirma a baixa desta parcela');
+    expect(result.safeUserMessage).toMatch(/Baixar parcela — confirmar/);
     expect(session.context.pendingAction).toBeUndefined();
     expect((session.context as any).workingStateV2).toEqual(expect.objectContaining({
       pendingCapability: 'mark_installment_paid',
@@ -480,7 +480,7 @@ describe('tool-executor mutations', () => {
     );
 
     expect(firstResult.status).toBe('ok');
-    expect(firstResult.safeUserMessage).toContain('Comprovante de Pagamento');
+    expect(firstResult.safeUserMessage).toMatch(/Pagamento confirmado/);
     expect(mocks.markInstallmentPaid).toHaveBeenCalledTimes(1);
     expect(replayResult.status).toBe('ok');
     expect(replayResult.safeUserMessage).toContain('já foi executada neste chat');

@@ -358,8 +358,8 @@ describe('handleMessage', () => {
       text: 'cria contrato',
     });
 
-    expect(out.text).toContain('Resumo do Contrato');
-    expect(out.text).toContain('responda *sim*');
+    expect(out.text).toMatch(/Novo contrato — confirmar/);
+    expect(out.text).toMatch(/[Rr]esponda \*sim\*/);
     const updatedContext = mocks.updateSessionContext.mock.calls.at(-1)?.[1] as any;
     expect(updatedContext.pendingAction).toBeUndefined();
     expect(updatedContext.workingStateV2 || updatedContext.workingState).toEqual(expect.objectContaining({
@@ -398,8 +398,8 @@ describe('handleMessage', () => {
       text: 'CPF 529.982.247-25',
     });
 
-    expect(out.text).toContain('Resumo do Contrato');
-    expect(out.text).toContain('responda *sim*');
+    expect(out.text).toMatch(/Novo contrato — confirmar/);
+    expect(out.text).toMatch(/[Rr]esponda \*sim\*/);
     const updatedContext = mocks.updateSessionContext.mock.calls.at(-1)?.[1] as any;
     expect(updatedContext.pendingAction).toBeUndefined();
     expect(updatedContext.workingStateV2 || updatedContext.workingState).toEqual(expect.objectContaining({
@@ -508,7 +508,7 @@ describe('handleMessage', () => {
       text: 'baixar contrato 123 parcela 2',
     });
 
-    expect(out.text).toContain('Confirma a baixa desta parcela?');
+    expect(out.text).toMatch(/Baixar parcela — confirmar/);
     const updatedContext = mocks.updateSessionContext.mock.calls.at(-1)?.[1] as any;
     expect(updatedContext.pendingAction).toBeUndefined();
     expect(updatedContext.workingStateV2 || updatedContext.workingState).toEqual(expect.objectContaining({
@@ -776,7 +776,7 @@ describe('handleMessage', () => {
     });
 
     expect(out.text).toContain('Entendi do áudio');
-    expect(out.text).toContain('Resumo do Contrato');
+    expect(out.text).toMatch(/Novo contrato — confirmar/);
   });
 
   it('áudio com pagamento por mês entra no fluxo de baixa com confirmação', async () => {
@@ -826,7 +826,7 @@ describe('handleMessage', () => {
     });
 
     expect(out.text).toContain('Entendi do áudio');
-    expect(out.text).toContain('Confirma a baixa desta parcela?');
+    expect(out.text).toMatch(/Baixar parcela — confirmar/);
     const updatedContext = mocks.updateSessionContext.mock.calls.at(-1)?.[1] as any;
     expect(updatedContext.pendingAction).toBeUndefined();
     expect(updatedContext.workingStateV2 || updatedContext.workingState).toEqual(expect.objectContaining({

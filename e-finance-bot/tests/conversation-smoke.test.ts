@@ -335,18 +335,18 @@ describe('conversation smoke (falando com o bot)', () => {
     expect(r4).toContain('dia do mês');
 
     const r5 = await ask('10', 'smk-5');
-    expect(r5).toContain('Resumo do Contrato');
-    expect(r5).toContain('responda *sim*');
+    expect(r5).toMatch(/Novo contrato — confirmar/);
+    expect(r5).toMatch(/[Rr]esponda \*sim\*/);
 
     const r6 = await ask('sim', 'smk-6');
     expect(r6).toContain('Contrato #123');
     expect(r6).toContain('baixar contrato 123');
 
     const r7 = await ask('baixar contrato 123 parcela 2', 'smk-7');
-    expect(r7).toContain('Confirma a baixa desta parcela?');
+    expect(r7).toMatch(/Baixar parcela — confirmar/);
 
     const r8 = await ask('sim', 'smk-8');
-    expect(r8).toContain('Comprovante de Pagamento');
+    expect(r8).toMatch(/Pagamento confirmado/);
     expect(r8).toContain('#123');
   });
 
