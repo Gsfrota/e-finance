@@ -79,6 +79,18 @@ jobs:
             --set-secrets="UAZAPI_INSTANCE_TOKEN=UAZAPI_INSTANCE_TOKEN:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,SETUP_SECRET=SETUP_SECRET:latest,TELEGRAM_WEBHOOK_SECRET_TOKEN=TELEGRAM_WEBHOOK_SECRET_TOKEN:latest,UAZAPI_WEBHOOK_SECRET=UAZAPI_WEBHOOK_SECRET:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY_EFINANCE:latest,GEMINI_API_KEY=GEMINI_API_KEY_EFINANCE:latest,SCHEDULER_SECRET=SCHEDULER_SECRET:latest,SUPABASE_URL=SUPABASE_URL_EFINANCE:latest" \
             --set-env-vars="UAZAPI_SERVER_URL=https://processai.uazapi.com"
 
+      - name: Ensure public ingress (allUsers invoker)
+        # gcloud run deploy --allow-unauthenticated falha silenciosamente quando há
+        # org policy iam.allowedPolicyMemberDomains restritiva. Garantir o binding
+        # explicitamente após cada deploy mantém os webhooks UazAPI/Telegram acessíveis.
+        run: |
+          gcloud run services add-iam-policy-binding ${{ env.SERVICE }} \
+            --project=${{ env.PROJECT_ID }} \
+            --region=${{ env.REGION }} \
+            --member="allUsers" \
+            --role="roles/run.invoker" \
+            --quiet
+
       - name: Get service URL and configure webhooks
         run: |
           URL=$(gcloud run services describe ${{ env.SERVICE }} \
