@@ -30,7 +30,7 @@ export function formatCobrancaList(debtors: DebtorItem[], windowLabel: string): 
   const word = debtors.length === 1 ? 'devedor' : 'devedores';
   return [
     `*Cobranças — ${windowLabel}*`,
-    `${debtors.length} ${word}  ·  total *${formatCurrency(total)}*`,
+    `${debtors.length} ${word}  ·  Total em aberto: *${formatCurrency(total)}*`,
     '',
     lines.join('\n'),
     extra,
@@ -54,7 +54,7 @@ export function formatReceivablesList(installments: Installment[], windowLabel: 
   const word = installments.length === 1 ? 'parcela' : 'parcelas';
   return [
     `*Recebíveis — ${windowLabel}*`,
-    `${installments.length} ${word}  ·  previsto *${formatCurrency(total)}*`,
+    `${installments.length} ${word}  ·  Total previsto: *${formatCurrency(total)}*`,
     '',
     lines.join('\n'),
     extra,

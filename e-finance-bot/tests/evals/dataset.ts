@@ -221,7 +221,7 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
       {
         input: { text: '10/04/2026' },
         expect: {
-          textIncludes: ['Resumo do Contrato', 'responda *sim*'],
+          textIncludes: ['Novo contrato — confirmar', 'sim'],
           pendingAction: null,
           workingState: {
             pendingCapability: 'create_contract',
@@ -300,7 +300,7 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
       {
         input: { text: 'criar contrato para Pedro Lima, CPF 529 982 247 25, 2 mil, sem juros, 4 parcelas de 15 em 15 começando em 10/04/2026' },
         expect: {
-          textIncludes: ['Resumo do Contrato', 'responda *sim*'],
+          textIncludes: ['Novo contrato — confirmar', 'sim'],
           pendingAction: null,
           workingState: {
             pendingCapability: 'create_contract',
@@ -346,7 +346,7 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
           audioKind: 'voice_note',
         },
         expect: {
-          textIncludes: ['Entendi do áudio', 'Resumo do Contrato', 'responda *sim*'],
+          textIncludes: ['Entendi do áudio', 'Novo contrato — confirmar', 'sim'],
           pendingAction: null,
           workingState: {
             pendingCapability: 'create_contract',
@@ -378,7 +378,7 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
       {
         input: { text: 'baixar contrato 123 parcela 2' },
         expect: {
-          textIncludes: ['Confirma a baixa desta parcela?'],
+          textIncludes: ['Baixar parcela — confirmar'],
           pendingAction: null,
           workingState: {
             pendingCapability: 'mark_installment_paid',
@@ -392,7 +392,7 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
       {
         input: { text: 'sim' },
         expect: {
-          textIncludes: ['Comprovante de Pagamento', '#123'],
+          textIncludes: ['Pagamento confirmado', '#123'],
           pendingAction: null,
           workingState: {
             lastMutation: expect.objectContaining({
@@ -889,7 +889,7 @@ export const AGENT_EVAL_DATASET: AgentEvalCase[] = [
       {
         input: { text: 'desconectar' },
         expect: {
-          textIncludes: ['Vou desconectar este chat da sua conta'],
+          textIncludes: ['Desconectar este chat'],
           workingState: {
             pendingConfirmation: expect.anything(),
           },
