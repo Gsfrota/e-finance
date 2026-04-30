@@ -96,40 +96,96 @@ UI strings and comments are in **Portuguese (Brazilian)**. Error messages from `
 
 ## Development Workflow (OBRIGATÓRIO)
 
-**Toda** solicitação de mudança, feature, bug ou melhoria DEVE seguir o fluxo definido em `.claude/rules/e-finance-dev-workflow.md`.
+**Toda** solicitação de mudança, feature, bug ou melhoria segue este fluxo:
 
-### Resumo do Fluxo
+### Story Development Cycle (SDC)
+
+Padrão principal para 95% das mudanças:
 
 ```
-Solicitação → @po BR Gate → @sm Draft → @po Validate → @dev Implement → @qa Gate → @devops Push
+@pm (create epic)
+  └── @sm (create story from epic)
+      └── @po (validate story - 10pt checklist)
+          └── @dev (implement code)
+              └── @qa (quality gate - 7 checks)
+                  └── @devops (git push + merge)
 ```
 
-### Regra Principal
+**Referência:**
+- Fases detalhadas: `.claude/rules/workflow-execution.md` → "Story Development Cycle"
+- Checklists: `.claude/rules/story-lifecycle.md`
+- Autoridade de agentes: `.claude/rules/agent-authority.md`
 
-Antes de escrever qualquer linha de código:
-1. **@po** verifica se há Business Rule em `docs/business-rules/e-finance-br.md`
-2. Se não houver, **@po** elabora proposta e apresenta ao usuário
-3. Usuário aprova ou ajusta a BR
-4. Só então o desenvolvimento começa
+---
 
-### Exceção: Perguntas e Análises
+## When to Call Each Agent
 
-Mensagens classificadas como QUESTION (como funciona X, explicar Y, analisar Z)
-não ativam o fluxo — são respondidas diretamente.
+### 📊 By Task Type
 
-### Gates de Banco de Dados
+| Task | Agent | Command |
+|------|-------|---------|
+| **Report bug** | `@qa` | Triagem + classification |
+| **Test feature** | `@qa` | Quality gate (`*qa-gate`) |
+| **Implement code** | `@dev` | Development (`*develop-story`) |
+| **Architecture/Design** | `@architect` | System design decisions |
+| **Database schema** | `@data-engineer` | DDL + optimization |
+| **Research/Analysis** | `@analyst` | Investigation (`*brainstorm`) |
+| **UX/UI design** | `@ux-design-expert` | Design patterns + mockups |
+| **Create epic** | `@pm` | Requirements (`*create-epic`) |
+| **Create story** | `@sm` | From epic (`*create-story`) |
+| **Validate story** | `@po` | 10-point checklist (`*validate-story-draft`) |
+| **Git push/PR/Release** | `@devops` | Exclusive authority (`*push`) |
+| **Framework work** | `@aios-master` | Any meta task |
+
+### 📅 By Workflow Phase
+
+1. **Epic Creation** → `@pm *create-epic` (gather requirements, write spec)
+2. **Story Creation** → `@sm *create-story` (from epic/PRD)
+3. **Story Validation** → `@po *validate-story-draft` (10-point checklist)
+4. **Implementation** → `@dev *develop-story` (code + local tests)
+5. **QA Gate** → `@qa *qa-gate` (7 quality checks, E2E validation)
+6. **QA Loop** (if issues) → `@qa *qa-loop` + `@dev fixes` (iterative, max 5)
+7. **Push to Main** → `@devops *push` (exclusive)
+
+### ⚠️ Exclusive Operations (DO NOT DELEGATE)
+
+| Operation | Exclusive Agent |
+|-----------|-----------------|
+| `git push` / force push | `@devops` |
+| `gh pr create` / merge | `@devops` |
+| MCP add/remove | `@devops` |
+| CI/CD pipeline | `@devops` |
+| `*create-epic` | `@pm` |
+| `*validate-story-draft` | `@po` |
+| `*create-story` | `@sm` |
+
+**Reference:** `.claude/rules/agent-authority.md`
+
+---
+
+## Database Schema Changes (GATES OBRIGATÓRIOS)
 
 Para qualquer mudança em schema ou RPC:
-1. Inspecionar schema real com `scripts/claude-agent.sh`
-2. Obter confirmação explícita do usuário antes de aplicar
-3. Validar após aplicação
+
+1. **Inspect** real schema com `scripts/claude-agent.sh`
+2. **Get explicit approval** do usuário antes de aplicar
+3. **Validate** após aplicação
 
 **Claude é o guardião do banco.** Nunca aplicar migration sem acordo explícito.
 
-### Referência Completa
+---
 
-Ver `.claude/rules/e-finance-dev-workflow.md` para:
-- Tabela completa de triggers por tipo de mensagem
-- Paralelismo permitido vs sequencial obrigatório
-- Gates específicos do domínio financeiro (pagamentos, multi-tenant)
-- Formato de documentação de novas BRs
+## Exception: Questions & Analysis
+
+Mensagens classificadas como **QUESTION** (como funciona X, explicar Y, analisar Z)
+não ativam o workflow — são respondidas diretamente.
+
+---
+
+## Reference
+
+Regras completas em `.claude/rules/`:
+- **workflow-execution.md** — 4 primary workflows (SDC, QA Loop, Spec Pipeline, Brownfield)
+- **story-lifecycle.md** — 10-point validation checklist + 7 QA checks
+- **agent-authority.md** — Delegation matrix + exclusive operations
+- **agent-handoff.md** — Context compaction on agent switch
