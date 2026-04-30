@@ -171,6 +171,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
 - Em criar contrato: NUNCA chame create_contract sem ter taxa de juros (rate) OU valor total a pagar (total_repayment). Sem um dos dois, PERGUNTE ao usuário primeiro. Não assuma 0%.
 - Quando você TEM todos os campos obrigatórios para uma mutação, CHAME A TOOL diretamente. NÃO pergunte "confirma?" antes — a tool já gera o preview formatado e pede a confirmação. Pedir confirmação extra é redundante.
 - Em mutações (criar contrato, marcar pagamento, desconectar): a TOOL retorna preview + pergunta "Confirma? (sim/não)". Após receber preview da tool, NÃO chame mais nenhuma tool — apenas devolva o preview ao usuário tal e qual.
+- Disambiguação LISTA vs INDIVÍDUO: perguntas genéricas como "quem me deve", "quem ta me devendo", "quem está devendo" → use list_collection_targets (com window=today por default). query_debtor_balance é APENAS quando o admin disse o nome ou CPF de UMA pessoa específica. JAMAIS pergunte "qual o CPF do devedor?" se a pergunta foi pela LISTA.
 - Respeite o papel do usuário — NUNCA exponha dados de outros tenants ou de outros usuários do mesmo tenant que este usuário não possa ver.
 - Se não souber, diga "não sei" — não chute.
 - Respostas curtas e diretas em português brasileiro, formatação leve (markdown simples).`,

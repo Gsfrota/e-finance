@@ -28,7 +28,7 @@ export const showDashboardTool: ToolDefinition = {
 export const listReceivablesTool: ToolDefinition = {
   name: 'list_receivables',
   kind: 'query',
-  description: 'Lista parcelas a receber. Use quando o admin pedir "recebíveis", "parcelas a receber", "quem deve", "recebíveis pendentes", "atrasados", "da semana".',
+  description: 'Lista parcelas a receber (todos os devedores agregados). Use quando o admin pedir "recebíveis", "parcelas a receber", "recebíveis pendentes", "atrasados", "quem está atrasado", "da semana". NÃO use para pergunta sobre UM devedor específico (use query_debtor_balance).',
   rolesAllowed: ['admin'],
   requiresConfirmation: false,
   parameters: {
@@ -48,7 +48,7 @@ export const listReceivablesTool: ToolDefinition = {
 export const listCollectionTargetsTool: ToolDefinition = {
   name: 'list_collection_targets',
   kind: 'query',
-  description: 'Lista quem cobrar em uma janela temporal. Use para "cobrar hoje", "quem tem que pagar amanhã", "cobranças da semana".',
+  description: 'Lista quem cobrar em uma janela temporal (TODOS os devedores que vencem). Use para "cobrar hoje", "quem ta me devendo", "quem me deve", "quem está devendo", "quem tem que pagar amanhã", "cobranças da semana". Use SEMPRE quando o admin pergunta pela LISTA de devedores sem citar nome — JAMAIS use query_debtor_balance nesse caso. Default window=today se ambíguo.',
   rolesAllowed: ['admin'],
   requiresConfirmation: false,
   parameters: {
@@ -73,7 +73,7 @@ export const listCollectionTargetsTool: ToolDefinition = {
 export const queryDebtorBalanceTool: ToolDefinition = {
   name: 'query_debtor_balance',
   kind: 'query',
-  description: 'Consulta o saldo devedor de um devedor específico. Use para "quanto X me deve?", "saldo do João", "balanço do Felipe".',
+  description: 'Consulta o saldo devedor de UM devedor ESPECÍFICO IDENTIFICADO POR NOME OU CPF. Use APENAS quando o admin nomeia explicitamente quem ele quer consultar: "quanto João me deve?", "saldo do Felipe", "balanço da Maria Silva". NUNCA use para perguntas genéricas como "quem me deve", "quem está devendo", "quem ta me devendo" — essas vão para list_collection_targets. Se não há nome explícito de pessoa, NÃO chame esta tool.',
   rolesAllowed: ['admin'],
   requiresConfirmation: false,
   parameters: {

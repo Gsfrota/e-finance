@@ -18,6 +18,7 @@ import {
 } from '../actions/admin-actions';
 import { logStructuredMessage } from '../observability/logger';
 import { estimateCostUsd } from '../observability/cost-estimator';
+import { beginTraceInPlace, getActiveTrace, enqueueTracePersist, flushTrace } from '../observability/turn-tracer';
 import { config } from '../config';
 import type { LinkValidationResult, ContractOpenInstallment, CompanyOption } from '../actions/admin-actions';
 import { detectPromptInjectionAttempt, sanitizeUserText } from '../security/prompt-guard';
@@ -931,6 +932,13 @@ function isPendingOperationEscape(text: string): boolean {
 
 export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessage> {
   const startedAt = Date.now();
+  const trace = beginTraceInPlace({
+    channel: msg.channel,
+    channel_user_id: msg.channelUserId,
+    message_id: msg.messageId,
+    media_type: msg.audioBuffer ? 'audio' : msg.imageBuffer ? 'image' : 'text',
+    user_text: msg.text || null,
+  });
   const telemetry = {
     channel: msg.channel,
     messageId: msg.messageId,
@@ -1393,6 +1401,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
     const tenantId = session.profile.tenant_id;
     const profileId = session.profile.id;
     let workingState = getWorkingState(session.context);
+    getActiveTrace()?.patch({ tenant_id: tenantId, session_id: session.id });
 
     // ─── AI-native gate (BR-BOT-007/008) — rollout canário ─────────────────
     // Se AI_NATIVE_ENABLED=true e tenantId permitido, tenta responder via
@@ -1442,6 +1451,29 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
           latency_ms: aiLatency,
         });
 
+        getActiveTrace()?.patch({
+          source: 'ai_native',
+          ai_native_source: result.source,
+          tool_calls: result.toolCalls.map(tc => {
+            const outcome = tc.outcome;
+            const summary = outcome.kind === 'text' ? outcome.text
+              : outcome.kind === 'data' ? outcome.summary
+              : outcome.kind === 'preview' ? outcome.preview
+              : outcome.kind === 'mutation_applied' ? outcome.summary
+              : outcome.kind === 'error' ? outcome.message
+              : '';
+            return {
+              name: tc.name,
+              args: tc.args,
+              outcome_kind: outcome.kind,
+              outcome_summary: summary ? summary.slice(0, 200) : undefined,
+            };
+          }),
+          tokens_in: result.tokensIn || null,
+          tokens_out: result.tokensOut || null,
+          cost_cents: result.estimatedCostCents ?? null,
+        });
+
         // Handled pela pipeline nova
         if (result.reply && (result.source === 'fast_path' || result.source === 'llm' || result.source === 'budget_blocked')) {
           await saveMessageTimed(session.id, 'user', textToProcess, userMediaType, `ai:${result.source}`);
@@ -1456,6 +1488,11 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
           sessionId: session.id,
           tenantId,
           error: err instanceof Error ? err.message : String(err),
+        });
+        getActiveTrace()?.patch({
+          source: 'ai_native',
+          ai_native_source: 'error',
+          error_message: err instanceof Error ? err.message : String(err),
         });
         // fallthrough
       }
@@ -2038,6 +2075,38 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       responseText: responseTextForLog || undefined,
       extractedArgs: extractedArgsForLog || undefined,
     });
+
+    // BR-BOT-009: flush do trace por turno (fire-and-forget, fila por sessão).
+    // Reusa sanitizeLogText via logStructuredMessage events; campos top-level
+    // são populados ao longo do pipeline via getActiveTrace()?.setField(...).
+    try {
+      trace.patch({
+        intent: telemetry.intent !== 'n/a' ? telemetry.intent : null,
+        intent_confidence: telemetry.confidence !== 'n/a' ? telemetry.confidence : null,
+        intent_route_source: telemetry.routeSource !== 'n/a' ? telemetry.routeSource : null,
+        capability: telemetry.action !== 'none' ? telemetry.action : null,
+        result: telemetry.result === 'success' ? 'success'
+          : telemetry.result === 'error' ? 'error'
+          : telemetry.result === 'blocked' ? 'blocked'
+          : telemetry.result === 'clarification' ? 'clarification' : null,
+        reply_text: responseTextForLog || null,
+        total_ms: totalMs,
+        latency_breakdown: { ...latencyBreakdown },
+        tokens_in: llmUsage.tokensIn || null,
+        tokens_out: llmUsage.tokensOut || null,
+        cost_cents: (llmUsage.tokensIn > 0 || llmUsage.tokensOut > 0)
+          ? Math.round(estimateCostUsd(llmUsage.tokensIn, llmUsage.tokensOut) * 100 * 100) / 100
+          : null,
+        session_id: telemetry.sessionId || null,
+      });
+      const queueKey = telemetry.sessionId || `${msg.channel}:${msg.channelUserId}`;
+      enqueueTracePersist(queueKey, () => flushTrace(trace));
+    } catch (err) {
+      logStructuredMessage('turn_trace_finalize_failed', {
+        sessionId: telemetry.sessionId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 }
 

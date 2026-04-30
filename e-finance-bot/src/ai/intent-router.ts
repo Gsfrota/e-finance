@@ -72,7 +72,7 @@ const RULES: Rule[] = [
   { intent: 'marcar_pagamento', pattern: /^(4)$/i },
 
   { intent: 'recebiveis_hoje', pattern: /(receb[ií]veis?\s+de\s+hoje|vence\s+hoje|vencimentos?\s+de\s+hoje|parcelas?\s+de\s+hoje|o\s+que\s+vence\s+hoje)/i },
-  { intent: 'cobrar_hoje', pattern: /(quem\s+tenho\s+que\s+cobrar\s+hoje|cobrar\s+hoje|lista\s+de\s+cobran[cç]a\s+de\s+hoje|quem\s+(t[aá]|est[aá])\s+me\s+devendo\s+hoje|quem\s+me\s+deve\s+hoje|quem\s+(t[aá]|est[aá])\s+devendo\s+hoje|quem\s+(?:eu\s+)?cobro\s+hoje)/i },
+  { intent: 'cobrar_hoje', pattern: /(quem\s+tenho\s+que\s+cobrar(?:\s+hoje)?|cobrar\s+hoje|lista\s+de\s+cobran[cç]a\s+de\s+hoje|quem\s+(?:t[aá]|est[aá])\s+me\s+devendo(?:\s+hoje)?|quem\s+me\s+deve(?:\s+hoje)?|quem\s+(?:t[aá]|est[aá])\s+devendo(?:\s+hoje)?|quem\s+(?:eu\s+)?cobro(?:\s+hoje)?|quem\s+t[aá]\s+devendo(?:\s+pra\s+mim)?|quem\s+me\s+(?:est[aá]\s+)?devendo)/i, entities: { days_ahead: 1, window_start: 'today' } },
   { intent: 'listar_recebiveis', pattern: /\b(?:parcelas?|vencimentos?)\s+(?:vencidas?|atrasadas?|em\s+aberto)/i, entities: { filter: 'late' } },
 
   { intent: 'criar_contrato', pattern: /(criar?\s+contrato|novo\s+contrato|registrar\s+contrato|cadastrar\s+contrato|empr[eé]stimo\s+para|fazer\s+(?:um\s+)?contrato|quero\s+(?:fazer|criar)\s+(?:um\s+)?contrato)/i },

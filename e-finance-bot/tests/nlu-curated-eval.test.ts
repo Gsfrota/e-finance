@@ -121,6 +121,11 @@ describe('NLU curated offline evaluation', () => {
       { text: 'quem tenho que cobrar hoje?', expected: 'cobrar_hoje' },
       { text: 'quem me deve hoje', expected: 'cobrar_hoje' },
       { text: 'quem tá devendo hoje', expected: 'cobrar_hoje' },
+      // bug A: sem "hoje" — bot deve assumir hoje como default
+      { text: 'quem está me devendo?', expected: 'cobrar_hoje' },
+      { text: 'quem ta me devendo', expected: 'cobrar_hoje' },
+      { text: 'quem me deve', expected: 'cobrar_hoje' },
+      { text: 'quem tá devendo', expected: 'cobrar_hoje' },
 
       // --- ADMIN: recebiveis_periodo ---
       { text: 'quanto vou receber nos próximos 7 dias', expected: 'recebiveis_periodo' },

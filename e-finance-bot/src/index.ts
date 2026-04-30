@@ -462,6 +462,26 @@ export function createApp(): Express {
     }
   });
 
+  app.get('/debug/traces', requireSetupSecret, async (req, res) => {
+    try {
+      const { fetchTraces } = await import('./observability/turn-tracer-query');
+      const sessionId = (req.query.session_id as string) || undefined;
+      const channelUserId = (req.query.channel_user_id as string) || undefined;
+      const tenantId = (req.query.tenant_id as string) || undefined;
+      const since = (req.query.since as string) || undefined;
+      const limitRaw = parseInt((req.query.limit as string) || '20', 10);
+      const limit = Math.max(1, Math.min(200, Number.isFinite(limitRaw) ? limitRaw : 20));
+
+      const rows = await fetchTraces({ sessionId, channelUserId, tenantId, since, limit });
+      return res.json({ count: rows.length, traces: rows });
+    } catch (err) {
+      logStructuredMessage('debug_traces_failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return res.status(500).json({ error: 'failed', message: err instanceof Error ? err.message : 'unknown' });
+    }
+  });
+
   app.post('/setup', requireSetupSecret, setupJson, async (req, res) => {
     const { webhookBaseUrl } = req.body as { webhookBaseUrl?: string };
     const baseUrl = resolveWebhookBaseUrl(webhookBaseUrl);

@@ -119,10 +119,29 @@ function sanitizePayload(payload: MessageLogPayload): MessageLogPayload {
   return sanitized;
 }
 
+// Empurra eventos para o trace ativo da request (BR-BOT-009). Mantemos um
+// "ponteiro" mutável para evitar import direto de turn-tracer.ts e quebrar
+// o hot path do logger se o módulo de tracing não estiver carregado (ex:
+// scripts standalone, testes que mockam apenas logger).
+type TraceSink = (event: string, payload: Record<string, unknown>) => void;
+let traceSink: TraceSink | null = null;
+
+export function setTraceSink(sink: TraceSink | null): void {
+  traceSink = sink;
+}
+
 export function logStructuredMessage(event: string, payload: MessageLogPayload): void {
+  const sanitized = sanitizePayload(payload);
   console.log(JSON.stringify({
     ts: new Date().toISOString(),
     event,
-    ...sanitizePayload(payload),
+    ...sanitized,
   }));
+  if (traceSink) {
+    try {
+      traceSink(event, sanitized as Record<string, unknown>);
+    } catch {
+      // tracer falhar nunca pode derrubar o pipeline
+    }
+  }
 }

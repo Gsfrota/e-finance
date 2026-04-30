@@ -136,6 +136,14 @@ export const config = {
     tenantAllowlist: (process.env.AI_NATIVE_TENANT_ALLOWLIST || '').split(',').map(s => s.trim()).filter(Boolean),
   },
 
+  // Tracing por turno (debugging em produção) — BR-BOT-009
+  trace: {
+    enabled: process.env.TRACE_ENABLED !== 'false',
+    retentionDays: parseInt(process.env.TRACE_RETENTION_DAYS || '14', 10),
+    maxEvents: parseInt(process.env.TRACE_MAX_EVENTS || '120', 10),
+    maxUserTextChars: parseInt(process.env.TRACE_MAX_USER_TEXT_CHARS || '2000', 10),
+  },
+
   // Alertas de conexão UazAPI
   alerts: {
     emergencyTelegramChatId: process.env.ALERT_TELEGRAM_CHAT_ID || '',
