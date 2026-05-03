@@ -12,7 +12,7 @@ import {
 export const createContractTool: ToolDefinition = {
   name: 'create_contract',
   kind: 'mutation',
-  description: 'Cria um novo contrato de empréstimo. CAMPOS OBRIGATÓRIOS: debtor_cpf (11 dígitos), amount (principal em reais), installments (nº de parcelas) E (rate OU total_repayment). NUNCA chame esta tool sem rate ou total_repayment — peça ao usuário antes. Se o usuário falou "10 parcelas de 200 com principal de 1500", calcule total_repayment = 10*200 = 2000. Retorna PREVIEW; o contrato só é criado após "sim" explícito. Use para "criar contrato", "emprestar X para Y", "novo empréstimo".',
+  description: 'Cria um novo contrato de empréstimo. ASSIM QUE você tiver debtor_cpf + amount + (rate OU total_repayment), CHAME esta tool IMEDIATAMENTE — não pergunte confirmação extra, não peça campos opcionais primeiro. A tool retorna PREVIEW formatado pedindo "sim/não" do usuário. Campos opcionais (debtor_name, installments, frequency, due_day) podem vir vazios — a tool pede no preview se faltar. ACUMULE dados de turnos anteriores: se o usuário disse "07368816185, 1000, 12, 20%" no turno N e "nome é João" no turno N+1, junte tudo e chame com debtor_name="João". Se o usuário falou "10 parcelas de 200 com principal de 1500", calcule total_repayment = 10*200 = 2000. Use para "criar contrato", "emprestar X para Y", "novo empréstimo".',
   rolesAllowed: ['admin'],
   requiresConfirmation: true,
   parameters: {
