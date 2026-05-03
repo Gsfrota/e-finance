@@ -79,7 +79,18 @@ jobs:
             --max-instances=3 \
             --timeout=60 \
             --set-secrets="UAZAPI_INSTANCE_TOKEN=UAZAPI_INSTANCE_TOKEN:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,SETUP_SECRET=SETUP_SECRET:latest,TELEGRAM_WEBHOOK_SECRET_TOKEN=TELEGRAM_WEBHOOK_SECRET_TOKEN:latest,UAZAPI_WEBHOOK_SECRET=UAZAPI_WEBHOOK_SECRET:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY_EFINANCE:latest,GEMINI_API_KEY=GEMINI_API_KEY_EFINANCE:latest,SCHEDULER_SECRET=SCHEDULER_SECRET:latest,SUPABASE_URL=SUPABASE_URL_EFINANCE:latest" \
-            --set-env-vars="UAZAPI_SERVER_URL=https://processai.uazapi.com,AI_NATIVE_ENABLED=true,TRACE_ENABLED=true"
+            --set-env-vars="UAZAPI_SERVER_URL=https://processai.uazapi.com,AI_NATIVE_ENABLED=true,TRACE_ENABLED=true,ASSISTANT_SESSION_READ_TIMEOUT_MS=25000,BOT_BASE_URL=https://e-finance-bot-oh6s7bvufq-rj.a.run.app"
+
+      - name: Warm up new revision (evita cold-start na 1ª request real)
+        # Cold start de container novo causa session_sync_timeout (15s+ no
+        # 1º round-trip Supabase). 5 hits no /health forçam o container a
+        # subir e fazer initial connect ao Supabase antes do tráfego real.
+        run: |
+          URL="https://e-finance-bot-oh6s7bvufq-rj.a.run.app"
+          for i in 1 2 3 4 5; do
+            curl -fsS -m 30 "$URL/health" -o /dev/null -w "warmup #$i: %{time_total}s\n" || true
+            sleep 1
+          done
 
       - name: Ensure public ingress (allUsers invoker)
         # gcloud run deploy --allow-unauthenticated falha silenciosamente quando há
@@ -93,19 +104,12 @@ jobs:
             --role="roles/run.invoker" \
             --quiet
 
-      - name: Get service URL and configure webhooks
+      - name: Configure webhooks (UazAPI + Telegram)
+        # BOT_BASE_URL já vem fixado no --set-env-vars do deploy → este step
+        # não cria mais 2ª revisão (que adicionava cold-start extra).
         run: |
-          URL=$(gcloud run services describe ${{ env.SERVICE }} \
-            --project=${{ env.PROJECT_ID }} \
-            --region=${{ env.REGION }} \
-            --format='value(status.url)')
-          echo "Bot URL: $URL"
+          URL="https://e-finance-bot-oh6s7bvufq-rj.a.run.app"
           SETUP_SECRET_VALUE=$(gcloud secrets versions access latest --secret=SETUP_SECRET --project=${{ env.PROJECT_ID }})
-          gcloud run services update ${{ env.SERVICE }} \
-            --project=${{ env.PROJECT_ID }} \
-            --region=${{ env.REGION }} \
-            --update-env-vars="BOT_BASE_URL=${URL}" \
-            --quiet
           curl -fsS -X POST "$URL/setup" \
             -H "Content-Type: application/json" \
             -H "x-setup-secret: ${SETUP_SECRET_VALUE}" \
