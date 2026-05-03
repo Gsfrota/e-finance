@@ -1016,6 +1016,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
     const baseText = (text || '').trim() || 'Nao consegui montar uma resposta agora.';
     if (shouldSkipConversationalLayer(String(telemetry.action || '')) || opts.skipLlm) {
       responseTextForLog = baseText.slice(0, 300);
+      getActiveTrace()?.setField('reply_text', responseTextForLog);
       return { text: baseText };
     }
 
@@ -1048,6 +1049,7 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
     const finalText = reply.text
       ?? (llmFailed && baseText ? `_Estou mais lento agora, mas aqui vai:_\n\n${baseText}` : baseText);
     responseTextForLog = finalText.slice(0, 300);
+    getActiveTrace()?.setField('reply_text', responseTextForLog);
     return { text: finalText };
   };
 
@@ -1270,6 +1272,8 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
         });
         await saveMessageTimed(session.id, 'user', `[áudio fraco] ${audioTranscript.text.slice(0, 60)}`, 'audio');
         await saveMessageTimed(session.id, 'assistant', weakReply);
+        responseTextForLog = weakReply.slice(0, 300);
+        getActiveTrace()?.setField('reply_text', responseTextForLog);
         return { text: weakReply };
       }
 
@@ -1478,6 +1482,8 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
         if (result.reply && (result.source === 'fast_path' || result.source === 'llm' || result.source === 'budget_blocked')) {
           await saveMessageTimed(session.id, 'user', textToProcess, userMediaType, `ai:${result.source}`);
           await saveMessageTimed(session.id, 'assistant', result.reply, 'text', `ai:${result.source}`);
+          responseTextForLog = result.reply.slice(0, 300);
+          getActiveTrace()?.setField('reply_text', responseTextForLog);
           return { text: result.reply };
         }
         // Caso 'ai_disabled', 'kill_switch', 'error' → fallthrough para pipeline antiga
@@ -2079,6 +2085,8 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
     // BR-BOT-009: flush do trace por turno (fire-and-forget, fila por sessão).
     // Reusa sanitizeLogText via logStructuredMessage events; campos top-level
     // são populados ao longo do pipeline via getActiveTrace()?.setField(...).
+    // reply_text é setado direto nos pontos de retorno (finalize + AI-native +
+    // audio-weak); aqui só preenchemos se nenhum desses caminhos cobriu.
     try {
       trace.patch({
         intent: telemetry.intent !== 'n/a' ? telemetry.intent : null,
@@ -2089,7 +2097,6 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
           : telemetry.result === 'error' ? 'error'
           : telemetry.result === 'blocked' ? 'blocked'
           : telemetry.result === 'clarification' ? 'clarification' : null,
-        reply_text: responseTextForLog || null,
         total_ms: totalMs,
         latency_breakdown: { ...latencyBreakdown },
         tokens_in: llmUsage.tokensIn || null,
@@ -2099,6 +2106,11 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
           : null,
         session_id: telemetry.sessionId || null,
       });
+      // Fallback: se nenhum return path setou reply_text via setField, usa
+      // responseTextForLog do closure (defesa contra novos return paths).
+      if (responseTextForLog) {
+        trace.patch({ reply_text: responseTextForLog });
+      }
       const queueKey = telemetry.sessionId || `${msg.channel}:${msg.channelUserId}`;
       enqueueTracePersist(queueKey, () => flushTrace(trace));
     } catch (err) {

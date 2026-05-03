@@ -81,8 +81,11 @@ export const config = {
   // Buffer adaptativo de mensagens inbound
   inboundBuffer: {
     enabled: process.env.INBOUND_BUFFER_ENABLED !== 'false',
-    debounceMs: parseInt(process.env.INBOUND_BUFFER_DEBOUNCE_MS || '3500', 10),
-    maxWindowMs: parseInt(process.env.INBOUND_BUFFER_MAX_WINDOW_MS || '12000', 10),
+    // Reduzido de 3500→1500 (2026-05-03): cross-region latency já adiciona
+    // ~12s; cada ms aqui é percebido. Buffer ainda resolve casos de digitação
+    // rápida com mensagens fragmentadas.
+    debounceMs: parseInt(process.env.INBOUND_BUFFER_DEBOUNCE_MS || '1500', 10),
+    maxWindowMs: parseInt(process.env.INBOUND_BUFFER_MAX_WINDOW_MS || '6000', 10),
     maxMessages: parseInt(process.env.INBOUND_BUFFER_MAX_MESSAGES || '5', 10),
   },
 

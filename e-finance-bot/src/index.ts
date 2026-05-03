@@ -139,6 +139,8 @@ function shouldBypassInboundBuffer(text?: string): boolean {
 
   if (/^\//.test(normalized)) return true;
   if (/^(sim|s|n[aã]o|nao|cancelar|cancela|mostrar(\s+mais)?|\d{1,2})$/i.test(normalized)) return true;
+  // Pergunta clara terminando com ? — usuário acabou de fechar o pensamento
+  if (/\?\s*$/.test(normalized) && normalized.length >= 8) return true;
 
   return false;
 }
