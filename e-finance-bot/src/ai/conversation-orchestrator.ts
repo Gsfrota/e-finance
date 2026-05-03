@@ -103,7 +103,9 @@ const MODEL_FLASH = 'gemini-2.5-flash';
 const MODEL_PRO = 'gemini-2.5-pro';
 
 // Parte 10 do plano — limites rígidos
-const MAX_OUTPUT_TOKENS = 300;
+// 600 (era 300, 2026-05-03): com 28 devedores list_collection_targets já usou
+// 314 tokens; folga evita reply truncada que cai em GENERIC_ERROR_MSG.
+const MAX_OUTPUT_TOKENS = 600;
 const MAX_TOOL_ITERATIONS = 3;
 const TIMEOUT_MS = 20_000;
 const MAX_HISTORY_MESSAGES = 8;
@@ -286,6 +288,16 @@ async function runLlmLoop(args: LlmLoopInput): Promise<LlmLoopOutput> {
     if (functionCalls.length === 0) {
       const text = (response.text ?? '').trim();
       if (!text) {
+        const candidate = (response as { candidates?: Array<{ finishReason?: string }> }).candidates?.[0];
+        logStructuredMessage('ai_orchestrator_empty_reply', {
+          tenantId: args.tenantConfig.tenantId,
+          model: args.model,
+          finishReason: candidate?.finishReason ?? 'unknown',
+          promptTokens: usage?.promptTokenCount ?? 0,
+          candidateTokens: usage?.candidatesTokenCount ?? 0,
+          thoughtsTokens: usage?.thoughtsTokenCount ?? 0,
+          iter,
+        });
         return { reply: GENERIC_ERROR_MSG, toolCalls, tokensIn, tokensOut };
       }
       return { reply: text, toolCalls, tokensIn, tokensOut };
@@ -382,6 +394,10 @@ async function callGeminiWithRetry(
         config: {
           temperature: 0.3,
           maxOutputTokens: MAX_OUTPUT_TOKENS,
+          // 2026-05-03: gemini-2.5-flash em modo automático gasta thinking tokens
+          // do MESMO budget de output, deixando 0 candidate tokens e caindo em
+          // GENERIC_ERROR_MSG. thinkingBudget=0 desliga reasoning silencioso.
+          thinkingConfig: { thinkingBudget: 0 },
           systemInstruction: args.systemPrompt,
           tools: args.functionDeclarations.length > 0
             ? [{ functionDeclarations: args.functionDeclarations } as unknown as Record<string, unknown>]
