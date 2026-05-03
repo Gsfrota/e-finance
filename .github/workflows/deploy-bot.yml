@@ -10,9 +10,11 @@ on:
 
 env:
   PROJECT_ID: tribal-pillar-476701-a3
-  REGION: us-west1
+  # Co-localizado com Supabase sa-east-1 — corrige Bug D (cross-region 13-30s
+  # de DB read causando session_sync_timeout). Migrado em 2026-05-03.
+  REGION: southamerica-east1
   SERVICE: e-finance-bot
-  REGISTRY: us-west1-docker.pkg.dev/tribal-pillar-476701-a3/cloud-run-source-deploy/e-finance-bot
+  REGISTRY: southamerica-east1-docker.pkg.dev/tribal-pillar-476701-a3/cloud-run-source-deploy/e-finance-bot
 
 jobs:
   test:
