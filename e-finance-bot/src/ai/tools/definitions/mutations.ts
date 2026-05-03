@@ -6,6 +6,7 @@ import {
   markInstallmentPaidHandler,
   disconnectBotHandler,
   configureBriefingHandler,
+  setEodAlertHourHandler,
 } from '../handlers';
 
 export const createContractTool: ToolDefinition = {
@@ -117,10 +118,31 @@ export const configureBriefingTool: ToolDefinition = {
   handler: configureBriefingHandler as unknown as ToolDefinition['handler'],
 };
 
+export const setEodAlertHourTool: ToolDefinition = {
+  name: 'set_eod_alert_hour',
+  kind: 'mutation',
+  description: 'Configura o horário do aviso de fim de dia (lembrete de cobranças do dia que ainda não tiveram baixa). Use para "me avise às 16h", "alerta de fim de dia às 18:30", "muda meu aviso pra 17:00", "desativa o aviso de fim de dia". Padrão é 17:00 BRT.',
+  rolesAllowed: ['admin'],
+  requiresConfirmation: false,
+  parameters: {
+    type: 'object',
+    properties: {
+      time: { type: 'string', description: 'Horário no formato HH:MM em BRT (ex: "16:00", "17:30").' },
+      enabled: { type: 'boolean', description: 'Se true, ativa o alerta; se false, desativa.' },
+    },
+  },
+  inputSchema: z.object({
+    time: z.string().min(1).optional(),
+    enabled: z.boolean().optional(),
+  }).passthrough(),
+  handler: setEodAlertHourHandler as unknown as ToolDefinition['handler'],
+};
+
 export const mutationTools: ToolDefinition[] = [
   createContractTool,
   markInstallmentPaidTool,
   disconnectBotTool,
   generateInviteTool,
   configureBriefingTool,
+  setEodAlertHourTool,
 ];

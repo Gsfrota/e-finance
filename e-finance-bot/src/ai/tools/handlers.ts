@@ -384,6 +384,55 @@ export const configureBriefingHandler: ToolHandler<ConfigureBriefingInput> = asy
   }
 };
 
+interface SetEodAlertHourInput {
+  time?: string;
+  enabled?: boolean;
+}
+
+export const setEodAlertHourHandler: ToolHandler<SetEodAlertHourInput> = async (input, ctx) => {
+  if (input.enabled === false) {
+    try {
+      await upsertBotTenantConfig(ctx.tenantId, { eod_alert_enabled: false });
+      return {
+        kind: 'mutation_applied',
+        summary: '*Aviso de fim de dia desativado.*\n\nVocê não vai mais receber o lembrete sobre cobranças do dia sem baixa. Para reativar, é só me pedir.',
+      };
+    } catch (err) {
+      logStructuredMessage('set_eod_alert_hour_failed', {
+        tenantId: ctx.tenantId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return { kind: 'error', message: 'Não consegui salvar a configuração agora.', retryable: true };
+    }
+  }
+
+  const time = (input.time || '').trim();
+  if (!time || !isValidBriefingTime(time)) {
+    return {
+      kind: 'error',
+      message: 'Horário inválido. Use formato HH:MM (24h), por exemplo 17:00.',
+      retryable: false,
+    };
+  }
+
+  try {
+    await upsertBotTenantConfig(ctx.tenantId, {
+      eod_alert_enabled: true,
+      eod_alert_time: time,
+    });
+    return {
+      kind: 'mutation_applied',
+      summary: `*Aviso de fim de dia ativado*\n\nTodo dia às *${time}* (horário de Brasília) eu te aviso sobre cobranças do dia que ainda não tiveram baixa, antes de virar atraso.`,
+    };
+  } catch (err) {
+    logStructuredMessage('set_eod_alert_hour_failed', {
+      tenantId: ctx.tenantId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { kind: 'error', message: 'Não consegui salvar a configuração agora.', retryable: true };
+  }
+};
+
 export const previewLembreteHandler: ToolHandler = async (_input, ctx) => {
   const profile = ctx.session.profile;
   if (!profile?.id) {

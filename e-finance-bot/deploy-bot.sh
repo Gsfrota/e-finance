@@ -124,28 +124,40 @@ SCHEDULER_SECRET_VALUE=$(gcloud secrets versions access latest \
 }
 
 if [[ -n "${SCHEDULER_SECRET_VALUE}" ]]; then
-  BOT_URL="https://e-finance-bot-485911123531.us-west1.run.app"
-  if gcloud scheduler jobs describe morning-briefing \
-       --project="${PROJECT}" --location="${REGION}" &>/dev/null; then
-    gcloud scheduler jobs update http morning-briefing \
-      --project="${PROJECT}" --location="${REGION}" \
-      --uri="${BOT_URL}/scheduler/morning-briefing" \
-      --update-headers="x-scheduler-secret=${SCHEDULER_SECRET_VALUE},Content-Type=application/json" \
-      --quiet
-    ok "Cloud Scheduler job atualizado"
-  else
-    gcloud scheduler jobs create http morning-briefing \
-      --project="${PROJECT}" --location="${REGION}" \
-      --schedule="*/5 * * * *" \
-      --uri="${BOT_URL}/scheduler/morning-briefing" \
-      --http-method=POST \
-      --headers="x-scheduler-secret=${SCHEDULER_SECRET_VALUE},Content-Type=application/json" \
-      --message-body="{}" \
-      --time-zone="America/Sao_Paulo" \
-      --attempt-deadline=60s \
-      --quiet
-    ok "Cloud Scheduler job criado (*/5 * * * *)"
-  fi
+  # Reusa a URL dinâmica obtida do `gcloud run services describe` acima — antes
+  # estava hardcoded apontando pra us-west1, o que quebrava após a migração para sa-east-1.
+  BOT_URL="${URL}"
+
+  ensure_scheduler_job() {
+    local NAME="$1"
+    local SCHEDULE="$2"
+    local PATH_SUFFIX="$3"
+    if gcloud scheduler jobs describe "${NAME}" \
+         --project="${PROJECT}" --location="${REGION}" &>/dev/null; then
+      gcloud scheduler jobs update http "${NAME}" \
+        --project="${PROJECT}" --location="${REGION}" \
+        --uri="${BOT_URL}${PATH_SUFFIX}" \
+        --update-headers="x-scheduler-secret=${SCHEDULER_SECRET_VALUE},Content-Type=application/json" \
+        --quiet
+      ok "Cloud Scheduler job '${NAME}' atualizado"
+    else
+      gcloud scheduler jobs create http "${NAME}" \
+        --project="${PROJECT}" --location="${REGION}" \
+        --schedule="${SCHEDULE}" \
+        --uri="${BOT_URL}${PATH_SUFFIX}" \
+        --http-method=POST \
+        --headers="x-scheduler-secret=${SCHEDULER_SECRET_VALUE},Content-Type=application/json" \
+        --message-body="{}" \
+        --time-zone="America/Sao_Paulo" \
+        --attempt-deadline=60s \
+        --quiet
+      ok "Cloud Scheduler job '${NAME}' criado (${SCHEDULE})"
+    fi
+  }
+
+  ensure_scheduler_job "morning-briefing"   "*/5 * * * *"  "/scheduler/morning-briefing"
+  ensure_scheduler_job "eod-alert"          "*/5 * * * *"  "/scheduler/payment-followup"
+  ensure_scheduler_job "feature-promotions" "*/30 * * * *" "/scheduler/feature-promotions"
 fi
 
 # ── Resultado ─────────────────────────────────────────────

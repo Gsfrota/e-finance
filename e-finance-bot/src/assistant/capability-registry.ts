@@ -20,6 +20,10 @@ const configureBriefingSchema = z.object({
   briefing_time: z.string().min(1).optional(),
   briefing_enabled: z.boolean().optional(),
 }).passthrough();
+const setEodAlertHourSchema = z.object({
+  time: z.string().min(1).optional(),
+  enabled: z.boolean().optional(),
+}).passthrough();
 
 const REGISTRY: Record<ActionCapability, CapabilityDefinition<any, any>> = {
   show_dashboard: {
@@ -91,6 +95,10 @@ const REGISTRY: Record<ActionCapability, CapabilityDefinition<any, any>> = {
   configure_briefing: {
     name: 'configure_briefing', kind: 'mutation', rolesAllowed: ['admin'], requiredArgs: [], optionalArgs: ['briefing_time', 'briefing_enabled'], requiresConfirmation: false,
     idempotencyScope: 'mutation', inputSchema: configureBriefingSchema, replyMode: 'raw',
+  },
+  set_eod_alert_hour: {
+    name: 'set_eod_alert_hour', kind: 'mutation', rolesAllowed: ['admin'], requiredArgs: [], optionalArgs: ['time', 'enabled'], requiresConfirmation: false,
+    idempotencyScope: 'mutation', inputSchema: setEodAlertHourSchema, replyMode: 'raw',
   },
   preview_lembrete: {
     name: 'preview_lembrete', kind: 'query', rolesAllowed: ['admin'], requiredArgs: [], optionalArgs: [], requiresConfirmation: false,

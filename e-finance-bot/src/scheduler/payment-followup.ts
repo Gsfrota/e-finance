@@ -30,9 +30,21 @@ function toBrtMinutes(now = new Date()): number {
   return ((utcMinutes + brtOffset) % (24 * 60) + 24 * 60) % (24 * 60);
 }
 
-export function shouldRunPaymentFollowupNow(now = new Date()): boolean {
-  const minutes = toBrtMinutes(now);
-  return minutes >= (17 * 60) && minutes <= (23 * 60 + 55);
+export const DEFAULT_EOD_ALERT_TIME = '17:00';
+const EOD_WINDOW_TOLERANCE_MIN = 7;
+
+/**
+ * Janela de ±7min do horário configurado em BRT.
+ * V44 — substitui shouldRunPaymentFollowupNow (janela aberta 17h-23:55) por
+ * gating estreito + cooldown de 23h gerenciado pelo router.
+ */
+export function isWithinEodAlertWindow(now = new Date(), eodAlertTime = DEFAULT_EOD_ALERT_TIME): boolean {
+  const [hStr, mStr] = eodAlertTime.split(':');
+  const target = parseInt(hStr, 10) * 60 + parseInt(mStr, 10);
+  if (Number.isNaN(target)) return false;
+  const current = toBrtMinutes(now);
+  const diff = Math.abs(current - target);
+  return diff <= EOD_WINDOW_TOLERANCE_MIN || diff >= (24 * 60) - EOD_WINDOW_TOLERANCE_MIN;
 }
 
 export function getReferenceDateBrt(now = new Date()): string {

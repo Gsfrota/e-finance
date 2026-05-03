@@ -36,7 +36,7 @@ vi.mock('../src/channels/telegram', () => ({
   sendText: mocks.tgSendText,
 }));
 
-import { formatPaymentFollowupMessage, runPaymentFollowupForTenant, shouldRunPaymentFollowupNow } from '../src/scheduler/payment-followup';
+import { formatPaymentFollowupMessage, runPaymentFollowupForTenant, isWithinEodAlertWindow } from '../src/scheduler/payment-followup';
 
 describe('payment-followup scheduler', () => {
   beforeEach(() => {
@@ -121,9 +121,25 @@ describe('payment-followup scheduler', () => {
     expect(result.skippedDuplicate).toBe(2);
   });
 
-  it('só roda após 17h BRT', () => {
-    expect(shouldRunPaymentFollowupNow(new Date('2026-03-23T19:59:00Z'))).toBe(false); // 16:59 BRT
-    expect(shouldRunPaymentFollowupNow(new Date('2026-03-23T20:00:00Z'))).toBe(true);  // 17:00 BRT
+  it('janela ±7min do horário configurado em BRT', () => {
+    // 17:00 BRT == 20:00 UTC
+    expect(isWithinEodAlertWindow(new Date('2026-03-23T20:00:00Z'), '17:00')).toBe(true);
+    expect(isWithinEodAlertWindow(new Date('2026-03-23T19:54:00Z'), '17:00')).toBe(true);  // 16:54 → -6min
+    expect(isWithinEodAlertWindow(new Date('2026-03-23T20:06:00Z'), '17:00')).toBe(true);  // 17:06 → +6min
+    expect(isWithinEodAlertWindow(new Date('2026-03-23T19:52:00Z'), '17:00')).toBe(false); // 16:52 → -8min
+    expect(isWithinEodAlertWindow(new Date('2026-03-23T20:08:00Z'), '17:00')).toBe(false); // 17:08 → +8min
+  });
+
+  it('respeita horário customizado (16:30) em vez do default', () => {
+    expect(isWithinEodAlertWindow(new Date('2026-03-23T19:30:00Z'), '16:30')).toBe(true);  // exato
+    expect(isWithinEodAlertWindow(new Date('2026-03-23T20:00:00Z'), '16:30')).toBe(false); // 17:00 já fora
+  });
+
+  it('lida com janela cruzando meia-noite (00:00)', () => {
+    // 00:00 BRT == 03:00 UTC
+    expect(isWithinEodAlertWindow(new Date('2026-03-23T03:00:00Z'), '00:00')).toBe(true);
+    expect(isWithinEodAlertWindow(new Date('2026-03-23T02:55:00Z'), '00:00')).toBe(true);  // -5min
+    expect(isWithinEodAlertWindow(new Date('2026-03-23T03:05:00Z'), '00:00')).toBe(true);  // +5min
   });
 
   it('não mistura cobranças de empresas diferentes entre admins do mesmo tenant', async () => {

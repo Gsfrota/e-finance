@@ -925,6 +925,66 @@ export async function executeActionPlan(
     };
   }
 
+  if (plan.capability === 'set_eod_alert_hour') {
+    const enabled = plan.args.enabled as boolean | undefined;
+    const time = plan.args.time as string | undefined;
+
+    if (enabled === false) {
+      await upsertBotTenantConfig(context.tenantId, { eod_alert_enabled: false });
+      return {
+        status: 'ok',
+        safeUserMessage: '🔕 Aviso de fim de dia desativado.',
+        audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+        workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [] }),
+      };
+    }
+
+    if (!time || plan.missingFields.includes('time')) {
+      const current = await getBotTenantConfig(context.tenantId);
+      const statusLine = current?.eod_alert_enabled
+        ? `Atualmente ativo para *${current.eod_alert_time}*.`
+        : 'Atualmente desativado.';
+      return {
+        status: 'needs_clarification',
+        safeUserMessage: `⏰ Que horas eu te aviso sobre cobranças do dia sem baixa? (ex: *17:00*)\n\n${statusLine}`,
+        audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+        workingStatePatch: buildStatePatch(plan, { pendingMissingFields: ['time'] }),
+      };
+    }
+
+    const timeMatch = time.match(/^(\d{1,2}):(\d{2})$/);
+    if (!timeMatch) {
+      return {
+        status: 'needs_clarification',
+        safeUserMessage: `❌ Horário inválido. Use o formato *HH:MM*, por exemplo: *17:00*.`,
+        audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+        workingStatePatch: buildStatePatch(plan, { pendingMissingFields: ['time'] }),
+      };
+    }
+    const h = parseInt(timeMatch[1], 10);
+    const m = parseInt(timeMatch[2], 10);
+    if (h < 0 || h > 23 || m < 0 || m > 59) {
+      return {
+        status: 'needs_clarification',
+        safeUserMessage: `❌ Horário inválido. Use o formato *HH:MM*, por exemplo: *17:00*.`,
+        audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+        workingStatePatch: buildStatePatch(plan, { pendingMissingFields: ['time'] }),
+      };
+    }
+    const normalizedTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    await upsertBotTenantConfig(context.tenantId, {
+      eod_alert_enabled: true,
+      eod_alert_time: normalizedTime,
+    });
+
+    return {
+      status: 'ok',
+      safeUserMessage: `✅ Aviso de fim de dia ativado! Todo dia às *${normalizedTime}* eu te lembro das cobranças que ainda não tiveram baixa.`,
+      audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+      workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [] }),
+    };
+  }
+
   if (plan.capability === 'help') {
     const safeUserMessage = 'Posso te ajudar com dashboard, recebíveis, cobranças do dia e por período, busca de cliente, criação de contrato, baixa de pagamento, relatório, convite e desconexão do bot.';
     return {

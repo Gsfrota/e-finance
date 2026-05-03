@@ -1,8 +1,14 @@
 import { Router, Request, Response } from 'express';
 import { config } from '../config';
-import { getAllTenantsWithBriefingEnabled, getAllTenantsWithFollowupEnabled, updateBriefingSentAt } from '../actions/bot-config-actions';
+import {
+  getAllTenantsWithBriefingEnabled,
+  getAllTenantsWithEodAlertEnabled,
+  updateBriefingSentAt,
+  updateEodAlertSentAt,
+} from '../actions/bot-config-actions';
 import { runMorningBriefingForTenant, isTimeWindowMatch } from './morning-briefing';
-import { runPaymentFollowupForTenant, shouldRunPaymentFollowupNow } from './payment-followup';
+import { runPaymentFollowupForTenant, isWithinEodAlertWindow } from './payment-followup';
+import { runFeaturePromotions } from './feature-promotions';
 
 export const router = Router();
 
@@ -68,20 +74,40 @@ router.post('/payment-followup', async (req: Request, res: Response) => {
   }
 
   try {
-    const tenantConfigs = await getAllTenantsWithFollowupEnabled();
-    if (!shouldRunPaymentFollowupNow()) {
-      return res.json({ dispatched: 0, skipped: tenantConfigs.length, skippedDuplicate: 0, skippedBusy: 0, results: [] });
-    }
+    const tenantConfigs = await getAllTenantsWithEodAlertEnabled();
+    const now = Date.now();
+    const COOLDOWN_MS = 23 * 60 * 60 * 1000;
 
     const results: Array<{ tenantId: string; sent: number; skipped: number; skippedDuplicate: number; skippedBusy: number }> = [];
+    let skippedOutOfWindow = 0;
+    let skippedCooldown = 0;
+
     for (const tenantConfig of tenantConfigs) {
-      const result = await runPaymentFollowupForTenant(tenantConfig.tenant_id);
+      if (!isWithinEodAlertWindow(new Date(now), tenantConfig.eod_alert_time)) {
+        skippedOutOfWindow++;
+        continue;
+      }
+
+      const lastSent = tenantConfig.last_eod_alert_sent_at
+        ? new Date(tenantConfig.last_eod_alert_sent_at).getTime()
+        : 0;
+      if (now - lastSent < COOLDOWN_MS) {
+        skippedCooldown++;
+        continue;
+      }
+
+      // Stamp BEFORE sending to prevent race on concurrent invocations
+      await updateEodAlertSentAt(tenantConfig.tenant_id);
+
+      const result = await runPaymentFollowupForTenant(tenantConfig.tenant_id, new Date(now));
       results.push({ tenantId: tenantConfig.tenant_id, ...result });
     }
 
     return res.json({
-      dispatched: results.length,
-      skipped: 0,
+      processed: tenantConfigs.length,
+      dispatched: results.reduce((sum, r) => sum + r.sent, 0),
+      skippedOutOfWindow,
+      skippedCooldown,
       skippedDuplicate: results.reduce((sum, item) => sum + item.skippedDuplicate, 0),
       skippedBusy: results.reduce((sum, item) => sum + item.skippedBusy, 0),
       results,
@@ -89,5 +115,20 @@ router.post('/payment-followup', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[payment-followup-router] erro:', err);
     return res.status(500).json({ error: 'Erro interno ao disparar follow-up' });
+  }
+});
+
+router.post('/feature-promotions', async (req: Request, res: Response) => {
+  const secret = req.headers['x-scheduler-secret'];
+  if (!config.scheduler.secret || secret !== config.scheduler.secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const result = await runFeaturePromotions();
+    return res.json(result);
+  } catch (err) {
+    console.error('[feature-promotions-router] erro:', err);
+    return res.status(500).json({ error: 'Erro interno ao promover features' });
   }
 });

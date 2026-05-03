@@ -24,7 +24,8 @@ import type { LinkValidationResult, ContractOpenInstallment, CompanyOption } fro
 import { detectPromptInjectionAttempt, sanitizeUserText } from '../security/prompt-guard';
 import { renderConversationalReply, generateGreeting } from '../ai/response-generator';
 import { getFollowupFromTenantConfig } from '../assistant/followup-question-generator';
-import { getBotTenantConfig, checkWhitelistBlock } from '../actions/bot-config-actions';
+import { getBotTenantConfig, checkWhitelistBlock, upsertBotTenantConfig } from '../actions/bot-config-actions';
+import { confirmPendingPaymentFollowup, type PendingPaymentFollowupItem } from '../scheduler/payment-followup';
 import { understandCommand } from '../assistant/command-understanding';
 import { createActionPlan } from '../assistant/action-planner';
 import { resolveFollowup } from '../assistant/followup-resolver';
@@ -2602,6 +2603,82 @@ async function handlePendingAction(
     if (isEscapeIntent) {
       await clearSessionContext(session.id);
       return null;
+    }
+  }
+
+  // V44 — Promoção de feature EOD: tenant respondeu sim/não ao convite proativo
+  if (pendingAction === 'ativar_eod_alert') {
+    const normalized = text.trim().toLowerCase();
+    const isYes = /^(s|sim|si|claro|pode|ativa|ativar|ok|positivo)$/i.test(normalized);
+    const isNo = /^(n|nao|não|nope|negativo|cancela|cancelar|deixa)$/i.test(normalized);
+
+    if (!isYes && !isNo) {
+      return 'Quer ativar o aviso de fim de dia? Responda *sim* ou *não*.';
+    }
+
+    await clearSessionContext(session.id);
+
+    if (isYes) {
+      try {
+        await upsertBotTenantConfig(tenantId, { eod_alert_enabled: true, eod_alert_time: '17:00' });
+        return '✅ Pronto! Todo dia às *17:00* eu te aviso sobre cobranças do dia que ainda não tiveram baixa. Se quiser mudar o horário, é só me dizer (ex.: *me avise às 16h*).';
+      } catch (err) {
+        logStructuredMessage('eod_alert_activate_failed', { tenantId, error: err instanceof Error ? err.message : String(err) });
+        return 'Não consegui salvar agora. Tenta de novo daqui a pouco.';
+      }
+    }
+
+    return 'Combinado, deixei desligado. Se mudar de ideia, é só pedir.';
+  }
+
+  // V44 — Captura sim/não/lista pra resposta do alerta de fim de dia
+  if (pendingAction === 'confirmar_baixas_pendentes') {
+    const items = (pendingData?.items as PendingPaymentFollowupItem[] | undefined) || [];
+    const followupTenantId = String((pendingData as any)?.tenantId || tenantId);
+    if (items.length === 0) {
+      await clearSessionContext(session.id);
+      return null;
+    }
+
+    const normalized = text.trim().toLowerCase();
+    const sayAll = /^(s|sim|todos|tudo|todas|pode|ok|confirma|confirmar|baixa)$/i.test(normalized);
+    const sayNone = /^(n|nao|não|nenhum|nenhuma|cancela|cancelar|nada)$/i.test(normalized);
+    const numbersMatch = normalized.match(/\d+/g);
+    const keepOpenIdx = numbersMatch
+      ? Array.from(new Set(numbersMatch.map(s => parseInt(s, 10)).filter(n => n >= 1 && n <= items.length)))
+      : [];
+
+    if (!sayAll && !sayNone && keepOpenIdx.length === 0) {
+      return 'Não entendi. Responda *sim* (baixa em todos), *não* (nenhum) ou os *números* a manter em aberto (ex.: *2* ou *1,3*).';
+    }
+
+    await clearSessionContext(session.id);
+
+    if (sayNone) {
+      return 'Combinado. Marquei como ainda em aberto.';
+    }
+
+    const toPay = sayAll
+      ? items
+      : items.filter((_, i) => !keepOpenIdx.includes(i + 1));
+
+    if (toPay.length === 0) {
+      return 'Combinado. Mantive todas em aberto.';
+    }
+
+    try {
+      const { paid, failed } = await confirmPendingPaymentFollowup(followupTenantId, toPay);
+      const lines: string[] = [];
+      if (paid.length > 0) {
+        lines.push(`✅ Baixa registrada em ${paid.length === 1 ? '*1* cobrança' : `*${paid.length}* cobranças`}.`);
+      }
+      if (failed.length > 0) {
+        lines.push(`⚠️ ${failed.length === 1 ? '1 cobrança' : `${failed.length} cobranças`} não puderam ser baixadas — verifique o painel.`);
+      }
+      return lines.join('\n') || '✅ Concluído.';
+    } catch (err) {
+      logStructuredMessage('eod_followup_confirm_failed', { tenantId: followupTenantId, error: err instanceof Error ? err.message : String(err) });
+      return 'Não consegui registrar a baixa agora. Tenta de novo daqui a pouco.';
     }
   }
 

@@ -4,18 +4,21 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   getAllTenantsWithBriefingEnabled: vi.fn(),
-  getAllTenantsWithFollowupEnabled: vi.fn(),
+  getAllTenantsWithEodAlertEnabled: vi.fn(),
   updateBriefingSentAt: vi.fn(),
+  updateEodAlertSentAt: vi.fn(),
   runMorningBriefingForTenant: vi.fn(),
   isTimeWindowMatch: vi.fn(),
   runPaymentFollowupForTenant: vi.fn(),
-  shouldRunPaymentFollowupNow: vi.fn(),
+  isWithinEodAlertWindow: vi.fn(),
+  runFeaturePromotions: vi.fn(),
 }));
 
 vi.mock('../src/actions/bot-config-actions', () => ({
   getAllTenantsWithBriefingEnabled: mocks.getAllTenantsWithBriefingEnabled,
-  getAllTenantsWithFollowupEnabled: mocks.getAllTenantsWithFollowupEnabled,
+  getAllTenantsWithEodAlertEnabled: mocks.getAllTenantsWithEodAlertEnabled,
   updateBriefingSentAt: mocks.updateBriefingSentAt,
+  updateEodAlertSentAt: mocks.updateEodAlertSentAt,
 }));
 
 vi.mock('../src/scheduler/morning-briefing', () => ({
@@ -25,7 +28,11 @@ vi.mock('../src/scheduler/morning-briefing', () => ({
 
 vi.mock('../src/scheduler/payment-followup', () => ({
   runPaymentFollowupForTenant: mocks.runPaymentFollowupForTenant,
-  shouldRunPaymentFollowupNow: mocks.shouldRunPaymentFollowupNow,
+  isWithinEodAlertWindow: mocks.isWithinEodAlertWindow,
+}));
+
+vi.mock('../src/scheduler/feature-promotions', () => ({
+  runFeaturePromotions: mocks.runFeaturePromotions,
 }));
 
 let router: typeof import('../src/scheduler/briefing-router').router;
@@ -35,14 +42,10 @@ beforeAll(async () => {
   ({ router } = await import('../src/scheduler/briefing-router'));
 });
 
-describe('briefing router', () => {
+describe('briefing router — payment-followup (V44)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.shouldRunPaymentFollowupNow.mockReturnValue(true);
-    mocks.getAllTenantsWithFollowupEnabled.mockResolvedValue([
-      { tenant_id: 'tenant-a' },
-      { tenant_id: 'tenant-b' },
-    ]);
+    mocks.isWithinEodAlertWindow.mockReturnValue(true);
     mocks.runPaymentFollowupForTenant.mockResolvedValue({
       sent: 1,
       skipped: 0,
@@ -51,7 +54,12 @@ describe('briefing router', () => {
     });
   });
 
-  it('dispara follow-up apenas para tenants com followup_enabled', async () => {
+  it('itera tenants com eod_alert_enabled e respeita janela + cooldown', async () => {
+    mocks.getAllTenantsWithEodAlertEnabled.mockResolvedValue([
+      { tenant_id: 'tenant-a', eod_alert_time: '17:00', last_eod_alert_sent_at: null },
+      { tenant_id: 'tenant-b', eod_alert_time: '18:00', last_eod_alert_sent_at: null },
+    ]);
+
     const app = express();
     app.use('/scheduler', router);
 
@@ -60,14 +68,75 @@ describe('briefing router', () => {
       .set('x-scheduler-secret', 'scheduler-secret')
       .expect(200);
 
-    expect(mocks.getAllTenantsWithFollowupEnabled).toHaveBeenCalledTimes(1);
-    expect(mocks.runPaymentFollowupForTenant).toHaveBeenNthCalledWith(1, 'tenant-a');
-    expect(mocks.runPaymentFollowupForTenant).toHaveBeenNthCalledWith(2, 'tenant-b');
-    expect(response.body).toMatchObject({
-      dispatched: 2,
-      skipped: 0,
-      skippedDuplicate: 0,
-      skippedBusy: 0,
+    expect(mocks.getAllTenantsWithEodAlertEnabled).toHaveBeenCalledTimes(1);
+    expect(mocks.updateEodAlertSentAt).toHaveBeenCalledTimes(2);
+    expect(mocks.runPaymentFollowupForTenant).toHaveBeenCalledTimes(2);
+    expect(response.body).toMatchObject({ processed: 2, dispatched: 2, skippedOutOfWindow: 0, skippedCooldown: 0 });
+  });
+
+  it('pula tenant fora da janela', async () => {
+    mocks.getAllTenantsWithEodAlertEnabled.mockResolvedValue([
+      { tenant_id: 'tenant-a', eod_alert_time: '17:00', last_eod_alert_sent_at: null },
+    ]);
+    mocks.isWithinEodAlertWindow.mockReturnValue(false);
+
+    const app = express();
+    app.use('/scheduler', router);
+
+    const response = await request(app)
+      .post('/scheduler/payment-followup')
+      .set('x-scheduler-secret', 'scheduler-secret')
+      .expect(200);
+
+    expect(mocks.runPaymentFollowupForTenant).not.toHaveBeenCalled();
+    expect(mocks.updateEodAlertSentAt).not.toHaveBeenCalled();
+    expect(response.body).toMatchObject({ processed: 1, dispatched: 0, skippedOutOfWindow: 1 });
+  });
+
+  it('respeita cooldown 23h via last_eod_alert_sent_at recente', async () => {
+    const recent = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1h atrás
+    mocks.getAllTenantsWithEodAlertEnabled.mockResolvedValue([
+      { tenant_id: 'tenant-a', eod_alert_time: '17:00', last_eod_alert_sent_at: recent },
+    ]);
+
+    const app = express();
+    app.use('/scheduler', router);
+
+    const response = await request(app)
+      .post('/scheduler/payment-followup')
+      .set('x-scheduler-secret', 'scheduler-secret')
+      .expect(200);
+
+    expect(mocks.runPaymentFollowupForTenant).not.toHaveBeenCalled();
+    expect(response.body).toMatchObject({ processed: 1, dispatched: 0, skippedCooldown: 1 });
+  });
+});
+
+describe('briefing router — feature-promotions (V44)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('aceita o cron e devolve resultado do runFeaturePromotions', async () => {
+    mocks.runFeaturePromotions.mockResolvedValue({
+      processed: 3, sent: 1, skippedBusy: 0, skippedIneligible: 2,
     });
+
+    const app = express();
+    app.use('/scheduler', router);
+
+    const response = await request(app)
+      .post('/scheduler/feature-promotions')
+      .set('x-scheduler-secret', 'scheduler-secret')
+      .expect(200);
+
+    expect(response.body).toMatchObject({ processed: 3, sent: 1, skippedIneligible: 2 });
+  });
+
+  it('rejeita request sem secret', async () => {
+    const app = express();
+    app.use('/scheduler', router);
+
+    await request(app).post('/scheduler/feature-promotions').expect(401);
   });
 });

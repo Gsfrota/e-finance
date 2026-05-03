@@ -18,6 +18,19 @@ export interface BotTenantConfig {
   created_at: string;
   updated_at: string;
   last_briefing_sent_at: string | null;
+  // V44 — EOD alert (parcelas vencendo hoje sem baixa)
+  eod_alert_enabled: boolean;
+  eod_alert_time: string;                    // 'HH:MM' BRT
+  last_eod_alert_sent_at: string | null;
+  eod_alert_promoted_at: string | null;      // NULL = feature nunca promovida
+}
+
+export const EOD_ALERT_DEFAULT_TIME = '17:00';
+
+const HHMM_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export function isValidHHMM(value: unknown): value is string {
+  return typeof value === 'string' && HHMM_REGEX.test(value);
 }
 
 export type BotTenantConfigPatch = Partial<Omit<BotTenantConfig, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>>;
@@ -88,6 +101,58 @@ export async function updateBriefingSentAt(tenantId: string): Promise<void> {
   if (error) {
     console.error('[updateBriefingSentAt] erro:', error.message);
     // Non-fatal: briefing already sent, timestamp write failure is acceptable
+  }
+}
+
+export async function getAllTenantsWithEodAlertEnabled(): Promise<BotTenantConfig[]> {
+  const { data, error } = await db()
+    .from('bot_tenant_config')
+    .select('*')
+    .eq('eod_alert_enabled', true);
+
+  if (error) {
+    console.error('[getAllTenantsWithEodAlertEnabled] erro:', error.message);
+    return [];
+  }
+
+  return (data ?? []) as BotTenantConfig[];
+}
+
+export async function updateEodAlertSentAt(tenantId: string): Promise<void> {
+  const { error } = await db()
+    .from('bot_tenant_config')
+    .update({ last_eod_alert_sent_at: new Date().toISOString() })
+    .eq('tenant_id', tenantId);
+
+  if (error) {
+    console.error('[updateEodAlertSentAt] erro:', error.message);
+  }
+}
+
+export async function getAllBotTenantConfigs(): Promise<BotTenantConfig[]> {
+  const { data, error } = await db()
+    .from('bot_tenant_config')
+    .select('*');
+
+  if (error) {
+    console.error('[getAllBotTenantConfigs] erro:', error.message);
+    return [];
+  }
+
+  return (data ?? []) as BotTenantConfig[];
+}
+
+export async function markFeaturePromoted(
+  tenantId: string,
+  promotedAtColumn: 'eod_alert_promoted_at',
+): Promise<void> {
+  const { error } = await db()
+    .from('bot_tenant_config')
+    .update({ [promotedAtColumn]: new Date().toISOString() })
+    .eq('tenant_id', tenantId);
+
+  if (error) {
+    console.error('[markFeaturePromoted] erro:', error.message);
   }
 }
 
