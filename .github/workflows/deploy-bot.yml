@@ -75,7 +75,7 @@ jobs:
             --port=8080 \
             --memory=512Mi \
             --cpu=1 \
-            --min-instances=0 \
+            --min-instances=1 \
             --max-instances=3 \
             --timeout=60 \
             --set-secrets="UAZAPI_INSTANCE_TOKEN=UAZAPI_INSTANCE_TOKEN:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,SETUP_SECRET=SETUP_SECRET:latest,TELEGRAM_WEBHOOK_SECRET_TOKEN=TELEGRAM_WEBHOOK_SECRET_TOKEN:latest,UAZAPI_WEBHOOK_SECRET=UAZAPI_WEBHOOK_SECRET:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY_EFINANCE:latest,GEMINI_API_KEY=GEMINI_API_KEY_EFINANCE:latest,SCHEDULER_SECRET=SCHEDULER_SECRET:latest,SUPABASE_URL=SUPABASE_URL_EFINANCE:latest" \
