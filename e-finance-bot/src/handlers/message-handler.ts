@@ -1411,10 +1411,28 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
     // ─── AI-native gate (BR-BOT-007/008) — rollout canário ─────────────────
     // Se AI_NATIVE_ENABLED=true e tenantId permitido, tenta responder via
     // conversation-orchestrator. Se desabilitado/kill/error → fallback legado.
-    if (shouldTryAiNative(tenantId)) {
+    // V44c — Quando há pendingConfirmation registrada (preview de mutation aguardando "sim/não"),
+    // NÃO entrar no AI-native: o fluxo legacy (linha ~1552+) já sabe executar a tool com os
+    // args salvos. Sem este bypass, o LLM era invocado de novo e chamava create_contract com
+    // pendingContractDraft → preview duplicado → loop infinito (Guilherme 04/05 16:00 BRT).
+    const earlyPending = getPendingConfirmationState(session);
+    const earlyConfirmReply = earlyPending ? parseConfirmationReply(textToProcess) : null;
+    const skipAiNativeForConfirmation = earlyPending && earlyConfirmReply !== null;
+
+    if (skipAiNativeForConfirmation) {
+      logStructuredMessage('ai_native_skipped_for_confirmation', {
+        channel: msg.channel,
+        messageId: msg.messageId,
+        sessionId: session.id,
+        capability: earlyPending!.capability,
+        reply: earlyConfirmReply,
+      });
+    }
+
+    if (shouldTryAiNative(tenantId) && !skipAiNativeForConfirmation) {
       const aiStartedAt = Date.now();
       try {
-        const pending = getPendingConfirmationState(session);
+        const pending = earlyPending;
         const history = await timed('dbReadMs', async () => {
           try {
             const rows = await withTimeout(
@@ -1613,6 +1631,11 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       });
 
       await timed('dbWriteMs', () => clearPendingConfirmation(session));
+
+      // V44c — limpa draft de contrato quando a confirmação executa (mutation aplicada).
+      if (confirmedPlan.capability === 'create_contract' && (session.context as { pendingContractDraft?: unknown }).pendingContractDraft) {
+        await updateSessionContext(session.id, { ...session.context, pendingContractDraft: undefined });
+      }
 
       const execution = await timed('executorMs', () => executeActionPlan(
         confirmedPlan,
