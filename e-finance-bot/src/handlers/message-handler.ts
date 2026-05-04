@@ -1433,6 +1433,23 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
           }
         });
 
+        // V44b — Reinjeta draft de create_contract se aberto há <30min.
+        // Sem isso, args extraídos pelo LLM (cpf, valor, parcelas, taxa) somem
+        // entre turnos, porque o histórico só guarda texto — não tool calls.
+        const draft = (session.context as { pendingContractDraft?: { args: Record<string, unknown>; updatedAt: string } } | undefined)?.pendingContractDraft;
+        if (draft && Date.now() - new Date(draft.updatedAt).getTime() < 30 * 60 * 1000) {
+          const argsLine = Object.entries(draft.args)
+            .filter(([, v]) => v !== undefined && v !== null && v !== '')
+            .map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`)
+            .join(', ');
+          if (argsLine) {
+            history.push({
+              role: 'model',
+              text: `[memória interna: você está coletando dados para create_contract. Já capturado: ${argsLine}. Use estes valores no próximo create_contract a menos que o usuário corrija explicitamente. NÃO peça de novo o que já está aí.]`,
+            });
+          }
+        }
+
         const result = await runConversation({
           session,
           userMessage: textToProcess,
@@ -1440,6 +1457,20 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
           hasPendingConfirmation: !!pending,
           turnId: msg.messageId,
         });
+
+        // V44b — Atualiza/limpa o draft com base no outcome do create_contract
+        const ccCall = result.toolCalls.find(tc => tc.name === 'create_contract');
+        if (ccCall) {
+          if (ccCall.outcome.kind === 'mutation_applied') {
+            await updateSessionContext(session.id, { ...session.context, pendingContractDraft: undefined });
+          } else if (ccCall.outcome.kind === 'error' || ccCall.outcome.kind === 'preview') {
+            const merged = { ...(draft?.args ?? {}), ...ccCall.args };
+            await updateSessionContext(session.id, {
+              ...session.context,
+              pendingContractDraft: { args: merged, updatedAt: new Date().toISOString() },
+            });
+          }
+        }
 
         const aiLatency = Date.now() - aiStartedAt;
         logStructuredMessage('ai_native_turn', {

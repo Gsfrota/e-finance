@@ -38,6 +38,8 @@ export interface SessionContext {
   lastIntent?: string;
   workingState?: ConversationWorkingState;
   workingStateV2?: WorkingStateV2;
+  // V44b — args acumulados de create_contract entre turnos
+  pendingContractDraft?: { args: Record<string, unknown>; updatedAt: string };
 }
 
 export interface Session {
