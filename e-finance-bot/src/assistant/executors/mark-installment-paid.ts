@@ -9,6 +9,7 @@ import {
   formatDate,
   type ContractOpenInstallment,
 } from '../../actions/admin-actions';
+import { getSupabaseClient } from '../../infra/runtime-clients';
 import { formatComprovante } from '../../tools/formatters';
 import {
   buildStructuredResponse,
@@ -454,7 +455,6 @@ export const markInstallmentPaidCapability: CapabilityDefinition<MarkInstallment
       } satisfies CapabilityExecuteResult<MarkInstallmentPaidCapabilityOutput>;
     }
 
-    const paidAt = new Date().toISOString();
     const success = await markInstallmentPaid(input.installment_id, ctx.tenantId);
     if (!success) {
       return {
@@ -468,18 +468,34 @@ export const markInstallmentPaidCapability: CapabilityDefinition<MarkInstallment
       } satisfies CapabilityExecuteResult<MarkInstallmentPaidCapabilityOutput>;
     }
 
+    // V44d — Lê dados frescos do banco (incluindo paid_at real do RPC). Antes
+    // o executor caía num fallback com debtorName="Cliente" amount=0 quando
+    // candidates não tinha a parcela — gerava comprovante errado.
+    const fresh = await fetchInstallmentReceipt(input.installment_id, ctx.tenantId);
+    const paidAt = fresh?.paidAt || new Date().toISOString();
+
     return {
       status: 'ok',
       output: {
-        installment: installment || {
-          id: input.installment_id,
-          number: Number(input.installment_number || 0),
-          contractId: Number(input.contract_id || 0),
-          debtorName: String(input.debtor_name || 'Cliente'),
-          amount: 0,
-          dueDate: '',
-          status: 'paid',
-        },
+        installment: fresh
+          ? {
+              id: input.installment_id,
+              number: fresh.number,
+              contractId: fresh.contractId,
+              debtorName: fresh.debtorName,
+              amount: fresh.amountPaid > 0 ? fresh.amountPaid : fresh.amountTotal,
+              dueDate: fresh.dueDate,
+              status: 'paid',
+            }
+          : (installment || {
+              id: input.installment_id,
+              number: Number(input.installment_number || 0),
+              contractId: Number(input.contract_id || 0),
+              debtorName: String(input.debtor_name || 'Cliente'),
+              amount: 0,
+              dueDate: '',
+              status: 'paid',
+            }),
         paidAt,
       },
       workingStatePatch: {
@@ -502,3 +518,44 @@ export const markInstallmentPaidCapability: CapabilityDefinition<MarkInstallment
     }));
   },
 };
+
+interface FreshInstallmentReceipt {
+  number: number;
+  contractId: number;
+  debtorName: string;
+  amountTotal: number;
+  amountPaid: number;
+  dueDate: string;
+  paidAt: string | null;
+}
+
+async function fetchInstallmentReceipt(
+  installmentId: string,
+  tenantId: string,
+): Promise<FreshInstallmentReceipt | null> {
+  let data: unknown = null;
+  try {
+    const result = await getSupabaseClient()
+      .from('loan_installments')
+      .select('number, amount_total, amount_paid, due_date, paid_at, investment_id, investments!inner(id, tenant_id, payer_id, profiles!investments_payer_id_fkey(full_name))')
+      .eq('id', installmentId)
+      .eq('investments.tenant_id', tenantId)
+      .maybeSingle();
+    if (result.error || !result.data) return null;
+    data = result.data;
+  } catch {
+    return null;
+  }
+  if (!data) return null;
+  // Tipos do supabase-js para joins aninhados são frouxos; tratamos defensivamente.
+  const inv = (data as unknown as { investments?: { id?: number; profiles?: { full_name?: string } | null } }).investments;
+  return {
+    number: Number((data as { number?: number }).number ?? 0),
+    contractId: Number(inv?.id ?? 0),
+    debtorName: inv?.profiles?.full_name ?? 'Cliente',
+    amountTotal: Number((data as { amount_total?: number | string }).amount_total ?? 0),
+    amountPaid: Number((data as { amount_paid?: number | string }).amount_paid ?? 0),
+    dueDate: String((data as { due_date?: string }).due_date ?? ''),
+    paidAt: ((data as { paid_at?: string | null }).paid_at) ?? null,
+  };
+}

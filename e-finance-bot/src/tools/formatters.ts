@@ -66,8 +66,10 @@ export function formatReceivablesList(installments: Installment[], windowLabel: 
  */
 export function formatComprovante(data: ComprovanteData): string {
   const paidDate = new Date(data.paidAt);
-  const paidDateStr = paidDate.toLocaleDateString('pt-BR');
-  const paidTimeStr = paidDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  // V44d — Cloud Run roda em UTC; sem timezone explícito o comprovante mostrava
+  // "às 19:21" para uma baixa feita às 16:21 BRT. BR-TZ-001 já documentou padrão.
+  const paidDateStr = paidDate.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const paidTimeStr = paidDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
 
   const headerParts: string[] = [data.debtorName];
   if (data.contractId) headerParts.push(`Contrato #${data.contractId}`);
