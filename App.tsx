@@ -460,54 +460,25 @@ const Layout: React.FC<LayoutProps> = ({
       )}
 
       <div className="flex h-screen flex-1 flex-col overflow-hidden">
-        <header className="glass-border z-20 flex min-h-[78px] items-start justify-between border-b px-4 py-3 md:h-20 md:min-h-0 md:items-center md:px-8 md:py-0">
+        <header className="glass-border z-20 flex h-12 shrink-0 items-center justify-between border-b px-4 md:px-8">
 
+          {/* Mobile: hamburger + título */}
           <div className="flex min-w-0 flex-1 items-center gap-3 md:hidden">
-            <button onClick={() => setMobileMenuOpen(true)} className="flex min-h-[44px] min-w-[44px] items-center justify-center text-[color:var(--text-secondary)] hover:text-white">
-              <Menu size={24} />
+            <button onClick={() => setMobileMenuOpen(true)} className="flex h-9 w-9 shrink-0 items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]">
+              <Menu size={22} />
             </button>
-            <div className="min-w-0 flex-1">
-              <div className="font-display truncate text-lg text-[color:var(--text-primary)]">
-                {operationLabel || '...'}
-              </div>
-
-              {showCompanySwitcher ? (
-                <CompanySwitcher
-                  variant="mobile-sheet"
-                  tenantName={tenant?.name ?? null}
-                  companies={companies}
-                  activeCompanyId={activeCompany?.id ?? null}
-                  activeCompanyScope={activeCompanyScope}
-                  accessMode={companyAccessMode}
-                  triggerTitle={operationLabel}
-                  scopeDescriptorLabel={companyScopeDescriptorLabel}
-                  scopeLabel={companyScopeLabel}
-                  onSelectScope={onSelectCompanyScope}
-                  onCreateCompany={companyAccessMode === 'enabled' ? () => onOpenCompanySettings('empresas') : undefined}
-                  onUpgrade={onOpenSubscriptionSettings}
-                />
-              ) : (
-                <div className="truncate text-[0.62rem] font-bold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
-                  {companyScopeDescriptorLabel}: {companyScopeLabel}
-                </div>
-              )}
-            </div>
+            <span className="font-display min-w-0 truncate text-base font-semibold text-[color:var(--text-primary)]">
+              {currentSectionLabel[activeView]}
+            </span>
           </div>
 
-          <div className="hidden min-w-0 flex-1 items-center justify-between gap-6 md:flex">
-            <div className="min-w-0 flex-1">
-              <div className="section-kicker mb-1">Painel</div>
-              <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-[color:var(--text-secondary)]">
-                <span className="shrink-0">{currentSectionLabel[activeView]}</span>
-                <ChevronRight size={14} className="text-[color:var(--text-faint)]" />
-                <span className="truncate text-[color:var(--text-primary)]">{operationLabel}</span>
-              </div>
-              <div className="mt-1 truncate text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
-                {companyScopeDescriptorLabel}: {companyScopeLabel}
-              </div>
-            </div>
+          {/* Desktop: título à esquerda, controles à direita */}
+          <div className="hidden min-w-0 flex-1 items-center justify-between gap-4 md:flex">
+            <span className="min-w-0 truncate text-sm font-medium text-[color:var(--text-muted)] select-none">
+              {currentSectionLabel[activeView]}
+            </span>
 
-            <div className="ml-6 flex min-w-0 shrink-0 items-center gap-3">
+            <div className="flex shrink-0 items-center gap-2">
               {showCompanySwitcher && (
                 <CompanySwitcher
                   tenantName={tenant?.name ?? null}
@@ -523,22 +494,21 @@ const Layout: React.FC<LayoutProps> = ({
                 />
               )}
 
-              <div className="flex min-w-0 max-w-[300px] items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)]">
-                  <UserRound size={18} />
-                </div>
-                <div className="min-w-0 text-right">
-                    <p className="truncate text-sm font-semibold text-[color:var(--text-primary)]">{profile?.full_name || 'Usuário'}</p>
-                    <p className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
-                      {userRole === 'admin' ? 'Administrador' : userRole || '---'}
-                    </p>
-                </div>
+              <div
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] border border-[rgba(202,176,122,0.2)] text-xs font-bold select-none"
+                title={profile?.full_name || 'Usuário'}
+              >
+                {profile?.full_name?.charAt(0)?.toUpperCase() || <UserRound size={14} />}
               </div>
             </div>
           </div>
 
-          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-[color:var(--accent-brass)] md:hidden">
-             <UserRound size={16} />
+          {/* Mobile: avatar */}
+          <div
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] border border-[rgba(202,176,122,0.2)] text-xs font-bold select-none md:hidden"
+            title={profile?.full_name || 'Usuário'}
+          >
+            {profile?.full_name?.charAt(0)?.toUpperCase() || <UserRound size={14} />}
           </div>
         </header>
 

@@ -292,35 +292,20 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
 
   if (isLocked) {
     return (
-      <div className="flex min-w-0 items-center gap-2">
-        <button
-          type="button"
-          onClick={handleUpgrade}
-          className="group flex min-w-0 max-w-[260px] items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-left transition-colors hover:border-[rgba(202,176,122,0.24)] hover:bg-[rgba(202,176,122,0.08)]"
-        >
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)]">
-            <Building2 size={15} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-[color:var(--text-primary)]">
-              {scopeLabel || tenantName || 'Empresa ativa'}
-            </div>
-            <div className="mt-0.5 flex items-center gap-2 text-[0.66rem] font-bold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
-              <Lock size={11} />
-              Multiempresa bloqueado
-            </div>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={handleUpgrade}
-          className="shrink-0 whitespace-nowrap rounded-full border border-[rgba(202,176,122,0.24)] bg-[rgba(202,176,122,0.1)] px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-[color:var(--accent-brass)] transition-colors hover:bg-[rgba(202,176,122,0.16)]"
-        >
-          <Crown size={12} />
-          Upgrade
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={handleUpgrade}
+        title="Multiempresa — clique para fazer upgrade"
+        className="flex min-w-0 max-w-[220px] items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-left transition-colors hover:border-[rgba(202,176,122,0.24)] hover:bg-[rgba(202,176,122,0.08)]"
+      >
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)]">
+          <Building2 size={13} />
+        </div>
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[color:var(--text-primary)]">
+          {scopeLabel || tenantName || 'Empresa ativa'}
+        </span>
+        <Crown size={11} className="shrink-0 text-[color:var(--accent-brass)] opacity-60" />
+      </button>
     );
   }
 
