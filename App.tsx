@@ -1185,7 +1185,7 @@ const App: React.FC = () => {
               />
           )}
           {currentView === AppView.ASSISTANT && profile?.role === 'admin' && tenant && profile && (
-              (tenant?.plan === 'empresarial' && tenant?.plan_status === 'active') || isTrialTenant ? (
+              ((tenant?.plan === 'empresarial' || tenant?.plan === 'caderneta') && tenant?.plan_status === 'active') || isTrialTenant ? (
                 <AdminAssistant tenant={tenant} profile={profile} />
               ) : (
                 <AssistantPaywall tenant={tenant} />
