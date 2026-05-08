@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Tenant, LoanInstallment } from '../types';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useCompanyContext } from '../services/companyScope';
-import { getBrazilToday, isoToBrazilYMD } from '../services/dateUtils';
+import { getBrazilToday, isoToBrazilYMD, addDaysBR } from '../services/dateUtils';
 import {
   InstallmentAction,
   InstallmentDetailScreen,
@@ -34,7 +34,7 @@ interface DailyCollectionViewProps {
 
 const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBack }) => {
   const { activeCompanyId } = useCompanyContext();
-  const { installments, loading, error, refetch } = useDashboardData(tenant?.id, activeCompanyId);
+  const { installments, loading, error, refetch, isStale } = useDashboardData(tenant?.id, activeCompanyId);
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
   const [installmentAction, setInstallmentAction] = useState<InstallmentAction>(null);
   const [search, setSearch] = useState('');
@@ -81,16 +81,10 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
 
   const grandTotal = totalToday;
 
-  const addDays = (base: string, days: number) => {
-    const date = new Date(`${base}T00:00:00`);
-    date.setDate(date.getDate() + days);
-    return date.toISOString().split('T')[0];
-  };
-
-  const d3 = useMemo(() => addDays(today, 3), [today]);
-  const d7 = useMemo(() => addDays(today, 7), [today]);
-  const d15 = useMemo(() => addDays(today, 15), [today]);
-  const d30 = useMemo(() => addDays(today, 30), [today]);
+  const d3 = useMemo(() => addDaysBR(today, 3), [today]);
+  const d7 = useMemo(() => addDaysBR(today, 7), [today]);
+  const d15 = useMemo(() => addDaysBR(today, 15), [today]);
+  const d30 = useMemo(() => addDaysBR(today, 30), [today]);
 
   const futureBuckets = useMemo(() => {
     const pending = installments.filter(i => i.status !== 'paid');
@@ -180,14 +174,38 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
           <p className="section-kicker">Agenda</p>
           <h1 className="type-subheading uppercase text-[color:var(--text-primary)]">Cobrança Diária</h1>
         </div>
-        <button
-          onClick={refetch}
-          disabled={loading}
-          className="p-1.5 text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] disabled:opacity-40 transition-colors"
-        >
-          <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-        </button>
+        <div className="flex items-center gap-2">
+          {isStale && !loading && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--accent-warning-subtle)', color: 'var(--accent-warning)' }}>
+              Atualizando…
+            </span>
+          )}
+          <button
+            onClick={refetch}
+            disabled={loading}
+            className="p-1.5 text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] disabled:opacity-40 transition-colors"
+          >
+            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
+
+      {/* ── Banner atrasados ────────────────────────────────────────────────── */}
+      {!loading && !showOverdue && overdueItems.length > 0 && (
+        <button
+          onClick={() => setShowOverdue(true)}
+          className="mx-3 mt-3 flex w-[calc(100%-1.5rem)] items-center justify-between rounded-2xl px-4 py-3 transition-all hover:opacity-80"
+          style={{ background: 'rgba(244, 67, 54, 0.10)', border: '1px solid rgba(244, 67, 54, 0.28)' }}
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} style={{ color: 'var(--accent-danger)' }} />
+            <span className="text-sm font-semibold" style={{ color: 'var(--accent-danger)' }}>
+              {overdueItems.length} parcela{overdueItems.length !== 1 ? 's' : ''} em atraso — {fmtMoney(totalOverdue)}
+            </span>
+          </div>
+          <ChevronRight size={16} style={{ color: 'var(--accent-danger)' }} />
+        </button>
+      )}
 
       {/* ── Loading ─────────────────────────────────────────────────────────── */}
       {loading && (
@@ -236,26 +254,34 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
               <ChevronDown size={14} className={`transition-transform duration-200 ${showOtherDues ? 'rotate-180' : ''}`} />
             </button>
 
-            {/* Stat boxes */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex items-center gap-3 rounded-xl p-3 bg-[color:var(--bg-soft)]">
-                <Calendar size={22} className="text-[color:var(--accent-brass)]" />
-                <div>
-                  <p className="type-heading text-[color:var(--text-primary)]">{todayItems.length}</p>
-                  <p className="text-[11px] font-medium text-[color:var(--text-secondary)]">Recebimento Hoje</p>
-                </div>
-              </div>
+            {/* Stat cards — atrasado / hoje / recebido */}
+            <div className="grid grid-cols-3 gap-2">
               <button
-                onClick={() => setShowOverdue(v => !v)}
-                className="flex items-center gap-3 rounded-xl p-3 text-left transition-all hover:opacity-80"
-                style={{ background: showOverdue ? 'rgba(244, 67, 54, 0.16)' : 'rgba(244, 67, 54, 0.08)', border: showOverdue ? '1px solid rgba(244, 67, 54, 0.3)' : '1px solid transparent' }}
+                onClick={() => setShowOverdue(true)}
+                className="flex flex-col items-start rounded-xl p-2.5 text-left transition-all hover:opacity-80"
+                style={{ background: 'rgba(244, 67, 54, 0.08)', border: '1px solid rgba(244, 67, 54, 0.2)' }}
               >
-                <AlertCircle size={22} className="text-[color:var(--accent-danger)]" />
-                <div>
-                  <p className="type-heading text-[color:var(--text-primary)]">{overdueItems.length}</p>
-                  <p className="text-[11px] font-medium text-[color:var(--text-secondary)]">Recebimentos em Atraso</p>
-                </div>
+                <p className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: 'var(--accent-danger)' }}>Atrasado</p>
+                <p className="text-base font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>{overdueItems.length}</p>
+                <p className="text-[10px] font-medium mt-0.5 truncate w-full" style={{ color: 'var(--accent-danger)' }}>{fmtMoney(totalOverdue)}</p>
               </button>
+              <button
+                onClick={() => setShowOverdue(false)}
+                className="flex flex-col items-start rounded-xl p-2.5 text-left transition-all hover:opacity-80"
+                style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.2)' }}
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: 'var(--accent-warning)' }}>Hoje</p>
+                <p className="text-base font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>{todayItems.length}</p>
+                <p className="text-[10px] font-medium mt-0.5 truncate w-full" style={{ color: 'var(--accent-warning)' }}>{fmtMoney(totalToday)}</p>
+              </button>
+              <div
+                className="flex flex-col items-start rounded-xl p-2.5"
+                style={{ background: 'rgba(38, 166, 154, 0.08)', border: '1px solid rgba(38, 166, 154, 0.2)' }}
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: 'var(--accent-positive)' }}>Recebido</p>
+                <p className="text-base font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>{paidToday.length}</p>
+                <p className="text-[10px] font-medium mt-0.5 truncate w-full" style={{ color: 'var(--accent-positive)' }}>{fmtMoney(totalPaidToday)}</p>
+              </div>
             </div>
           </div>
 
@@ -432,35 +458,43 @@ const ClientCard: React.FC<{
   onClick: () => void;
 }> = ({ inst, isOverdue = false, onClick }) => {
   const debtorName = (inst as any).investment?.payer?.full_name || (inst as any).payer_name || 'Cliente';
-  const contractId = (inst as any).investment?.id
-    ? `#CT${String((inst as any).investment.id).slice(-8)}`
-    : '';
   const photoUrl = (inst as any).investment?.payer?.photo_url;
-  const initials = debtorName.split(' ').slice(0, 2).map((n: string) => n[0] || '').join('').toUpperCase();
   const outstanding = calcOutstanding(inst);
   const isPartial = inst.status === 'partial';
   const modInfo = getInstallmentModInfo(inst);
   const isAnomaly = modInfo?.type === 'surplus_zeroed';
+  const isToday = inst.due_date === getBrazilToday() && inst.status !== 'paid';
+
+  const borderColor = isAnomaly || isOverdue ? 'var(--accent-danger)'
+    : isPartial                              ? 'var(--accent-steel)'
+    : isToday                                ? 'var(--accent-warning)'
+    :                                          'var(--accent-positive)';
+  const accentColor = isAnomaly || isOverdue ? 'rgba(244, 67, 54, 0.1)'
+    : isPartial                              ? 'rgba(66, 165, 245, 0.1)'
+    : isToday                                ? 'rgba(245, 158, 11, 0.1)'
+    :                                          'rgba(38, 166, 154, 0.1)';
+  const iconColor = isAnomaly || isOverdue ? 'var(--accent-danger)'
+    : isPartial                            ? 'var(--accent-steel)'
+    : isToday                              ? 'var(--accent-warning)'
+    :                                        'var(--accent-positive)';
+  const badgeBg = isPartial   ? 'var(--accent-steel)'
+    : isAnomaly || isOverdue  ? 'var(--accent-danger)'
+    : isToday                 ? 'var(--accent-warning)'
+    :                           'var(--accent-positive)';
 
   return (
     <button
       onClick={onClick}
-      className="group w-full flex items-center gap-2.5 rounded-2xl px-3.5 py-3.5 text-left transition-all hover:shadow-md active:scale-[0.98]"
-      style={{
-        background: 'var(--bg-elevated)',
-        border: isAnomaly ? '1.5px solid var(--accent-danger)'
-              : isPartial ? '1.5px solid var(--accent-steel)'
-              : isOverdue ? '1.5px solid var(--accent-danger)'
-              : '1.5px solid var(--accent-positive)',
-      }}
+      className="group w-full flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-left transition-all hover:shadow-md active:scale-[0.98]"
+      style={{ background: 'var(--bg-elevated)', border: `1.5px solid ${borderColor}` }}
     >
       {/* Avatar */}
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full overflow-hidden"
-        style={{ background: isAnomaly ? 'rgba(244, 67, 54, 0.1)' : isPartial ? 'rgba(66, 165, 245, 0.1)' : isOverdue ? 'rgba(244, 67, 54, 0.1)' : 'rgba(38, 166, 154, 0.1)' }}>
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full overflow-hidden"
+        style={{ background: accentColor }}>
         {photoUrl ? (
           <img src={photoUrl} alt={debtorName} className="h-full w-full object-cover" />
         ) : (
-          <User size={24} style={{ color: isAnomaly ? 'var(--accent-danger)' : isPartial ? 'var(--accent-steel)' : isOverdue ? 'var(--accent-danger)' : 'var(--accent-positive)' }} />
+          <User size={20} style={{ color: iconColor }} />
         )}
       </div>
 
@@ -469,29 +503,29 @@ const ClientCard: React.FC<{
         <div className="flex items-center gap-2 mb-0.5">
           {modInfo && <ModBadge info={modInfo} />}
           {!modInfo && isOverdue && !isPartial && (
-            <span className="type-micro px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(244, 67, 54, 0.12)', color: 'var(--accent-danger, #f44336)' }}>
+            <span className="type-micro px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(244, 67, 54, 0.12)', color: 'var(--accent-danger)' }}>
               Atrasado
             </span>
           )}
           {!modInfo && isPartial && (
-            <span className="type-micro px-1.5 py-0.5 rounded-md"
-              style={{ background: 'rgba(66, 165, 245, 0.12)', color: 'var(--accent-steel)' }}>
+            <span className="type-micro px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(66, 165, 245, 0.12)', color: 'var(--accent-steel)' }}>
               Parcial
             </span>
           )}
         </div>
         <p className="text-[15px] font-bold truncate" style={{ color: 'var(--text-primary)' }}>{debtorName}</p>
-        <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-          Contrato: {contractId}
-          {(inst as any).investment?.calculation_mode === 'interest_only' && (
-            <span className="ml-1.5 inline-flex items-center px-1.5 py-0 rounded text-[9px] font-bold uppercase" style={{ background: 'rgba(245, 158, 11, 0.15)', color: 'var(--accent-caution)' }}>Bullet</span>
-          )}
-          {(inst as any).investment?.remaining_balance != null && (
-            <span className="ml-1 text-[9px]" style={{ color: 'var(--accent-caution)' }}>
-              · Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number((inst as any).investment.remaining_balance))}
-            </span>
-          )}
-        </p>
+        {((inst as any).investment?.calculation_mode === 'interest_only' || (inst as any).investment?.remaining_balance != null) && (
+          <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+            {(inst as any).investment?.calculation_mode === 'interest_only' && (
+              <span className="inline-flex items-center px-1.5 py-0 rounded text-[9px] font-bold uppercase mr-1.5" style={{ background: 'rgba(245, 158, 11, 0.15)', color: 'var(--accent-caution)' }}>Bullet</span>
+            )}
+            {(inst as any).investment?.remaining_balance != null && (
+              <span className="text-[9px]" style={{ color: 'var(--accent-caution)' }}>
+                Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number((inst as any).investment.remaining_balance))}
+              </span>
+            )}
+          </p>
+        )}
         <div className="flex items-center justify-between gap-2 mt-0.5">
           <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>Parcela {inst.number}</span>
           <span className="text-xs shrink-0 tabular-nums" style={{ color: 'var(--text-muted)' }}>Venc. {fmtDate(inst.due_date)}</span>
@@ -505,8 +539,7 @@ const ClientCard: React.FC<{
 
       {/* Amount badge + chevron */}
       <div className="flex items-center gap-2 shrink-0">
-        <span className="rounded-lg px-2.5 py-1 text-xs font-bold text-white tabular-nums"
-          style={{ background: isPartial ? 'var(--accent-steel)' : isOverdue ? 'var(--accent-danger)' : 'var(--accent-positive)' }}>
+        <span className="rounded-lg px-2.5 py-1 text-xs font-bold text-white tabular-nums" style={{ background: badgeBg }}>
           {fmtMoney(outstanding)}
         </span>
         <ChevronRight size={18} style={{ color: 'var(--text-faint)' }} />

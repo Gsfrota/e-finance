@@ -267,8 +267,25 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
       const monthRange = getMonthRangeBR();
       const todayYMD = getBrazilToday();
 
+      // Pagina em blocos de 1000 até esgotar (PostgREST default limit = 1000)
+      const PAGE_SIZE = 1000;
+      const fetchAllPages = async (buildQuery: () => any): Promise<any[]> => {
+        let from = 0;
+        const all: any[] = [];
+        while (true) {
+          const res = await withRetry(async () => await buildQuery().range(from, from + PAGE_SIZE - 1));
+          if (res.error) throw res.error;
+          const rows: any[] = res.data || [];
+          all.push(...rows);
+          if (rows.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+        }
+        return all;
+      };
+
       // 1. Investimentos (filtro explícito de tenant_id para defesa em profundidade)
-      const investmentsQuery = supabase
+      const buildInvestmentsQuery = () => {
+        const q = supabase!
           .from('investments')
           .select(`
             *,
@@ -276,12 +293,14 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
             payer:profiles!investments_payer_id_fkey(id, full_name, email, photo_url)
           `)
           .order('created_at', { ascending: false });
-      if (tenantId) investmentsQuery.eq('tenant_id', tenantId);
-      if (companyId) investmentsQuery.eq('company_id', companyId);
-      const investmentsPromise = withRetry(async () => await investmentsQuery);
+        if (tenantId) q.eq('tenant_id', tenantId);
+        if (companyId) q.eq('company_id', companyId);
+        return q;
+      };
 
       // 2. Todas as Parcelas (filtro explícito de tenant_id)
-      const installmentsQuery = supabase
+      const buildInstallmentsQuery = () => {
+        const q = supabase!
           .from('loan_installments')
           .select(`
             *,
@@ -303,16 +322,17 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
             )
           `)
           .order('due_date', { ascending: true });
-      if (tenantId) installmentsQuery.eq('tenant_id', tenantId);
-      if (companyId) installmentsQuery.eq('company_id', companyId);
-      const installmentsPromise = withRetry(async () => await installmentsQuery);
+        if (tenantId) q.eq('tenant_id', tenantId);
+        if (companyId) q.eq('company_id', companyId);
+        return q;
+      };
 
-      const [invRes, instRes] = await Promise.all([investmentsPromise, installmentsPromise]);
+      const [invData, instData] = await Promise.all([
+        fetchAllPages(buildInvestmentsQuery),
+        fetchAllPages(buildInstallmentsQuery),
+      ]);
 
-      if (invRes.error) throw invRes.error;
-      if (instRes.error) throw instRes.error;
-
-      const safeInvestments = (invRes.data || []).map((inv: any) => ({
+      const safeInvestments = invData.map((inv: any) => ({
         ...inv,
         amount_invested: normalizeNumber(inv.amount_invested),
         current_value: normalizeNumber(inv.current_value),
@@ -324,7 +344,7 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
       }));
 
       // Exclui parcelas de contratos já concluídos (BR-CNT-011)
-      const uniqueInstallments = (instRes.data || []).filter(
+      const uniqueInstallments = instData.filter(
         (inst: any) => inst.investment?.status !== 'completed',
       );
       
@@ -380,7 +400,7 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
       // Todas as parcelas pagas/parciais (sem filtro de mês) para o SalaryDashboard
       // BR-REL-017: inclui parcelas de contratos 'completed' — fazem parte do histórico real de rendimento
       // BR-REL-002 + BR-REL-018: usa isSalaryPhantom como predicado único para excluir fantasmas
-      const allPaidInstallments: LoanInstallment[] = (instRes.data || [])
+      const allPaidInstallments: LoanInstallment[] = instData
         .filter((inst: any) =>
           (inst.status === 'paid' || inst.status === 'partial') &&
           !isSalaryPhantom(inst)
