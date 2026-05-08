@@ -29,6 +29,7 @@ interface ActionSummary {
   latePaidNumbers?: number[];
 }
 import { getSupabase, parseSupabaseError } from '../services/supabase';
+import { computeMetrics } from '../hooks/useContractDetail';
 import { logPaymentTransaction, calcBreakdown } from '../services/paymentAudit';
 import { logEventFromSession } from '../services/eventLog';
 import ReceiptTemplate from './ReceiptTemplate';
@@ -166,14 +167,42 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
     : '';
 
   // Contract-level summary from sibling installments
-  const allInstallments: LoanInstallment[] = (installment as any).investment?.loan_installments || [];
-  const totalInstallments = allInstallments.length || normalizeNum((installment as any).investment?.total_installments) || 0;
-  const paidCount = allInstallments.filter((i: LoanInstallment) => i.status === 'paid').length;
-  const lateCount = allInstallments.filter((i: LoanInstallment) => i.status === 'late').length;
-  const remainingCount = totalInstallments - paidCount;
-  const perInstallment = normalizeNum((installment as any).investment?.installment_value) || normalizeNum(installment.amount_total);
-  const contractTotal = normalizeNum((installment as any).investment?.current_value) || perInstallment * totalInstallments;
-  const progressPct = totalInstallments > 0 ? (paidCount / totalInstallments) * 100 : 0;
+  // Bug #2 fix: total_installments (do contrato) tem prioridade sobre array length (pode vir truncado)
+  const investment = (installment as any).investment;
+  const declaredTotal = normalizeNum(investment?.total_installments);
+  const initialSiblings: LoanInstallment[] = investment?.loan_installments || [];
+
+  const [siblings, setSiblings] = useState<LoanInstallment[]>(initialSiblings);
+  const [siblingsLoading, setSiblingsLoading] = useState(false);
+
+  // Defesa em profundidade: se o array de irmãs veio truncado, busca todas no banco
+  useEffect(() => {
+    if (!investment?.id) return;
+    if (declaredTotal && siblings.length >= declaredTotal) return;
+    if (siblingsLoading) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+    setSiblingsLoading(true);
+    supabase
+      .from('loan_installments')
+      .select('*')
+      .eq('investment_id', investment.id)
+      .order('number', { ascending: true })
+      .then(({ data, error }) => {
+        if (!error && data) setSiblings(data as LoanInstallment[]);
+        setSiblingsLoading(false);
+      });
+  }, [investment?.id, declaredTotal]);
+
+  const totalInstallments = declaredTotal || siblings.length || 0;
+  const contractTotal = normalizeNum(investment?.current_value)
+    || siblings.reduce((s: number, i: LoanInstallment) => s + normalizeNum(i.amount_total), 0);
+
+  // Bug #1 fix: usa computeMetrics (fonte canônica) em vez de multiplicação simplista
+  const m = computeMetrics(siblings);
+  const remainingCount = m.parcelasPendentes + m.parcelasAtrasadas + m.parcelasPartiais;
+  const saldoAReceber = m.jurosAReceber + m.principalAReceber + m.fineAcumulada;
+  const progressPct = totalInstallments > 0 ? (m.parcelasPagas / totalInstallments) * 100 : 0;
 
   const statusLabel = isPaid ? 'Pagamento efetivado'
     : isPartial ? 'Pagamento parcial'
@@ -289,9 +318,12 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
             <DetailRow label="ID" value={String(activeInst.id).slice(0, 4)} />
             <DetailRow label="Valor total do contrato" value={fmtMoney(contractTotal)} />
             <DetailRow label="Total de parcelas" value={String(totalInstallments)} />
-            <DetailRow label="Parcelas pagas" value={String(paidCount)} valueColor="var(--accent-positive)" labelColor="var(--accent-positive)" />
-            {lateCount > 0 && (
-              <DetailRow label="Parcelas em atraso" value={String(lateCount)} valueColor="var(--accent-danger)" labelColor="var(--accent-danger)" />
+            <DetailRow label="Parcelas pagas" value={String(m.parcelasPagas)} valueColor="var(--accent-positive)" labelColor="var(--accent-positive)" />
+            {m.parcelasAtrasadas > 0 && (
+              <DetailRow label="Parcelas em atraso" value={String(m.parcelasAtrasadas)} valueColor="var(--accent-danger)" labelColor="var(--accent-danger)" />
+            )}
+            {m.parcelasPartiais > 0 && (
+              <DetailRow label="Parcelas parciais" value={String(m.parcelasPartiais)} valueColor="var(--accent-brass)" labelColor="var(--accent-brass)" />
             )}
             <DetailRow label="Quantidade restante" value={String(remainingCount)} />
             {activeInst.notes && (
@@ -302,7 +334,7 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
           {/* Resumo section */}
           <div className="mt-5 rounded-xl p-4" style={{ background: 'var(--bg-soft)', border: '1px solid var(--border-subtle)' }}>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Resumo</p>
+              <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Resumo do contrato</p>
               <button
                 onClick={() => setShowHistory(true)}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition-colors"
@@ -312,33 +344,52 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
                 Histórico
               </button>
             </div>
-            <div className="space-y-1">
-              <div className="flex justify-between">
-                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                  Parcelas pagas:
-                </p>
-              </div>
+            <div className="space-y-2">
+              {/* Total recebido (soma real de amount_paid) */}
               <div className="flex justify-between">
                 <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                  {paidCount}  x  {fmtMoney(perInstallment)}
+                  Total recebido ({m.parcelasPagas} paga{m.parcelasPagas === 1 ? '' : 's'}{m.parcelasPartiais > 0 ? ` + ${m.parcelasPartiais} parcial${m.parcelasPartiais === 1 ? '' : 'is'}` : ''})
                 </p>
+                <p className="text-sm font-bold" style={{ color: 'var(--accent-positive)' }}>
+                  {fmtMoney(m.totalRecebido)}
+                </p>
+              </div>
+
+              {/* Encargos de atraso (apenas quando > 0) */}
+              {m.fineAcumulada > 0 && (
+                <div className="flex justify-between">
+                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    Encargos de atraso (multa + juros)
+                  </p>
+                  <p className="text-sm font-bold" style={{ color: 'var(--accent-brass)' }}>
+                    {fmtMoney(m.fineAcumulada)}
+                  </p>
+                </div>
+              )}
+
+              {/* Saldo a receber — destaque */}
+              <div className="flex justify-between pt-2 mt-1" style={{ borderTop: '1px solid var(--border-subtle)' }}>
                 <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                  {fmtMoney(paidCount * perInstallment)}
+                  Saldo a receber ({remainingCount} {remainingCount === 1 ? 'parcela' : 'parcelas'})
+                </p>
+                <p className="text-base font-bold" style={{ color: 'var(--accent-danger)' }}>
+                  {fmtMoney(saldoAReceber)}
                 </p>
               </div>
-              <div className="flex justify-between mt-1">
-                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                  Parcelas abertas:
+
+              {/* Detalhe de principal pendente em contratos bullet/interest_only */}
+              {m.principalAReceber > 0 && (
+                <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                  Inclui {fmtMoney(m.principalAReceber)} de principal pendente
                 </p>
-              </div>
-              <div className="flex justify-between">
-                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                  {remainingCount}  x  {fmtMoney(perInstallment)}
+              )}
+
+              {/* Indicador transitório enquanto busca irmãs faltantes */}
+              {siblingsLoading && (
+                <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                  Atualizando saldo…
                 </p>
-                <p className="text-sm font-bold" style={{ color: 'var(--accent-danger)' }}>
-                  {fmtMoney(remainingCount * perInstallment)}
-                </p>
-              </div>
+              )}
             </div>
           </div>
         </div>
