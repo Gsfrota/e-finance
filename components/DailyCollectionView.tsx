@@ -545,13 +545,13 @@ const StatCard: React.FC<{
         background: active ? STAT_TINT[tone] : T.surface,
         border: `1px solid ${active ? STAT_COLOR[tone] : T.border}`,
         borderRadius: 18,
-        padding: '10px 8px 9px',
+        padding: '10px 7px 9px',
         boxShadow: active ? undefined : T.shadow,
       }}
     >
       <p
-        className="truncate w-full mb-1"
-        style={{ color: STAT_COLOR[tone], fontSize: 9.5, fontWeight: 800, letterSpacing: '0.3px', textTransform: 'uppercase' }}
+        className="w-full mb-1"
+        style={{ color: STAT_COLOR[tone], fontSize: 9, fontWeight: 800, letterSpacing: '0px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
       >
         {label}
       </p>
@@ -683,49 +683,50 @@ const ClientCard: React.FC<{
   return (
     <button
       onClick={onClick}
-      className="group w-full flex items-center gap-3 text-left transition-all hover:shadow-md active:scale-[0.99]"
+      className="group w-full flex items-center gap-2 text-left transition-all hover:shadow-md active:scale-[0.99]"
       style={{
         background: T.surface,
         border: `1px solid ${T.border}`,
         borderLeft: `4px solid ${colorMap[tone]}`,
         borderRadius: 18,
-        padding: '14px 14px 14px 16px',
+        padding: '11px 10px 11px 12px',
         boxShadow: T.shadow,
       }}
     >
       <div
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full overflow-hidden"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full overflow-hidden"
         style={{ background: tintMap[tone] }}
       >
         {photoUrl ? (
           <img src={photoUrl} alt={debtorName} className="h-full w-full object-cover" />
         ) : (
-          <StatusIcon size={20} />
+          <StatusIcon size={17} />
         )}
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="leading-tight truncate" style={{ color: T.textPrimary, fontSize: 16, fontWeight: 800 }}>
+        <p className="leading-tight truncate" style={{ color: T.textPrimary, fontSize: 15, fontWeight: 800 }}>
           {debtorName}
         </p>
-        <div className="mt-1 flex items-center gap-2 flex-wrap">
+        <div className="mt-0.5 flex items-center gap-1.5 min-w-0">
           {modInfo ? (
             <ModBadge info={modInfo} />
           ) : statusLabel ? (
             <span
+              className="shrink-0"
               style={{
                 background: tintMap[statusLabel.color],
                 color: colorMap[statusLabel.color],
-                fontSize: 11, fontWeight: 800,
-                letterSpacing: '0.4px', textTransform: 'uppercase',
-                padding: '2px 7px', borderRadius: 6,
+                fontSize: 9.5, fontWeight: 800,
+                letterSpacing: '0.2px', textTransform: 'uppercase',
+                padding: '1.5px 5px', borderRadius: 4,
               }}
             >
               {statusLabel.text}
             </span>
           ) : null}
-          <p className="truncate" style={{ color: T.textSecondary, fontSize: 13, fontWeight: 500 }}>
-            Parcela {inst.number} · Venc. {fmtDate(inst.due_date)}
+          <p className="truncate" style={{ color: T.textSecondary, fontSize: 12, fontWeight: 500 }}>
+            Parcela {inst.number} · {fmtDate(inst.due_date).replace(/\/(\d{2})(\d{2})$/, '/$2')}
           </p>
         </div>
         {(investment?.calculation_mode === 'interest_only' || investment?.remaining_balance != null) && (
@@ -757,11 +758,11 @@ const ClientCard: React.FC<{
         )}
       </div>
 
-      <div className="flex items-center gap-1.5 shrink-0">
-        <span className="tabular-nums" style={{ color: valueColor, fontSize: 18, fontWeight: 800 }}>
+      <div className="flex items-center gap-1 shrink-0">
+        <span className="tabular-nums whitespace-nowrap" style={{ color: valueColor, fontSize: 16, fontWeight: 800 }}>
           {valueText}
         </span>
-        <ChevronRight size={18} style={{ color: T.textMuted }} />
+        <ChevronRight size={16} style={{ color: T.textMuted }} />
       </div>
     </button>
   );
