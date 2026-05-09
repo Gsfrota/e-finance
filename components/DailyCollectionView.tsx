@@ -705,30 +705,32 @@ const ClientCard: React.FC<{
       </div>
 
       <div className="flex-1 min-w-0">
+        {(modInfo || statusLabel) && (
+          <div className="mb-1">
+            {modInfo ? (
+              <ModBadge info={modInfo} />
+            ) : statusLabel ? (
+              <span
+                className="inline-block"
+                style={{
+                  background: tintMap[statusLabel.color],
+                  color: colorMap[statusLabel.color],
+                  fontSize: 10, fontWeight: 800,
+                  letterSpacing: '0.3px', textTransform: 'uppercase',
+                  padding: '1.5px 6px', borderRadius: 4,
+                }}
+              >
+                {statusLabel.text}
+              </span>
+            ) : null}
+          </div>
+        )}
         <p className="leading-tight truncate" style={{ color: T.textPrimary, fontSize: 15, fontWeight: 800 }}>
           {debtorName}
         </p>
-        <div className="mt-0.5 flex items-center gap-1.5 min-w-0">
-          {modInfo ? (
-            <ModBadge info={modInfo} />
-          ) : statusLabel ? (
-            <span
-              className="shrink-0"
-              style={{
-                background: tintMap[statusLabel.color],
-                color: colorMap[statusLabel.color],
-                fontSize: 9.5, fontWeight: 800,
-                letterSpacing: '0.2px', textTransform: 'uppercase',
-                padding: '1.5px 5px', borderRadius: 4,
-              }}
-            >
-              {statusLabel.text}
-            </span>
-          ) : null}
-          <p className="truncate" style={{ color: T.textSecondary, fontSize: 12, fontWeight: 500 }}>
-            Parcela {inst.number} · {fmtDate(inst.due_date).replace(/\/(\d{2})(\d{2})$/, '/$2')}
-          </p>
-        </div>
+        <p className="truncate mt-0.5" style={{ color: T.textSecondary, fontSize: 12, fontWeight: 500 }}>
+          Parcela {inst.number} · Venc. {fmtDate(inst.due_date)}
+        </p>
         {(investment?.calculation_mode === 'interest_only' || investment?.remaining_balance != null) && (
           <p className="truncate mt-1" style={{ color: T.textMuted, fontSize: 12, fontWeight: 500 }}>
             {investment?.calculation_mode === 'interest_only' && (
