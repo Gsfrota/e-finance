@@ -332,8 +332,10 @@ export async function verifyAuditTrail(
  * Navega para a Caderneta Bullet a partir do Dashboard.
  * Clica na aba "Caderneta" ou no botão equivalente.
  */
-export async function navigateToCadernetaBullet(page: Page): Promise<void> {
-  await waitForApp(page);
+export async function navigateToCadernetaBullet(page: Page, opts: { skipInitialWait?: boolean } = {}): Promise<void> {
+  if (!opts.skipInitialWait) {
+    await waitForApp(page);
+  }
 
   const dashboardBtn = page.locator('aside').getByRole('button', { name: /Dashboard/i }).first();
   await dashboardBtn.waitFor({ timeout: 8_000 });

@@ -467,7 +467,7 @@ nav.glass-border {
 .chip-active  { background: var(--accent-positive-subtle); color: var(--accent-positive); border: 1px solid var(--accent-positive-border); }
 .chip-pending { background: var(--accent-warning-subtle);  color: var(--accent-warning);  border: 1px solid var(--accent-warning-border); }
 .chip-late    { background: var(--accent-danger-subtle);   color: var(--accent-danger);   border: 1px solid var(--accent-danger-border); }
-.chip-paid    { background: var(--accent-positive-subtle); color: var(--accent-positive); border: 1px solid var(--accent-positive-border); }
+.chip-paid    { background: var(--accent-steel-subtle);    color: var(--accent-steel);    border: 1px solid var(--accent-steel-border); }
 .chip-partial  { background: rgba(66, 165, 245, 0.12);      color: #42A5F5;                border: 1px solid rgba(66, 165, 245, 0.3); }
 .chip-surplus  { background: rgba(156, 39, 176, 0.12);     color: #CE93D8;                border: 1px solid rgba(156, 39, 176, 0.25); }
 .chip-deferred { background: rgba(255, 152, 0, 0.12);      color: #FFB74D;                border: 1px solid rgba(255, 152, 0, 0.25); }

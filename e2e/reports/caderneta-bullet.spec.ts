@@ -4,7 +4,7 @@
  * Cobertura:
  *   REL-CB-01  BR-REL-010  Caderneta acessível no Dashboard, escopo bullet only
  *   REL-CB-02  BR-REL-011  Navegação mensal (prev/next), não avança além do mês atual
- *   REL-CB-03  BR-REL-012  Filtro de status (Todas/Atraso/Pendentes/Pagas) funciona
+ *   REL-CB-03  BR-REL-012  Filtro de status (Em aberto/Atraso/Pendentes/Pagas) funciona
  *   REL-CB-04  BR-REL-013  KPIs do mês sempre visíveis (Devedores, Esperado, Recebido, Atraso, Taxa)
  *   REL-CB-05  BR-REL-014  Card de parcela com layout: nome, contrato, valor, data, badge
  *   REL-CB-06  BR-REL-015  Valores monetários nos KPIs sem truncamento
@@ -46,65 +46,56 @@ test.describe('Caderneta Bullet', () => {
   test('REL-CB-02 [BR-REL-011]: Navegação mensal prev/next — não avança além do mês atual', async ({ page }) => {
     await navigateToCadernetaBullet(page);
 
-    // Verifica nome do mês atual
-    const monthLabel = page.locator('span').filter({ hasText: /\d{4}/ }).first();
-    const monthVisible = await monthLabel.isVisible({ timeout: 8_000 }).catch(() => false);
-    if (!monthVisible) { test.skip(true, 'Label do mês não encontrado'); return; }
+    const root = page.getByTestId('caderneta-bullet-root');
+    const rootVisible = await root.isVisible({ timeout: 10_000 }).catch(() => false);
+    if (!rootVisible) { test.skip(true, 'Caderneta Bullet não acessível no plano/dados atuais'); return; }
 
+    const monthLabel = page.getByTestId('caderneta-month-label');
+    await expect(monthLabel).toBeVisible({ timeout: 8_000 });
     const currentMonthText = await monthLabel.textContent();
 
-    // Botão anterior (ChevronLeft)
-    const prevBtn = page.locator('button').filter({ has: page.locator('svg') }).nth(1);
-    const prevBtns = page.locator('button');
-    // Procura o botão de prev (ChevronLeft) e next (ChevronRight) pelo contexto
-    const headerButtons = page.locator('.panel-card button');
-    const btnCount = await headerButtons.count();
+    const prevBtn = page.getByTestId('caderneta-month-prev');
+    const nextBtn = page.getByTestId('caderneta-month-next');
 
-    if (btnCount >= 2) {
-      // Clica em "mês anterior"
-      await headerButtons.nth(1).click();
-      await page.waitForTimeout(500);
+    await expect(nextBtn).toBeDisabled();
+    await prevBtn.click();
+    await expect(monthLabel).not.toHaveText(currentMonthText ?? '', { timeout: 5_000 });
+    await expect(nextBtn).toBeEnabled();
 
-      // O mês deve ter mudado
-      const newMonthText = await monthLabel.textContent();
-      expect(newMonthText).not.toBe(currentMonthText);
-
-      // Navega de volta para o mês atual clicando "próximo"
-      await headerButtons.nth(2).click().catch(() => {});
-      await page.waitForTimeout(300);
-
-      // Tenta avançar além do mês atual — botão deve estar desabilitado
-      const nextBtn = headerButtons.nth(2);
-      const isDisabled = await nextBtn.getAttribute('disabled');
-      // Quando retornar ao mês atual, o botão "próximo" fica desabilitado (isFuture = true)
-      expect(isDisabled !== null || true).toBeTruthy();
-    }
+    await nextBtn.click();
+    await expect(monthLabel).toHaveText(currentMonthText ?? '', { timeout: 5_000 });
+    await expect(nextBtn).toBeDisabled();
   });
 
   // ─── REL-CB-03: Filtro de status ────────────────────────────────────────────
 
-  test('REL-CB-03 [BR-REL-012]: Filtros de status (Todas/Atraso/Pendentes/Pagas) visíveis', async ({ page }) => {
+  test('REL-CB-03 [BR-REL-012]: Filtros de status (Em aberto/Atraso/Pendentes/Pagas) visíveis e coerentes', async ({ page }) => {
     await navigateToCadernetaBullet(page);
-    await page.waitForTimeout(800);
 
-    // Verifica botões de filtro
-    const filterLabels = ['Todas', 'Atraso', 'Pendentes', 'Pagas'];
-    let foundFilters = 0;
+    const root = page.getByTestId('caderneta-bullet-root');
+    const rootVisible = await root.isVisible({ timeout: 10_000 }).catch(() => false);
+    if (!rootVisible) { test.skip(true, 'Caderneta Bullet não acessível no plano/dados atuais'); return; }
 
-    for (const label of filterLabels) {
-      const btn = page.getByRole('button', { name: new RegExp(label, 'i') }).first();
-      const visible = await btn.isVisible({ timeout: 3_000 }).catch(() => false);
-      if (visible) foundFilters++;
+    const filters = ['open', 'late', 'pending', 'paid'] as const;
+    for (const key of filters) {
+      await expect(page.getByTestId(`caderneta-filter-${key}`)).toBeVisible({ timeout: 5_000 });
     }
 
-    // Deve ter pelo menos 2 filtros visíveis (pode variar se sem dados)
-    if (foundFilters < 2) {
-      // Sem dados no mês — verifica mensagem de vazio
-      const emptyMsg = page.getByText(/Nenhum|sem parcela|sem contrato/i).first();
-      const hasEmpty = await emptyMsg.isVisible({ timeout: 5_000 }).catch(() => false);
-      expect(hasEmpty || foundFilters >= 0).toBeTruthy();
-    } else {
-      expect(foundFilters).toBeGreaterThanOrEqual(2);
+    const openFilter = page.getByTestId('caderneta-filter-open');
+    await expect(openFilter).toContainText(/Em aberto/i);
+    await expect(openFilter).toHaveAttribute('aria-pressed', 'true');
+
+    const openCards = page.getByTestId('caderneta-installment-card');
+    const openCount = await openCards.count();
+    for (let i = 0; i < openCount; i++) {
+      await expect(openCards.nth(i)).not.toHaveAttribute('data-operational-status', 'paid');
+    }
+
+    await page.getByTestId('caderneta-filter-paid').click();
+    const paidCards = page.getByTestId('caderneta-installment-card');
+    const paidCount = await paidCards.count();
+    for (let i = 0; i < paidCount; i++) {
+      await expect(paidCards.nth(i)).toHaveAttribute('data-operational-status', 'paid');
     }
   });
 
@@ -112,20 +103,23 @@ test.describe('Caderneta Bullet', () => {
 
   test('REL-CB-04 [BR-REL-013]: KPIs do mês visíveis (Devedores, Esperado, Recebido, Atraso, Taxa)', async ({ page }) => {
     await navigateToCadernetaBullet(page);
-    await page.waitForTimeout(800);
 
-    // Verifica presença dos 6 KPI cards (BR-REL-013)
-    const kpiLabels = ['Devedores', 'Esperado', 'Recebido', 'atraso', 'cobrança'];
-    let foundKpis = 0;
+    const root = page.getByTestId('caderneta-bullet-root');
+    const rootVisible = await root.isVisible({ timeout: 10_000 }).catch(() => false);
+    if (!rootVisible) { test.skip(true, 'Caderneta Bullet não acessível no plano/dados atuais'); return; }
 
-    for (const label of kpiLabels) {
-      const el = page.getByText(new RegExp(label, 'i')).first();
-      const visible = await el.isVisible({ timeout: 3_000 }).catch(() => false);
-      if (visible) foundKpis++;
+    const kpiTestIds = [
+      'caderneta-kpi-devedores',
+      'caderneta-kpi-esperado-bruto',
+      'caderneta-kpi-esperado-liquido',
+      'caderneta-kpi-recebido',
+      'caderneta-kpi-em-atraso',
+      'caderneta-kpi-taxa-cobranca',
+    ];
+
+    for (const testId of kpiTestIds) {
+      await expect(page.getByTestId(testId)).toBeVisible({ timeout: 5_000 });
     }
-
-    // Deve ter pelo menos 3 labels de KPI visíveis
-    expect(foundKpis).toBeGreaterThanOrEqual(3);
   });
 
   // ─── REL-CB-05: Card de parcela com layout correto ───────────────────────────
@@ -156,7 +150,7 @@ test.describe('Caderneta Bullet', () => {
     }
 
     // Badge de status deve estar visível
-    const statusBadge = firstCard.getByText(/Pago|Pendente|Atrasado|Parcial/i).first();
+    const statusBadge = firstCard.getByText(/Pago|Pendente|Atrasado|Parcial|Inadimplente/i).first();
     const badgeVisible = await statusBadge.isVisible({ timeout: 3_000 }).catch(() => false);
     expect(badgeVisible).toBeTruthy();
   });
@@ -165,23 +159,41 @@ test.describe('Caderneta Bullet', () => {
 
   test('REL-CB-06 [BR-REL-015]: Valores monetários nos KPIs formatados e sem truncamento (fmtKpi)', async ({ page }) => {
     await navigateToCadernetaBullet(page);
-    await page.waitForTimeout(800);
 
-    // Verifica que valores R$ nos KPIs estão visíveis e não truncados
-    // BR-REL-015: usa fmtKpi — sem decimais para inteiros, 2 decimais para frações
-    const brlValues = await page.locator('text=/R\\$\\s*[\\d.,]+/').all();
+    const root = page.getByTestId('caderneta-bullet-root');
+    const rootVisible = await root.isVisible({ timeout: 10_000 }).catch(() => false);
+    if (!rootVisible) { test.skip(true, 'Caderneta Bullet não acessível no plano/dados atuais'); return; }
 
-    if (brlValues.length === 0) {
-      // Sem dados no mês ou Caderneta não disponível — apenas verifica que o app carregou
-      const mainLoaded = await page.locator('main, aside').first().isVisible({ timeout: 3_000 }).catch(() => false);
-      expect(mainLoaded).toBeTruthy();
-      return;
+    const monetaryKpis = [
+      page.getByTestId('caderneta-kpi-esperado-bruto'),
+      page.getByTestId('caderneta-kpi-esperado-liquido'),
+      page.getByTestId('caderneta-kpi-recebido'),
+      page.getByTestId('caderneta-kpi-em-atraso'),
+    ];
+
+    for (const kpi of monetaryKpis) {
+      await expect(kpi).toBeVisible({ timeout: 5_000 });
+      await expect(kpi).toContainText(/R\$\s*[\d.]+(,\d{2})?/);
+      const hasHorizontalOverflow = await kpi.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+      expect(hasHorizontalOverflow).toBeFalsy();
     }
+  });
 
-    for (const valEl of brlValues.slice(0, 3)) {
-      // Verifica que o elemento não está cortado (overflow)
-      const isVisible = await valEl.isVisible({ timeout: 1_000 }).catch(() => false);
-      expect(isVisible).toBeTruthy();
-    }
+  // ─── REL-CB-07: Mobile abre no topo ─────────────────────────────────────────
+
+  test('REL-CB-07 [CB-001]: Mobile abre Caderneta Bullet no topo após scroll prévio', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await waitForApp(page);
+
+    const main = page.getByTestId('app-main-scroll');
+    await main.evaluate((el) => { el.scrollTop = 400; });
+    await navigateToCadernetaBullet(page, { skipInitialWait: true });
+
+    const root = page.getByTestId('caderneta-bullet-root');
+    const rootVisible = await root.isVisible({ timeout: 10_000 }).catch(() => false);
+    if (!rootVisible) { test.skip(true, 'Caderneta Bullet não acessível no plano/dados atuais'); return; }
+
+    await expect.poll(async () => main.evaluate((el) => el.scrollTop)).toBe(0);
+    await expect(page.getByTestId('caderneta-kpi-devedores')).toBeInViewport();
   });
 });

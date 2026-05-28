@@ -445,14 +445,14 @@ Categorias:
 - **Tabelas:** `loan_installments.due_date`
 - **Status:** ativa
 
-### BR-REL-012: Caderneta Bullet — filtro de status e ordenação
-- **Descrição:** A caderneta exibe uma lista flat de parcelas (uma por card) e permite filtrar por status: Todos / Em atraso / Pendentes / Pagas. Cada filtro exibe apenas as parcelas cujo `status` corresponde ao selecionado.
+### BR-REL-012: Caderneta Bullet — filtro operacional de status e ordenação
+- **Descrição:** A caderneta exibe uma lista flat de parcelas (uma por card) e permite filtrar por status operacional: **Em aberto** / **Atraso** / **Pendentes** / **Pagas**. A visão principal é **Em aberto**, não “Todas”.
 - **Condição:** Toda exibição da Caderneta Bullet
-- **Resultado:** Filtro "Pendentes" inclui `status = 'pending' | 'partial'`. Filtro "Em atraso" = `status = 'late'`. Filtro "Pagas" = `status = 'paid'`. Ordenação padrão (filtro "Todos"): `late` primeiro, depois `partial/pending`, depois `paid`; dentro de cada grupo, por `due_date` ascendente. Os KPIs sempre refletem o mês completo independente do filtro ativo (BR-REL-013).
-- **Exceções:** Parcela sem `investment_id` ou cujo investimento não é bullet é omitida. Parcelas fora do mês selecionado não aparecem em nenhum filtro
-- **Tabelas:** `loan_installments.status`, `loan_installments.due_date`
+- **Resultado:** Filtro **Em aberto** inclui somente parcelas operacionais abertas (`pending`, `partial`, `late` e inadimplentes visuais), excluindo pagas quitadas. Filtro **Pendentes** inclui pendentes/parciais sem atraso operacional. Filtro **Atraso** inclui parcelas com saldo em aberto e `due_date < hoje` em BRT, independentemente de `loan_installments.status` já estar `late`. Filtro **Pagas** inclui parcelas quitadas operacionalmente. **Parcial** inclui tanto `status = 'partial'` quanto pagamento parcial (`amount_paid > 0` com saldo em aberto). **Inadimplente** é camada visual dentro de atraso quando `daysLate >= 20`, sem criar novo status persistido nesta BR. Ordenação padrão: inadimplentes/atrasadas primeiro, depois parciais/pendentes, depois pagas; dentro de cada grupo, por `due_date` ascendente. Os KPIs sempre refletem o mês completo independente do filtro ativo (BR-REL-013).
+- **Exceções:** Parcela sem `investment_id` ou cujo investimento não é bullet é omitida. Parcelas fora do mês selecionado não aparecem em nenhum filtro. Regras específicas de valor cobrável em contratos bullet/`interest_only` devem respeitar BR-CNT-004 e FR-PAG-06.
+- **Tabelas:** `loan_installments.status`, `loan_installments.due_date`, `loan_installments.amount_paid`, campos de valor usados para saldo em aberto
 - **Status:** ativa
-- **Atualizado:** 10/04/2026 — filtro passou a operar por parcela individual (flat list) em vez de status agregado por devedor
+- **Atualizado:** 2026-05-27 — visão principal passa a ser **Em aberto**, pagos saem da visão principal, parcial/atraso/inadimplente passam a ser classificação operacional conforme decisão PO da CB-001
 
 ### BR-REL-013: Caderneta Bullet — KPIs do mês
 - **Descrição:** A caderneta exibe 6 KPIs consolidados do mês selecionado:
@@ -460,14 +460,14 @@ Categorias:
   2. **Esperado bruto** = `SUM(loan_installments.amount_total)` — inclui capital nas parcelas finais e só juros nas intermediárias
   3. **Esperado líquido** = `SUM(loan_installments.amount_interest ?? amount_total)` — somente rendimento (juros)
   4. **Recebido** = `SUM(loan_installments.amount_paid)`
-  5. **Em atraso** = `SUM(calcOutstanding())` das parcelas com `status = 'late'`
+  5. **Em atraso** = `SUM(calcOutstanding())` ou saldo operacional equivalente das parcelas com saldo em aberto e `due_date < hoje` em BRT, incluindo inadimplentes visuais (`daysLate >= 20`)
   6. **Taxa de cobrança** = `recebido / esperado_bruto * 100` (limitado a 100%)
 - **Condição:** Toda exibição da Caderneta Bullet
 - **Resultado:** KPIs sempre refletem o mês selecionado independente do filtro de status ativo. KPIs não são filtrados — mostram o total real do mês. KPIs 2 e 3 exibem barra de progresso (`recebido / esperado`) com rótulo de valor recebido e percentual
 - **Exceções:** Se não há parcelas no mês, todos KPIs exibem zero. Taxa de cobrança exibe 0% se esperado bruto for zero
 - **Tabelas:** `loan_installments`, `investments.payer_id`
 - **Status:** ativa
-- **Atualizado:** 10/04/2026 — expandido de 5 para 6 KPIs; fórmulas bruto e taxa cobrança corrigidas; deduplicação de devedores por `payer_id`
+- **Atualizado:** 2026-05-27 — KPI **Em atraso** alinhado à regra operacional da Caderneta: data acordada vencida + saldo em aberto, não apenas `status = 'late'`
 
 ### BR-REL-015: Caderneta Bullet — formatação de valores monetários nos KPIs
 - **Descrição:** Valores monetários exibidos nos KPI cards da Caderneta Bullet devem sempre ser legíveis por completo (sem truncamento). Casas decimais são exibidas somente quando o valor não é inteiro — ex: R$ 1.364 (sem centavos) e R$ 1.364,67 (com centavos quando necessário)
@@ -480,11 +480,11 @@ Categorias:
 ### BR-REL-014: Caderneta Bullet — card de parcela (flat list)
 - **Descrição:** Cada parcela bullet do mês é exibida como um card individual (flat list, sem accordion). O card deve conter as informações essenciais de cobrança em layout compacto, clicável para abrir o detalhe da parcela.
 - **Condição:** Toda parcela bullet exibida na Caderneta Bullet
-- **Resultado:** Cada card exibe obrigatoriamente: (a) barra lateral colorida pelo status (`late`=danger, `partial/pending`=warning, `paid`=positive); (b) foto do devedor em círculo 26px (fallback: inicial do nome com cor do status); (c) nome do devedor + nome do contrato (`asset_name`) como sublabel; (d) data de vencimento formatada `dd/mm/aaaa` e número da parcela `#N` alinhados à direita; (e) valor `amount_total` em destaque; (f) valor pago `amount_paid` quando parcial ou pago; (g) barra de progresso `amount_paid / (amount_total + multas + juros_atraso) * 100`; (h) badge de status; (i) linha de multa/juros de atraso exibida condicionalmente apenas quando `fine_amount > 0 || interest_delay_amount > 0`
-- **Exceções:** Linha de multa/juros omitida quando ambos são zero. Barra de progresso com percentual numérico exibida apenas quando `0 < progress < 100`. Valor pago exibido apenas para `status = 'paid' | 'partial'`
+- **Resultado:** Cada card exibe obrigatoriamente: (a) barra lateral colorida pelo status operacional (`late/defaulted`=danger, `partial/pending`=warning, `paid`=positive); (b) foto do devedor em círculo 26px (fallback: inicial do nome com cor do status); (c) nome do devedor + nome do contrato (`asset_name`) como sublabel; (d) data de vencimento formatada `dd/mm/aaaa` e número da parcela `#N` alinhados à direita; (e) valor cobrável exibido conforme regra bullet vigente; (f) valor pago `amount_paid` quando houver pagamento; (g) barra de progresso do valor pago sobre o total cobrável operacional; (h) badge de status operacional, incluindo **Inadimplente** para 20+ dias de atraso; (i) linha de multa/juros de atraso exibida condicionalmente apenas quando `fine_amount > 0 || interest_delay_amount > 0`
+- **Exceções:** Linha de multa/juros omitida quando ambos são zero. Barra de progresso com percentual numérico exibida apenas quando `0 < progress < 100`. Valor pago exibido apenas quando `amount_paid > 0`. A regra de valor cobrável para bullet/`interest_only` deve respeitar BR-CNT-004 e FR-PAG-06 para não confundir principal de referência com juros do ciclo.
 - **Tabelas:** `loan_installments`, `investments.asset_name`, `profiles.photo_url`, `profiles.full_name`
 - **Status:** ativa
-- **Atualizado:** 10/04/2026 — substituiu modelo accordion expandido por flat card clicável
+- **Atualizado:** 2026-05-27 — card passa a comunicar status operacional da Caderneta, incluindo parcial por pagamento parcial e inadimplente visual com 20+ dias
 
 ### BR-REL-016: Histórico do Contrato é fonte única de verdade — acessível via ContractDetail
 - **Descrição:** Existe exatamente **um** Histórico do Contrato por investment, exibido em `InstallmentHistory`. Ele é a fonte canônica de todos os eventos financeiros do contrato: pagamentos de parcelas, pagamentos avulsos, surplus, reversões, late_auto. Acessível via botão dedicado em `ContractDetail`
