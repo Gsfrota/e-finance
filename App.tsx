@@ -123,6 +123,7 @@ const Layout: React.FC<LayoutProps> = ({
   onOpenSubscriptionSettings,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mainContentRef = useRef<HTMLElement | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     const stored = localStorage.getItem('EF_SIDEBAR_COLLAPSED');
     return stored === null ? true : stored === 'true';
@@ -151,6 +152,12 @@ const Layout: React.FC<LayoutProps> = ({
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (activeView === AppView.CADERNETA_BULLET) {
+      mainContentRef.current?.scrollTo({ top: 0, left: 0 });
+    }
+  }, [activeView]);
 
   const currentSectionLabel: Record<AppView, string> = {
     [AppView.LOGIN]: 'Acesso',
@@ -512,7 +519,7 @@ const Layout: React.FC<LayoutProps> = ({
           </div>
         </header>
 
-        <main className="custom-scrollbar relative flex-1 overflow-y-auto bg-[color:var(--bg-base)]">
+        <main ref={mainContentRef} data-testid="app-main-scroll" className="custom-scrollbar relative flex-1 overflow-y-auto bg-[color:var(--bg-base)]">
           <div className="app-noise pointer-events-none absolute inset-0 z-0"></div>
           <div className="relative z-10 mx-auto w-full max-w-[1680px] px-4 py-6 md:px-8 md:py-8">
             {children}

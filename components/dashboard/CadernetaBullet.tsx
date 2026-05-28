@@ -12,9 +12,10 @@ import { monthKeyToDate, dateToMonthKey } from '../../hooks/useInvestorMetrics';
 import {
   fmtMoney,
   fmtDate,
-  calcOutstanding,
   installmentStatusBadge,
+  normalizeNum,
 } from '../InstallmentDetailFlow';
+import { getBrazilToday } from '../../services/dateUtils';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -37,7 +38,12 @@ interface FlatInstallment {
   payerName: string;
   payerPhoto: string | null;
   contractName: string;
+  operationalStatus: OperationalInstallmentStatus;
+  daysLate: number;
   statusColor: string;
+  cycleAmountDue: number;
+  outstanding: number;
+  payPercent: number;
 }
 
 export interface CadernetaBulletProps {
@@ -87,16 +93,88 @@ function fmtKpi(v: number): string {
   }).format(v || 0);
 }
 
-function statusColorForInst(status: string): string {
-  if (status === 'late') return 'var(--accent-danger)';
+type OperationalInstallmentStatus = 'paid' | 'pending' | 'partial' | 'late' | 'defaulted';
+
+const DEFAULTED_AFTER_DAYS = 20;
+const MONEY_EPSILON = 0.01;
+const MS_PER_DAY = 86_400_000;
+const PERCENT_MAX = 100;
+const COLLECTION_RATE_GOOD = 80;
+const COLLECTION_RATE_WARNING = 50;
+
+function daysBetweenYMD(startYMD: string, endYMD: string): number {
+  const [sy, sm, sd] = startYMD.split('-').map(Number);
+  const [ey, em, ed] = endYMD.split('-').map(Number);
+  if (!sy || !sm || !sd || !ey || !em || !ed) return 0;
+  const start = Date.UTC(sy, sm - 1, sd);
+  const end = Date.UTC(ey, em - 1, ed);
+  return Math.floor((end - start) / MS_PER_DAY);
+}
+
+function getDaysLate(inst: LoanInstallment, todayYMD: string): number {
+  if (!inst.due_date || inst.due_date >= todayYMD) return 0;
+  return Math.max(0, daysBetweenYMD(inst.due_date, todayYMD));
+}
+
+function getCycleAmountDue(inst: LoanInstallment, investment?: Investment): number {
+  if (investment?.calculation_mode === 'interest_only') {
+    return normalizeNum(inst.amount_interest);
+  }
+  return normalizeNum(inst.amount_total);
+}
+
+function getOperationalTotalDue(inst: LoanInstallment, investment?: Investment): number {
+  return getCycleAmountDue(inst, investment)
+    + normalizeNum(inst.fine_amount)
+    + normalizeNum(inst.interest_delay_amount);
+}
+
+function getOperationalOutstanding(inst: LoanInstallment, investment?: Investment): number {
+  return Math.max(0, getOperationalTotalDue(inst, investment) - normalizeNum(inst.amount_paid));
+}
+
+function getPayPercent(inst: LoanInstallment, investment?: Investment): number {
+  const totalDue = getOperationalTotalDue(inst, investment);
+  if (totalDue <= MONEY_EPSILON) return 0;
+  return Math.min(PERCENT_MAX, (normalizeNum(inst.amount_paid) / totalDue) * PERCENT_MAX);
+}
+
+function isPaymentPartial(inst: LoanInstallment, investment?: Investment): boolean {
+  const paid = normalizeNum(inst.amount_paid);
+  return paid > 0 && getOperationalOutstanding(inst, investment) > MONEY_EPSILON;
+}
+
+function getOperationalStatus(inst: LoanInstallment, todayYMD: string, investment?: Investment): OperationalInstallmentStatus {
+  const outstanding = getOperationalOutstanding(inst, investment);
+  const hasOutstanding = outstanding > MONEY_EPSILON;
+  const daysLate = getDaysLate(inst, todayYMD);
+
+  if (hasOutstanding && daysLate >= DEFAULTED_AFTER_DAYS) return 'defaulted';
+  if (hasOutstanding && daysLate > 0) return 'late';
+  if (inst.status === 'partial' || isPaymentPartial(inst, investment)) return 'partial';
+  if (inst.status === 'paid' && !hasOutstanding) return 'paid';
+  return 'pending';
+}
+
+function isOperationallyOpen(status: OperationalInstallmentStatus): boolean {
+  return status !== 'paid';
+}
+
+function statusColorForInst(status: OperationalInstallmentStatus): string {
+  if (status === 'late' || status === 'defaulted') return 'var(--accent-danger)';
   if (status === 'partial') return 'var(--accent-warning)';
   if (status === 'pending') return 'var(--accent-warning)';
   return 'var(--accent-positive)';
 }
 
+function operationalStatusBadge(status: OperationalInstallmentStatus) {
+  if (status === 'defaulted') return <span className="chip chip-late">Inadimplente</span>;
+  return installmentStatusBadge(status);
+}
+
 // ── Wrapper ───────────────────────────────────────────────────────────────────
 
-const CadernetaBullet: React.FC<CadernetaBulletProps> = ({ tenant, onBack }) => {
+const CadernetaBullet: React.FC<CadernetaBulletProps> = ({ tenant, onBack, onInstallmentClick }) => {
   const { activeCompanyId } = useCompanyContext();
   const { investments, allPaidInstallments, installments, loading, error, refetch } =
     useDashboardData(tenant?.id, activeCompanyId);
@@ -112,6 +190,10 @@ const CadernetaBullet: React.FC<CadernetaBulletProps> = ({ tenant, onBack }) => 
   }, [allPaidInstallments, installments]);
 
   const handleInstallmentClick = (installmentId: string, investmentId: number) => {
+    if (onInstallmentClick) {
+      onInstallmentClick(installmentId, investmentId);
+      return;
+    }
     const inst = allInstPool.get(installmentId);
     if (!inst) return;
     const siblings = Array.from<LoanInstallment>(allInstPool.values()).filter(i => i.investment_id === investmentId);
@@ -179,13 +261,18 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
   onBack,
   onInstallmentClick,
 }) => {
-  type StatusFilter = 'all' | 'late' | 'pending' | 'paid';
+  type StatusFilter = 'open' | 'late' | 'pending' | 'paid';
 
-  const currentMonthKey = dateToMonthKey(new Date());
+  const todayYMD = getBrazilToday();
+  const currentMonthKey = todayYMD.slice(0, 7);
   const [monthKey, setMonthKey] = useState(currentMonthKey);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
 
-  const isFuture = monthKey > currentMonthKey;
+  const isCurrentOrFuture = monthKey >= currentMonthKey;
+  const goToNextMonth = () => {
+    const next = nextMonth(monthKey);
+    if (next <= currentMonthKey) setMonthKey(next);
+  };
 
   // Pool deduplicado de parcelas (paid + pending)
   const allInstallments = useMemo(() => {
@@ -216,7 +303,7 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
     return m;
   }, [investments, bulletInvestmentIds]);
 
-  // Lista flat de parcelas bullet do mês, ordenadas: atraso → parcial/pendente → pago
+  // Lista flat de parcelas bullet do mês, ordenadas: inadimplente/atraso → parcial/pendente → pago
   const flatInstallments = useMemo((): FlatInstallment[] => {
     const monthInsts = allInstallments.filter((inst) => {
       if (!inst.investment_id) return false;
@@ -224,26 +311,50 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
       return isInMonth(inst.due_date, monthKey);
     });
 
-    return monthInsts
+    const withOperationalStatus = monthInsts.map((inst) => {
+      const investment = bulletInvestmentsMap.get(inst.investment_id);
+      const operationalStatus = getOperationalStatus(inst, todayYMD, investment);
+      return {
+        inst,
+        operationalStatus,
+        daysLate: getDaysLate(inst, todayYMD),
+        investment,
+      };
+    });
+
+    return withOperationalStatus
       .sort((a, b) => {
-        const scoreA = a.status === 'late' ? 0 : (a.status === 'partial' || a.status === 'pending') ? 1 : 2;
-        const scoreB = b.status === 'late' ? 0 : (b.status === 'partial' || b.status === 'pending') ? 1 : 2;
+        const score = (status: OperationalInstallmentStatus) => {
+          if (status === 'defaulted') return 0;
+          if (status === 'late') return 1;
+          if (status === 'partial') return 2;
+          if (status === 'pending') return 3;
+          return 4;
+        };
+        const scoreA = score(a.operationalStatus);
+        const scoreB = score(b.operationalStatus);
         if (scoreA !== scoreB) return scoreA - scoreB;
-        return a.due_date.localeCompare(b.due_date);
+        return a.inst.due_date.localeCompare(b.inst.due_date);
       })
-      .map((inst) => {
-        const inv = bulletInvestmentsMap.get(inst.investment_id);
+      .map(({ inst, operationalStatus, daysLate, investment }) => {
+        const inv = investment;
         const payer = inv?.payer;
+        const outstanding = getOperationalOutstanding(inst, inv);
         return {
           inst,
           investmentId: inst.investment_id,
           payerName: payer?.full_name || inv?.payer_name || 'Devedor',
           payerPhoto: payer?.photo_url || null,
           contractName: inv?.asset_name || '',
-          statusColor: statusColorForInst(inst.status),
+          operationalStatus,
+          daysLate,
+          statusColor: statusColorForInst(operationalStatus),
+          cycleAmountDue: getCycleAmountDue(inst, inv),
+          outstanding,
+          payPercent: getPayPercent(inst, inv),
         };
       });
-  }, [allInstallments, bulletInvestmentIds, bulletInvestmentsMap, monthKey]);
+  }, [allInstallments, bulletInvestmentIds, bulletInvestmentsMap, monthKey, todayYMD]);
 
   // KPIs (sempre do total do mês, sem filtro — BR-REL-013)
   const kpis = useMemo(() => {
@@ -252,39 +363,39 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
       const inv = bulletInvestmentsMap.get(f.investmentId);
       return inv?.payer_id || f.payerName;
     })).size;
-    // Bruto = soma do amount_total das parcelas do mês (inclui capital na parcela final, só juros nas intermediárias)
-    const totalBruto = flatInstallments.reduce((s, f) => s + f.inst.amount_total, 0);
+    // Esperado bruto operacional = valor cobrável do ciclo exibido (juros em contratos bullet interest_only)
+    const totalBruto = flatInstallments.reduce((s, f) => s + f.cycleAmountDue, 0);
     // Líquido = só os juros de cada parcela
     const totalInterest = flatInstallments.reduce((s, f) => s + (f.inst.amount_interest ?? f.inst.amount_total), 0);
     const totalReceived = flatInstallments.reduce((s, f) => s + f.inst.amount_paid, 0);
     const totalOverdue = flatInstallments
-      .filter(f => f.inst.status === 'late')
-      .reduce((s, f) => s + calcOutstanding(f.inst), 0);
-    const collectionRate = totalBruto > 0 ? Math.min(100, (totalReceived / totalBruto) * 100) : 0;
-    const progressBruto = totalBruto > 0 ? Math.min(100, (totalReceived / totalBruto) * 100) : 0;
-    const progressLiquido = totalInterest > 0 ? Math.min(100, (totalReceived / totalInterest) * 100) : 0;
+      .filter(f => f.operationalStatus === 'late' || f.operationalStatus === 'defaulted')
+      .reduce((s, f) => s + f.outstanding, 0);
+    const collectionRate = totalBruto > 0 ? Math.min(PERCENT_MAX, (totalReceived / totalBruto) * PERCENT_MAX) : 0;
+    const progressBruto = totalBruto > 0 ? Math.min(PERCENT_MAX, (totalReceived / totalBruto) * PERCENT_MAX) : 0;
+    const progressLiquido = totalInterest > 0 ? Math.min(PERCENT_MAX, (totalReceived / totalInterest) * PERCENT_MAX) : 0;
     return { totalDebtors, totalBruto, totalInterest, totalReceived, totalOverdue, collectionRate, progressBruto, progressLiquido };
   }, [flatInstallments, bulletInvestmentsMap]);
 
-  // Filtra parcelas pelo status selecionado (BR-REL-012)
+  // Filtra parcelas pelo status operacional selecionado (BR-REL-012)
   const filteredInstallments = useMemo(() => {
-    if (statusFilter === 'all') return flatInstallments;
-    if (statusFilter === 'late') return flatInstallments.filter(f => f.inst.status === 'late');
-    if (statusFilter === 'pending') return flatInstallments.filter(f => f.inst.status === 'pending' || f.inst.status === 'partial');
-    if (statusFilter === 'paid') return flatInstallments.filter(f => f.inst.status === 'paid');
+    if (statusFilter === 'open') return flatInstallments.filter(f => isOperationallyOpen(f.operationalStatus));
+    if (statusFilter === 'late') return flatInstallments.filter(f => f.operationalStatus === 'late' || f.operationalStatus === 'defaulted');
+    if (statusFilter === 'pending') return flatInstallments.filter(f => f.operationalStatus === 'pending' || f.operationalStatus === 'partial');
+    if (statusFilter === 'paid') return flatInstallments.filter(f => f.operationalStatus === 'paid');
     return flatInstallments;
   }, [flatInstallments, statusFilter]);
 
   // Contadores para os pills
   const counts = useMemo(() => ({
-    all: flatInstallments.length,
-    late: flatInstallments.filter(f => f.inst.status === 'late').length,
-    pending: flatInstallments.filter(f => f.inst.status === 'pending' || f.inst.status === 'partial').length,
-    paid: flatInstallments.filter(f => f.inst.status === 'paid').length,
+    open: flatInstallments.filter(f => isOperationallyOpen(f.operationalStatus)).length,
+    late: flatInstallments.filter(f => f.operationalStatus === 'late' || f.operationalStatus === 'defaulted').length,
+    pending: flatInstallments.filter(f => f.operationalStatus === 'pending' || f.operationalStatus === 'partial').length,
+    paid: flatInstallments.filter(f => f.operationalStatus === 'paid').length,
   }), [flatInstallments]);
 
   return (
-    <div className="space-y-2.5 animate-fade-in-up">
+    <div className="space-y-2.5 animate-fade-in-up" data-testid="caderneta-bullet-root">
       {/* Header compacto */}
       <div className="panel-card rounded-2xl px-4 py-2.5">
         <div className="flex items-center justify-between">
@@ -307,19 +418,24 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
             <button
               onClick={() => setMonthKey(prevMonth(monthKey))}
               className="flex items-center justify-center rounded-lg p-1 transition-colors hover:bg-white/[0.08] cursor-pointer"
+              data-testid="caderneta-month-prev"
+              aria-label="Mês anterior"
             >
               <ChevronLeft size={16} style={{ color: 'var(--text-secondary)' }} />
             </button>
             <span
               className="text-sm font-semibold tabular-nums capitalize"
               style={{ color: 'var(--text-primary)', minWidth: 120, textAlign: 'center' }}
+              data-testid="caderneta-month-label"
             >
               {monthLabel(monthKey)}
             </span>
             <button
-              onClick={() => setMonthKey(nextMonth(monthKey))}
-              disabled={isFuture}
+              onClick={goToNextMonth}
+              disabled={isCurrentOrFuture}
               className="flex items-center justify-center rounded-lg p-1 transition-colors hover:bg-white/[0.08] cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              data-testid="caderneta-month-next"
+              aria-label="Próximo mês"
             >
               <ChevronRight size={16} style={{ color: 'var(--text-secondary)' }} />
             </button>
@@ -334,7 +450,7 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
           label="Devedores"
           value={String(kpis.totalDebtors)}
           color="var(--accent-caution)"
-          onClick={() => setStatusFilter('all')}
+          onClick={() => setStatusFilter('open')}
         />
         <KpiCard
           icon={<TrendingUp size={16} />}
@@ -343,7 +459,7 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
           color="var(--accent-brass)"
           progress={kpis.progressBruto}
           progressLabel={`${fmtKpi(kpis.totalReceived)} recebido · ${kpis.progressBruto.toFixed(0)}%`}
-          onClick={() => setStatusFilter('all')}
+          onClick={() => setStatusFilter('open')}
         />
         <KpiCard
           icon={<TrendingUp size={16} />}
@@ -352,7 +468,7 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
           color="var(--accent-purple)"
           progress={kpis.progressLiquido}
           progressLabel={`${fmtKpi(kpis.totalReceived)} recebido · ${kpis.progressLiquido.toFixed(0)}%`}
-          onClick={() => setStatusFilter('all')}
+          onClick={() => setStatusFilter('open')}
         />
         <KpiCard
           icon={<CheckCircle2 size={16} />}
@@ -372,8 +488,8 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
           icon={<Clock size={16} />}
           label="Taxa cobrança"
           value={`${kpis.collectionRate.toFixed(1).replace('.', ',')}%`}
-          color={kpis.collectionRate >= 80 ? 'var(--accent-positive)' : kpis.collectionRate >= 50 ? 'var(--accent-warning)' : 'var(--accent-danger)'}
-          onClick={() => setStatusFilter('all')}
+          color={kpis.collectionRate >= COLLECTION_RATE_GOOD ? 'var(--accent-positive)' : kpis.collectionRate >= COLLECTION_RATE_WARNING ? 'var(--accent-warning)' : 'var(--accent-danger)'}
+          onClick={() => setStatusFilter('open')}
         />
       </div>
 
@@ -391,7 +507,7 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
           <div className="px-3 py-2">
             <div className="grid grid-cols-4 gap-1.5 p-1 rounded-2xl" style={{ background: 'rgba(0,0,0,0.12)' }}>
               {([
-                { key: 'all',     label: 'Todas',     count: counts.all,     color: 'var(--accent-caution)'  },
+                { key: 'open',    label: 'Em aberto', count: counts.open,    color: 'var(--accent-caution)'  },
                 { key: 'late',    label: 'Atraso',    count: counts.late,    color: 'var(--accent-danger)'   },
                 { key: 'pending', label: 'Pendentes', count: counts.pending, color: 'var(--accent-warning)'  },
                 { key: 'paid',    label: 'Pagas',     count: counts.paid,    color: 'var(--accent-positive)' },
@@ -402,6 +518,8 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
                     key={key}
                     onClick={() => setStatusFilter(key)}
                     className="flex flex-col items-center gap-0.5 py-2 px-1 rounded-xl text-center transition-all cursor-pointer"
+                    data-testid={`caderneta-filter-${key}`}
+                    aria-pressed={isActive}
                     style={isActive
                       ? { background: 'var(--bg-elevated)', boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }
                       : { background: 'transparent' }
@@ -468,10 +586,18 @@ interface KpiCardProps {
 }
 
 const KpiCard: React.FC<KpiCardProps> = ({ icon, label, value, color, progress, progressLabel, onClick }) => {
+  const testId = `caderneta-kpi-${label
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')}`;
+
   return (
     <div className="panel-card rounded-xl overflow-hidden">
       <button
         onClick={onClick}
+        data-testid={testId}
         className="w-full p-3 flex flex-col gap-1.5 text-left transition-colors cursor-pointer hover:bg-white/[0.03]"
       >
         <div className="flex items-center gap-1.5">
@@ -507,18 +633,19 @@ interface InstallmentCardProps {
 }
 
 const InstallmentCard: React.FC<InstallmentCardProps> = ({ flat, onClick }) => {
-  const { inst, investmentId, payerName, payerPhoto, contractName, statusColor } = flat;
+  const { inst, investmentId, payerName, payerPhoto, contractName, statusColor, operationalStatus, daysLate, cycleAmountDue, payPercent } = flat;
   const hasFine = inst.fine_amount > 0;
   const hasDelay = inst.interest_delay_amount > 0;
-  const totalDue = inst.amount_total + inst.fine_amount + inst.interest_delay_amount;
-  const payPercent = totalDue > 0 ? Math.min(100, (inst.amount_paid / totalDue) * 100) : 0;
-  const isPaid = inst.status === 'paid';
-  const isPartial = inst.status === 'partial' && inst.amount_paid > 0;
+  const hasAmountPaid = normalizeNum(inst.amount_paid) > 0;
 
   return (
     <button
       onClick={() => onClick?.(inst.id, investmentId)}
       className="panel-card w-full rounded-xl overflow-hidden text-left transition-colors cursor-pointer hover:bg-white/[0.03] flex"
+      data-testid="caderneta-installment-card"
+      data-installment-id={inst.id}
+      data-operational-status={operationalStatus}
+      data-days-late={daysLate}
     >
       {/* Barra lateral de status */}
       <div
@@ -583,17 +710,9 @@ const InstallmentCard: React.FC<InstallmentCardProps> = ({ flat, onClick }) => {
             className="text-base tabular-nums font-bold"
             style={{ color: 'var(--text-primary)' }}
           >
-            {fmtMoney(inst.amount_total)}
+            {fmtMoney(cycleAmountDue)}
           </span>
-          {isPartial && (
-            <span
-              className="text-xs tabular-nums"
-              style={{ color: 'var(--accent-positive)' }}
-            >
-              Pago {fmtMoney(inst.amount_paid)}
-            </span>
-          )}
-          {isPaid && (
+          {hasAmountPaid && (
             <span
               className="text-xs tabular-nums"
               style={{ color: 'var(--accent-positive)' }}
@@ -617,7 +736,7 @@ const InstallmentCard: React.FC<InstallmentCardProps> = ({ flat, onClick }) => {
             </span>
           )}
           <div className="shrink-0">
-            {installmentStatusBadge(inst.status)}
+            {operationalStatusBadge(operationalStatus)}
           </div>
         </div>
 
