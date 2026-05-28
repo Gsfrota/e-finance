@@ -167,9 +167,11 @@ test.describe('Pagamentos Avançados — Juros, Reversão, Override e Falta', ()
 
     try {
       await goToParcelasTab(page, freshData.companyId);
-      const inst4 = freshData.installments[3]; // #4
+      // Usa a parcela corrente (#3). Pagar a #4 (+30d) com data de hoje é pré-pagamento
+      // e pode ser rejeitado pela RPC/validações do tenant antes do comprovante abrir.
+      const currentInst = freshData.installments[2];
 
-      const opened = await openPaymentModal(page, inst4.id);
+      const opened = await openPaymentModal(page, currentInst.id);
       if (!opened) { return; }
       await waitForPaymentModal(page);
 
@@ -206,10 +208,11 @@ test.describe('Pagamentos Avançados — Juros, Reversão, Override e Falta', ()
 
     try {
       await goToParcelasTab(page, freshData.companyId);
-      const inst4 = freshData.installments[3];
+      // Usa a parcela corrente (#3) para evitar pré-pagamento de parcela futura.
+      const currentInst = freshData.installments[2];
 
       // Paga a parcela
-      const opened = await openPaymentModal(page, inst4.id);
+      const opened = await openPaymentModal(page, currentInst.id);
       if (!opened) return;
       await waitForPaymentModal(page);
       await fillAmount(page, '200');
@@ -228,7 +231,7 @@ test.describe('Pagamentos Avançados — Juros, Reversão, Override e Falta', ()
 
       // O botão BAIXA deve agora abrir o detalhe da parcela paga
       // Clica para abrir o detalhe e procura botão "Reverter"
-      const cardLocator = page.locator(`[data-installment-id="${inst4.id}"]`).first();
+      const cardLocator = page.locator(`[data-installment-id="${currentInst.id}"]`).first();
       const cardVisible = await cardLocator.isVisible({ timeout: 5_000 }).catch(() => false);
       if (!cardVisible) return;
 

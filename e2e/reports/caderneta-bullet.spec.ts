@@ -183,7 +183,7 @@ test.describe('Caderneta Bullet', () => {
 
   test('REL-CB-07 [CB-001]: Mobile abre Caderneta Bullet no topo após scroll prévio', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await waitForApp(page);
+    await waitForApp(page, { requireSidebar: false });
 
     const main = page.getByTestId('app-main-scroll');
     await main.evaluate((el) => { el.scrollTop = 400; });

@@ -5,7 +5,7 @@
  * de navegação e criação de dados via UI e Supabase REST.
  */
 
-import { Page, expect } from '@playwright/test';
+import { Locator, Page, expect } from '@playwright/test';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -133,10 +133,42 @@ export function dateOffset(days: number): string {
 
 // ─── Navegação ────────────────────────────────────────────────────────────────
 
-/** Aguarda o app carregar: sidebar visível + spinner desapareceu. */
-export async function waitForApp(page: Page): Promise<void> {
+async function getVisibleAside(page: Page): Promise<Locator | null> {
+  const asides = page.locator('aside');
+  const count = await asides.count().catch(() => 0);
+  for (let i = 0; i < count; i++) {
+    const aside = asides.nth(i);
+    if (await aside.isVisible({ timeout: 250 }).catch(() => false)) return aside;
+  }
+  return null;
+}
+
+async function getNavigationRoot(page: Page): Promise<Locator> {
+  const visibleAside = await getVisibleAside(page);
+  if (visibleAside) return visibleAside;
+
+  // Em viewport mobile a sidebar desktop existe no DOM, mas fica hidden (md:flex).
+  // Abre o menu hambúrguer para interagir com a navegação real/visível.
+  const mobileMenuButton = page.locator('header button').first();
+  if (await mobileMenuButton.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await mobileMenuButton.click();
+    const mobileAside = await getVisibleAside(page);
+    if (mobileAside) return mobileAside;
+  }
+
+  // Fallback: mantém o erro original apontando para a sidebar se a navegação não carregar.
+  return page.locator('aside').first();
+}
+
+/** Aguarda o app carregar. Por padrão exige sidebar visível; em mobile pode aguardar main/header. */
+export async function waitForApp(page: Page, opts: { requireSidebar?: boolean } = {}): Promise<void> {
+  const { requireSidebar = true } = opts;
   await page.goto('/');
-  await page.locator('aside').waitFor({ timeout: 20_000 });
+  if (requireSidebar) {
+    await page.locator('aside').waitFor({ timeout: 20_000 });
+  } else {
+    await page.getByTestId('app-main-scroll').waitFor({ state: 'visible', timeout: 20_000 });
+  }
   // Aguarda spinner de autenticação desaparecer antes de interagir
   await page.locator('.animate-spin').waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => {});
 }
@@ -146,7 +178,8 @@ export async function waitForApp(page: Page): Promise<void> {
  * @param viewName Texto do botão (ex: 'Dashboard', 'Contratos', 'Usuários')
  */
 export async function navigateToView(page: Page, viewName: string): Promise<void> {
-  const btn = page.locator('aside').getByRole('button', { name: new RegExp(viewName, 'i') }).first();
+  const navRoot = await getNavigationRoot(page);
+  const btn = navRoot.getByRole('button', { name: new RegExp(viewName, 'i') }).first();
   await btn.waitFor({ state: 'visible', timeout: 8_000 });
   await btn.click();
   // Aguarda conteúdo principal renderizar (main ou section dentro do layout)
@@ -337,7 +370,8 @@ export async function navigateToCadernetaBullet(page: Page, opts: { skipInitialW
     await waitForApp(page);
   }
 
-  const dashboardBtn = page.locator('aside').getByRole('button', { name: /Dashboard/i }).first();
+  const navRoot = await getNavigationRoot(page);
+  const dashboardBtn = navRoot.getByRole('button', { name: /Dashboard/i }).first();
   await dashboardBtn.waitFor({ timeout: 8_000 });
   await dashboardBtn.click();
   await page.waitForTimeout(800);

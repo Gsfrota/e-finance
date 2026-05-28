@@ -36,9 +36,10 @@ test.describe('Comprovante de Pagamento', () => {
         return;
       }
 
-      // Abre e paga a parcela #4 (pendente +30d)
-      const inst4 = testData.installments[3];
-      const opened = await openPaymentModal(page, inst4.id);
+      // Abre e paga a parcela corrente (#3). Usar a #4 (+30d) torna o teste
+      // dependente de regras de pré-pagamento e pode impedir o comprovante.
+      const currentInst = testData.installments[2];
+      const opened = await openPaymentModal(page, currentInst.id);
       if (!opened) return;
       await waitForPaymentModal(page);
 
