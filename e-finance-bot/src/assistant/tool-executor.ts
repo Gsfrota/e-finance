@@ -11,6 +11,7 @@ import {
   searchUser,
 } from '../actions/admin-actions';
 import { getBotTenantConfig, upsertBotTenantConfig } from '../actions/bot-config-actions';
+import { buildSubscriptionPixBlock, getSubscriptionTenant } from '../actions/billing-actions';
 import { buildBriefingMessage } from '../scheduler/morning-briefing';
 import { getCapabilityDefinition } from './capability-registry';
 import { createPendingConfirmation } from './confirmation-store';
@@ -854,6 +855,28 @@ export async function executeActionPlan(
     return {
       status: 'ok',
       safeUserMessage: `📬 *Exemplo de como o lembrete vai chegar${horario}:*\n\n${preview}`,
+      audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+      workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [] }),
+    };
+  }
+
+  if (plan.capability === 'show_subscription_payment') {
+    const tenant = await getSubscriptionTenant(context.tenantId);
+    const block = tenant ? buildSubscriptionPixBlock(tenant.plan, tenant.subscription_due_day) : null;
+
+    if (!block) {
+      return {
+        status: 'ok',
+        safeUserMessage:
+          'Não encontrei os dados da sua mensalidade por aqui. Confira no painel web em Configurações → Plano, ou fale com o suporte. 🙂',
+        audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+        workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [] }),
+      };
+    }
+
+    return {
+      status: 'ok',
+      safeUserMessage: block.message,
       audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
       workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [] }),
     };

@@ -147,6 +147,8 @@ export function createActionPlan(
       return makePlan('execute', 'view_my_portfolio', understanding, {}, [], { evidence });
     case 'ver_exemplo_lembrete':
       return makePlan('execute', 'preview_lembrete', understanding, {}, [], { evidence });
+    case 'ver_mensalidade':
+      return makePlan('execute', 'show_subscription_payment', understanding, {}, [], { evidence });
     case 'configurar_briefing': {
       const briefingTime = (entities as any).briefing_time as string | undefined;
       const briefingEnabled = (entities as any).briefing_enabled as boolean | undefined;

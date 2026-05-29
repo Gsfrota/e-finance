@@ -9,6 +9,8 @@ import {
 import { runMorningBriefingForTenant, isTimeWindowMatch } from './morning-briefing';
 import { runPaymentFollowupForTenant, isWithinEodAlertWindow } from './payment-followup';
 import { runFeaturePromotions } from './feature-promotions';
+import { runSubscriptionReminders } from './subscription-reminder';
+import { runAnnouncements } from './announcements';
 
 export const router = Router();
 
@@ -130,5 +132,35 @@ router.post('/feature-promotions', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[feature-promotions-router] erro:', err);
     return res.status(500).json({ error: 'Erro interno ao promover features' });
+  }
+});
+
+router.post('/subscription-reminder', async (req: Request, res: Response) => {
+  const secret = req.headers['x-scheduler-secret'];
+  if (!config.scheduler.secret || secret !== config.scheduler.secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const result = await runSubscriptionReminders();
+    return res.json(result);
+  } catch (err) {
+    console.error('[subscription-reminder-router] erro:', err);
+    return res.status(500).json({ error: 'Erro interno ao disparar lembrete de mensalidade' });
+  }
+});
+
+router.post('/announcements', async (req: Request, res: Response) => {
+  const secret = req.headers['x-scheduler-secret'];
+  if (!config.scheduler.secret || secret !== config.scheduler.secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const result = await runAnnouncements();
+    return res.json(result);
+  } catch (err) {
+    console.error('[announcements-router] erro:', err);
+    return res.status(500).json({ error: 'Erro interno ao disparar anúncios' });
   }
 });

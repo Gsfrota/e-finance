@@ -117,6 +117,24 @@ export const config = {
     followupEnabledDefault: process.env.FOLLOWUP_ENABLED_DEFAULT !== 'false',
   },
 
+  // Mensalidade da plataforma (assinatura SaaS) — PIX da conta do Juros Certo.
+  // Usado tanto pelo lembrete proativo quanto pela consulta on-demand do admin.
+  billing: {
+    pixKey: (process.env.PLATFORM_PIX_KEY || '').trim(),
+    pixKeyType: (process.env.PLATFORM_PIX_KEY_TYPE || 'CNPJ').trim(),
+    pixName: (process.env.PLATFORM_PIX_NAME || '').trim(),
+    pixCity: (process.env.PLATFORM_PIX_CITY || '').trim(),
+    // Valor da mensalidade por plano (em BRL). 0 = não configurado.
+    amountByPlan: {
+      caderneta: parseFloat(process.env.SUBSCRIPTION_AMOUNT_CADERNETA || '0'),
+      empresarial: parseFloat(process.env.SUBSCRIPTION_AMOUNT_EMPRESARIAL || '0'),
+    } as Record<string, number>,
+    // Quantos dias ANTES do vencimento (subscription_due_day) disparar o lembrete.
+    reminderLeadDays: parseInt(process.env.SUBSCRIPTION_REMINDER_LEAD_DAYS || '3', 10),
+    // Quantos dias DEPOIS do vencimento ainda lembrar (cobrança em atraso).
+    reminderGraceDays: parseInt(process.env.SUBSCRIPTION_REMINDER_GRACE_DAYS || '7', 10),
+  },
+
   // Limites de tamanho de mídia inbound
   media: {
     maxAudioBytes: parseInt(process.env.MAX_AUDIO_BYTES || String(10 * 1024 * 1024), 10),

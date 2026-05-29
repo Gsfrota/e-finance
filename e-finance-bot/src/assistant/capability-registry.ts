@@ -104,6 +104,10 @@ const REGISTRY: Record<ActionCapability, CapabilityDefinition<any, any>> = {
     name: 'preview_lembrete', kind: 'query', rolesAllowed: ['admin'], requiredArgs: [], optionalArgs: [], requiresConfirmation: false,
     idempotencyScope: 'session', inputSchema: emptySchema, replyMode: 'raw',
   },
+  show_subscription_payment: {
+    name: 'show_subscription_payment', kind: 'query', rolesAllowed: ['admin'], requiredArgs: [], optionalArgs: [], requiresConfirmation: false,
+    idempotencyScope: 'session', legacyIntent: 'ver_mensalidade', inputSchema: emptySchema, replyMode: 'raw',
+  },
 };
 
 export function getCapabilityDefinition(capability: ActionCapability): CapabilityDefinition<any, any> {

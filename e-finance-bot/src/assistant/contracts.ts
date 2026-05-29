@@ -29,7 +29,8 @@ export type ActionCapability =
   | 'view_my_portfolio'
   | 'configure_briefing'
   | 'set_eod_alert_hour'
-  | 'preview_lembrete';
+  | 'preview_lembrete'
+  | 'show_subscription_payment';
 
 export type OperationalIntent = Intent | 'smalltalk_identity' | 'smalltalk_datetime';
 export type TimeWindowMode = 'relative_days' | 'relative_months' | 'calendar_month';

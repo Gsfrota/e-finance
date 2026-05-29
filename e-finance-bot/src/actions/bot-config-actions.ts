@@ -23,6 +23,8 @@ export interface BotTenantConfig {
   eod_alert_time: string;                    // 'HH:MM' BRT
   last_eod_alert_sent_at: string | null;
   eod_alert_promoted_at: string | null;      // NULL = feature nunca promovida
+  // Lembrete de mensalidade SaaS — ciclo 'YYYY-MM' já notificado (dedup mensal)
+  last_subscription_reminder_cycle: string | null;
 }
 
 export const EOD_ALERT_DEFAULT_TIME = '17:00';
@@ -153,6 +155,23 @@ export async function markFeaturePromoted(
 
   if (error) {
     console.error('[markFeaturePromoted] erro:', error.message);
+  }
+}
+
+/**
+ * Carimba o ciclo de mensalidade já notificado (dedup mensal).
+ * Upsert porque nem todo tenant possui linha em bot_tenant_config.
+ */
+export async function updateSubscriptionReminderCycle(tenantId: string, cycle: string): Promise<void> {
+  const { error } = await db()
+    .from('bot_tenant_config')
+    .upsert(
+      { tenant_id: tenantId, last_subscription_reminder_cycle: cycle, updated_at: new Date().toISOString() },
+      { onConflict: 'tenant_id' }
+    );
+
+  if (error) {
+    console.error('[updateSubscriptionReminderCycle] erro:', error.message);
   }
 }
 
