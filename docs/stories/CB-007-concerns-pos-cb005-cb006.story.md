@@ -1,7 +1,7 @@
 # CB-007 — [FIX] Concerns pós-QA: interest_payments_total no settlement + guard investment undefined
 
 **Agente:** @dev (impl) / @data-engineer (RPC) / @qa (gate) / @devops (push)
-**Status:** InReview
+**Status:** Done
 **Criada em:** 2026-05-29
 **Origem:** QA gate CB-005/CB-006 — 2 concerns MEDIUM não-bloqueantes registrados
 **Epic:** Caderneta Bullet (CB)
