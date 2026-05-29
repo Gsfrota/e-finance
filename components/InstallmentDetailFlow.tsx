@@ -747,8 +747,21 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     const val = parseFloat(amount);
     if (isNaN(val) || val <= 0) { setError('O valor deve ser maior que zero.'); return; }
     setError(null);
-    // CB-005: contratos bullet roteiam para pay_bullet_interest_only
-    if (installment.investment?.calculation_mode === 'interest_only') {
+    // CB-005/CB-007: contratos bullet roteiam para pay_bullet_interest_only.
+    // CB-007: se investment não veio no join, busca calculation_mode como fallback.
+    let calcMode = installment.investment?.calculation_mode;
+    if (!calcMode && installment.investment_id) {
+      const supabase = getSupabase();
+      if (supabase) {
+        const { data: invData } = await supabase
+          .from('investments')
+          .select('calculation_mode')
+          .eq('id', installment.investment_id)
+          .single();
+        calcMode = invData?.calculation_mode ?? undefined;
+      }
+    }
+    if (calcMode === 'interest_only') {
       if (!(await checkStaleAndRefresh())) return;
       await submitBulletPayment(val);
       return;
