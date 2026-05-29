@@ -56,13 +56,13 @@ Categorias:
 - **Tabelas:** `investments`, `loan_installments`
 - **Status:** ativa
 
-### BR-CNT-004: Modalidade bullet — estrutura de parcelas e saldo devedor
-- **Descrição:** Na modalidade bullet (interest_only), todas as parcelas periódicas refletem o saldo devedor atual: `amount_principal = remaining_balance` (valor de referência/display) e `amount_total = remaining_balance + (remaining_balance * interest_rate / 100)`. O pagamento de juros via `pay_bullet_interest_only` marca a parcela como `paid` sem reduzir `remaining_balance`. A redução do principal ocorre exclusivamente via `pay_avulso` com `p_destination = 'principal_reduction'` (BR-PAG-022). Quando `remaining_balance = 0`, o contrato é marcado como `completed`
-- **Condição:** `investments.calculation_mode = 'interest_only'`
-- **Resultado:** `loan_installments.amount_principal = investments.remaining_balance` (display); `amount_total = remaining_balance + juros_do_periodo`. `pay_bullet_interest_only` não altera `remaining_balance`. `generate_next_bullet_installment` usa o `remaining_balance` vigente no momento da geração
-- **Exceções:** Se `pay_avulso` zerar o `remaining_balance`, a parcela `pending` existente é marcada como `paid` e o contrato como `completed` sem gerar nova parcela
-- **Tabelas:** `investments`, `loan_installments`
-- **Status:** ativa — *atualizada em 2026-04-09 (v40, incidente #789 MD Veículos)*
+### BR-CNT-004: Modalidade bullet — estrutura de parcelas, quitação e renovação
+- **Descrição:** Na modalidade bullet (`interest_only`), a cobrança do ciclo representa o **total exigível**: principal/saldo-base aberto + juros do ciclo + encargos vencidos aplicáveis. O pagamento total do ciclo deve quitar a dívida exigível, zerar `remaining_balance`, marcar o contrato como `completed` e não gerar nova parcela automaticamente. Renovação é ação separada/opcional e deve criar nova operação/vínculo explícito, nunca reaproveitar o contrato quitado como se ainda estivesse ativo.
+- **Condição:** `investments.calculation_mode = 'interest_only'`.
+- **Resultado:** `loan_installments.amount_principal` reflete a base exigível/de display; `amount_interest` reflete juros do ciclo; `amount_total` reflete o total exigível do ciclo. Pagamento apenas dos juros regulariza o ciclo de juros e rola o principal. Pagamento parcial é permitido e deve seguir ordem de imputação explícita: encargos/taxa de quebra vencida → juros → principal. Se não houver pagamento até o próximo ciclo e o contrato permitir capitalização, a base do próximo ciclo passa a ser o total vencido.
+- **Exceções:** Taxa/multa de quebra contratual é opcional, definida no cadastro Bullet, e só pode incidir após inadimplência (`daysLate >= default_after_days`). `default_after_days` é configurável por contrato com padrão 20 dias. Persistência desses campos depende de migration futura validada via Claude/MCP.
+- **Tabelas:** `investments`, `loan_installments`, `payment_transactions`.
+- **Status:** ativa como regra de produto — *atualizada em 2026-05-29 pela CB-002; implementação/RPC/migration ainda bloqueadas por aceite e revisão*
 
 ### BR-CNT-005: Capital de origem deve ser classificado
 - **Descrição:** Todo contrato deve ter origem do capital identificada
@@ -84,7 +84,7 @@ Categorias:
 - **Descrição:** Ao renovar um contrato, o novo contrato deve ter `parent_investment_id` apontando para o original. O contrato original deve ter seu `status` alterado para `renewed`
 - **Condição:** Ao executar `ContractRenewalModal` / lógica de renovação
 - **Resultado:** `child.parent_investment_id = parent.id`, `parent.status = 'renewed'`. Novos contratos herdam investidor e devedor; taxas e prazo podem ser alterados
-- **Exceções:** Contrato em status `defaulted` não pode ser renovado sem reverter o status primeiro (decisão administrativa)
+- **Exceções:** Contrato em status `defaulted` não pode ser renovado sem reverter o status primeiro (decisão administrativa). Em contratos Bullet quitados pelo pagamento total do ciclo, o contrato original deve permanecer `completed`; eventual renovação posterior é uma nova operação explícita/vinculada e não reativa nem reaproveita o contrato quitado.
 - **Tabelas:** `investments`
 - **Status:** ativa
 
@@ -163,7 +163,7 @@ Categorias:
 - **Descrição:** Se `amount_paid < amount_total`, o status da parcela é `partial`, não `paid`
 - **Condição:** Ao executar `pay_installment` com valor menor que o devido
 - **Resultado:** `status = 'partial'`, `remainder_amount = amount_total - amount_paid`
-- **Exceções:** Nenhuma
+- **Exceções:** No fluxo Bullet (`interest_only`), pagamento exatamente dos juros pode regularizar o ciclo/rolar o principal mesmo com `amount_paid < amount_total`; nesse caso, o status operacional `paid` só é permitido com evento/metadata de rolagem auditável, deixando claro que principal não foi quitado.
 - **Tabelas:** `loan_installments`
 - **Status:** ativa
 
@@ -242,13 +242,13 @@ Categorias:
 - **Tabelas:** `avulso_payments`, `payment_transactions`, `investments`
 - **Status:** ativa — *atualizada em 2026-04-09 (v40: p_destination implementado; BR-PAG-023 complementa vínculo contrato)*
 
-### BR-PAG-015: Bullet interest_only — capitalização de juros e saldo residual
-- **Descrição:** Na modalidade bullet, `pay_bullet_interest_only` aplica juros apenas do período corrente. Se o pagamento for menor que os juros devidos, a diferença deve ser registrada como `capitalized_interest` e somada ao `remaining_balance` do contrato (juros capitalizados)
-- **Condição:** `investments.calculation_mode = 'interest_only'` + `pay_bullet_interest_only`
-- **Resultado:** `interest_paid = min(amount_paid, interest_due)`. Se `amount_paid < interest_due`, `investments.remaining_balance += (interest_due - amount_paid)`. Gerar próxima parcela de juros via `generate_next_bullet_installment`
-- **Exceções:** Se `capitalize_interest = false` no tenant, rejeitar pagamentos parciais de juros
-- **Tabelas:** `loan_installments`, `investments`
-- **Status:** ativa
+### BR-PAG-015: Bullet interest_only — rolagem, parcial e capitalização do total vencido
+- **Descrição:** No Bullet, o operador pode registrar: (a) pagamento total do ciclo, encerrando o contrato; (b) pagamento apenas dos juros, rolando o principal; (c) pagamento parcial, abatendo conforme ordem de imputação; ou (d) ausência de pagamento até novo ciclo, com capitalização do total vencido se contratualmente permitida. `pay_bullet_interest_only` cobre apenas o caso legado de juros/rolagem e não deve ser tratado como fluxo único definitivo.
+- **Condição:** `investments.calculation_mode = 'interest_only'` e ação financeira Bullet explícita.
+- **Resultado:** Pagamento total: `remaining_balance = 0`, parcela `paid`, contrato `completed`, sem nova parcela automática. Pagamento só de juros: juros quitados, principal mantido, nova parcela baseada no principal vigente. Parcial: imputar primeiro encargos vencidos/taxa de quebra, depois juros, depois principal; manter saldo aberto auditável. Não pagamento: após `default_after_days` (default 20), o ciclo fica inadimplente/default operacional; se `capitalize_interest = true` e houver base contratual, o próximo ciclo usa o total vencido como base.
+- **Exceções:** Se `capitalize_interest = false` ou não houver cláusula/aceite, não capitalizar juros/total vencido automaticamente. Taxa/multa de quebra só pode ser aplicada após inadimplência e se configurada no contrato.
+- **Tabelas:** `loan_installments`, `investments`, `payment_transactions`.
+- **Status:** ativa como regra de produto — *atualizada em 2026-05-29 pela CB-002; implementação transacional/RPC única pendente*
 
 ### BR-PAG-016: Pagamento self-service do devedor via PIX — regras de execução
 - **Descrição:** O devedor pode gerar QR Code PIX apenas para o valor exato da parcela (sem parcial, sem excedente). A confirmação do pagamento deve vir via webhook do provedor PIX, não por asserção do devedor

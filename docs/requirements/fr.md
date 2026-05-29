@@ -112,20 +112,23 @@ Módulos:
 - **Prioridade:** P0
 - **Status:** implementado (sem campo destino formal de BR-PAG-014)
 
-### FR-PAG-06: Pagamento bullet (interest_only)
+### FR-PAG-06: Pagamento/regularização Bullet (`interest_only`)
 - **Ator:** Admin
-- **Pré-condições:** Contrato com `calculation_mode = 'interest_only'`, parcela pendente de juros
-- **Fluxo principal:**
-  1. Admin seleciona parcela de juros e clica "Pagar juros"
-  2. Sistema exibe valor dos juros do período
-  3. Admin informa valor e data
-  4. Sistema executa `pay_bullet_interest_only`
-  5. Se valor = juros: parcela quitada, gera próxima parcela
-  6. Se valor < juros: diferença capitalizada no saldo (BR-PAG-015)
-- **Exceções:** Pagamento parcial com `capitalize_interest = false` → rejeitar
-- **BRs:** BR-CNT-004, BR-PAG-015, BR-PAG-009
+- **Pré-condições:** Contrato com `calculation_mode = 'interest_only'`, cobrança/parcela Bullet com saldo aberto e regra contratual de capitalização/renovação definida
+- **Fluxo principal futuro:**
+  1. Admin seleciona cobrança Bullet e vê total exigível do ciclo (`principal/saldo-base + juros + encargos vencidos`).
+  2. Admin informa valor pago, data, método e ação pretendida: quitar contrato, pagar juros/rolar principal, pagamento parcial, capitalizar ausência/default ou renovar após quitação.
+  3. Sistema executa RPC única/transacional a ser desenhada/revisada (`process_bullet_cycle_payment` ou refatoração segura de `process_bullet_payment`).
+  4. Se valor = total exigível: parcela/ciclo quitado, `remaining_balance = 0`, contrato `completed`, sem nova parcela automática.
+  5. Se valor = juros do ciclo: juros quitados, principal mantido, evento de rolagem auditado e nova cobrança gerada conforme regra.
+  6. Se 0 < valor < total exigível: pagamento parcial aceito e imputado em ordem explícita (encargos/taxa de quebra vencida → juros → principal), mantendo saldo auditável.
+  7. Se não houver pagamento até `default_after_days` (default 20): cobrança fica inadimplente/default operacional; se contrato permitir capitalização, próximo ciclo usa total vencido como base.
+  8. Se houver taxa/multa de quebra configurada no cadastro, ela só pode incidir após inadimplência.
+  9. RPC registra `payment_transactions`/auditoria dentro da mesma transação; falha de auditoria deve bloquear a baixa.
+- **Exceções:** Sem cláusula/aceite ou `capitalize_interest = false`, não capitalizar juros/total vencido automaticamente. Renovação é opcional e deve criar nova operação/vínculo explícito; não reativar contrato quitado.
+- **BRs:** BR-CNT-004, BR-PAG-009, BR-PAG-015, BR-PAG-019, BR-PAG-022, BR-PAG-023
 - **Prioridade:** P0
-- **Status:** implementado (capitalização de BR-PAG-015 pendente)
+- **Status:** especificado/pendente de implementação — CB-002; fluxo legado `pay_bullet_interest_only` cobre apenas pagamento de juros/rolagem e não atende quitação total/parcial/default
 
 ### FR-PAG-07: Postergamento de parcela (missed)
 - **Ator:** Admin
