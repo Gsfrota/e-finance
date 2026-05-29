@@ -162,6 +162,7 @@ Criados nesta etapa:
 - **2026-05-28 — G1 (config pronta; gatilho de cobrança em aberto):** `break_fee_percent` persistido (coluna + form). **Achado BR Gate:** o app NÃO possui ação de "quebrar/encerrar contrato antecipadamente". O único encerramento existente é o de pagamento que excede a dívida (`InstallmentModals.tsx` step `overpayment`), que não é uma quebra. Cobrar a taxa exige definir/criar o gatilho (decisão de produto — não inventar). Ver §9 pendência.
 - **2026-05-28 — G1 decisão PO:** cobrança DEFERIDA para story futura; CB-003 entrega apenas a config (`break_fee_percent` persistível).
 - **2026-05-28 — `QuickContractInput.tsx`:** N/A — valida que ele só cria contratos `manual` (`p_calculation_mode: 'manual'`), nunca bullet. Nenhuma mudança necessária.
+- **2026-05-29 — DEPLOY EM PROD (atômico + auditado):** `update` solto **removido**; persistência via params do RPC `create_investment_validated` (25 args) com auditoria transacional (CB-004). Migration `cb003_cb004_create_investment_validated_audited` aplicada via guardião com grants restaurados (PUBLIC/anon/authenticated/service_role). Frontend commitado (`0b7fe2a`/`b9a0d96`) e deployado (gh actions run `26616655035` = success). **Verificado em prod (BEGIN/ROLLBACK):** ciclo criar→pagar juros→rolagem OK; campos `5.0/20/8.0` persistidos; retrocompat com chamada de 22 args OK; 2 audit_events por criação; zero dado de teste vazado.
 
 ---
 
