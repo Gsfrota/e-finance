@@ -156,7 +156,7 @@ Para evitar confusão, `interest_only`: "Receber" pode exibir "Quitar Contrato" 
 - [x] `transaction_type = 'bullet_settlement'` gravado dentro do RPC
 - [x] "Só o Juros" não-regressão validado (BEGIN/ROLLBACK)
 - [x] Build sem erros TypeScript
-- [ ] @qa gate PASS
+- [x] @qa gate PASS (CONCERNS — ver QA Results)
 
 ---
 

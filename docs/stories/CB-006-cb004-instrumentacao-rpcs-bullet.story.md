@@ -186,7 +186,7 @@ O RPC precisa receber o user_id para gravar em `audit_events.actor_user_id`. Se 
 - [x] Zero duplicação de linhas de auditoria por operação (logPaymentTransaction removido de handleInterest)
 - [x] Build sem erros TypeScript
 - [x] `npm run build` passa
-- [ ] @qa gate PASS
+- [x] @qa gate PASS (CONCERNS — ver QA Results)
 
 ---
 
