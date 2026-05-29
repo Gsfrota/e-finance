@@ -964,7 +964,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 }`}
                             >
                                 <Banknote size={20} />
-                                <span className="type-label">Parcelado</span>
+                                <span className="type-label" style={{ color: 'inherit' }}>Parcelado</span>
                                 <span className="text-[10px] opacity-70 font-medium">Parcelas fixas com juros</span>
                             </button>
                             <button
@@ -978,7 +978,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 }`}
                             >
                                 <Activity size={20} />
-                                <span className="type-label">Juros Simples</span>
+                                <span className="type-label" style={{ color: 'inherit' }}>Juros Simples</span>
                                 <span className="text-[10px] opacity-70 font-medium">Paga só os juros por período</span>
                             </button>
                         </div>
@@ -1152,7 +1152,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     }`}
                                 >
                                     <opt.icon size={18} />
-                                    <span className="type-micro">{opt.label}</span>
+                                    <span className="type-micro" style={{ color: 'inherit' }}>{opt.label}</span>
                                 </button>
                             ))}
                         </div>
@@ -1240,7 +1240,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 <div className={`w-9 h-5 rounded-full relative transition-all flex-shrink-0 ${formData.skip_saturday ? 'bg-[color:var(--accent-positive)]' : 'bg-[color:var(--bg-elevated)]'}`}>
                                     <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${formData.skip_saturday ? 'left-4' : 'left-0.5'}`} />
                                 </div>
-                                <span className="type-label">Pular Sábado</span>
+                                <span className="type-label" style={{ color: 'inherit' }}>Pular Sábado</span>
                             </button>
                             <button
                                 onClick={() => updateFormState({ skip_sunday: !formData.skip_sunday })}
@@ -1253,7 +1253,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 <div className={`w-9 h-5 rounded-full relative transition-all flex-shrink-0 ${formData.skip_sunday ? 'bg-[color:var(--accent-positive)]' : 'bg-[color:var(--bg-elevated)]'}`}>
                                     <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${formData.skip_sunday ? 'left-4' : 'left-0.5'}`} />
                                 </div>
-                                <span className="type-label">Pular Domingo</span>
+                                <span className="type-label" style={{ color: 'inherit' }}>Pular Domingo</span>
                             </button>
                         </div>
                     )}
