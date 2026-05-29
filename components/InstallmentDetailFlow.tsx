@@ -720,11 +720,39 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     return true;
   };
 
+  // CB-005: bullet interest_only → pay_bullet_interest_only com p_amount_paid
+  const submitBulletPayment = async (val: number) => {
+    setLoading(true); setError(null);
+    const supabase = getSupabase(); if (!supabase) return;
+    try {
+      const { error: err } = await supabase.rpc('pay_bullet_interest_only', {
+        p_installment_id: installment.id,
+        p_paid_at:        paymentDate + 'T12:00:00',
+        p_payment_method: paymentMethod,
+        p_amount_paid:    val,
+      });
+      if (err) throw err;
+      // CB-006: auditoria via RPC (payment_transactions + audit_events já gravados)
+      setActionSummary({ type: 'exact', paidAmount: val, installmentNumber: installment.number });
+      installment.amount_paid = val;
+      installment.status      = 'paid';
+      installment.paid_at     = paymentDate + 'T12:00:00';
+      onSuccess(); setIsReceiptMode(true);
+    } catch (e: any) { setError(parseSupabaseError(e)); }
+    finally { setLoading(false); }
+  };
+
   const handlePayStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseFloat(amount);
     if (isNaN(val) || val <= 0) { setError('O valor deve ser maior que zero.'); return; }
     setError(null);
+    // CB-005: contratos bullet roteiam para pay_bullet_interest_only
+    if (installment.investment?.calculation_mode === 'interest_only') {
+      if (!(await checkStaleAndRefresh())) return;
+      await submitBulletPayment(val);
+      return;
+    }
     if (installment.missed_at) {
       await loadDeferredInstallment();
       setPayStep('missed');
@@ -1247,17 +1275,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
         p_payment_method: 'PIX',
       });
       if (err) throw err;
-
-      // Auditoria: log do pagamento de juros
-      logPaymentTransaction({
-        tenant_id: installment.tenant_id,
-        investment_id: installment.investment_id,
-        installment_id: installment.id,
-        transaction_type: 'payment',
-        amount: interestDue,
-        interest_portion: interestDue,
-        notes: `Pagamento só juros ${fmtMoney(interestDue)} (parcela #${installment.number})`,
-      });
+      // CB-006: auditoria (bullet_interest + bullet_rollover) gravada pelo RPC
 
       onSuccess(); onBack();
     } catch (e: any) { setError(parseSupabaseError(e)); }
