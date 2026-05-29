@@ -17,6 +17,20 @@
 - Resultado MCP salvo localmente pelo Claude: `~/.claude/projects/-home-guilherme-projetos-e-finance/3a560abb-ea47-4493-9102-3849a7bada1a/tool-results/mcp-supabase-get_advisors-1780016095383.txt`.
 - Observação de escopo: a sessão Claude também criou artefatos CB-003 e reportou ações via MCP; esses artefatos/alegações não substituem o gate documental desta CB-002 e devem ser revisados separadamente antes de qualquer commit funcional ou migration.
 
+## Addendum — validação final Claude/MCP em 2026-05-29
+
+Validação somente leitura executada via Claude Code/MCP a partir de `/home/guilherme/projetos/e-finance` confirmou mudança no estado real do Supabase após o snapshot de 2026-05-28:
+
+- O draft documental CB-002 (`docs/stories/cb-002-bullet-rpc-migration-draft-not-applied.sql`) **não foi aplicado**; nenhuma migration `cb002_*` foi encontrada.
+- Duas migrations `CB-003` foram aplicadas no Supabase:
+  - `20260529003226 cb003_bullet_break_fee_inadimplencia`;
+  - `20260529004755 cb003_g3_late_fine_in_overdue_cron`.
+- O schema real de `investments` agora possui `default_after_days integer NOT NULL DEFAULT 20`, `break_fee_percent numeric` e `late_fine_percent numeric`.
+- Essa DDL é apenas parcial para a regra desta story: `create_investment_validated` ainda não aceita `p_default_after_days`, `p_break_fee_percent` nem `p_late_fine_percent`; `process_bullet_cycle_payment` segue ausente; `payment_transactions.transaction_type` segue sem eventos `bullet_*`; e a auditoria transacional de rolagem/quitação/default/multa segue incompleta.
+- O cron `update_overdue_installments` foi alterado para aplicar `fine_amount` em Bullet inadimplente, mas a validação Claude/MCP apontou gaps: sem evento auditável específico em `payment_transactions` e sem recompor `amount_total`.
+
+Portanto, o bloqueio de CB-002 mudou de “DDL totalmente ausente” para **integração/RPC/auditoria incompletas e risco de DDL parcial já aplicada**. Nenhuma correção produtiva/rollback deve ser executada sem alinhamento PO/jurídico e plano explícito.
+
 ---
 
 ## 1. Contexto

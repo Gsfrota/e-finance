@@ -1,6 +1,12 @@
 -- CB-002 — DRAFT seguro de migration/RPC Bullet (NÃO APLICADO)
 -- Data: 2026-05-29
 -- Status: rascunho documental; não colocar em supabase/migrations sem revisão Claude/MCP + PO/jurídico.
+-- ATENÇÃO pós-validação 2026-05-29: este draft é pré-CB-003 e NÃO deve ser aplicado como está.
+-- Claude/MCP confirmou que CB-003 já adicionou em public.investments:
+--   default_after_days integer NOT NULL DEFAULT 20,
+--   break_fee_percent numeric,
+--   late_fine_percent numeric.
+-- O próximo trabalho seguro deve revisar integração/RPC/auditoria e não repetir DDL já aplicada sem diff/rollback.
 -- Guardião Supabase: Claude Code/MCP. Hermes não executou Supabase para produzir este arquivo.
 -- Evidências base: docs/stories/CB-002-bullet-flow-regularization.story.md
 --                 docs/stories/cb-002-claude-mcp-validation-2026-05-28.md

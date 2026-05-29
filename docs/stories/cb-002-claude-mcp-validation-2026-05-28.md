@@ -1,5 +1,7 @@
 # Relatório de Validação — Schema Real e Dados Legados Bullet (CB-002)
 
+> **Addendum 2026-05-29:** este relatório é um snapshot histórico pré-CB-003. Nova validação somente leitura via Claude Code/MCP confirmou que o draft CB-002 não foi aplicado, porém duas migrations CB-003 foram aplicadas no Supabase: `20260529003226 cb003_bullet_break_fee_inadimplencia` e `20260529004755 cb003_g3_late_fine_in_overdue_cron`. Com isso, `investments.default_after_days`, `investments.break_fee_percent` e `investments.late_fine_percent` agora existem no schema real. As conclusões críticas permanecem: `create_investment_validated` não aceita esses parâmetros, `process_bullet_cycle_payment` não existe, `payment_transactions.transaction_type` não aceita eventos `bullet_*`, e a auditoria transacional Bullet/default/multa segue incompleta.
+
 ## 1. Conexão MCP/Projeto
 
 | Item | Valor |
