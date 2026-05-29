@@ -155,6 +155,9 @@ export interface Investment {
   bullet_principal_mode?: 'together' | 'separate' | null;
   remaining_balance?: number | null;   // Saldo devedor atual (bullet rotativo)
   capitalize_interest?: boolean;       // TRUE = juros não pago capitaliza no saldo
+  break_fee_percent?: number | null;   // CB-003 G1: taxa de quebra (% do saldo devedor)
+  default_after_days?: number;         // CB-003 G2: dias de atraso até inadimplência (padrão 20)
+  late_fine_percent?: number | null;   // CB-003 G3: multa de inadimplência (% do saldo devedor)
 
   // Rastreamento de Origem de Capital (Wealth Management)
   source_capital?: number; // Aporte do Bolso

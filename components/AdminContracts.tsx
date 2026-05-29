@@ -21,6 +21,12 @@ import {
     calculateInstallmentDates, calculateFinancials, buildFreelancerDates
 } from '../utils/financials';
 
+// CB-003: normaliza input percentual (string) para number|null. Vazio/≤0/inválido → null.
+const parsePercentInput = (v: string): number | null => {
+    const n = Number(String(v ?? '').trim());
+    return String(v ?? '').trim() !== '' && Number.isFinite(n) && n > 0 ? n : null;
+};
+
 // --- SUB-COMPONENTS ---
 
 const UserSelectionCard: React.FC<{
@@ -204,6 +210,9 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
       skip_sunday: false,
       bullet_principal_mode: 'together' as 'together' | 'separate',
       capitalize_interest: true,
+      break_fee_percent: '' as string,   // CB-003 G1: taxa de quebra (% saldo), vazio = sem taxa
+      default_after_days: 20,            // CB-003 G2: dias até inadimplência
+      late_fine_percent: '' as string,   // CB-003 G3: multa inadimplência (% saldo), vazio = sem multa
   });
 
   const [selectedInvestor, setSelectedInvestor] = useState<Profile | null>(null);
@@ -519,15 +528,25 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               p_company_id:    activeCompanyId || null,
               p_bullet_principal_mode: formData.calculation_mode === 'interest_only' ? null : formData.bullet_principal_mode,
               p_capitalize_interest: formData.capitalize_interest,
+              // CB-003: regras de cobrança bullet persistidas atomicamente no próprio RPC (auditado em audit_events)
+              p_break_fee_percent: formData.calculation_mode === 'interest_only' ? parsePercentInput(formData.break_fee_percent) : null,
+              p_default_after_days: formData.default_after_days || 20,
+              p_late_fine_percent: formData.calculation_mode === 'interest_only' ? parsePercentInput(formData.late_fine_percent) : null,
           });
 
           if (rpcError) throw rpcError;
+
           if (currentTenant && currentUserId) {
             logEvent({
               tenant_id: currentTenant.id, user_id: currentUserId,
               event_category: 'contract', event_type: 'contract_created',
               entity_type: 'investment', entity_id: String(rpcData),
-              after: { investor_id: selectedInvestor.id, payer_id: selectedPayer.id, amount_invested: formData.amount_invested, frequency: formData.frequency, calculation_mode: formData.calculation_mode },
+              after: { investor_id: selectedInvestor.id, payer_id: selectedPayer.id, amount_invested: formData.amount_invested, frequency: formData.frequency, calculation_mode: formData.calculation_mode,
+                ...(formData.calculation_mode === 'interest_only' ? {
+                  break_fee_percent: parsePercentInput(formData.break_fee_percent),
+                  default_after_days: formData.default_after_days || 20,
+                  late_fine_percent: parsePercentInput(formData.late_fine_percent),
+                } : {}) },
             });
           }
           setContractsSubView('list');
@@ -1117,6 +1136,54 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                             ) : (
                                 <p className="text-[11px] text-center text-[color:var(--text-muted)]">O contrato se encerra quando o saldo devedor zerar</p>
                             )}
+                        </div>
+                    )}
+
+                    {formData.calculation_mode === 'interest_only' && (
+                        <div className="bg-[color:var(--bg-base)]/50 p-5 rounded-3xl border border-[color:var(--border-subtle)] space-y-4">
+                            <label className="type-label text-[color:var(--text-secondary)] block text-center">Regras de cobrança (opcional)</label>
+                            <div>
+                                <label className="type-micro text-[color:var(--text-muted)] mb-1 block">Prazo de inadimplência (dias)</label>
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    className="w-full bg-[color:var(--bg-base)] rounded-xl px-4 py-3 border border-[color:var(--border-subtle)] text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-caution)] transition-colors"
+                                    value={String(formData.default_after_days)}
+                                    onChange={e => updateFormState({ default_after_days: Math.max(0, parseInt(e.target.value.replace(/\D/g, '')) || 0) })}
+                                    onBlur={() => { if (!formData.default_after_days) updateFormState({ default_after_days: 20 }); }}
+                                    onFocus={e => e.target.select()}
+                                    aria-label="Prazo de inadimplência em dias"
+                                />
+                                <p className="type-micro text-[color:var(--text-muted)] mt-1">Após este atraso o contrato fica inadimplente e a multa é aplicada. Padrão: 20.</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="type-micro text-[color:var(--text-muted)] mb-1 block">Multa inadimplência (% saldo)</label>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        placeholder="—"
+                                        className="w-full bg-[color:var(--bg-base)] rounded-xl px-4 py-3 border border-[color:var(--border-subtle)] text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-caution)] transition-colors"
+                                        value={formData.late_fine_percent}
+                                        onChange={e => updateFormState({ late_fine_percent: e.target.value.replace(/[^\d.,]/g, '').replace(',', '.') })}
+                                        onFocus={e => e.target.select()}
+                                        aria-label="Multa de inadimplência percentual"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="type-micro text-[color:var(--text-muted)] mb-1 block">Taxa de quebra (% saldo)</label>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        placeholder="—"
+                                        className="w-full bg-[color:var(--bg-base)] rounded-xl px-4 py-3 border border-[color:var(--border-subtle)] text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-caution)] transition-colors"
+                                        value={formData.break_fee_percent}
+                                        onChange={e => updateFormState({ break_fee_percent: e.target.value.replace(/[^\d.,]/g, '').replace(',', '.') })}
+                                        onFocus={e => e.target.select()}
+                                        aria-label="Taxa de quebra de contrato percentual"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     )}
 
