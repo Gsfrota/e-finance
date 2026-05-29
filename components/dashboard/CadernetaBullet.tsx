@@ -271,7 +271,8 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
   const isCurrentOrFuture = monthKey >= currentMonthKey;
   const goToNextMonth = () => {
     const next = nextMonth(monthKey);
-    if (next <= currentMonthKey) setMonthKey(next);
+    const oneAhead = nextMonth(currentMonthKey);
+    if (next <= oneAhead) setMonthKey(next);
   };
 
   // Pool deduplicado de parcelas (paid + pending)
@@ -432,7 +433,7 @@ export const CadernetaBulletView: React.FC<CadernetaBulletViewProps> = ({
             </span>
             <button
               onClick={goToNextMonth}
-              disabled={isCurrentOrFuture}
+              disabled={monthKey >= nextMonth(currentMonthKey)}
               className="flex items-center justify-center rounded-lg p-1 transition-colors hover:bg-white/[0.08] cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
               data-testid="caderneta-month-next"
               aria-label="Próximo mês"

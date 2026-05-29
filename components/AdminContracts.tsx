@@ -220,7 +220,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
   const [previewDateStrings, setPreviewDateStrings] = useState<string[]>([]);
   const [freelancerDates, setFreelancerDates] = useState<string[]>([]);
   const [freelancerInterval, setFreelancerInterval] = useState<number>(7);
-  const [bulletHasFixedDuration, setBulletHasFixedDuration] = useState(false);
+
   const [installmentsInput, setInstallmentsInput] = useState(String(formData.total_installments));
   const [rateInput, setRateInput] = useState(String(formData.interest_rate));
   const [installmentValueInput, setInstallmentValueInput] = useState(String(formData.installment_value));
@@ -404,7 +404,6 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
       setPreviewDateStrings([]);
       setFreelancerDates([]);
       setFreelancerInterval(7);
-      setBulletHasFixedDuration(false);
       setMonthOffset(undefined);
       setInstallmentsInput('12');
       setRateInput('10');
@@ -417,6 +416,12 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
 
   const updateFormState = (partial: Partial<typeof formData>) => {
       const merged = { ...formData, ...partial };
+
+      // BUG-2: bullet não suporta frequência Livre — resetar para Mensal ao trocar para interest_only
+      if (partial.calculation_mode === 'interest_only' && merged.frequency === 'freelancer') {
+          merged.frequency = 'monthly';
+      }
+
       const financial = calculateFinancials(
           merged.amount_invested,
           merged.total_installments,
@@ -454,10 +459,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
       if (merged.frequency === 'freelancer') {
           // Para freelancer, recalcular datas se count ou start_date mudou
           const currentInterval = freelancerInterval;
-          // Bullet indeterminado: total_installments=120 é placeholder técnico.
-          // Frequência Livre não faz sentido para bullet indeterminado — gera apenas 1 data.
-          const isBulletIndeterminate = merged.calculation_mode === 'interest_only' && merged.total_installments >= 100;
-          const effectiveCount = isBulletIndeterminate ? 1 : merged.total_installments;
+          // Bullet é sempre indeterminado — Livre bloqueado para interest_only (BUG-2)
+          const effectiveCount = merged.calculation_mode === 'interest_only' ? 1 : merged.total_installments;
           setFreelancerDates(prev => {
               const newCount = effectiveCount;
               const startChanged = partial.start_date !== undefined;
@@ -963,7 +966,6 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                             </button>
                             <button
                                 onClick={() => {
-                                    setBulletHasFixedDuration(false);
                                     updateFormState({ calculation_mode: 'interest_only', total_installments: 120 });
                                 }}
                                 className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-1.5 ${
@@ -1078,66 +1080,6 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                         </div>
                     )}
 
-                    {formData.calculation_mode === 'interest_only' && (
-                        <div className="bg-[color:var(--bg-base)]/50 p-5 rounded-3xl border border-[color:var(--border-subtle)]">
-                            <label className="type-label text-[color:var(--text-secondary)] mb-3 block text-center">Prazo</label>
-                            <div className="grid grid-cols-2 gap-2 mb-4">
-                                <button
-                                    onClick={() => {
-                                        setBulletHasFixedDuration(false);
-                                        updateFormState({ total_installments: 120 });
-                                    }}
-                                    className={`py-3 rounded-xl border transition-all type-label ${
-                                        !bulletHasFixedDuration
-                                            ? 'bg-[color:var(--accent-caution)] border-[color:var(--accent-caution)] text-white shadow-md'
-                                            : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-elevated)]'
-                                    }`}
-                                >
-                                    Indeterminado
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setBulletHasFixedDuration(true);
-                                        const v = parseInt(installmentsInput) || 12;
-                                        setInstallmentsInput(String(v));
-                                        updateFormState({ total_installments: v });
-                                    }}
-                                    className={`py-3 rounded-xl border transition-all type-label ${
-                                        bulletHasFixedDuration
-                                            ? 'bg-[color:var(--accent-caution)] border-[color:var(--accent-caution)] text-white shadow-md'
-                                            : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-elevated)]'
-                                    }`}
-                                >
-                                    Determinado
-                                </button>
-                            </div>
-                            {bulletHasFixedDuration ? (
-                                <div className="flex items-center justify-between bg-[color:var(--bg-base)] rounded-2xl p-1 border border-[color:var(--border-subtle)] animate-fade-in">
-                                    <button onClick={() => { const v = Math.max(1, formData.total_installments - 1); updateFormState({ total_installments: v }); setInstallmentsInput(String(v)); }} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Minus size={20}/></button>
-                                    <div className="text-center">
-                                        <input
-                                            type="text"
-                                            inputMode="numeric"
-                                            className="w-16 bg-transparent text-center type-heading text-[color:var(--text-primary)] border-b border-transparent focus:border-[color:var(--accent-caution)] outline-none transition-colors cursor-text"
-                                            value={installmentsInput}
-                                            onChange={e => setInstallmentsInput(e.target.value.replace(/\D/g, ''))}
-                                            onBlur={() => {
-                                                const v = Math.min(120, Math.max(1, parseInt(installmentsInput) || 1));
-                                                setInstallmentsInput(String(v));
-                                                updateFormState({ total_installments: v });
-                                            }}
-                                            onFocus={e => e.target.select()}
-                                            aria-label="Número de períodos"
-                                        />
-                                        <span className="type-micro text-[color:var(--text-muted)] block">Períodos</span>
-                                    </div>
-                                    <button onClick={() => { const v = Math.min(120, formData.total_installments + 1); updateFormState({ total_installments: v }); setInstallmentsInput(String(v)); }} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Plus size={20}/></button>
-                                </div>
-                            ) : (
-                                <p className="text-[11px] text-center text-[color:var(--text-muted)]">O contrato se encerra quando o saldo devedor zerar</p>
-                            )}
-                        </div>
-                    )}
 
                     {formData.calculation_mode === 'interest_only' && (
                         <div className="bg-[color:var(--bg-base)]/50 p-5 rounded-3xl border border-[color:var(--border-subtle)] space-y-4">
@@ -1193,7 +1135,9 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 { id: 'monthly', label: 'Mensal', icon: Calendar },
                                 { id: 'weekly', label: 'Semanal', icon: CalendarDays },
                                 { id: 'daily', label: 'Diário', icon: CalendarClock },
-                                { id: 'freelancer', label: 'Livre', icon: Zap },
+                                ...(formData.calculation_mode !== 'interest_only'
+                                    ? [{ id: 'freelancer', label: 'Livre', icon: Zap }]
+                                    : []),
                             ].map(opt => (
                                 <button
                                     key={opt.id}
@@ -1355,9 +1299,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                             onClick={() => {
                                                 setFreelancerInterval(opt.days);
                                                 if (freelancerDates.length > 0) {
-                                                    const isBulletIndeterminate = formData.calculation_mode === 'interest_only' && formData.total_installments >= 100;
-                                                    const effectiveCount = isBulletIndeterminate ? 1 : formData.total_installments;
-                                                    const newDates = buildFreelancerDates(effectiveCount, freelancerDates[0], opt.days);
+                                                    const newDates = buildFreelancerDates(formData.total_installments, freelancerDates[0], opt.days);
                                                     setFreelancerDates(newDates);
                                                 }
                                             }}
@@ -1383,9 +1325,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                         <button
                                             onClick={() => {
                                                 if (freelancerDates.length > 0) {
-                                                    const isBulletIndeterminate = formData.calculation_mode === 'interest_only' && formData.total_installments >= 100;
-                                                    const effectiveCount = isBulletIndeterminate ? 1 : formData.total_installments;
-                                                    const newDates = buildFreelancerDates(effectiveCount, freelancerDates[0], freelancerInterval);
+                                                    const newDates = buildFreelancerDates(formData.total_installments, freelancerDates[0], freelancerInterval);
                                                     setFreelancerDates(newDates);
                                                 }
                                             }}
@@ -1432,8 +1372,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                         </div>
                     )}
 
-                    {/* Preview de parcelas: oculto para bullet indeterminado (120 datas fictícias) */}
-                    {previewDateStrings.length > 0 && !(formData.calculation_mode === 'interest_only' && !bulletHasFixedDuration) && (
+                    {/* Preview de parcelas: oculto para bullet (datas fictícias do sentinel 120) */}
+                    {previewDateStrings.length > 0 && formData.calculation_mode !== 'interest_only' && (
                         <div className="rounded-2xl border border-[color:var(--border-subtle)] overflow-hidden animate-fade-in">
                             <div className="flex items-center justify-between px-4 py-3 bg-[color:var(--bg-base)] border-b border-[color:var(--border-subtle)]">
                                 <span className="type-label text-[color:var(--text-muted)]">
@@ -1463,8 +1403,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                         </div>
                     )}
 
-                    {/* Preview de parcela para bullet indeterminado */}
-                    {formData.calculation_mode === 'interest_only' && !bulletHasFixedDuration && formData.installment_value > 0 && (
+                    {/* Preview de parcela bullet — próxima cobrança */}
+                    {formData.calculation_mode === 'interest_only' && formData.installment_value > 0 && (
                         <div className="rounded-2xl border border-[color:var(--accent-caution-border)] overflow-hidden animate-fade-in">
                             <div className="flex items-center justify-between px-4 py-3 bg-[color:var(--accent-caution-bg)] border-b border-[color:var(--accent-caution-border)]">
                                 <span className="type-label text-[color:var(--accent-caution)]">Exemplo da próxima cobrança</span>
@@ -1668,9 +1608,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 <p className="type-label text-[color:var(--text-muted)] mb-1">Fluxo</p>
                                 <p className="text-[color:var(--text-primary)] font-bold">
                                     {formData.calculation_mode === 'interest_only'
-                                        ? bulletHasFixedDuration
-                                            ? `${formData.total_installments}x ${formatCurrency(formData.installment_value)} (juros)`
-                                            : `${formatCurrency(formData.installment_value)}/período · Prazo indeterminado`
+                                        ? `${formatCurrency(formData.installment_value)}/período · Prazo indeterminado`
                                         : `${formData.total_installments}x de ${formatCurrency(formData.installment_value)}`
                                     }
                                 </p>

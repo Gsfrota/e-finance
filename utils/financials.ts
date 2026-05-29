@@ -103,7 +103,7 @@ export const calculateFinancials = (
     const interestPerPeriod = roundCurrency(base * (r / 100));
     return {
       installmentValue: interestPerPeriod,
-      totalValue: roundCurrency(base + interestPerPeriod),
+      totalValue: base,
       interestRate: r
     };
   } else if (mode === 'auto') {
