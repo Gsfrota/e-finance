@@ -389,6 +389,9 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
           skip_sunday: false,
           bullet_principal_mode: 'together',
           capitalize_interest: true,
+          default_after_days: 20,
+          late_fine_percent: '',
+          break_fee_percent: '',
       });
 
       let defaultInvestor = null;
@@ -986,7 +989,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                             <label className="type-label text-[color:var(--text-muted)] ml-1 mb-1 block">Nome do Ativo</label>
                             <input
                                 type="text"
-                                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold focus:border-[color:var(--accent-positive)] outline-none transition-all"
+                                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold focus:border-[color:var(--accent-steel)] outline-none transition-all"
                                 placeholder={`Ex: Empréstimo ${selectedPayer?.full_name.split(' ')[0]}`}
                                 value={formData.asset_name}
                                 onChange={e => setFormData({...formData, asset_name: e.target.value})}
@@ -1000,7 +1003,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     <span className="absolute left-4 top-4 text-[color:var(--accent-positive)] font-bold transition-colors">R$</span>
                                     <input
                                         type="number" inputMode="decimal" step="0.01"
-                                        className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl pl-12 pr-4 py-4 text-2xl font-semibold text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-positive)] transition-all"
+                                        className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl pl-12 pr-4 py-4 text-2xl font-semibold text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-steel)] transition-all"
                                         value={formData.amount_invested || ''}
                                         onChange={e => updateFormState({ amount_invested: parseFloat(e.target.value) })}
                                         onWheel={e => e.currentTarget.blur()}
@@ -1062,7 +1065,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     <input
                                         type="text"
                                         inputMode="numeric"
-                                        className="w-16 bg-transparent text-center type-heading text-[color:var(--text-primary)] border-b border-transparent focus:border-[color:var(--accent-positive)] outline-none transition-colors cursor-text"
+                                        className="w-16 bg-transparent text-center type-heading text-[color:var(--text-primary)] border-b border-transparent focus:border-[color:var(--accent-steel)] outline-none transition-colors cursor-text"
                                         value={installmentsInput}
                                         onChange={e => setInstallmentsInput(e.target.value.replace(/\D/g, ''))}
                                         onBlur={() => {
@@ -1089,8 +1092,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 <input
                                     type="text"
                                     inputMode="numeric"
-                                    className="w-full bg-[color:var(--bg-base)] rounded-xl px-4 py-3 border border-[color:var(--border-subtle)] text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-caution)] transition-colors"
-                                    value={String(formData.default_after_days)}
+                                    className="w-full bg-[color:var(--bg-base)] rounded-xl px-4 py-3 border border-[color:var(--border-subtle)] text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-steel)] transition-colors"
+                                    value={String(formData.default_after_days ?? 20)}
                                     onChange={e => updateFormState({ default_after_days: Math.max(0, parseInt(e.target.value.replace(/\D/g, '')) || 0) })}
                                     onBlur={() => { if (!formData.default_after_days) updateFormState({ default_after_days: 20 }); }}
                                     onFocus={e => e.target.select()}
@@ -1105,8 +1108,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                         type="text"
                                         inputMode="decimal"
                                         placeholder="—"
-                                        className="w-full bg-[color:var(--bg-base)] rounded-xl px-4 py-3 border border-[color:var(--border-subtle)] text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-caution)] transition-colors"
-                                        value={formData.late_fine_percent}
+                                        className="w-full bg-[color:var(--bg-base)] rounded-xl px-4 py-3 border border-[color:var(--border-subtle)] text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-steel)] transition-colors"
+                                        value={formData.late_fine_percent ?? ''}
                                         onChange={e => updateFormState({ late_fine_percent: e.target.value.replace(/[^\d.,]/g, '').replace(',', '.') })}
                                         onFocus={e => e.target.select()}
                                         aria-label="Multa de inadimplência percentual"
@@ -1118,8 +1121,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                         type="text"
                                         inputMode="decimal"
                                         placeholder="—"
-                                        className="w-full bg-[color:var(--bg-base)] rounded-xl px-4 py-3 border border-[color:var(--border-subtle)] text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-caution)] transition-colors"
-                                        value={formData.break_fee_percent}
+                                        className="w-full bg-[color:var(--bg-base)] rounded-xl px-4 py-3 border border-[color:var(--border-subtle)] text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-steel)] transition-colors"
+                                        value={formData.break_fee_percent ?? ''}
                                         onChange={e => updateFormState({ break_fee_percent: e.target.value.replace(/[^\d.,]/g, '').replace(',', '.') })}
                                         onFocus={e => e.target.select()}
                                         aria-label="Taxa de quebra de contrato percentual"
@@ -1317,7 +1320,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                         <input
                                             type="number"
                                             min={1}
-                                            className="w-14 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-2 py-1.5 text-sm text-center font-bold text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-positive)]"
+                                            className="w-14 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-2 py-1.5 text-sm text-center font-bold text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-steel)]"
                                             value={freelancerInterval}
                                             onChange={e => setFreelancerInterval(Math.max(1, parseInt(e.target.value) || 1))}
                                         />
@@ -1354,7 +1357,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                             </span>
                                             <input
                                                 type="date"
-                                                className="flex-1 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-1.5 text-sm font-bold text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-positive)] transition-all"
+                                                className="flex-1 bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-1.5 text-sm font-bold text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-steel)] transition-all"
                                                 value={dateStr}
                                                 onChange={e => {
                                                     const updated = [...freelancerDates];
@@ -1458,7 +1461,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     <div className="relative">
                                         <input
                                             type="text" inputMode="decimal"
-                                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-[color:var(--accent-positive)] transition-all text-center"
+                                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-[color:var(--accent-steel)] transition-all text-center"
                                             value={rateInput}
                                             onChange={e => setRateInput(e.target.value)}
                                             onFocus={e => { setRateInput(String(parseFloat(rateInput.replace(',', '.')) || '')); e.target.select(); }}
@@ -1487,7 +1490,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     <div className="relative">
                                         <input
                                             type="text" inputMode="decimal"
-                                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-indigo-500 transition-all text-center"
+                                            className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-[color:var(--accent-steel)] transition-all text-center"
                                             value={installmentValueInput}
                                             onChange={e => setInstallmentValueInput(e.target.value)}
                                             onFocus={e => { setInstallmentValueInput(String(parseFloat(installmentValueInput.replace(',', '.')) || '')); e.target.select(); }}
@@ -1520,7 +1523,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 <div className="relative">
                                     <input
                                         type="text" inputMode="decimal"
-                                        className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-[color:var(--accent-caution)] transition-all text-center"
+                                        className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-[color:var(--accent-steel)] transition-all text-center"
                                         value={rateInput}
                                         onChange={e => {
                                             setRateInput(e.target.value);
@@ -1704,21 +1707,21 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                     <label className="type-label text-[color:var(--text-muted)] block mb-1">Nome Completo *</label>
                     <div className="relative">
                         <UserPlus size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
-                        <input required type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.full_name} onChange={e => setNewDebtorData({...newDebtorData, full_name: e.target.value})} placeholder="Nome completo" />
+                        <input required type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.full_name} onChange={e => setNewDebtorData({...newDebtorData, full_name: e.target.value})} placeholder="Nome completo" />
                     </div>
                 </div>
                 <div>
                     <label className="type-label text-[color:var(--text-muted)] block mb-1">E-mail</label>
                     <div className="relative">
                         <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
-                        <input type="email" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.email} onChange={e => setNewDebtorData({...newDebtorData, email: e.target.value})} placeholder="email@exemplo.com (opcional)" />
+                        <input type="email" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.email} onChange={e => setNewDebtorData({...newDebtorData, email: e.target.value})} placeholder="email@exemplo.com (opcional)" />
                     </div>
                 </div>
                 <div>
                     <label className="type-label text-[color:var(--text-muted)] block mb-1">Telefone</label>
                     <div className="relative">
                         <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
-                        <input type="tel" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.phone_number} onChange={e => setNewDebtorData({...newDebtorData, phone_number: e.target.value})} placeholder="(11) 99999-9999 (opcional)" />
+                        <input type="tel" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.phone_number} onChange={e => setNewDebtorData({...newDebtorData, phone_number: e.target.value})} placeholder="(11) 99999-9999 (opcional)" />
                     </div>
                 </div>
             </div>
@@ -1729,9 +1732,9 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                     <label className="type-label text-[color:var(--text-muted)] block mb-1">CPF</label>
                     <div className="relative">
                         <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
-                        <input type="text" maxLength={14} className={`w-full bg-[color:var(--bg-elevated)] border rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)] ${quickCreateCpfError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'}`} value={newDebtorData.cpf} onChange={e => { setQuickCreateCpfError(''); setNewDebtorData({...newDebtorData, cpf: maskCPFAdmin(e.target.value)}); }} placeholder="000.000.000-00 (opcional)" />
+                        <input type="text" maxLength={14} className={`w-full bg-[color:var(--bg-elevated)] border rounded-xl pl-9 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all placeholder:text-[color:var(--text-faint)] ${quickCreateCpfError ? 'border-[color:var(--accent-danger)]' : 'border-[color:var(--border-subtle)]'}`} value={newDebtorData.cpf} onChange={e => { setQuickCreateCpfError(''); setNewDebtorData({...newDebtorData, cpf: maskCPFAdmin(e.target.value)}); }} placeholder="000.000.000-00 (opcional)" />
                     </div>
-                    {quickCreateCpfError && <p className="text-red-400 text-[10px] mt-1 font-bold">{quickCreateCpfError}</p>}
+                    {quickCreateCpfError && <p className="text-[color:var(--accent-danger)] text-[10px] mt-1 font-bold">{quickCreateCpfError}</p>}
                 </div>
             </div>
             {/* Endereço */}
@@ -1741,7 +1744,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                     <label className="type-label text-[color:var(--text-muted)] block mb-1">CEP</label>
                     <div className="relative">
                         <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)] pointer-events-none" />
-                        <input type="text" maxLength={9} className={`w-full bg-[color:var(--bg-elevated)] border rounded-xl pl-9 pr-9 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)] ${quickCreateCepError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'}`}
+                        <input type="text" maxLength={9} className={`w-full bg-[color:var(--bg-elevated)] border rounded-xl pl-9 pr-9 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all placeholder:text-[color:var(--text-faint)] ${quickCreateCepError ? 'border-[color:var(--accent-danger)]' : 'border-[color:var(--border-subtle)]'}`}
                             value={newDebtorData.cep}
                             onChange={e => {
                                 const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
@@ -1753,30 +1756,30 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                             placeholder="00000-000 (opcional)" />
                         {quickCreateCepLoading && <Activity size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--accent-positive)] animate-spin" />}
                     </div>
-                    {quickCreateCepError && <p className="text-red-400 text-[10px] mt-1 font-bold">{quickCreateCepError}</p>}
+                    {quickCreateCepError && <p className="text-[color:var(--accent-danger)] text-[10px] mt-1 font-bold">{quickCreateCepError}</p>}
                 </div>
                 <div>
                     <label className="type-label text-[color:var(--text-muted)] block mb-1">Logradouro</label>
-                    <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.logradouro} onChange={e => setNewDebtorData(p => ({ ...p, logradouro: e.target.value }))} placeholder="Rua, Av..." />
+                    <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.logradouro} onChange={e => setNewDebtorData(p => ({ ...p, logradouro: e.target.value }))} placeholder="Rua, Av..." />
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                     <div>
                         <label className="type-label text-[color:var(--text-muted)] block mb-1">Número</label>
-                        <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.numero} onChange={e => setNewDebtorData(p => ({ ...p, numero: e.target.value }))} placeholder="Nº" />
+                        <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.numero} onChange={e => setNewDebtorData(p => ({ ...p, numero: e.target.value }))} placeholder="Nº" />
                     </div>
                     <div className="col-span-2">
                         <label className="type-label text-[color:var(--text-muted)] block mb-1">Bairro</label>
-                        <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.bairro} onChange={e => setNewDebtorData(p => ({ ...p, bairro: e.target.value }))} placeholder="Bairro" />
+                        <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.bairro} onChange={e => setNewDebtorData(p => ({ ...p, bairro: e.target.value }))} placeholder="Bairro" />
                     </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                     <div className="col-span-2">
                         <label className="type-label text-[color:var(--text-muted)] block mb-1">Cidade</label>
-                        <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.cidade} onChange={e => setNewDebtorData(p => ({ ...p, cidade: e.target.value }))} placeholder="Cidade" />
+                        <input type="text" className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" value={newDebtorData.cidade} onChange={e => setNewDebtorData(p => ({ ...p, cidade: e.target.value }))} placeholder="Cidade" />
                     </div>
                     <div>
                         <label className="type-label text-[color:var(--text-muted)] block mb-1">UF</label>
-                        <input type="text" maxLength={2} className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-positive)] outline-none transition-all placeholder:text-[color:var(--text-faint)] uppercase" value={newDebtorData.uf} onChange={e => setNewDebtorData(p => ({ ...p, uf: e.target.value.toUpperCase() }))} placeholder="SP" />
+                        <input type="text" maxLength={2} className="w-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all placeholder:text-[color:var(--text-faint)] uppercase" value={newDebtorData.uf} onChange={e => setNewDebtorData(p => ({ ...p, uf: e.target.value.toUpperCase() }))} placeholder="SP" />
                     </div>
                 </div>
             </div>
@@ -1816,7 +1819,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                   type="text"
                                   value={editContractName}
                                   onChange={e => setEditContractName(e.target.value)}
-                                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3.5 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)]"
+                                  className="w-full rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-base)] px-4 py-3.5 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-steel)]"
                                   placeholder="Ex: Empréstimo João"
                               />
                           </div>
@@ -1832,7 +1835,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                           min="0"
                                           value={editContractPrincipal}
                                           onChange={e => setEditContractPrincipal(e.target.value)}
-                                          className="w-full rounded-2xl border border-white/10 bg-white/[0.03] py-3.5 pl-11 pr-4 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)]"
+                                          className="w-full rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-base)] py-3.5 pl-11 pr-4 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-steel)]"
                                       />
                                   </div>
                               </div>
@@ -1846,7 +1849,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                           min="0"
                                           value={editContractInstallmentValue}
                                           onChange={e => setEditContractInstallmentValue(e.target.value)}
-                                          className="w-full rounded-2xl border border-white/10 bg-white/[0.03] py-3.5 pl-11 pr-4 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)]"
+                                          className="w-full rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-base)] py-3.5 pl-11 pr-4 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-steel)]"
                                       />
                                   </div>
                               </div>
@@ -1924,7 +1927,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                                       disabled={locked}
                                                       value={installment.due_date}
                                                       onChange={(event) => handleEditInstallmentDateChange(installment.id, event.target.value)}
-                                                      className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-brass)] disabled:cursor-not-allowed disabled:opacity-45"
+                                                      className="rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-base)] px-4 py-3 text-sm font-semibold text-[color:var(--text-primary)] outline-none transition-all focus:border-[color:var(--accent-steel)] disabled:cursor-not-allowed disabled:opacity-45"
                                                   />
                                               </div>
                                               {installment.due_date && (
@@ -2015,7 +2018,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                         <div className="flex justify-between items-start mb-6">
                             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]"><Wallet size={20}/></div>
                             <div className="flex items-center gap-1">
-                                <button onClick={() => { if (onPaywallRedirect) { onPaywallRedirect(); return; } setViewingContractId(contract.id); setViewingContract(contract); setContractsSubView('detail'); }} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-white" title="Ver detalhes"><Eye size={16}/></button>
+                                <button onClick={() => { if (onPaywallRedirect) { onPaywallRedirect(); return; } setViewingContractId(contract.id); setViewingContract(contract); setContractsSubView('detail'); }} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-[color:var(--text-primary)]" title="Ver detalhes"><Eye size={16}/></button>
                                 <button onClick={() => handleOpenContractEdit(contract)} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-[color:var(--accent-brass)]" title="Editar contrato"><Pencil size={16}/></button>
                                 <button onClick={() => { setContractToDelete(contract); setIsDeleteConfirmOpen(true); }} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-[color:var(--accent-danger)]" title="Excluir contrato"><Trash2 size={16}/></button>
                             </div>
@@ -2088,10 +2091,10 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               <div className="bg-[color:var(--bg-elevated)] border border-red-900/50 rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 animate-fade-in-up">
                   <div className="text-center mb-6">
                       <div className="w-16 h-16 bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Trash2 size={28} className="text-red-400"/>
+                          <Trash2 size={28} className="text-[color:var(--accent-danger)]"/>
                       </div>
                       <h3 className="type-heading uppercase text-[color:var(--text-primary)]">Excluir Contrato</h3>
-                      <p className="text-[color:var(--text-secondary)] text-sm mt-2">Esta ação é <strong className="text-red-400">irreversível</strong>. Todas as parcelas do contrato serão apagadas.</p>
+                      <p className="text-[color:var(--text-secondary)] text-sm mt-2">Esta ação é <strong className="text-[color:var(--accent-danger)]">irreversível</strong>. Todas as parcelas do contrato serão apagadas.</p>
                       <p className="text-[color:var(--text-primary)] font-bold mt-3 bg-[color:var(--bg-base)] px-4 py-2 rounded-xl border border-[color:var(--border-subtle)] truncate">"{contractToDelete.asset_name}"</p>
                   </div>
                   <div className="flex gap-3">

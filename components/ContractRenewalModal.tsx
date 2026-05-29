@@ -305,9 +305,9 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
         {/* Body */}
         <div className="custom-scrollbar flex-1 overflow-y-auto px-6 py-5 space-y-4">
           {error && (
-            <div className="flex items-center gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3">
-              <AlertCircle size={16} className="shrink-0 text-red-400" />
-              <p className="text-xs text-red-300">{error}</p>
+            <div className="flex items-center gap-3 rounded-2xl border border-[color:var(--accent-danger-border)] bg-[color:var(--accent-danger-subtle)] px-4 py-3">
+              <AlertCircle size={16} className="shrink-0 text-[color:var(--accent-danger)]" />
+              <p className="text-xs text-[color:var(--accent-danger)]">{error}</p>
             </div>
           )}
 
@@ -318,7 +318,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
               type="text"
               value={form.asset_name}
               onChange={(e) => set('asset_name', e.target.value)}
-              className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
+              className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-steel)] focus:ring-1 focus:ring-[color:var(--accent-steel)]/30 transition-all"
             />
           </div>
 
@@ -333,7 +333,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 value={form.amount_invested}
                 inputMode="decimal"
                 onChange={(e) => set('amount_invested', e.target.value)}
-                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
+                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-steel)] focus:ring-1 focus:ring-[color:var(--accent-steel)]/30 transition-all"
               />
             </div>
             <div>
@@ -346,7 +346,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 inputMode="decimal"
                 onChange={(e) => set('interest_rate', e.target.value)}
                 disabled={form.calculation_mode === 'manual'}
-                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all disabled:opacity-40"
+                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-steel)] focus:ring-1 focus:ring-[color:var(--accent-steel)]/30 transition-all disabled:opacity-40"
               />
             </div>
           </div>
@@ -361,7 +361,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 value={form.total_installments}
                 inputMode="numeric"
                 onChange={(e) => set('total_installments', e.target.value)}
-                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
+                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-steel)] focus:ring-1 focus:ring-[color:var(--accent-steel)]/30 transition-all"
               />
             </div>
             <div>
@@ -369,7 +369,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
               <select
                 value={form.frequency}
                 onChange={(e) => set('frequency', e.target.value)}
-                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 transition-all"
+                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-steel)] transition-all"
               >
                 <option value="monthly">Mensal</option>
                 <option value="weekly">Semanal</option>
@@ -390,7 +390,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 value={form.due_day}
                 inputMode="numeric"
                 onChange={(e) => set('due_day', e.target.value)}
-                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
+                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-steel)] focus:ring-1 focus:ring-[color:var(--accent-steel)]/30 transition-all"
               />
             </div>
           )}
@@ -402,7 +402,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 type="date"
                 value={form.start_date}
                 onChange={(e) => set('start_date', e.target.value)}
-                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
+                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-steel)] focus:ring-1 focus:ring-[color:var(--accent-steel)]/30 transition-all"
               />
             </div>
           )}
@@ -461,7 +461,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
                 value={form.installment_value}
                 inputMode="decimal"
                 onChange={(e) => set('installment_value', e.target.value)}
-                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-brass)]/50 focus:ring-1 focus:ring-[color:var(--accent-brass)]/30 transition-all"
+                className="w-full rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--bg-soft)] px-4 py-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent-steel)] focus:ring-1 focus:ring-[color:var(--accent-steel)]/30 transition-all"
               />
             </div>
           )}

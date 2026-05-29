@@ -270,7 +270,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
             .replace(/(\d{3})(\d{0,3})/, '$1.$2');
   };
 
-  const inputCls = "w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2 text-[color:var(--text-primary)] text-sm focus:border-teal-500 outline-none transition-all";
+  const inputCls = "w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-3 py-2 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all";
   const labelCls = "type-micro text-[color:var(--text-muted)] block mb-1";
 
   return (
@@ -291,7 +291,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
               </p>
             </div>
           </div>
-          <button onClick={resetAndClose} className="text-[color:var(--text-muted)] hover:text-white transition-colors">
+          <button onClick={resetAndClose} className="text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition-colors">
             <X size={22} />
           </button>
         </div>
@@ -326,7 +326,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                     <button
                       type="button"
                       onClick={() => { setMatchedDebtor(null); setDebtorSearch(''); setDebtorDropdownOpen(true); setTimeout(() => debtorInputRef.current?.focus(), 50); }}
-                      className="text-[color:var(--text-muted)] hover:text-white transition-colors ml-2"
+                      className="text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition-colors ml-2"
                     >
                       <X size={14}/>
                     </button>
@@ -338,7 +338,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                       <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)] pointer-events-none"/>
                       <input
                         ref={debtorInputRef}
-                        className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-8 pr-3 py-2 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]"
+                        className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-8 pr-3 py-2 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all placeholder:text-[color:var(--text-faint)]"
                         placeholder="Buscar cliente existente..."
                         value={debtorSearch}
                         onChange={e => { setDebtorSearch(e.target.value); setDebtorDropdownOpen(true); }}
@@ -374,7 +374,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                                 <User size={13} className="text-[color:var(--text-secondary)]"/>
                               </div>
                               <div>
-                                <p className="text-xs text-white font-semibold">{p.full_name}</p>
+                                <p className="text-xs text-[color:var(--text-primary)] font-semibold">{p.full_name}</p>
                                 {p.phone_number && <p className="type-caption text-[color:var(--text-muted)]">{p.phone_number}</p>}
                               </div>
                             </button>
@@ -570,7 +570,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
               </div>
 
               {createError && (
-                <div className="flex items-start gap-2 p-3 bg-red-900/20 border border-red-900/30 rounded-xl text-xs text-red-400">
+                <div className="flex items-start gap-2 p-3 bg-red-900/20 border border-red-900/30 rounded-xl text-xs text-[color:var(--accent-danger)]">
                   <AlertTriangle size={14} className="mt-0.5 shrink-0" />{createError}
                 </div>
               )}
@@ -578,7 +578,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
               <div className="flex gap-3 pb-1">
                 <button
                   onClick={resetAndClose}
-                  className="flex-1 py-3 rounded-2xl border border-[color:var(--border-subtle)] text-[color:var(--text-secondary)] hover:text-white type-label flex items-center justify-center gap-2 transition-all hover:bg-[color:var(--bg-elevated)]"
+                  className="flex-1 py-3 rounded-2xl border border-[color:var(--border-subtle)] text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] type-label flex items-center justify-center gap-2 transition-all hover:bg-[color:var(--bg-elevated)]"
                 >
                   <ArrowLeft size={14}/> Cancelar
                 </button>
@@ -630,14 +630,14 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
         <div className="relative z-10 flex h-full w-full max-w-lg flex-col bg-[color:var(--bg-base)] shadow-2xl border-l border-[color:var(--border-subtle)] animate-slide-in-right">
           {/* Header fixo */}
           <div className="shrink-0 flex items-center gap-3 px-6 py-5 border-b border-[color:var(--border-subtle)]">
-            <button type="button" onClick={() => { setStep('confirm'); setCpfError(''); }} className="text-[color:var(--text-secondary)] hover:text-white transition-colors">
+            <button type="button" onClick={() => { setStep('confirm'); setCpfError(''); }} className="text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] transition-colors">
               <ArrowLeft size={18} />
             </button>
             <div className="flex-1">
               <h3 className="type-subheading uppercase text-[color:var(--text-primary)]">Novo Devedor</h3>
               <p className="type-label text-[color:var(--text-muted)]">Dados do cliente</p>
             </div>
-            <button type="button" onClick={resetAndClose} className="text-[color:var(--text-muted)] hover:text-white transition-colors">
+            <button type="button" onClick={resetAndClose} className="text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition-colors">
               <X size={20} />
             </button>
           </div>
@@ -651,21 +651,21 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                   <label className="type-label text-[color:var(--text-muted)] block mb-1">Nome Completo *</label>
                   <div className="relative">
                     <User size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)] pointer-events-none" />
-                    <input required type="text" value={newDebtor.full_name} onChange={e => setNewDebtor({ ...newDebtor, full_name: e.target.value })} className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" placeholder="Nome completo" />
+                    <input required type="text" value={newDebtor.full_name} onChange={e => setNewDebtor({ ...newDebtor, full_name: e.target.value })} className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" placeholder="Nome completo" />
                   </div>
                 </div>
                 <div>
                   <label className="type-label text-[color:var(--text-muted)] block mb-1">E-mail</label>
                   <div className="relative">
                     <Mail size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)] pointer-events-none" />
-                    <input type="email" value={newDebtor.email} onChange={e => setNewDebtor({ ...newDebtor, email: e.target.value })} className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" placeholder="email@exemplo.com (opcional)" />
+                    <input type="email" value={newDebtor.email} onChange={e => setNewDebtor({ ...newDebtor, email: e.target.value })} className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" placeholder="email@exemplo.com (opcional)" />
                   </div>
                 </div>
                 <div>
                   <label className="type-label text-[color:var(--text-muted)] block mb-1">Telefone</label>
                   <div className="relative">
                     <Phone size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)] pointer-events-none" />
-                    <input type="tel" value={newDebtor.phone_number} onChange={e => setNewDebtor({ ...newDebtor, phone_number: e.target.value })} className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)]" placeholder="(11) 99999-9999 (opcional)" />
+                    <input type="tel" value={newDebtor.phone_number} onChange={e => setNewDebtor({ ...newDebtor, phone_number: e.target.value })} className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all placeholder:text-[color:var(--text-faint)]" placeholder="(11) 99999-9999 (opcional)" />
                   </div>
                 </div>
               </div>
@@ -676,13 +676,13 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                   <label className="type-label text-[color:var(--text-muted)] block mb-1">CPF</label>
                   <div className="relative">
                     <Key size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)] pointer-events-none" />
-                    <input type="text" value={newDebtor.cpf} onChange={e => { setCpfError(''); setNewDebtor({ ...newDebtor, cpf: maskCPF(e.target.value) }); }} className={`w-full bg-[color:var(--bg-base)] border rounded-xl pl-10 pr-3 py-2.5 text-white text-sm focus:border-teal-500 outline-none transition-all placeholder:text-[color:var(--text-faint)] ${cpfError ? 'border-red-500' : 'border-[color:var(--border-subtle)]'}`} placeholder="000.000.000-00 (opcional)" maxLength={14} />
+                    <input type="text" value={newDebtor.cpf} onChange={e => { setCpfError(''); setNewDebtor({ ...newDebtor, cpf: maskCPF(e.target.value) }); }} className={`w-full bg-[color:var(--bg-base)] border rounded-xl pl-10 pr-3 py-2.5 text-[color:var(--text-primary)] text-sm focus:border-[color:var(--accent-steel)] outline-none transition-all placeholder:text-[color:var(--text-faint)] ${cpfError ? 'border-[color:var(--accent-danger)]' : 'border-[color:var(--border-subtle)]'}`} placeholder="000.000.000-00 (opcional)" maxLength={14} />
                   </div>
-                  {cpfError && <p className="text-red-400 type-caption mt-1 font-bold">{cpfError}</p>}
+                  {cpfError && <p className="text-[color:var(--accent-danger)] type-caption mt-1 font-bold">{cpfError}</p>}
                 </div>
               </div>
               {createError && (
-                <div className="flex items-start gap-2 p-3 bg-red-900/20 border border-red-900/30 rounded-xl text-xs text-red-400">
+                <div className="flex items-start gap-2 p-3 bg-red-900/20 border border-red-900/30 rounded-xl text-xs text-[color:var(--accent-danger)]">
                   <AlertTriangle size={14} className="mt-0.5 shrink-0" />{createError}
                 </div>
               )}

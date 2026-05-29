@@ -63,7 +63,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   const [resolvedTenantId, setResolvedTenantId] = useState<string | null>(tenant?.id || null);
 
   const baseInputClass =
-    'w-full rounded-2xl border border-[color:var(--border-strong)] bg-white/[0.03] px-4 py-3.5 text-sm text-[color:var(--text-primary)] outline-none transition-all placeholder:text-[color:var(--text-faint)] focus:border-[color:var(--accent-brass)] focus:bg-white/[0.05] focus:shadow-[0_0_0_3px_rgba(240,180,41,0.08)]';
+    'w-full rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-base)] px-4 py-3.5 text-sm text-[color:var(--text-primary)] outline-none transition-all placeholder:text-[color:var(--text-faint)] focus:border-[color:var(--accent-steel)]';
 
   const totalSteps = TOTAL_STEPS[mode];
   const displayStep = mode === 'full' ? step : step - 1; // passo visual para barra de progresso

@@ -1298,7 +1298,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
   const inputCls = "w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-strong)] rounded-xl pr-4 py-3.5 text-[color:var(--text-primary)] font-mono text-lg outline-none focus:ring-2 transition-all";
 
   const errorBlock = error && (
-    <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+    <div className="bg-[color:var(--accent-danger-subtle)] border border-[color:var(--accent-danger-border)] p-3 rounded-xl text-[color:var(--accent-danger)] text-xs flex items-center gap-2">
       <AlertTriangle size={14} /> {error}
     </div>
   );
@@ -1420,7 +1420,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
                 <DollarSign size={16} className="absolute left-4 top-4 text-[color:var(--accent-positive)]" />
                 <input type="number" step="0.01" inputMode="decimal" required value={amount}
                   onChange={e => { setAmount(e.target.value); setError(null); }}
-                  className={`${inputCls} pl-10 focus:ring-[color:var(--accent-positive)]`} />
+                  className={`${inputCls} pl-10 focus:ring-[color:var(--accent-steel)]`} />
               </div>
               {isPartialPay && (
                 <div className="mt-2 flex items-center justify-between bg-[color:var(--accent-warning-subtle)] border border-[color:var(--accent-warning-border)] rounded-xl px-4 py-2.5">
@@ -1444,7 +1444,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
             <div>
               <label className="block type-label text-[color:var(--text-faint)] mb-2">Forma de Pagamento</label>
               <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
-                className="w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-strong)] rounded-xl px-4 py-3.5 text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-[color:var(--accent-positive)] transition-all text-sm">
+                className="w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-strong)] rounded-xl px-4 py-3.5 text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-[color:var(--accent-steel)] transition-all text-sm">
                 <option value="PIX">PIX</option>
                 <option value="Dinheiro">Dinheiro</option>
                 <option value="Transferência Bancária">Transferência Bancária</option>
@@ -1458,7 +1458,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
               <div className="relative">
                 <Calendar size={16} className="absolute left-4 top-4 text-[color:var(--text-muted)]" />
                 <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
-                  className={`${inputCls} pl-10 focus:ring-[color:var(--accent-positive)]`} />
+                  className={`${inputCls} pl-10 focus:ring-[color:var(--accent-steel)]`} />
               </div>
             </div>
             {isLatePayment && (
@@ -1544,7 +1544,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
                     <Percent size={14} className="absolute left-3 top-3 text-[color:var(--accent-warning)]"/>
                     <input type="number" step="0.01" min="0" max="100" value={interestPercent}
                       onChange={e => setInterestPercent(e.target.value)} placeholder="ex: 2,5"
-                      className="w-full bg-[color:var(--bg-base)] border border-amber-700/40 rounded-xl pl-9 pr-4 py-2.5 text-[color:var(--text-primary)] font-mono text-sm outline-none focus:ring-2 focus:ring-amber-500 transition-all"/>
+                      className="w-full bg-[color:var(--bg-base)] border border-amber-700/40 rounded-xl pl-9 pr-4 py-2.5 text-[color:var(--text-primary)] font-mono text-sm outline-none focus:ring-2 focus:ring-[color:var(--accent-steel)] transition-all"/>
                   </div>
                   <span className="text-xs text-[color:var(--text-muted)] shrink-0">% ao mês</span>
                 </div>
@@ -1859,7 +1859,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
                     <Percent size={14} className="absolute left-3 top-3 text-[color:var(--accent-warning)]"/>
                     <input type="number" step="0.01" min="0" max="100" value={missedInterestRate}
                       onChange={e => setMissedInterestRate(e.target.value)} placeholder="ex: 2,5"
-                      className="w-full bg-[color:var(--bg-base)] border border-amber-700/40 rounded-xl pl-9 pr-4 py-2.5 text-[color:var(--text-primary)] font-mono text-sm outline-none focus:ring-2 focus:ring-amber-500 transition-all"/>
+                      className="w-full bg-[color:var(--bg-base)] border border-amber-700/40 rounded-xl pl-9 pr-4 py-2.5 text-[color:var(--text-primary)] font-mono text-sm outline-none focus:ring-2 focus:ring-[color:var(--accent-steel)] transition-all"/>
                   </div>
                   <span className="text-xs text-[color:var(--text-muted)] shrink-0">% ao mês</span>
                 </div>

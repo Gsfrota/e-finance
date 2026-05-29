@@ -154,7 +154,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const baseInputClass = 'w-full rounded-2xl border border-[color:var(--border-strong)] bg-white/[0.03] px-4 py-3.5 text-sm text-[color:var(--text-primary)] outline-none transition-all placeholder:text-[color:var(--text-faint)] focus:border-[color:var(--accent-brass)] focus:bg-white/[0.05] focus:shadow-[0_0_0_3px_rgba(240,180,41,0.08)]';
+  const baseInputClass = 'w-full rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-base)] px-4 py-3.5 text-sm text-[color:var(--text-primary)] outline-none transition-all placeholder:text-[color:var(--text-faint)] focus:border-[color:var(--accent-steel)]';
 
   return (
     <div className="relative min-h-screen overflow-hidden text-[color:var(--text-primary)] flex flex-col items-center justify-center px-6 py-10">
@@ -209,7 +209,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               type="button"
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full flex items-center justify-center gap-3 rounded-full bg-white py-4 text-sm font-semibold text-gray-800 shadow-sm transition hover:bg-gray-100 hover:shadow-md active:scale-[0.98] disabled:opacity-60 mb-4"
+              className="w-full flex items-center justify-center gap-3 rounded-full bg-[color:var(--bg-elevated)] border border-[color:var(--border-subtle)] py-4 text-sm font-semibold text-[color:var(--text-primary)] shadow-sm transition hover:bg-[color:var(--bg-strong)] active:scale-[0.98] disabled:opacity-60 mb-4"
             >
               {loading ? (
                 <>

@@ -67,7 +67,7 @@ const Header: React.FC<{ title: string, subtitle: string, icon: React.ReactNode,
         <p className="type-label text-[color:var(--text-secondary)]">{subtitle}</p>
       </div>
     </div>
-    <button onClick={onClose} aria-label="Fechar" className="text-[color:var(--text-muted)] hover:text-white transition-colors p-2 hover:bg-[color:var(--bg-soft)] rounded-full">
+    <button onClick={onClose} aria-label="Fechar" className="text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition-colors p-2 hover:bg-[color:var(--bg-soft)] rounded-full">
       <X size={20} />
     </button>
   </div>
@@ -793,7 +793,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
               <input
                 type="number" step="0.01" inputMode="decimal" required autoFocus
                 value={amount} onChange={e => { setAmount(e.target.value); setError(null); }}
-                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-lg outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-4 py-3.5 text-[color:var(--text-primary)] font-mono text-lg outline-none focus:ring-2 focus:ring-[color:var(--accent-steel)] focus:border-transparent transition-all"
               />
             </div>
             {/* Aviso parcial em tempo real */}
@@ -824,7 +824,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
             <div className="relative">
               <Calendar size={16} className="absolute left-4 top-4 text-[color:var(--text-muted)]"/>
               <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
-                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-4 py-3.5 text-white font-mono text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all" />
+                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl pl-10 pr-4 py-3.5 text-[color:var(--text-primary)] font-mono text-sm outline-none focus:ring-2 focus:ring-[color:var(--accent-steel)] focus:border-transparent transition-all" />
             </div>
           </div>
           {isLatePayment && installment && (
@@ -838,7 +838,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
           <div>
             <label className="block type-label text-[color:var(--text-muted)] mb-2 ml-1">Forma de Pagamento</label>
             <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
-              className="w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3.5 text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all text-sm">
+              className="w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3.5 text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-[color:var(--accent-steel)] focus:border-transparent transition-all text-sm">
               <option value="PIX">PIX</option>
               <option value="Dinheiro">Dinheiro</option>
               <option value="Transferência Bancária">Transferência Bancária</option>
@@ -849,7 +849,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
           </div>
 
           {error && (
-            <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+            <div className="bg-[color:var(--accent-danger-subtle)] border border-[color:var(--accent-danger-border)] p-3 rounded-xl text-[color:var(--accent-danger)] text-xs flex items-center gap-2">
               <AlertTriangle size={14}/> {error}
             </div>
           )}
@@ -912,7 +912,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
             ))}
           </div>
           {error && (
-            <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+            <div className="bg-[color:var(--accent-danger-subtle)] border border-[color:var(--accent-danger-border)] p-3 rounded-xl text-[color:var(--accent-danger)] text-xs flex items-center gap-2">
               <AlertTriangle size={14}/> {error}
             </div>
           )}
@@ -1216,7 +1216,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
           )}
 
           {error && (
-            <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+            <div className="bg-[color:var(--accent-danger-subtle)] border border-[color:var(--accent-danger-border)] p-3 rounded-xl text-[color:var(--accent-danger)] text-xs flex items-center gap-2">
               <AlertTriangle size={14}/> {error}
             </div>
           )}
@@ -1361,7 +1361,7 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
         </div>
 
         {error && (
-          <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+          <div className="bg-[color:var(--accent-danger-subtle)] border border-[color:var(--accent-danger-border)] p-3 rounded-xl text-[color:var(--accent-danger)] text-xs flex items-center gap-2">
             <AlertTriangle size={14}/> {error}
           </div>
         )}
@@ -1521,7 +1521,7 @@ export const RefinanceModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSu
           </div>
 
           {error && (
-            <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+            <div className="bg-[color:var(--accent-danger-subtle)] border border-[color:var(--accent-danger-border)] p-3 rounded-xl text-[color:var(--accent-danger)] text-xs flex items-center gap-2">
                 <AlertTriangle size={14} /> {error}
             </div>
           )}
@@ -1655,7 +1655,7 @@ export const EditModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSuccess
           </div>
 
           {error && (
-            <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+            <div className="bg-[color:var(--accent-danger-subtle)] border border-[color:var(--accent-danger-border)] p-3 rounded-xl text-[color:var(--accent-danger)] text-xs flex items-center gap-2">
                 <AlertTriangle size={14} /> {error}
             </div>
           )}
@@ -1857,7 +1857,7 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
 
   if (!isOpen || !installment) return null;
 
-  const inputClass = "w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3.5 text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-[color:var(--accent-caution)] focus:border-transparent transition-all";
+  const inputClass = "w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-xl px-4 py-3.5 text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-[color:var(--accent-steel)] focus:border-transparent transition-all";
 
   return (
     <ModalBackdrop onClose={onClose}>
@@ -1920,7 +1920,7 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
           </div>
 
           {error && (
-            <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+            <div className="bg-[color:var(--accent-danger-subtle)] border border-[color:var(--accent-danger-border)] p-3 rounded-xl text-[color:var(--accent-danger)] text-xs flex items-center gap-2">
               <AlertTriangle size={14}/> {error}
             </div>
           )}
@@ -1989,7 +1989,7 @@ export const InterestOnlyModal: React.FC<BaseModalProps> = ({ isOpen, onClose, o
           </div>
 
           {error && (
-            <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-xl text-red-400 text-xs flex items-center gap-2">
+            <div className="bg-[color:var(--accent-danger-subtle)] border border-[color:var(--accent-danger-border)] p-3 rounded-xl text-[color:var(--accent-danger)] text-xs flex items-center gap-2">
               <AlertTriangle size={14}/> {error}
             </div>
           )}

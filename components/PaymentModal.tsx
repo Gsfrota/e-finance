@@ -113,7 +113,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
                         </div>
                         <div className="text-left">
                             <p className="type-micro text-[color:var(--text-muted)]">Beneficiário</p>
-                            <p className="text-xs font-bold text-white uppercase truncate max-w-[140px]">{beneficiary.name}</p>
+                            <p className="text-xs font-bold text-[color:var(--text-primary)] uppercase truncate max-w-[140px]">{beneficiary.name}</p>
                         </div>
                     </div>
                     <div className="text-right">
@@ -136,7 +136,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, installmen
                 </div>
             ) : error ? (
                 <div className="py-6 w-full animate-shake">
-                    <div className="bg-red-900/20 border border-red-900/50 p-4 rounded-2xl flex flex-col items-center gap-2 text-red-400">
+                    <div className="bg-[color:var(--accent-danger-subtle)] border border-[color:var(--accent-danger-border)] p-4 rounded-2xl flex flex-col items-center gap-2 text-[color:var(--accent-danger)]">
                         <AlertTriangle size={24} />
                         <p className="text-xs font-bold text-center">{error}</p>
                         <button onClick={() => generatePix(installment.id)} className="mt-2 type-label bg-red-900/40 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-red-900/60 transition-colors">

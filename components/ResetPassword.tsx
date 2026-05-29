@@ -70,7 +70,7 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({ onResetSuccess }) => {
                 value={password} 
                 onChange={(e) => setPassword(e.target.value)} 
                 minLength={6} 
-                className="w-full bg-[color:var(--bg-base)]/50 border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-sm text-white focus:border-teal-500 outline-none" 
+                className="w-full bg-[color:var(--bg-base)]/50 border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-sm text-[color:var(--text-primary)] focus:border-[color:var(--accent-steel)] outline-none" 
                 placeholder="Nova Senha"
             />
             <input 
@@ -79,14 +79,14 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({ onResetSuccess }) => {
                 value={confirmPassword} 
                 onChange={(e) => setConfirmPassword(e.target.value)} 
                 minLength={6} 
-                className="w-full bg-[color:var(--bg-base)]/50 border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-sm text-white focus:border-teal-500 outline-none" 
+                className="w-full bg-[color:var(--bg-base)]/50 border border-[color:var(--border-subtle)] rounded-xl px-4 py-3 text-sm text-[color:var(--text-primary)] focus:border-[color:var(--accent-steel)] outline-none" 
                 placeholder="Confirmar Nova Senha"
             />
 
             {error && (
-                <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3">
-                    <AlertCircle className="text-red-400 shrink-0 mt-0.5" size={16} />
-                    <p className="text-red-400 text-xs font-medium leading-relaxed">{error}</p>
+                <div className="bg-[color:var(--accent-danger-subtle)] border border-[color:var(--accent-danger-border)] p-4 rounded-xl flex items-start gap-3">
+                    <AlertCircle className="text-[color:var(--accent-danger)] shrink-0 mt-0.5" size={16} />
+                    <p className="text-[color:var(--accent-danger)] text-xs font-medium leading-relaxed">{error}</p>
                 </div>
             )}
 

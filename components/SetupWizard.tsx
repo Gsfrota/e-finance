@@ -37,7 +37,7 @@ const SetupWizard: React.FC = () => {
                 <Database size={32} />
             </div>
             <div>
-                <h1 className="type-title uppercase text-white">Conexão Ativa</h1>
+                <h1 className="type-title uppercase text-[color:var(--text-primary)]">Conexão Ativa</h1>
                 <p className="type-label text-teal-500">Enterprise Database Bridge</p>
             </div>
           </div>
@@ -60,7 +60,7 @@ const SetupWizard: React.FC = () => {
                 type="url" 
                 value={url}
                 onChange={e => setUrl(e.target.value)}
-                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-white font-mono text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-mono text-sm focus:ring-2 focus:ring-[color:var(--accent-steel)] outline-none transition-all"
               />
             </div>
 
@@ -71,12 +71,12 @@ const SetupWizard: React.FC = () => {
                 rows={4}
                 value={key}
                 onChange={e => setKey(e.target.value)}
-                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-white font-mono text-xs focus:ring-2 focus:ring-teal-500 outline-none transition-all resize-none"
+                className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-mono text-xs focus:ring-2 focus:ring-[color:var(--accent-steel)] outline-none transition-all resize-none"
               />
             </div>
 
             {error && (
-                <div className="flex items-center gap-2 text-red-400 text-xs bg-red-900/20 p-4 rounded-xl border border-red-900/30">
+                <div className="flex items-center gap-2 text-[color:var(--accent-danger)] text-xs bg-[color:var(--accent-danger-subtle)] p-4 rounded-xl border border-[color:var(--accent-danger-border)]">
                     <AlertCircle size={16} className="shrink-0" />
                     <span className="font-bold">{error}</span>
                 </div>

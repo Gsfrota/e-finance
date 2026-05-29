@@ -194,7 +194,7 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
     }
   };
 
-  const inputCls = "w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-strong)] rounded-xl px-4 py-3.5 text-[color:var(--text-primary)] font-mono text-lg outline-none focus:ring-2 focus:ring-[color:var(--accent-brass)] transition-all";
+  const inputCls = "w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-strong)] rounded-xl px-4 py-3.5 text-[color:var(--text-primary)] font-mono text-lg outline-none focus:ring-2 focus:ring-[color:var(--accent-steel)] transition-all";
 
   return (
     <div className="flex h-full flex-col bg-[color:var(--bg-elevated)]">
@@ -256,7 +256,7 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
           <div>
             <label className="block type-label text-[color:var(--text-faint)] mb-2">Destino do pagamento</label>
             <select value={destination} onChange={e => setDestination(e.target.value as any)}
-              className="w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-strong)] rounded-xl px-4 py-3.5 text-sm text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-[color:var(--accent-brass)] transition-all">
+              className="w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-strong)] rounded-xl px-4 py-3.5 text-sm text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-[color:var(--accent-steel)] transition-all">
               <option value="general_credit">Crédito geral</option>
               <option value="principal_reduction">Redução de principal</option>
               <option value="penalty_payment">Quitação de encargos</option>
@@ -273,7 +273,7 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
               value={notes}
               onChange={e => setNotes(e.target.value)}
               placeholder="Ex: PIX recebido, TED, etc."
-              className="w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-strong)] rounded-xl px-4 py-3.5 text-sm text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-[color:var(--accent-brass)] transition-all placeholder:text-[color:var(--text-faint)]"
+              className="w-full bg-[color:var(--bg-soft)] border border-[color:var(--border-strong)] rounded-xl px-4 py-3.5 text-sm text-[color:var(--text-primary)] outline-none focus:ring-2 focus:ring-[color:var(--accent-steel)] transition-all placeholder:text-[color:var(--text-faint)]"
             />
           </div>
 
@@ -322,7 +322,7 @@ const AvulsoPaymentScreen: React.FC<AvulsoPaymentScreenProps> = ({
           )}
 
           {error && (
-            <div className="flex items-center gap-2 rounded-xl bg-red-900/20 border border-red-900/50 p-3 text-xs text-red-400">
+            <div className="flex items-center gap-2 rounded-xl bg-[color:var(--accent-danger-subtle)] border border-[color:var(--accent-danger-border)] p-3 text-xs text-[color:var(--accent-danger)]">
               <AlertTriangle size={14} /> {error}
             </div>
           )}

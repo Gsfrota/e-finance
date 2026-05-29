@@ -319,7 +319,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
       </div>
 
       {fieldError && (
-        <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <div className="mb-6 rounded-xl border border-[color:var(--accent-danger-border)] bg-[color:var(--accent-danger-subtle)] px-4 py-3 text-sm text-[color:var(--accent-danger)]">
           {fieldError}
         </div>
       )}
@@ -424,7 +424,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                 Criar empresa
               </button>
             </div>
-            {createError && <p className="text-sm text-red-300">{createError}</p>}
+            {createError && <p className="text-sm text-[color:var(--accent-danger)]">{createError}</p>}
           </form>
         </div>
       )}
