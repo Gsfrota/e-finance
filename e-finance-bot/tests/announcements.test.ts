@@ -57,13 +57,27 @@ describe('announcements — dedup por destinatário', () => {
     expect(result.skippedAlready).toBe(1);
   });
 
-  it('NÃO envia se a reivindicação da entrega falhar (corrida → unique violation)', async () => {
+  it('envia ANTES de marcar: se o envio falhar (UazAPI fora), NÃO marca entrega', async () => {
+    // Fix FB-001: dispatch primeiro. Falha de envio → não grava entrega →
+    // anúncio será reenviado no próximo run (não se perde).
+    mocks.getDeliveredProfileIds.mockResolvedValue(new Set<string>());
+    mocks.waSendText.mockRejectedValueOnce(new Error('uazapi down'));
+
+    const result = await runAnnouncements();
+
+    expect(mocks.waSendText).toHaveBeenCalledTimes(1);
+    expect(mocks.recordDelivery).not.toHaveBeenCalled(); // erro de envio impede a marcação
+    expect(result.sent).toBe(0);
+  });
+
+  it('corrida: envio ok mas recordDelivery=false (já marcado) → conta como já entregue', async () => {
     mocks.getDeliveredProfileIds.mockResolvedValue(new Set<string>());
     mocks.recordDelivery.mockResolvedValue(false);
 
     const result = await runAnnouncements();
 
-    expect(mocks.waSendText).not.toHaveBeenCalled();
+    expect(mocks.waSendText).toHaveBeenCalledTimes(1); // já enviou (ordem nova)
+    expect(result.sent).toBe(0);
     expect(result.skippedAlready).toBe(1);
   });
 

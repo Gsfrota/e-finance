@@ -108,6 +108,10 @@ const REGISTRY: Record<ActionCapability, CapabilityDefinition<any, any>> = {
     name: 'show_subscription_payment', kind: 'query', rolesAllowed: ['admin'], requiredArgs: [], optionalArgs: [], requiresConfirmation: false,
     idempotencyScope: 'session', legacyIntent: 'ver_mensalidade', inputSchema: emptySchema, replyMode: 'raw',
   },
+  report_feedback: {
+    name: 'report_feedback', kind: 'utility', rolesAllowed: ['admin', 'investor', 'debtor'], requiredArgs: [], optionalArgs: [], requiresConfirmation: false,
+    idempotencyScope: 'none', legacyIntent: 'reportar_problema', inputSchema: emptySchema, replyMode: 'raw',
+  },
 };
 
 export function getCapabilityDefinition(capability: ActionCapability): CapabilityDefinition<any, any> {

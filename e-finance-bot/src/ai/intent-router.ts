@@ -88,6 +88,7 @@ const RULES: Rule[] = [
   { intent: 'ver_meu_saldo_devedor', pattern: /quanto\s+devo|minha\s+d[íi]vida|meu\s+saldo\s+devedor|total\s+em\s+aberto\s*(da\s+minha|que\s+devo)?/i },
   { intent: 'ver_meu_portfolio', pattern: /meu[s]?\s+contrato[s]?|meu[s]?\s+receb[íi]ve[il][s]?|meu\s+portf[oó]lio|minha[s]?\s+carteira/i },
   { intent: 'ver_mensalidade', pattern: /(pagar\s+(?:a\s+)?mensalidade|pix\s+d[ao]\s+(?:mensalidade|assinatura|plano|sistema)|como\s+(?:eu\s+)?pago\s+(?:o\s+sistema|a\s+mensalidade|o\s+juros\s+certo|o\s+plano)|segunda\s+via\s+da\s+mensalidade|quanto\s+custa\s+(?:o\s+)?(?:meu\s+)?plano|minha\s+mensalidade)/i },
+  { intent: 'reportar_problema', pattern: /(\/suporte|n[aã]o\s+(?:est[aá]\s+)?funciona(?:ndo)?|parou\s+de\s+funcionar|(?:deu|d[aá]|dando)\s+(?:erro|errado|pau|problema)|t[aá]\s+(?:com\s+)?(?:erro|bug|problema|bugad)|com\s+(?:um\s+)?problema|reclama(?:r|[cç][aã]o)|quero\s+reclamar|falar\s+com\s+(?:o\s+)?suporte|n[aã]o\s+(?:carrega|abre|salva))/i },
   { intent: 'desconectar', pattern: /^(\/desconectar|desconectar|desvincular|sair\s+da\s+conta)$/i },
   { intent: 'confirmar', pattern: /^(sim|confirmo|ok|pode|isso|s)$/i },
   { intent: 'cancelar', pattern: /^(n[aã]o|nao|cancela|cancelar|para|sair)$/i },

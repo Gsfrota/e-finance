@@ -30,7 +30,8 @@ export type ActionCapability =
   | 'configure_briefing'
   | 'set_eod_alert_hour'
   | 'preview_lembrete'
-  | 'show_subscription_payment';
+  | 'show_subscription_payment'
+  | 'report_feedback';
 
 export type OperationalIntent = Intent | 'smalltalk_identity' | 'smalltalk_datetime';
 export type TimeWindowMode = 'relative_days' | 'relative_months' | 'calendar_month';

@@ -135,6 +135,11 @@ export const config = {
     reminderGraceDays: parseInt(process.env.SUBSCRIPTION_REMINDER_GRACE_DAYS || '7', 10),
   },
 
+  // Suporte/feedback — número que recebe as reclamações encaminhadas pelo bot.
+  support: {
+    forwardPhone: (process.env.SUPPORT_FORWARD_PHONE || '').trim(),
+  },
+
   // Limites de tamanho de mídia inbound
   media: {
     maxAudioBytes: parseInt(process.env.MAX_AUDIO_BYTES || String(10 * 1024 * 1024), 10),

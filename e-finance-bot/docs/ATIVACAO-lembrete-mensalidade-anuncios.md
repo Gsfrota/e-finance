@@ -24,7 +24,13 @@ SUBSCRIPTION_AMOUNT_CADERNETA=150
 SUBSCRIPTION_AMOUNT_EMPRESARIAL=<definir quando houver plano empresarial>
 SUBSCRIPTION_REMINDER_LEAD_DAYS=3
 SUBSCRIPTION_REMINDER_GRACE_DAYS=7
+
+# Feedback/suporte (FB-001) — número que recebe as reclamações encaminhadas
+SUPPORT_FORWARD_PHONE=5585991318582
 ```
+
+> ⚠️ Sem `SUPPORT_FORWARD_PHONE`, a reclamação ainda é **registrada** em `bot_feedback`
+> (com `forwarded_ok=false`), mas **não** é encaminhada ao suporte. Setar no deploy.
 
 > PIX validado (parser EMV + CRC16 OK). Confirme colando o copia-e-cola no app do banco:
 > deve aparecer **GRUPO SS / R$ 150,00**.

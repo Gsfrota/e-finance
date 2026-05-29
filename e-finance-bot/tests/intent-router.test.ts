@@ -176,4 +176,13 @@ describe('intent router', () => {
     expect(routed.intent).toBe('listar_recebiveis');
     expect(routed.intent).not.toBe('saudacao');
   });
+
+  it('FB-001: detecta reclamação por palavra-chave sem chamar LLM', async () => {
+    for (const txt of ['o app não está funcionando', 'tá dando erro aqui', '/suporte', 'quero reclamar', 'parou de funcionar']) {
+      const routed = await routeIntent(txt, []);
+      expect(routed.intent).toBe('reportar_problema');
+      expect(routed.source).toBe('rule');
+    }
+    expect(mocks.classifyIntentCompact).not.toHaveBeenCalled();
+  });
 });

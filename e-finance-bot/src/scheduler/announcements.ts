@@ -88,15 +88,19 @@ export async function runAnnouncements(now = new Date()): Promise<{
           continue;
         }
 
-        // Reivindica a entrega antes de enviar (anti-duplicação em corrida).
-        const claimed = await recordDelivery(announcement.id, admin.id, target.channel);
-        if (!claimed) {
-          skippedAlready += 1;
-          continue;
-        }
-
+        // Enviar ANTES de marcar (FB-001): se o envio falhar (ex: UazAPI fora),
+        // NÃO marcamos como entregue — o anúncio será reenviado no próximo run.
         await dispatch(target.channel, target.id, message);
-        sent += 1;
+
+        // Marca a entrega após o envio. A constraint UNIQUE protege contra
+        // corrida: se outra execução já marcou, recordDelivery retorna false
+        // (não conta como novo envio, mas a mensagem já saiu uma vez aqui).
+        const recorded = await recordDelivery(announcement.id, admin.id, target.channel);
+        if (recorded) {
+          sent += 1;
+        } else {
+          skippedAlready += 1;
+        }
       } catch (err) {
         console.error(`[announcements] erro ao enviar anúncio ${announcement.id} para ${admin.id}:`, err);
       }

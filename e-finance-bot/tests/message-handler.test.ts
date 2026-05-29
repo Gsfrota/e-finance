@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   transcribeAudioDetailed: vi.fn(),
   analyzeImage: vi.fn(),
   inferInstallmentMonth: vi.fn(),
+  detectComplaintFallback: vi.fn(),
+  recordAndForwardFeedback: vi.fn(),
 
   getOrCreateSession: vi.fn(),
   syncSessionProfileFromChannelBinding: vi.fn(),
@@ -49,6 +51,11 @@ vi.mock('../src/ai/intent-router', () => ({
 vi.mock('../src/ai/intent-classifier', () => ({
   analyzeImage: mocks.analyzeImage,
   inferInstallmentMonth: mocks.inferInstallmentMonth,
+  detectComplaintFallback: mocks.detectComplaintFallback,
+}));
+
+vi.mock('../src/actions/feedback-actions', () => ({
+  recordAndForwardFeedback: mocks.recordAndForwardFeedback,
 }));
 
 vi.mock('../src/ai/audio-pipeline', () => ({
@@ -273,6 +280,8 @@ beforeEach(() => {
     durationMs: 120,
   });
   mocks.inferInstallmentMonth.mockReturnValue({});
+  mocks.detectComplaintFallback.mockResolvedValue(false);
+  mocks.recordAndForwardFeedback.mockResolvedValue({ recorded: true, forwarded: true });
 });
 
 describe('handleMessage', () => {
@@ -295,6 +304,30 @@ describe('handleMessage', () => {
 
     expect(out.text).toContain('Ainda não fechei sua ação com segurança');
     expect(mocks.getDashboardSummary).not.toHaveBeenCalled();
+  });
+
+  it('FB-001: fallback de reclamação (desconhecido + detector) EXECUTA report_feedback e confirma', async () => {
+    mocks.routeIntent.mockResolvedValue({
+      intent: 'desconhecido',
+      entities: {},
+      normalizedEntities: {},
+      confidence: 'low',
+      source: 'llm',
+    });
+    mocks.detectComplaintFallback.mockResolvedValueOnce(true);
+
+    const out = await handleMessage({
+      messageId: 'm-complaint',
+      channel: 'telegram',
+      channelUserId: 'chat-1',
+      senderName: 'User',
+      text: 'isso aqui tá uma bagunça, ninguém resolve meu caso',
+    });
+
+    // Não pode cair na clarificação de baixa confiança — deve executar e confirmar.
+    expect(mocks.recordAndForwardFeedback).toHaveBeenCalledTimes(1);
+    expect(out.text).toContain('Anotado');
+    expect(out.text).not.toContain('Ainda não fechei');
   });
 
   it('fluxo create_contract exige CPF sem criar pendingAction legado', async () => {

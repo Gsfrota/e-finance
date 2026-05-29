@@ -12,6 +12,7 @@ import {
 } from '../actions/admin-actions';
 import { getBotTenantConfig, upsertBotTenantConfig } from '../actions/bot-config-actions';
 import { buildSubscriptionPixBlock, getSubscriptionTenant } from '../actions/billing-actions';
+import { recordAndForwardFeedback } from '../actions/feedback-actions';
 import { buildBriefingMessage } from '../scheduler/morning-briefing';
 import { getCapabilityDefinition } from './capability-registry';
 import { createPendingConfirmation } from './confirmation-store';
@@ -855,6 +856,28 @@ export async function executeActionPlan(
     return {
       status: 'ok',
       safeUserMessage: `📬 *Exemplo de como o lembrete vai chegar${horario}:*\n\n${preview}`,
+      audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
+      workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [] }),
+    };
+  }
+
+  if (plan.capability === 'report_feedback') {
+    const profile = context.session.profile;
+    await recordAndForwardFeedback({
+      tenantId: context.tenantId || null,
+      profileId: context.profileId || null,
+      channel: context.channel,
+      channelUserId: context.session.channel_user_id,
+      senderName: profile?.name ?? null,
+      senderPhone: context.channel === 'whatsapp' ? context.session.channel_user_id : null,
+      messageText: context.rawText,
+    });
+
+    // Confirmação ao cliente NÃO depende do sucesso do envio ao suporte —
+    // o registro em bot_feedback já garante o rastreio.
+    return {
+      status: 'ok',
+      safeUserMessage: 'Anotado! 🙏 Encaminhei sua mensagem pra nossa equipe e logo alguém te retorna.',
       audit: { requestId: context.requestId, capability: plan.capability, tenantId: context.tenantId, confirmed: false, executor: 'tool-executor' },
       workingStatePatch: buildStatePatch(plan, { pendingCapability: undefined, pendingMissingFields: [] }),
     };

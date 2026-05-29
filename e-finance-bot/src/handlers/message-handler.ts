@@ -1,4 +1,4 @@
-import { analyzeImage, NormalizedEntities, inferInstallmentMonth } from '../ai/intent-classifier';
+import { analyzeImage, NormalizedEntities, inferInstallmentMonth, detectComplaintFallback } from '../ai/intent-classifier';
 import { AudioTranscriptResult, transcribeAudioDetailed } from '../ai/audio-pipeline';
 import {
   getOrCreateSession, updateSessionContext, clearSessionContext,
@@ -1940,10 +1940,22 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       };
 
       actionPlan = createActionPlan(understanding, textToProcess, role, referenceResolution.evidence);
+
+      // Fallback híbrido de reclamação (FB-001): só quando a intenção não foi
+      // identificada — evita custo/latência e falso-positivo no caminho feliz.
+      // Confiança 'high' ao re-planejar: o detector já é um sinal positivo
+      // confiante; sem isso, getPlanClarificationMessage barraria o plano por
+      // baixa confiança e a reclamação nunca chegaria ao executor.
+      if (understanding.intent === 'desconhecido' && await detectComplaintFallback(textToProcess)) {
+        understanding = { ...understanding, intent: 'reportar_problema', confidence: 'high' };
+        actionPlan = createActionPlan(understanding, textToProcess, role, referenceResolution.evidence);
+        telemetry.fallbackReason = 'complaint_detected';
+      }
+
       telemetry.intent = understanding.intent;
       telemetry.confidence = understanding.confidence;
       telemetry.routeSource = understanding.source;
-      telemetry.fallbackReason = understanding.fallbackReason || 'n/a';
+      telemetry.fallbackReason = telemetry.fallbackReason || understanding.fallbackReason || 'n/a';
     }
 
     await saveMessageTimed(session.id, 'user', textToProcess, userMediaType, telemetry.intent);

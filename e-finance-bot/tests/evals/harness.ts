@@ -59,6 +59,7 @@ vi.mock('../../src/ai/intent-router', () => ({
 vi.mock('../../src/ai/intent-classifier', () => ({
   analyzeImage: mocks.analyzeImage,
   inferInstallmentMonth: mocks.inferInstallmentMonth,
+  detectComplaintFallback: vi.fn().mockResolvedValue(false),
 }));
 
 vi.mock('../../src/ai/audio-pipeline', () => ({
