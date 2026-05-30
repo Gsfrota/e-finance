@@ -594,4 +594,133 @@ const payCases: AgentEvalCase[] = [
   },
 ];
 
-export const CONTRACT_FLOW_CASES: AgentEvalCase[] = [...createCases, ...payCases];
+// ───────────────────────── BULLET (juros simples) ─────────────────────────
+// BR-BOT-011 (criação) / BR-BOT-012 (baixa). Bullet = calculation_mode interest_only:
+// paga só juros/período, principal em aberto, prazo indeterminado.
+
+const BULLET_TITLE = 'Juros simples';
+const BULLET_CHOICE = 'Contrato de juros simples';
+
+function bulletInfo(over: Partial<{ isBullet: boolean; remainingBalance: number; contractId: number; interestDue: number }> = {}) {
+  return { isBullet: true, remainingBalance: 5000, contractId: 123, interestDue: 500, ...over };
+}
+
+const bulletCases: AgentEvalCase[] = [
+  // --- Criação bullet ---
+  {
+    id: 'cap-create_contract-bullet-ready-monthly',
+    description: 'bullet mensal completo (entities) → confirmação sem total linear',
+    category: 'functional', criticality: 'critical', failureTag: 'response_regression',
+    setup: routeCreate({ debtor_name: 'Ana Paula', amount: 5000, rate: 10, debtor_cpf: VALID_CPF, frequency: 'monthly', due_day: 10, calculation_mode: 'interest_only' }),
+    steps: [{ input: { text: 'contrato juros simples Ana Paula 5000 10% mensal dia 10 cpf 529.982.247-25' }, expect: {
+      textIncludes: [CONFIRM_CONTRACT, BULLET_TITLE, 'prazo indeterminado', 'Principal em aberto'],
+      textExcludes: ['Total a pagar', 'Rentabilidade'],
+      workingState: { pendingCapability: 'create_contract', pendingConfirmation: expect.anything() },
+    } }],
+  },
+  {
+    id: 'cap-create_contract-bullet-skip-installments',
+    description: 'bullet pula o slot de parcelas → pede CPF, não "parcelas"',
+    category: 'functional', criticality: 'critical', failureTag: 'missing_clarification',
+    setup: routeCreate({ debtor_name: 'João Silva', amount: 5000, rate: 10, calculation_mode: 'interest_only' }),
+    steps: [{ input: { text: 'empréstimo só juros para João Silva 5000 10%' }, expect: {
+      textIncludes: ['CPF do devedor'], textExcludes: ['parcelas', CONFIRM_CONTRACT],
+      workingState: { pendingMissingFields: ['debtor_cpf'] },
+    } }],
+  },
+  {
+    id: 'cap-create_contract-bullet-nl-trigger',
+    description: 'gatilho "só juros" no texto (sem entity) marca bullet e fica pronto',
+    category: 'functional', criticality: 'core', failureTag: 'response_regression',
+    setup: routeCreate({ debtor_name: 'Ana Paula', amount: 5000, rate: 10, debtor_cpf: VALID_CPF, frequency: 'monthly', due_day: 10 }),
+    steps: [{ input: { text: 'contrato Ana Paula 5000 10% mensal dia 10 paga só os juros cpf 529.982.247-25' }, expect: {
+      textIncludes: [CONFIRM_CONTRACT, BULLET_TITLE], textExcludes: ['Total a pagar'],
+      workingState: { pendingConfirmation: expect.anything() },
+    } }],
+  },
+  {
+    id: 'cap-create_contract-bullet-confirm-success',
+    description: 'bullet → "sim" cria e mostra comprovante sem total linear',
+    category: 'multi_turn', criticality: 'critical', failureTag: 'bad_confirmation_flow',
+    setup: (ctx) => {
+      routeCreate({ debtor_name: 'Ana Paula', amount: 5000, rate: 10, debtor_cpf: VALID_CPF, frequency: 'monthly', due_day: 10, calculation_mode: 'interest_only' })(ctx);
+    },
+    steps: [
+      { input: { text: 'contrato juros simples Ana Paula 5000 10% mensal dia 10 cpf 529.982.247-25' }, expect: { textIncludes: [CONFIRM_CONTRACT, BULLET_TITLE], mockCalls: { createContract: 0 } } },
+      { input: { text: 'sim' }, expect: { textIncludes: ['Contrato #123 criado', BULLET_TITLE], pendingAction: null, mockCalls: { createContract: 1 } } },
+    ],
+  },
+
+  // --- Baixa bullet: escolha rolagem/quitação ---
+  {
+    id: 'cap-mark_installment_paid-bullet-choice',
+    description: 'parcela bullet → pergunta rolagem/quitação com JUROS correto (não amount_total)',
+    category: 'functional', criticality: 'critical', failureTag: 'missing_clarification',
+    setup: (ctx) => {
+      routePay({ contract_id: 123, installment_number: 1 })(ctx);
+      // amount_total = 5500 (principal + juros); interestDue real = 500. O bug exibia 5500/10500.
+      ctx.mocks.getContractOpenInstallmentByNumber.mockResolvedValue(openInstallment({ id: 'inst-1', number: 1, amount: 5500 }));
+      ctx.mocks.getInstallmentBulletInfo.mockResolvedValue(bulletInfo({ remainingBalance: 5000, interestDue: 500 }));
+    },
+    steps: [{ input: { text: 'baixar contrato 123 parcela 1' }, expect: {
+      // juros = R$ 500.00; quitar total = 5000 + 500 = R$ 5500.00. NUNCA R$ 10500.00 (bug).
+      textIncludes: [BULLET_CHOICE, 'R$ 500.00', 'R$ 5500.00'], textExcludes: [CONFIRM_PAYMENT, 'R$ 10500.00'],
+      workingState: { pendingMissingFields: ['bullet_mode'] }, mockCalls: { payBulletInterest: 0 },
+    } }],
+  },
+  {
+    id: 'cap-mark_installment_paid-bullet-rollover-success',
+    description: 'bullet → "juros" → confirma rolagem → paga só juros (payBulletInterest 1×)',
+    category: 'multi_turn', criticality: 'critical', failureTag: 'bad_confirmation_flow',
+    setup: (ctx) => {
+      routePay({ contract_id: 123, installment_number: 1 })(ctx);
+      ctx.mocks.getContractOpenInstallmentByNumber.mockResolvedValue(openInstallment({ id: 'inst-1', number: 1, amount: 5500 }));
+      ctx.mocks.getInstallmentBulletInfo.mockResolvedValue(bulletInfo({ remainingBalance: 5000, interestDue: 500 }));
+      ctx.mocks.payBulletInterest.mockResolvedValue({ ok: true, contractClosed: false, interestPaid: 500, principalPaid: 0, newBalance: 5000 });
+    },
+    steps: [
+      { input: { text: 'baixar contrato 123 parcela 1' }, expect: { textIncludes: [BULLET_CHOICE] } },
+      { input: { text: 'juros' }, expect: { textIncludes: [CONFIRM_PAYMENT, 'Rolagem', 'R$ 500.00'], textExcludes: ['R$ 5500.00'], workingState: { pendingConfirmation: expect.anything() }, mockCalls: { payBulletInterest: 0 } } },
+      { input: { text: 'sim' }, expect: { textIncludes: ['Pagamento confirmado', 'Rolagem de juros'], pendingAction: null, mockCalls: { payBulletInterest: 1, markInstallmentPaid: 0 } } },
+    ],
+  },
+  {
+    id: 'cap-mark_installment_paid-bullet-settle-success',
+    description: 'bullet → "quitar" → confirma quitação → quita principal+juros e encerra',
+    category: 'multi_turn', criticality: 'critical', failureTag: 'bad_confirmation_flow',
+    setup: (ctx) => {
+      routePay({ contract_id: 123, installment_number: 1 })(ctx);
+      ctx.mocks.getContractOpenInstallmentByNumber.mockResolvedValue(openInstallment({ id: 'inst-1', number: 1, amount: 5500 }));
+      ctx.mocks.getInstallmentBulletInfo.mockResolvedValue(bulletInfo({ remainingBalance: 5000, interestDue: 500 }));
+      ctx.mocks.payBulletInterest.mockResolvedValue({ ok: true, contractClosed: true, interestPaid: 500, principalPaid: 5000, newBalance: 0 });
+    },
+    steps: [
+      { input: { text: 'baixar contrato 123 parcela 1' }, expect: { textIncludes: [BULLET_CHOICE] } },
+      { input: { text: 'quitar' }, expect: { textIncludes: [CONFIRM_PAYMENT, 'Quitação', 'R$ 5500.00'], textExcludes: ['R$ 10500.00'], mockCalls: { payBulletInterest: 0 } } },
+      { input: { text: 'sim' }, expect: { textIncludes: ['Pagamento confirmado', 'Contrato quitado', 'encerrado'], mockCalls: { payBulletInterest: 1, markInstallmentPaid: 0 } } },
+    ],
+  },
+  {
+    // REGRESSÃO BOT-FIX-001 sob bullet: selecionar a parcela "1" com seleção de
+    // empresa pendente não pode ser sequestrado; e a parcela bullet deve abrir a
+    // escolha rolagem/quitação.
+    id: 'cap-mark_installment_paid-bullet-company-no-hijack',
+    description: 'bullet via lista: "1" não vira seleção de empresa e abre escolha juros/quitar',
+    category: 'multi_turn', criticality: 'critical', failureTag: 'context_loss',
+    setup: (ctx) => {
+      routePay({ contract_id: 123 })(ctx);
+      ctx.mocks.getContractOpenInstallments.mockResolvedValue({
+        items: [openInstallment({ id: 'inst-1', number: 1, amount: 500 }), openInstallment({ id: 'inst-2', number: 2, amount: 500, dueDate: '2026-04-10' })],
+        page: 0, pageSize: 3, total: 2, hasMore: false,
+      });
+      ctx.mocks.getInstallmentBulletInfo.mockResolvedValue(bulletInfo());
+    },
+    steps: [
+      { input: { text: 'quais empresas eu tenho?' }, expect: { textIncludes: ['Empresas disponíveis'] } },
+      { input: { text: 'baixar contrato 123' }, expect: { textIncludes: ['Encontrei estas parcelas'] } },
+      { input: { text: '1' }, expect: { textIncludes: [BULLET_CHOICE], textExcludes: ['Vou considerar a empresa'] } },
+    ],
+  },
+];
+
+export const CONTRACT_FLOW_CASES: AgentEvalCase[] = [...createCases, ...payCases, ...bulletCases];

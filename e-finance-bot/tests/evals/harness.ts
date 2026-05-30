@@ -33,6 +33,9 @@ const mocks = vi.hoisted(() => ({
   parseContractTextWithMeta: vi.fn(),
   createContract: vi.fn(),
   markInstallmentPaid: vi.fn(),
+  getInstallmentBulletInfo: vi.fn(),
+  payBulletInterest: vi.fn(),
+  searchDebtorsByName: vi.fn(),
   searchUser: vi.fn(),
   getUserDebt: vi.fn(),
   getUserDebtDetails: vi.fn(),
@@ -106,6 +109,9 @@ vi.mock('../../src/actions/admin-actions', () => ({
   parseContractTextWithMeta: mocks.parseContractTextWithMeta,
   createContract: mocks.createContract,
   markInstallmentPaid: mocks.markInstallmentPaid,
+  getInstallmentBulletInfo: mocks.getInstallmentBulletInfo,
+  payBulletInterest: mocks.payBulletInterest,
+  searchDebtorsByName: mocks.searchDebtorsByName,
   searchUser: mocks.searchUser,
   getUserDebt: mocks.getUserDebt,
   getUserDebtDetails: mocks.getUserDebtDetails,
@@ -289,6 +295,11 @@ function applyDefaults(state: AgentEvalHarnessState) {
     debtorResolution: 'created',
   });
   mocks.markInstallmentPaid.mockResolvedValue(true);
+  // Default: parcelas pertencem a contrato padrão (não-bullet). Casos bullet
+  // sobrescrevem getInstallmentBulletInfo/payBulletInterest no próprio setup.
+  mocks.getInstallmentBulletInfo.mockResolvedValue({ isBullet: false, remainingBalance: 0, contractId: 123, interestDue: 0 });
+  mocks.payBulletInterest.mockResolvedValue({ ok: true, contractClosed: false, interestPaid: 0, principalPaid: 0, newBalance: 0 });
+  mocks.searchDebtorsByName.mockResolvedValue([]);
   mocks.searchUser.mockResolvedValue([]);
   mocks.getUserDebt.mockResolvedValue(0);
   mocks.getUserDebtDetails.mockResolvedValue({

@@ -28,6 +28,7 @@ import {
   getContractOpenInstallmentByNumber,
   getContractOpenInstallmentByMonth,
   getInstallmentByDebtorAndMonth,
+  searchDebtorsByName,
   isValidCpf,
   normalizeCpf,
   formatDate,
@@ -620,7 +621,14 @@ interface MarkInstallmentPaidInput {
 async function resolveInstallmentForPayment(
   input: MarkInstallmentPaidInput,
   ctx: Parameters<ToolHandler>[1],
-): Promise<{ kind: 'ok'; installment: ContractOpenInstallment } | { kind: 'ambiguous'; options: ContractOpenInstallment[] } | { kind: 'not_found' }> {
+): Promise<{ kind: 'ok'; installment: ContractOpenInstallment } | { kind: 'ambiguous'; options: ContractOpenInstallment[] } | { kind: 'ambiguous_debtor'; debtors: Array<{ id: string; full_name: string; cpf: string | null }> } | { kind: 'not_found' }> {
+  // BR-BOT-014 (BOT-007): nome ambíguo → desambigua a pessoa antes de tocar em
+  // qualquer parcela (evita baixar no cliente errado, inclusive com contract_id
+  // inferido pelo LLM). Espelha o executor da capability.
+  if (input.debtor_name && !input.installment_number) {
+    const profiles = await searchDebtorsByName(ctx.tenantId, input.debtor_name);
+    if (profiles.length > 1) return { kind: 'ambiguous_debtor', debtors: profiles };
+  }
   if (input.contract_id && input.installment_number) {
     const found = await getContractOpenInstallmentByNumber(ctx.tenantId, input.contract_id, input.installment_number);
     return found ? { kind: 'ok', installment: found } : { kind: 'not_found' };
@@ -664,6 +672,21 @@ export const markInstallmentPaidHandler: ToolHandler<MarkInstallmentPaidInput> =
       kind: 'error',
       message: 'Não encontrei a parcela. Me diga o número do contrato e o número (ou mês) da parcela.',
       retryable: false,
+    };
+  }
+
+  if (resolution.kind === 'ambiguous_debtor') {
+    const lines = resolution.debtors.map((d, idx) => {
+      const tail = (d.cpf || '').replace(/\D/g, '').slice(-2);
+      const cpfLabel = tail ? ` — CPF ***.***.***-${tail}` : '';
+      return `*${idx + 1}.* ${d.full_name}${cpfLabel}`;
+    });
+    return {
+      kind: 'data',
+      summary: `Encontrei ${resolution.debtors.length} clientes com esse nome.`,
+      data: {
+        prompt: `Para evitar baixar no cliente errado, me diga qual deles:\n\n${lines.join('\n')}\n\nResponda com o *número* ou o *final do CPF*.`,
+      },
     };
   }
 

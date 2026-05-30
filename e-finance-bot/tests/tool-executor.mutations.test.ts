@@ -15,6 +15,9 @@ const mocks = vi.hoisted(() => ({
   parseContractTextWithMeta: vi.fn(),
   createContract: vi.fn(),
   markInstallmentPaid: vi.fn(),
+  getInstallmentBulletInfo: vi.fn(),
+  payBulletInterest: vi.fn(),
+  searchDebtorsByName: vi.fn(),
   getContractOpenInstallments: vi.fn(),
   getContractOpenInstallmentByNumber: vi.fn(),
   getContractOpenInstallmentByMonth: vi.fn(),
@@ -42,6 +45,9 @@ vi.mock('../src/actions/admin-actions', () => ({
   parseContractTextWithMeta: mocks.parseContractTextWithMeta,
   createContract: mocks.createContract,
   markInstallmentPaid: mocks.markInstallmentPaid,
+  getInstallmentBulletInfo: mocks.getInstallmentBulletInfo,
+  payBulletInterest: mocks.payBulletInterest,
+  searchDebtorsByName: mocks.searchDebtorsByName,
   getContractOpenInstallments: mocks.getContractOpenInstallments,
   getContractOpenInstallmentByNumber: mocks.getContractOpenInstallmentByNumber,
   getContractOpenInstallmentByMonth: mocks.getContractOpenInstallmentByMonth,
@@ -132,6 +138,9 @@ beforeEach(() => {
   });
 
   mocks.markInstallmentPaid.mockResolvedValue(true);
+  mocks.getInstallmentBulletInfo.mockResolvedValue({ isBullet: false, remainingBalance: 0, contractId: 123, interestDue: 0 });
+  mocks.payBulletInterest.mockResolvedValue({ ok: true, contractClosed: false, interestPaid: 0, principalPaid: 0, newBalance: 0 });
+  mocks.searchDebtorsByName.mockResolvedValue([]);
   mocks.getContractOpenInstallmentByNumber.mockResolvedValue({
     id: 'inst-2',
     number: 2,

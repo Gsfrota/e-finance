@@ -28,6 +28,9 @@ Sprint de **1 frente** (bot). 5 itens. Commit realista: **P0 + P1** (BOT-FIX-001
 | 3 | TEST-001 | Confiabilidade da suíte de testes do bot | **P1** | DÉBITO TÉCNICO | Spec pendente |
 | 4 | BOT-002 | Deprecar capabilities não-admin (bot é admin-only) | **P1** | LIMPEZA/PRODUTO | Spec pendente |
 | 5 | BOT-003 | Wizard do briefing vaza antes do gate de policy | **P2** | FIX (baixo) | Spec pendente |
+| 6 | BOT-005 | Bot cria e baixa contratos bullet (juros simples) | **P1** | FEATURE | ✅ Implementada + QA PASS (commit/push pendente) |
+| 7 | BOT-006 | Baixa por nome desambigua clientes homônimos | **P0** | FIX (segurança) | ✅ Implementada + QA PASS (commit/push pendente) |
+| 8 | BOT-007 | LLM injeta contract_id do histórico → pula desambiguação por nome | **P0** | FIX (segurança) | ✅ Implementada + QA PASS + live (commit/push pendente) |
 
 ---
 

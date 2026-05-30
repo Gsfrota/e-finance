@@ -94,6 +94,54 @@ export function formatComprovante(data: ComprovanteData): string {
   return lines.join('\n');
 }
 
+export interface BulletReceiptData {
+  debtorName: string;
+  contractId?: number;
+  installmentNumber?: number;
+  paidAt: string;
+  mode: 'interest' | 'settle';
+  interestPaid: number;
+  principalPaid: number;
+  newBalance: number;
+  contractClosed: boolean;
+}
+
+/**
+ * BR-BOT-012: comprovante de baixa de contrato bullet (juros simples).
+ * Rolagem mostra juros pagos + saldo que segue em aberto; quitação mostra
+ * juros + principal e o encerramento do contrato.
+ */
+export function formatBulletPaymentReceipt(data: BulletReceiptData): string {
+  const paidDate = new Date(data.paidAt);
+  const paidDateStr = paidDate.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const paidTimeStr = paidDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+
+  const headerParts: string[] = [data.debtorName];
+  if (data.contractId) headerParts.push(`Contrato #${data.contractId}`);
+
+  const lines: string[] = ['*Pagamento confirmado*', '', headerParts.join('  ·  '), ''];
+
+  if (data.mode === 'settle' || data.contractClosed) {
+    const total = data.interestPaid + data.principalPaid;
+    lines.push(
+      '_Contrato quitado (juros + principal)_',
+      `Juros: *${formatCurrency(data.interestPaid)}*`,
+      `Principal: *${formatCurrency(data.principalPaid)}*`,
+      `Total pago: *${formatCurrency(total)}*`,
+      `Saldo devedor: *${formatCurrency(0)}*  ·  _contrato encerrado_`,
+    );
+  } else {
+    lines.push(
+      '_Rolagem de juros_',
+      `Juros pagos: *${formatCurrency(data.interestPaid)}*`,
+      `Principal em aberto: *${formatCurrency(data.newBalance)}*`,
+      '_Próxima parcela de juros gerada automaticamente._',
+    );
+  }
+  lines.push(`Pago em: ${paidDateStr} às ${paidTimeStr}`);
+  return lines.join('\n');
+}
+
 /**
  * Formata relatório mensal completo (gerar_relatorio).
  */
@@ -182,9 +230,68 @@ const WEEKDAY_NAMES = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira
 const ordinal = (n: number) => `${n}ª`;
 
 /**
+ * BR-BOT-011: mensagem para contrato bullet (juros simples / interest_only).
+ * Mostra juros por período e principal em aberto, sem total linear nem "Nx de".
+ */
+function formatBulletContractMessage(
+  draft: ContractDraft,
+  opts: { variant: 'confirm' } | { variant: 'created'; result: ContractCreatedResult },
+): string {
+  const juros = draft.amount * (draft.rate / 100);
+  const freqLabel = FREQ_LABEL[draft.frequency] ?? draft.frequency;
+  const periodWord = draft.frequency === 'monthly' ? 'mensais'
+    : draft.frequency === 'weekly' ? 'semanais'
+    : draft.frequency === 'biweekly' ? 'quinzenais'
+    : draft.frequency === 'daily' ? 'diárias'
+    : freqLabel;
+  const nextDate = generateInstallmentDates(draft, 1)[0];
+
+  if (opts.variant === 'created') {
+    const cpf = opts.result.debtorCpf;
+    const lines = [
+      `*Contrato #${opts.result.id} criado*`,
+      '',
+      `*${opts.result.debtorName}*  ·  CPF ${maskCpf(cpf)}`,
+      '',
+      '_Juros simples — prazo indeterminado_',
+      `Principal em aberto: *${formatCurrency(draft.amount)}*`,
+      `Taxa: *${draft.rate}%* a.m.`,
+      `Juros ${periodWord}: *${formatCurrency(juros)}*`,
+      '',
+      `*Próxima cobrança:* ${formatDateBR(nextDate)}  ·  *${formatCurrency(juros)}*`,
+    ];
+    if (opts.result.debtorResolution === 'reused') {
+      lines.push('', '_Devedor já cadastrado — contrato vinculado ao perfil existente._');
+    }
+    lines.push('', `Para registrar baixa depois, diga *"baixar contrato ${opts.result.id}"*.`);
+    return lines.join('\n');
+  }
+
+  const cpfLabel = draft.debtor_cpf ? `  ·  CPF ${maskCpf(draft.debtor_cpf)}` : '';
+  return [
+    '*Novo contrato — confirmar*',
+    '',
+    `*${draft.debtor_name}*${cpfLabel}`,
+    '',
+    '_Juros simples — prazo indeterminado_',
+    `Principal em aberto: *${formatCurrency(draft.amount)}*`,
+    `Taxa: *${draft.rate}%* a.m.`,
+    `Juros ${periodWord}: *${formatCurrency(juros)}*`,
+    `Cobrança: ${periodWord}, principal pago só na quitação`,
+    '',
+    `*Próxima cobrança:* ${formatDateBR(nextDate)}  ·  *${formatCurrency(juros)}*`,
+    '',
+    'Responda *sim* para criar ou *não* para cancelar.',
+  ].join('\n');
+}
+
+/**
  * Mensagem de confirmação antes de criar o contrato.
  */
 export function formatContractConfirmationMessage(draft: ContractDraft): string {
+  if (draft.calculation_mode === 'interest_only') {
+    return formatBulletContractMessage(draft, { variant: 'confirm' });
+  }
   const total = (draft.total_repayment ?? 0) > 0
     ? draft.total_repayment!
     : draft.amount * (1 + (draft.rate / 100) * draft.installments);
@@ -244,6 +351,9 @@ export interface ContractCreatedResult {
  * Comprovante exibido após criação bem-sucedida do contrato.
  */
 export function formatContractCreatedMessage(result: ContractCreatedResult, draft: ContractDraft): string {
+  if (draft.calculation_mode === 'interest_only') {
+    return formatBulletContractMessage(draft, { variant: 'created', result });
+  }
   const total = (draft.total_repayment ?? 0) > 0
     ? draft.total_repayment!
     : draft.amount * (1 + (draft.rate / 100) * draft.installments);
