@@ -32,6 +32,8 @@ const mocks = vi.hoisted(() => ({
   getContractOpenInstallmentByNumber: vi.fn(),
   getContractOpenInstallmentByMonth: vi.fn(),
   getInstallmentByDebtorAndMonth: vi.fn(),
+  getInstallmentBulletInfo: vi.fn(),
+  searchDebtorsByName: vi.fn(),
 
   // bot-config
   getBotTenantConfig: vi.fn(),
@@ -70,6 +72,8 @@ vi.mock('../src/actions/admin-actions', () => ({
   getContractOpenInstallmentByNumber: mocks.getContractOpenInstallmentByNumber,
   getContractOpenInstallmentByMonth: mocks.getContractOpenInstallmentByMonth,
   getInstallmentByDebtorAndMonth: mocks.getInstallmentByDebtorAndMonth,
+  getInstallmentBulletInfo: mocks.getInstallmentBulletInfo,
+  searchDebtorsByName: mocks.searchDebtorsByName,
   isValidCpf: (value?: string | null) => value === '52998224725',
   normalizeCpf: (value?: string | null) => {
     if (!value) return null;
@@ -77,6 +81,7 @@ vi.mock('../src/actions/admin-actions', () => ({
     return digits.length === 11 ? digits : null;
   },
   formatDate: (value: string) => value,
+  formatCurrency: (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value),
 }));
 
 vi.mock('../src/actions/bot-config-actions', () => ({
@@ -137,6 +142,9 @@ describe('AI-native handlers — wired mutations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     __resetCircuitBreakerForTests();
+    // Default: parcela de contrato padrão (não-bullet). Casos bullet sobrescrevem.
+    mocks.getInstallmentBulletInfo.mockResolvedValue({ isBullet: false, remainingBalance: 0, contractId: 0, interestDue: 0 });
+    mocks.searchDebtorsByName.mockResolvedValue([]);
   });
 
   describe('disconnect_bot', () => {
@@ -352,6 +360,71 @@ describe('AI-native handlers — wired mutations', () => {
       mocks.getUserDebt.mockResolvedValue(1500);
       const outcome = await queryDebtorBalanceHandler({ debtor_profile_id: 'profile-x' }, ctx);
       expect(outcome.kind).toBe('data');
+    });
+  });
+
+  // BOT-008: paridade bullet no caminho AI-native (handlers).
+  describe('BOT-008 bullet (paridade AI-native)', () => {
+    it('create_contract: calculation_mode interest_only → preview bullet + argsSnapshot', async () => {
+      const ctx = buildCtx('admin');
+      const outcome = await createContractHandler({
+        debtor_cpf: '52998224725', amount: 5000, rate: 10, frequency: 'monthly', due_day: 10,
+        debtor_name: 'Icaro', calculation_mode: 'interest_only',
+      }, ctx);
+      expect(outcome.kind).toBe('preview');
+      if (outcome.kind === 'preview') {
+        expect(outcome.preview).toContain('Juros simples');
+        expect(outcome.preview).toContain('prazo indeterminado');
+        expect(outcome.preview).not.toContain('Total a pagar');
+        expect(outcome.argsSnapshot.calculation_mode).toBe('interest_only');
+      }
+    });
+
+    it('mark_installment_paid bullet sem modo → pergunta juros/quitar (sem confirmação)', async () => {
+      const ctx = buildCtx('admin');
+      mocks.getContractOpenInstallmentByNumber.mockResolvedValue({
+        id: 'inst-b1', number: 1, contractId: 77, debtorName: 'Icaro', amount: 5500, dueDate: '2026-06-10', status: 'pending',
+      });
+      mocks.getInstallmentBulletInfo.mockResolvedValue({ isBullet: true, remainingBalance: 5000, contractId: 77, interestDue: 500 });
+      const outcome = await markInstallmentPaidHandler({ contract_id: 77, installment_number: 1 }, ctx);
+      expect(outcome.kind).toBe('data');
+      if (outcome.kind === 'data') {
+        expect(outcome.data.prompt).toContain('juros simples (bullet)');
+        expect(outcome.data.prompt).toContain('quitar');
+        // juros correto (500), não amount_total (5500) — guarda do bug BOT-005.
+        expect(outcome.data.prompt).toContain('500,00');
+      }
+    });
+
+    it('mark_installment_paid bullet_mode=interest → preview rolagem + argsSnapshot.bullet_mode', async () => {
+      const ctx = buildCtx('admin');
+      mocks.getContractOpenInstallmentByNumber.mockResolvedValue({
+        id: 'inst-b1', number: 1, contractId: 77, debtorName: 'Icaro', amount: 5500, dueDate: '2026-06-10', status: 'pending',
+      });
+      mocks.getInstallmentBulletInfo.mockResolvedValue({ isBullet: true, remainingBalance: 5000, contractId: 77, interestDue: 500 });
+      const outcome = await markInstallmentPaidHandler({ contract_id: 77, installment_number: 1, bullet_mode: 'interest' }, ctx);
+      expect(outcome.kind).toBe('preview');
+      if (outcome.kind === 'preview') {
+        expect(outcome.preview).toContain('Rolagem');
+        expect(outcome.preview).toContain('500,00');
+        expect(outcome.argsSnapshot.bullet_mode).toBe('interest');
+        expect(outcome.argsSnapshot.installment_id).toBe('inst-b1');
+      }
+    });
+
+    it('mark_installment_paid bullet_mode=settle → preview quitação (juros+principal)', async () => {
+      const ctx = buildCtx('admin');
+      mocks.getContractOpenInstallmentByNumber.mockResolvedValue({
+        id: 'inst-b1', number: 1, contractId: 77, debtorName: 'Icaro', amount: 5500, dueDate: '2026-06-10', status: 'pending',
+      });
+      mocks.getInstallmentBulletInfo.mockResolvedValue({ isBullet: true, remainingBalance: 5000, contractId: 77, interestDue: 500 });
+      const outcome = await markInstallmentPaidHandler({ contract_id: 77, installment_number: 1, bullet_mode: 'settle' }, ctx);
+      expect(outcome.kind).toBe('preview');
+      if (outcome.kind === 'preview') {
+        expect(outcome.preview).toContain('Quitação');
+        expect(outcome.preview).toContain('5.500,00'); // total = 5000 + 500
+        expect(outcome.argsSnapshot.bullet_mode).toBe('settle');
+      }
     });
   });
 });

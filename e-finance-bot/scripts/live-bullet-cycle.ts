@@ -93,6 +93,11 @@ async function main() {
       code: linkCode, channel: "telegram", profile_id: profileId,
       expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     });
+    // BOT-008: liga ai_enabled p/ exercitar o caminho AI-native quando
+    // AI_NATIVE_ENABLED=true (defaults preenchem as demais colunas NOT NULL).
+    const { error: cfgErr } = await sb.from("bot_tenant_config").insert({ tenant_id: tenantId, ai_enabled: true });
+    if (cfgErr) console.warn("[warn] bot_tenant_config insert:", cfgErr.message);
+    console.log(`[info] AI_NATIVE_ENABLED=${process.env.AI_NATIVE_ENABLED || "(off)"}`);
 
     // ---- Vincular conta ----
     await ask("/start");
@@ -187,6 +192,7 @@ async function main() {
     }
     if (profileId) await sb.from("bot_link_codes").delete().eq("profile_id", profileId);
     if (tenantId) {
+      await sb.from("bot_tenant_config").delete().eq("tenant_id", tenantId);
       await sb.from("loan_installments").delete().eq("tenant_id", tenantId);
       await sb.from("payment_transactions").delete().eq("tenant_id", tenantId);
       await sb.from("investments").delete().eq("tenant_id", tenantId);

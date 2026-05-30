@@ -31,6 +31,7 @@ Sprint de **1 frente** (bot). 5 itens. Commit realista: **P0 + P1** (BOT-FIX-001
 | 6 | BOT-005 | Bot cria e baixa contratos bullet (juros simples) | **P1** | FEATURE | ✅ Implementada + QA PASS (commit/push pendente) |
 | 7 | BOT-006 | Baixa por nome desambigua clientes homônimos | **P0** | FIX (segurança) | ✅ Implementada + QA PASS (commit/push pendente) |
 | 8 | BOT-007 | LLM injeta contract_id do histórico → pula desambiguação por nome | **P0** | FIX (segurança) | ✅ Implementada + QA PASS + live (commit/push pendente) |
+| 9 | BOT-008 | Bullet no caminho AI-native (paridade) — feature chega aos 4 tenants AI-native | **P0** | FIX (paridade) | ✅ Implementada + QA PASS + live ai-native (commit/push pendente) |
 
 ---
 
