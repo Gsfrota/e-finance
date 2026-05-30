@@ -1,0 +1,135 @@
+import type { AgentEvalCase } from '../contracts';
+
+function createConfirmationCase(
+  index: number,
+  debtorName: string,
+  confirmationWord: string,
+  amount: number,
+  contractId: number,
+  installmentNumber: number,
+  dueDate: string,
+): AgentEvalCase {
+  return {
+    id: `confirm-tolerant-${index}`,
+    description: `Confirmação com palavra "${confirmationWord}" para ${debtorName} (Contrato #${contractId}, Parcela ${installmentNumber})`,
+    category: 'functional',
+    criticality: 'critical',
+    failureTag: 'bad_confirmation_flow',
+    role: 'admin',
+    tenantId: 'tenant-001',
+    profileId: 'profile-admin-001',
+    initialContext: {
+      workingState: {
+        pendingCapability: 'mark_installment_paid',
+        pendingConfirmation: {
+          confirmationId: `mark_installment_paid:${Date.now()}:${index}`,
+          capability: 'mark_installment_paid',
+          expiresAt: new Date(Date.now() + 300000).toISOString(),
+          idempotencyKey: `session-eval:mark_installment_paid:${index}`,
+          argsSnapshot: {
+            installment_id: `inst-confirm-${index}`,
+            contract_id: contractId,
+            installment_number: installmentNumber,
+            debtor_name: debtorName,
+          },
+          safePreview: `*Baixar parcela — confirmar*\n\n${debtorName} · Contrato #${contractId} · Parcela ${installmentNumber}\n\nValor: *R$ ${amount.toFixed(2)}*\nVencimento: ${dueDate}\n\nResponda *sim* para confirmar a baixa ou *não* para cancelar.`,
+        },
+        pendingOperationInput: {
+          installment_id: `inst-confirm-${index}`,
+          contract_id: contractId,
+          installment_number: installmentNumber,
+        },
+        candidateSets: {
+          installments: [
+            {
+              id: `inst-confirm-${index}`,
+              label: `${debtorName} — Parcela ${installmentNumber}`,
+              meta: JSON.stringify({
+                contractId,
+                number: installmentNumber,
+                debtorName,
+                amount,
+                dueDate,
+                status: 'pending',
+              }),
+            },
+          ],
+        },
+        missingSlots: [],
+        pendingMissingFields: [],
+      },
+    },
+    setup: ({ mocks }) => {
+      mocks.routeIntent.mockResolvedValue({
+        intent: 'smalltalk',
+        entities: {},
+        normalizedEntities: {},
+        confidence: 'low',
+        source: 'rule',
+      });
+      mocks.markInstallmentPaid.mockResolvedValue(true);
+    },
+    steps: [
+      {
+        input: { text: confirmationWord },
+        expect: {
+          textIncludes: [debtorName, 'Pagamento confirmado'],
+          mockCalls: { markInstallmentPaid: 1 },
+        },
+      },
+    ],
+  };
+}
+
+export const CONFIRM_TOLERANT_CASES: AgentEvalCase[] = [
+  createConfirmationCase(1, 'João Silva', 'tá', 1200, 10, 1, '2026-03-15'),
+  createConfirmationCase(2, 'Maria Santos', 'ta', 800, 20, 3, '2026-04-10'),
+  createConfirmationCase(3, 'Carlos Mendes', 'certo', 2500, 50, 5, '2026-05-20'),
+  createConfirmationCase(4, 'Ana Costa', 'beleza', 650, 75, 2, '2026-02-28'),
+  createConfirmationCase(5, 'Pedro Oliveira', 'blz', 1500, 100, 8, '2026-06-05'),
+  createConfirmationCase(6, 'Luiza Ferreira', 'perfeito', 900, 150, 4, '2026-03-30'),
+  createConfirmationCase(7, 'Roberto Alves', 'isso mesmo', 3000, 200, 12, '2026-07-15'),
+  createConfirmationCase(8, 'Fernanda Rocha', 'pode ser', 450, 250, 1, '2026-01-25'),
+  createConfirmationCase(9, 'André Martins', 'pode confirmar', 1100, 300, 6, '2026-04-20'),
+  createConfirmationCase(10, 'Juliana Gomes', 'bora', 750, 350, 9, '2026-05-10'),
+  createConfirmationCase(11, 'Bruno Teixeira', 'combinado', 2200, 400, 7, '2026-06-30'),
+  createConfirmationCase(12, 'Gabriela Pinto', 'yes', 550, 450, 2, '2026-02-15'),
+  createConfirmationCase(13, 'Lucas Barbosa', 'sim', 1600, 500, 11, '2026-07-01'),
+  createConfirmationCase(14, 'Camila Sousa', 'confirmo', 850, 550, 3, '2026-03-05'),
+  createConfirmationCase(15, 'Felipe Ribeiro', 'ok', 1300, 600, 5, '2026-04-15'),
+  createConfirmationCase(16, 'Beatriz Lima', 'pode', 700, 650, 4, '2026-03-20'),
+  createConfirmationCase(17, 'Diego Carvalho', 'isso', 2000, 700, 10, '2026-06-10'),
+  createConfirmationCase(18, 'Isabela Moreira', 's', 900, 750, 1, '2026-02-01'),
+  createConfirmationCase(19, 'Gustavo Nunes', 'segue', 1400, 800, 8, '2026-05-25'),
+  createConfirmationCase(20, 'Rafaela Dias', 'pode seguir', 650, 850, 6, '2026-04-05'),
+  createConfirmationCase(21, 'Mateus Fonseca', 'tá', 1050, 900, 2, '2026-02-10'),
+  createConfirmationCase(22, 'Larissa Cavalcanti', 'ta', 2800, 950, 9, '2026-06-20'),
+  createConfirmationCase(23, 'Thiago Lopes', 'certo', 550, 1000, 4, '2026-03-12'),
+  createConfirmationCase(24, 'Mariana Rocha', 'beleza', 1700, 50, 7, '2026-05-08'),
+  createConfirmationCase(25, 'Vitor Medeiros', 'blz', 920, 100, 3, '2026-02-28'),
+  createConfirmationCase(26, 'Sophia Monteiro', 'perfeito', 1250, 150, 11, '2026-07-12'),
+  createConfirmationCase(27, 'Rafael Batista', 'isso mesmo', 680, 200, 1, '2026-01-30'),
+  createConfirmationCase(28, 'Helena Cordeiro', 'pode ser', 2100, 250, 13, '2026-08-05'),
+  createConfirmationCase(29, 'Caio Mendonça', 'pode confirmar', 890, 300, 5, '2026-04-18'),
+  createConfirmationCase(30, 'Amélia Santos', 'bora', 1150, 350, 10, '2026-06-28'),
+  createConfirmationCase(31, 'Otavio Pereira', 'combinado', 750, 400, 2, '2026-02-20'),
+  createConfirmationCase(32, 'Vanessa Campos', 'yes', 1800, 450, 8, '2026-05-30'),
+  createConfirmationCase(33, 'Leandro Silva', 'sim', 620, 500, 4, '2026-03-22'),
+  createConfirmationCase(34, 'Cecília Passos', 'confirmo', 1450, 550, 12, '2026-07-18'),
+  createConfirmationCase(35, 'Marcelo Gusso', 'ok', 950, 600, 6, '2026-04-12'),
+  createConfirmationCase(36, 'Victoria Antunes', 'pode', 2400, 650, 9, '2026-06-02'),
+  createConfirmationCase(37, 'Naldo Ribeiro', 'isso', 580, 700, 3, '2026-03-08'),
+  createConfirmationCase(38, 'Priscila Vieira', 's', 1600, 750, 11, '2026-07-05'),
+  createConfirmationCase(39, 'Renan Costa', 'segue', 1100, 800, 5, '2026-04-25'),
+  createConfirmationCase(40, 'Samara Leal', 'pode seguir', 720, 850, 2, '2026-02-14'),
+  createConfirmationCase(41, 'Sergio Avila', 'tá', 1350, 900, 7, '2026-05-15'),
+  createConfirmationCase(42, 'Tatiana Borges', 'ta', 850, 950, 4, '2026-03-18'),
+  createConfirmationCase(43, 'Udson Amaral', 'certo', 2200, 1000, 10, '2026-06-25'),
+  createConfirmationCase(44, 'Vania Escobar', 'beleza', 640, 75, 1, '2026-01-31'),
+  createConfirmationCase(45, 'Wagner Fonteca', 'blz', 1500, 100, 8, '2026-05-20'),
+  createConfirmationCase(46, 'João Silva', 'perfeito', 900, 150, 6, '2026-04-30'),
+  createConfirmationCase(47, 'Maria Santos', 'isso mesmo', 2600, 200, 12, '2026-07-22'),
+  createConfirmationCase(48, 'Carlos Mendes', 'pode ser', 780, 250, 3, '2026-02-25'),
+  createConfirmationCase(49, 'Ana Costa', 'pode confirmar', 1400, 300, 9, '2026-06-08'),
+  createConfirmationCase(50, 'Pedro Oliveira', 'bora', 1000, 350, 5, '2026-04-08'),
+];

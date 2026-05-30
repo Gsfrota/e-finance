@@ -44,9 +44,19 @@ const mocks = vi.hoisted(() => ({
   getContractOpenInstallmentByMonth: vi.fn(),
   getInstallmentByDebtorAndMonth: vi.fn(),
   listCompaniesByTenant: vi.fn(),
+  getInvestorPortfolio: vi.fn(),
+  getProfileById: vi.fn(),
 
   getBotTenantConfig: vi.fn(),
   checkWhitelistBlock: vi.fn(),
+  upsertBotTenantConfig: vi.fn(),
+
+  getSubscriptionTenant: vi.fn(),
+  buildSubscriptionPixBlock: vi.fn(),
+
+  recordAndForwardFeedback: vi.fn(),
+
+  buildBriefingMessage: vi.fn(),
 
   logStructuredMessage: vi.fn(),
   estimateCostUsd: vi.fn(),
@@ -107,6 +117,8 @@ vi.mock('../../src/actions/admin-actions', () => ({
   getContractOpenInstallmentByMonth: mocks.getContractOpenInstallmentByMonth,
   getInstallmentByDebtorAndMonth: mocks.getInstallmentByDebtorAndMonth,
   listCompaniesByTenant: mocks.listCompaniesByTenant,
+  getInvestorPortfolio: mocks.getInvestorPortfolio,
+  getProfileById: mocks.getProfileById,
   normalizeCpf: (value?: string | null) => {
     if (!value) return null;
     const digits = String(value).replace(/\D/g, '');
@@ -143,6 +155,7 @@ vi.mock('../../src/actions/admin-actions', () => ({
 vi.mock('../../src/actions/bot-config-actions', () => ({
   getBotTenantConfig: mocks.getBotTenantConfig,
   checkWhitelistBlock: mocks.checkWhitelistBlock,
+  upsertBotTenantConfig: mocks.upsertBotTenantConfig,
 }));
 
 vi.mock('../../src/observability/logger', () => ({
@@ -151,6 +164,19 @@ vi.mock('../../src/observability/logger', () => ({
 
 vi.mock('../../src/observability/cost-estimator', () => ({
   estimateCostUsd: mocks.estimateCostUsd,
+}));
+
+vi.mock('../../src/actions/billing-actions', () => ({
+  getSubscriptionTenant: mocks.getSubscriptionTenant,
+  buildSubscriptionPixBlock: mocks.buildSubscriptionPixBlock,
+}));
+
+vi.mock('../../src/actions/feedback-actions', () => ({
+  recordAndForwardFeedback: mocks.recordAndForwardFeedback,
+}));
+
+vi.mock('../../src/scheduler/morning-briefing', () => ({
+  buildBriefingMessage: mocks.buildBriefingMessage,
 }));
 
 import { handleMessage } from '../../src/handlers/message-handler';
@@ -271,6 +297,7 @@ function applyDefaults(state: AgentEvalHarnessState) {
     nextDueDate: null,
     nextDueAmount: 0,
     activeContracts: 0,
+    contracts: [],
   });
   mocks.generateInvite.mockResolvedValue('INV123');
   mocks.validateLinkCode.mockResolvedValue({ status: 'invalid_or_expired' });
@@ -316,6 +343,17 @@ function applyDefaults(state: AgentEvalHarnessState) {
 
   mocks.getBotTenantConfig.mockResolvedValue(null);
   mocks.checkWhitelistBlock.mockResolvedValue({ blocked: false, reason: 'whitelist_disabled' });
+  mocks.upsertBotTenantConfig.mockResolvedValue(undefined);
+
+  mocks.getSubscriptionTenant.mockResolvedValue(null);
+  mocks.buildSubscriptionPixBlock.mockReturnValue(null);
+
+  mocks.recordAndForwardFeedback.mockResolvedValue(undefined);
+
+  mocks.buildBriefingMessage.mockResolvedValue('Bom dia! Resumo do dia.');
+
+  mocks.getProfileById.mockResolvedValue({ id: state.profileId, full_name: 'Eval User', tenant_id: state.tenantId, whatsapp_phone: null, telegram_chat_id: null });
+  mocks.getInvestorPortfolio.mockResolvedValue({ totalContracts: 0, totalReceivable: 0, totalReceived: 0, contracts: [] });
 
   mocks.logStructuredMessage.mockResolvedValue(undefined);
   mocks.estimateCostUsd.mockReturnValue(0);
@@ -394,6 +432,36 @@ export async function runAgentEvalCase(testCase: AgentEvalCase): Promise<AgentEv
       details: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+/**
+ * Probe: roda os steps do caso e devolve os textos de saída SEM asserir.
+ * Use para descobrir o texto real do bot ao autorar novos casos.
+ */
+export async function probeAgentEvalCase(testCase: AgentEvalCase): Promise<string[]> {
+  const state = buildState(testCase);
+  applyDefaults(state);
+  testCase.setup?.({ mocks, state });
+  const outputs: string[] = [];
+  for (let index = 0; index < testCase.steps.length; index += 1) {
+    const step = testCase.steps[index];
+    const out = await handleMessage({
+      messageId: step.input.messageId || `${testCase.id}-${index + 1}`,
+      channel: step.input.channel || 'telegram',
+      channelUserId: step.input.channelUserId || 'chat-1',
+      senderName: step.input.senderName || 'Eval User',
+      text: step.input.text,
+      audioBuffer: step.input.audioBuffer,
+      audioMimeType: step.input.audioMimeType,
+      audioDurationSec: step.input.audioDurationSec,
+      audioSizeBytes: step.input.audioSizeBytes,
+      audioKind: step.input.audioKind,
+      imageBuffer: step.input.imageBuffer,
+      imageMimeType: step.input.imageMimeType,
+    });
+    outputs.push(out.text);
+  }
+  return outputs;
 }
 
 export function emitAgentEvalScorecard(scorecard: Record<string, unknown>) {

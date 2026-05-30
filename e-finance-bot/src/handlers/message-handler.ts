@@ -1772,8 +1772,14 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
       return finalize(clearedReply, { action: 'admin:clear_active_company', result: 'success' }, { skipLlm: true });
     }
 
+    // Uma seleção de empresa pendente NÃO pode sequestrar um número que pertence
+    // a um fluxo de capability ativo (ex.: escolher a parcela numa baixa, ou um
+    // slot numérico na criação de contrato). O comando explícito "usar empresa X"
+    // continua tendo prioridade — só a resposta numérica/implícita é diferida.
+    const awaitingCapabilityInput = Boolean(workingState.pendingCapability);
     const candidateCompanyReply = role === 'admin'
       && workingState.pendingCompanySelection
+      && !awaitingCapabilityInput
       && shouldAcceptCompanyCandidateReply(textToProcess, adminCompanies);
     const explicitCompanySelection = role === 'admin' && isExplicitCompanySelectionCommand(textToProcess);
 
@@ -1805,7 +1811,11 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
 
       const selectedCompany = companySelection.kind === 'selected' ? companySelection.company : null;
       if (!selectedCompany) {
-        const companyReply = formatCompanyOptions(adminCompanies, workingState.activeCompany?.id);
+        const numericHint = textToProcess.trim().match(/^\d{1,2}$/);
+        const prefix = numericHint
+          ? `Não existe empresa número *${numericHint[0]}* na lista (são ${adminCompanies.length}). `
+          : '';
+        const companyReply = prefix + formatCompanyOptions(adminCompanies, workingState.activeCompany?.id);
         await saveMessageTimed(session.id, 'assistant', companyReply);
         return finalize(companyReply, { action: 'admin:select_company_retry', result: 'clarification' }, { skipLlm: true });
       }
