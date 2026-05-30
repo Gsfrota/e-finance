@@ -63,6 +63,32 @@ const mocks = vi.hoisted(() => ({
 
   logStructuredMessage: vi.fn(),
   estimateCostUsd: vi.fn(),
+
+  // TEST-001: estado controlável do Supabase para o fresh-read do comprovante
+  // (fetchInstallmentReceipt em mark-installment-paid.ts usa getSupabaseClient direto).
+  __supabase: { receiptRow: { data: null as unknown, error: null as unknown } },
+}));
+
+// TEST-001: query-builder encadeável mínimo (from/select/eq/in/order/limit → self;
+// maybeSingle/single → row controlado).
+function buildFakeSupabase() {
+  const query: Record<string, unknown> = {};
+  const chain = () => query;
+  Object.assign(query, {
+    select: chain, eq: chain, in: chain, order: chain, limit: chain,
+    maybeSingle: async () => mocks.__supabase.receiptRow,
+    single: async () => mocks.__supabase.receiptRow,
+  });
+  return {
+    from: () => query,
+    rpc: async () => ({ data: null, error: null }),
+  };
+}
+
+vi.mock('../../src/infra/runtime-clients', () => ({
+  getSupabaseClient: () => buildFakeSupabase(),
+  getGeminiClient: () => ({}),
+  hasGeminiClient: () => false,
 }));
 
 vi.mock('../../src/ai/intent-router', () => ({
@@ -95,7 +121,12 @@ vi.mock('../../src/session/session-manager', () => ({
   getProfileByChannelBinding: mocks.getProfileByChannelBinding,
 }));
 
-vi.mock('../../src/actions/admin-actions', () => ({
+vi.mock('../../src/actions/admin-actions', async () => {
+  // TEST-001: validadores REAIS (fim do fake isValidCpf === '52998224725').
+  const actual = await vi.importActual<typeof import('../../src/actions/admin-actions')>('../../src/actions/admin-actions');
+  return {
+  isValidCpf: actual.isValidCpf,
+  normalizeCpf: actual.normalizeCpf,
   getDashboardSummary: mocks.getDashboardSummary,
   getInstallments: mocks.getInstallments,
   getInstallmentsToday: mocks.getInstallmentsToday,
@@ -125,12 +156,6 @@ vi.mock('../../src/actions/admin-actions', () => ({
   listCompaniesByTenant: mocks.listCompaniesByTenant,
   getInvestorPortfolio: mocks.getInvestorPortfolio,
   getProfileById: mocks.getProfileById,
-  normalizeCpf: (value?: string | null) => {
-    if (!value) return null;
-    const digits = String(value).replace(/\D/g, '');
-    return digits.length === 11 ? digits : null;
-  },
-  isValidCpf: (value?: string | null) => value === '52998224725',
   formatCurrency: (value: number) => `R$ ${value.toFixed(2)}`,
   formatDate: (value: string) => value,
   extractDebtorNameSimple: (text: string) => {
@@ -156,7 +181,8 @@ vi.mock('../../src/actions/admin-actions', () => ({
     const n = Number(m[1]);
     return Number.isFinite(n) && n >= 1 ? Math.round(n) : null;
   },
-}));
+  };
+});
 
 vi.mock('../../src/actions/bot-config-actions', () => ({
   getBotTenantConfig: mocks.getBotTenantConfig,
@@ -189,6 +215,35 @@ import { handleMessage } from '../../src/handlers/message-handler';
 
 export { mocks as agentEvalMocks };
 
+/**
+ * TEST-001: define o row que o fresh-read do comprovante (fetchInstallmentReceipt)
+ * vê. Estrutura espelha o select de loan_installments + join investments.
+ */
+export function setInstallmentReceiptRow(row: {
+  number: number;
+  amount_total: number;
+  amount_paid: number;
+  due_date: string;
+  paid_at: string | null;
+  investmentId: number;
+  debtorName: string;
+} | null) {
+  mocks.__supabase.receiptRow = row
+    ? {
+        data: {
+          number: row.number,
+          amount_total: row.amount_total,
+          amount_paid: row.amount_paid,
+          due_date: row.due_date,
+          paid_at: row.paid_at,
+          investment_id: row.investmentId,
+          investments: { id: row.investmentId, profiles: { full_name: row.debtorName } },
+        },
+        error: null,
+      }
+    : { data: null, error: null };
+}
+
 function buildState(testCase: AgentEvalCase): AgentEvalHarnessState {
   return {
     context: structuredClone(testCase.initialContext || {}),
@@ -216,6 +271,8 @@ function currentSession(state: AgentEvalHarnessState) {
 
 function applyDefaults(state: AgentEvalHarnessState) {
   vi.clearAllMocks();
+  // TEST-001: default = sem fresh-read (fetchInstallmentReceipt cai no fallback).
+  mocks.__supabase.receiptRow = { data: null, error: null };
 
   mocks.getOrCreateSession.mockImplementation(async () => currentSession(state));
   mocks.syncSessionProfileFromChannelBinding.mockImplementation(async (session: any) => ({

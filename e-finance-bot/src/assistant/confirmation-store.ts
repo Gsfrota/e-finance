@@ -20,10 +20,24 @@ export function getPendingConfirmationState(session: Session): ConversationWorki
   return getWorkingState(session.context).pendingConfirmation;
 }
 
+// BOT-001: léxico de confirmação para mutações sensíveis (criar contrato / baixar
+// parcela). Regex ANCORADA (^...$) — equilibra recall × falso-positivo: aceita
+// coloquiais exatas ("beleza", "pode ser"), mas frases tentativas com mais tokens
+// ("pode ser que sim", "acho que sim", "talvez") NÃO casam e nunca confirmam.
+const CONFIRM_LEXICON = /^(sim|sim sim|s|claro|confirmo|confirma|confirmar|confirmado|ok|okay|okey|beleza|blz|bora|bora la|certo|combinado|isso|isso mesmo|isso ai|perfeito|pode|pode confirmar|pode seguir|pode sim|pode ser|segue|seguir|fechado|fechou|positivo|exato|exatamente|com certeza|manda|manda ver|manda ai|yes|aham|uhum|ta|ta bom|ta bem|ta certo|tabom|de boa)$/;
+const CANCEL_LEXICON = /^(nao|cancelar|cancela|parar|para|sair|negativo|nope|deixa|deixa pra la|deixa pra depois|melhor nao|agora nao|nem|para tudo|cancelado)$/;
+
 export function parseConfirmationReply(text: string): 'confirm' | 'cancel' | null {
-  const normalized = text.trim().toLowerCase();
-  if (/^(sim|confirmo|ok|pode|isso|s|segue|pode seguir)$/.test(normalized)) return 'confirm';
-  if (/^(n[aã]o|nao|cancelar|cancela|parar|para|sair)$/.test(normalized)) return 'cancel';
+  // Normaliza: minúsculas, sem acento (NFD) e sem pontuação/espaço final ("Sim!", "OK." , "tá").
+  const normalized = text
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[!.,…\s]+$/g, '')
+    .trim();
+  if (CANCEL_LEXICON.test(normalized)) return 'cancel';
+  if (CONFIRM_LEXICON.test(normalized)) return 'confirm';
   return null;
 }
 

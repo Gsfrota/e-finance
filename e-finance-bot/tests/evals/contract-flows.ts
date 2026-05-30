@@ -187,7 +187,7 @@ const createCases: AgentEvalCase[] = [
     setup: routeCreate({ debtor_name: 'Ana Paula', amount: 3000, rate: 5, installments: 6, debtor_cpf: VALID_CPF, frequency: 'monthly', due_day: 10 }),
     steps: [{ input: { text: 'contrato Ana Paula 3000 5% 6x mensal dia 10 cpf 529.982.247-25' }, expect: {
       textIncludes: [CONFIRM_CONTRACT, 'sim'], pendingAction: null,
-      workingState: { pendingCapability: 'create_contract', pendingConfirmation: expect.anything() },
+      workingState: { pendingCapability: 'create_contract', pendingConfirmation: expect.objectContaining({ capability: 'create_contract' }) },
     } }],
   },
   {
@@ -196,7 +196,7 @@ const createCases: AgentEvalCase[] = [
     category: 'functional', criticality: 'core', failureTag: 'response_regression',
     setup: routeCreate({ debtor_name: 'Ana Paula', amount: 3000, rate: 5, installments: 6, debtor_cpf: VALID_CPF, frequency: 'weekly', weekday: 1 }),
     steps: [{ input: { text: 'contrato semanal segunda Ana Paula 3000 5% 6x cpf 529.982.247-25' }, expect: {
-      textIncludes: [CONFIRM_CONTRACT], workingState: { pendingConfirmation: expect.anything() },
+      textIncludes: [CONFIRM_CONTRACT], workingState: { pendingConfirmation: expect.objectContaining({ capability: 'create_contract' }) },
     } }],
   },
   {
@@ -205,7 +205,7 @@ const createCases: AgentEvalCase[] = [
     category: 'functional', criticality: 'core', failureTag: 'response_regression',
     setup: routeCreate({ debtor_name: 'Ana Paula', amount: 3000, rate: 0, installments: 6, debtor_cpf: VALID_CPF, frequency: 'biweekly', start_date: '2026-04-10' }),
     steps: [{ input: { text: 'contrato quinzenal Ana Paula 3000 sem juros 6x cpf 529.982.247-25 começando 10/04/2026' }, expect: {
-      textIncludes: [CONFIRM_CONTRACT], workingState: { pendingConfirmation: expect.anything() },
+      textIncludes: [CONFIRM_CONTRACT], workingState: { pendingConfirmation: expect.objectContaining({ capability: 'create_contract' }) },
     } }],
   },
   {
@@ -214,7 +214,7 @@ const createCases: AgentEvalCase[] = [
     category: 'functional', criticality: 'core', failureTag: 'response_regression',
     setup: routeCreate({ debtor_name: 'Ana Paula', amount: 3000, rate: 0, installments: 30, debtor_cpf: VALID_CPF, frequency: 'daily', start_date: '2026-04-10' }),
     steps: [{ input: { text: 'contrato diário Ana Paula 3000 sem juros 30x cpf 529.982.247-25 começando 10/04/2026' }, expect: {
-      textIncludes: [CONFIRM_CONTRACT], workingState: { pendingConfirmation: expect.anything() },
+      textIncludes: [CONFIRM_CONTRACT], workingState: { pendingConfirmation: expect.objectContaining({ capability: 'create_contract' }) },
     } }],
   },
 
@@ -226,7 +226,7 @@ const createCases: AgentEvalCase[] = [
     setup: routeCreate({ debtor_name: 'João Silva', amount: 5000, debtor_cpf: VALID_CPF, frequency: 'monthly', due_day: 10, installments: 12 }),
     steps: [
       { input: { text: 'contrato João Silva 5000 12x mensal dia 10 cpf 529.982.247-25' }, expect: { textIncludes: ['taxa de juros'] } },
-      { input: { text: 'pular' }, expect: { textIncludes: [CONFIRM_CONTRACT], workingState: { pendingConfirmation: expect.anything() } } },
+      { input: { text: 'pular' }, expect: { textIncludes: [CONFIRM_CONTRACT], workingState: { pendingConfirmation: expect.objectContaining({ capability: 'create_contract' }) } } },
     ],
   },
   {
@@ -362,7 +362,7 @@ const payCases: AgentEvalCase[] = [
       ctx.mocks.getContractOpenInstallmentByNumber.mockResolvedValue(openInstallment({ id: 'inst-2', number: 2, amount: 900 }));
     },
     steps: [{ input: { text: 'baixar contrato 123 parcela 2' }, expect: {
-      textIncludes: [CONFIRM_PAYMENT], workingState: { pendingConfirmation: expect.anything() }, mockCalls: { markInstallmentPaid: 0 },
+      textIncludes: [CONFIRM_PAYMENT], workingState: { pendingConfirmation: expect.objectContaining({ capability: 'mark_installment_paid' }) }, mockCalls: { markInstallmentPaid: 0 },
     } }],
   },
   {
@@ -388,7 +388,7 @@ const payCases: AgentEvalCase[] = [
       ctx.mocks.getContractOpenInstallmentByMonth.mockResolvedValue(openInstallment({ id: 'inst-4', number: 4, dueDate: '2026-04-10' }));
     },
     steps: [{ input: { text: 'baixar a parcela de abril do contrato 123' }, expect: {
-      textIncludes: [CONFIRM_PAYMENT], workingState: { pendingConfirmation: expect.anything() },
+      textIncludes: [CONFIRM_PAYMENT], workingState: { pendingConfirmation: expect.objectContaining({ capability: 'mark_installment_paid' }) },
     } }],
   },
   {
@@ -444,7 +444,7 @@ const payCases: AgentEvalCase[] = [
       ctx.mocks.getInstallmentByDebtorAndMonth.mockResolvedValue({ installments: [openInstallment({ id: 'inst-1', number: 1 })] });
     },
     steps: [{ input: { text: 'baixar a parcela de março do Carlos' }, expect: {
-      textIncludes: [CONFIRM_PAYMENT], workingState: { pendingConfirmation: expect.anything() },
+      textIncludes: [CONFIRM_PAYMENT], workingState: { pendingConfirmation: expect.objectContaining({ capability: 'mark_installment_paid' }) },
     } }],
   },
   {
@@ -488,7 +488,7 @@ const payCases: AgentEvalCase[] = [
     },
     steps: [
       { input: { text: 'baixar contrato 123' }, expect: { textIncludes: ['Encontrei estas parcelas'] } },
-      { input: { text: '1' }, expect: { textIncludes: [CONFIRM_PAYMENT], workingState: { pendingConfirmation: expect.anything() } } },
+      { input: { text: '1' }, expect: { textIncludes: [CONFIRM_PAYMENT], workingState: { pendingConfirmation: expect.objectContaining({ capability: 'mark_installment_paid' }) } } },
     ],
   },
   {
@@ -615,7 +615,7 @@ const bulletCases: AgentEvalCase[] = [
     steps: [{ input: { text: 'contrato juros simples Ana Paula 5000 10% mensal dia 10 cpf 529.982.247-25' }, expect: {
       textIncludes: [CONFIRM_CONTRACT, BULLET_TITLE, 'prazo indeterminado', 'Principal em aberto'],
       textExcludes: ['Total a pagar', 'Rentabilidade'],
-      workingState: { pendingCapability: 'create_contract', pendingConfirmation: expect.anything() },
+      workingState: { pendingCapability: 'create_contract', pendingConfirmation: expect.objectContaining({ capability: 'create_contract' }) },
     } }],
   },
   {
@@ -635,7 +635,7 @@ const bulletCases: AgentEvalCase[] = [
     setup: routeCreate({ debtor_name: 'Ana Paula', amount: 5000, rate: 10, debtor_cpf: VALID_CPF, frequency: 'monthly', due_day: 10 }),
     steps: [{ input: { text: 'contrato Ana Paula 5000 10% mensal dia 10 paga só os juros cpf 529.982.247-25' }, expect: {
       textIncludes: [CONFIRM_CONTRACT, BULLET_TITLE], textExcludes: ['Total a pagar'],
-      workingState: { pendingConfirmation: expect.anything() },
+      workingState: { pendingConfirmation: expect.objectContaining({ capability: 'create_contract' }) },
     } }],
   },
   {
@@ -680,7 +680,7 @@ const bulletCases: AgentEvalCase[] = [
     },
     steps: [
       { input: { text: 'baixar contrato 123 parcela 1' }, expect: { textIncludes: [BULLET_CHOICE] } },
-      { input: { text: 'juros' }, expect: { textIncludes: [CONFIRM_PAYMENT, 'Rolagem', 'R$ 500.00'], textExcludes: ['R$ 5500.00'], workingState: { pendingConfirmation: expect.anything() }, mockCalls: { payBulletInterest: 0 } } },
+      { input: { text: 'juros' }, expect: { textIncludes: [CONFIRM_PAYMENT, 'Rolagem', 'R$ 500.00'], textExcludes: ['R$ 5500.00'], workingState: { pendingConfirmation: expect.objectContaining({ capability: 'mark_installment_paid' }) }, mockCalls: { payBulletInterest: 0 } } },
       { input: { text: 'sim' }, expect: { textIncludes: ['Pagamento confirmado', 'Rolagem de juros'], pendingAction: null, mockCalls: { payBulletInterest: 1, markInstallmentPaid: 0 } } },
     ],
   },

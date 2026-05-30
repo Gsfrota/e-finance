@@ -24,8 +24,8 @@ Sprint de **1 frente** (bot). 5 itens. Commit realista: **P0 + P1** (BOT-FIX-001
 | # | ID | Título | Prioridade | Tipo | Estado de entrada |
 |---|----|--------|-----------|------|-------------------|
 | 1 | BOT-FIX-001 | Baixa de parcela não é sequestrada por seleção de empresa | **P0** | FIX (código já feito) | Spec retroativa + QA + push |
-| 2 | BOT-001 | Léxico de confirmação estreito em mutações sensíveis | **P0** | FEATURE/FIX | Spec pendente |
-| 3 | TEST-001 | Confiabilidade da suíte de testes do bot | **P1** | DÉBITO TÉCNICO | Spec pendente |
+| 2 | BOT-001 | Léxico de confirmação estreito em mutações sensíveis | **P0** | FEATURE/FIX | ✅ Implementada + QA PASS (commit/push pendente) |
+| 3 | TEST-001 | Confiabilidade da suíte de testes do bot | **P1** | DÉBITO TÉCNICO | ✅ Implementada + QA PASS (AC-5 parcial) (commit/push pendente) |
 | 4 | BOT-002 | Deprecar capabilities não-admin (bot é admin-only) | **P1** | LIMPEZA/PRODUTO | Spec pendente |
 | 5 | BOT-003 | Wizard do briefing vaza antes do gate de policy | **P2** | FIX (baixo) | Spec pendente |
 | 6 | BOT-005 | Bot cria e baixa contratos bullet (juros simples) | **P1** | FEATURE | ✅ Implementada + QA PASS (commit/push pendente) |
