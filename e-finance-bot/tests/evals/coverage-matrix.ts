@@ -51,15 +51,22 @@ const DENY_TARGETS: Array<{ capability: string; intent: string; text: string }> 
   { capability: 'generate_report', intent: 'gerar_relatorio', text: 'gera o relatório do mês' },
   { capability: 'generate_invite', intent: 'gerar_convite', text: 'cria um convite' },
   { capability: 'query_debtor_balance', intent: 'buscar_usuario', text: 'quanto o Carlos deve' },
+  // BOT-003: briefing nega não-admin sem vazar o wizard.
+  { capability: 'configure_briefing', intent: 'configurar_briefing', text: 'configurar briefing 8h' },
+  // BOT-002: autoatendimento não-admin roteia a capability admin → policy nega.
+  { capability: 'view_my_debt_summary', intent: 'ver_meu_saldo_devedor', text: 'quanto eu devo' },
+  { capability: 'view_my_installments', intent: 'ver_minhas_parcelas', text: 'minhas parcelas' },
+  { capability: 'view_my_portfolio', intent: 'ver_meu_portfolio', text: 'meu portfólio' },
 ];
 
 // ACHADOS: intents que divergem do gate síncrono (soft_fail = documentado, não infra-bug).
 // - criar_contrato / marcar_pagamento: sensitive → fluxo de confirmação antes do gate.
-// - configurar_briefing: responde com wizard ("Me diga o horário") para não-admin → POSSÍVEL BYPASS.
+// BOT-003: configurar_briefing agora tem gate de role no action-planner → deny duro
+// (não vaza mais o wizard). BOT-002: intents de autoatendimento não-admin roteiam ao
+// equivalente admin → policy nega. Ambos viraram DENY_TARGETS abaixo.
 const SOFT_DENY_TARGETS: Array<{ capability: string; intent: string; text: string }> = [
   { capability: 'create_contract', intent: 'criar_contrato', text: 'novo contrato pra Ana 1000 reais 10% 5x' },
   { capability: 'mark_installment_paid', intent: 'marcar_pagamento', text: 'dar baixa na parcela do Carlos' },
-  { capability: 'configure_briefing', intent: 'configurar_briefing', text: 'configurar briefing 8h' },
 ];
 
 function happyCase(
@@ -177,30 +184,8 @@ export const COVERAGE_MATRIX_CASES: AgentEvalCase[] = [
       });
     }
   ),
-  happyCase(
-    'cap-view_my_debt_summary-happy-debtor',
-    'view_my_debt_summary',
-    'ver_meu_saldo_devedor',
-    'debtor',
-    'quanto eu devo',
-    'Você não possui saldo devedor em aberto'
-  ),
-  happyCase(
-    'cap-view_my_installments-happy-debtor',
-    'view_my_installments',
-    'ver_minhas_parcelas',
-    'debtor',
-    'minhas parcelas',
-    'Você não possui parcelas pendentes no momento'
-  ),
-  happyCase(
-    'cap-view_my_portfolio-happy-investor',
-    'view_my_portfolio',
-    'ver_meu_portfolio',
-    'investor',
-    'meu portfólio',
-    'Você ainda não possui contratos ativos como investidor'
-  ),
+  // BOT-002: os antigos happy-paths de autoatendimento não-admin (view_my_*) viraram
+  // deny (ver DENY_TARGETS) — o bot é admin-only.
   happyCase(
     'cap-preview_lembrete-happy-admin',
     'preview_lembrete',
