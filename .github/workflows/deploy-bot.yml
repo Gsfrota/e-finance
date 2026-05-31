@@ -38,8 +38,24 @@ jobs:
       - name: TypeScript check
         run: npm run build
 
+      - name: Guard — exige GEMINI_API_KEY (live tests não podem pular no gate)
+        # Falha cedo se o secret não estiver configurado, em vez de deixar os testes
+        # .live (NLU contra Gemini real) pularem silenciosamente e o deploy passar
+        # sem exercê-los. Configure em Settings → Secrets and variables → Actions.
+        run: |
+          if [ -z "${GEMINI_API_KEY}" ]; then
+            echo "::error::GEMINI_API_KEY ausente — os testes .live (Gemini real) pulariam. Configure o GitHub Actions secret GEMINI_API_KEY."
+            exit 1
+          fi
+          echo "GEMINI_API_KEY presente — testes live serão exercitados no gate."
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
       - name: Run tests
+        # GEMINI_API_KEY destrava os testes .live (Gemini real, Supabase mockado).
         run: npm test
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
   deploy:
     runs-on: ubuntu-latest

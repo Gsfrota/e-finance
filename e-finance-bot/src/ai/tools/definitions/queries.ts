@@ -28,7 +28,7 @@ export const showDashboardTool: ToolDefinition = {
 export const listReceivablesTool: ToolDefinition = {
   name: 'list_receivables',
   kind: 'query',
-  description: 'Lista parcelas a receber (todos os devedores agregados). Use quando o admin pedir "recebíveis", "parcelas a receber", "recebíveis pendentes", "atrasados", "quem está atrasado", "da semana". NÃO use para pergunta sobre UM devedor específico (use query_debtor_balance).',
+  description: 'Lista parcelas a receber (todos os devedores agregados) ou parcelas em aberto de um contrato específico por contract_id. Use quando o admin pedir "recebíveis", "parcelas a receber", "parcelas em aberto do contrato 123", "como ficou o contrato #123", "status do contrato 123", "atrasados", "quem está atrasado", "da semana". NÃO use para pergunta sobre UM devedor específico (use query_debtor_balance).',
   rolesAllowed: ['admin'],
   requiresConfirmation: false,
   parameters: {
@@ -39,9 +39,16 @@ export const listReceivablesTool: ToolDefinition = {
         enum: ['pending', 'late', 'week', 'all'],
         description: 'Filtro opcional: pending (pendentes), late (atrasados), week (próx 7 dias), all (todos).',
       },
+      contract_id: {
+        type: 'integer',
+        description: 'ID numérico do contrato para listar as parcelas abertas desse contrato específico sem iniciar baixa.',
+      },
     },
   },
-  inputSchema: z.object({ filter: z.enum(['pending', 'late', 'week', 'all']).optional() }).passthrough(),
+  inputSchema: z.object({
+    filter: z.enum(['pending', 'late', 'week', 'all']).optional(),
+    contract_id: z.number().int().positive().optional(),
+  }).passthrough(),
   handler: listReceivablesHandler as unknown as ToolDefinition['handler'],
 };
 

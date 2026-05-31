@@ -80,7 +80,7 @@ const RULES: Rule[] = [
   { intent: 'configurar_briefing', pattern: /todos?\s+(?:os\s+)?dias?\s+.*(?:diga|avise|mande|fale|conta|mostra)|quero\s+(?:receber|que\s+me\s+(?:diga|avise))\s+.*(?:di[aá]rio|todo\s+dia|todos\s+dias)/i },
   { intent: 'ver_dashboard', pattern: /quantos?\s+(?:clientes?|devedores?)\s+(?:eu\s+)?tenho/i },
   { intent: 'listar_recebiveis', pattern: /quanto\s+j[aá]\s+receb[ie]|total\s+(?:que\s+)?receb[ie]|j[aá]\s+receb[ie]i?\s+(?:esse\s+mes|hoje|esta\s+semana)/i, entities: { filter: 'all' } },
-  { intent: 'marcar_pagamento', pattern: /(marcar\s+pagamento|dar\s+baixa|registrar\s+pagamento|parcela\s+paga|baixar\s+contrato|quitar\s+parcela|baixar\s+pagamento|pagamento\s+do\s+m[eê]s\s+de|parcela\s+do\s+m[eê]s\s+de)/i },
+  { intent: 'marcar_pagamento', pattern: /(marcar\s+pagamento|dar\s+baixa|registrar\s+pagamento|parcela\s+paga|baixar\s+contrato|quitar\s+parcela|baixar\s+pagamento|pagamento\s+do\s+m[eê]s\s+de|parcela\s+do\s+m[eê]s\s+de|recebi\s+(?:de|do|da)|(?:cliente\s+)?pagou|t[aá]\s+pago|caiu\s+o\s+pix|pix\s+caiu|mandou\s+o\s+pix|fez\s+o\s+pix|acertou|liquidou|matou|matar|mata\s+(?:a\s+)?(?:parcela|presta[cç][aã]o))/i },
   { intent: 'gerar_relatorio', pattern: /(gerar\s+relat[oó]rio|relat[oó]rio\s+mensal|resumo\s+completo|me\s+d[aá]\s+um\s+relat[oó]rio|pedir\s+relat[oó]rio)/i },
   { intent: 'gerar_convite', pattern: /(gerar\s+convite|gera\s+um\s+convite|novo\s+c[oó]digo\s+de\s+convite|link\s+de\s+convite)/i },
   { intent: 'buscar_usuario', pattern: /(buscar\s+usu[aá]rio|buscar\s+devedor|consultar\s+usu[aá]rio|quanto\s+.*\s+deve|ver\s+devedor|me\s+fala\s+da\s+d[íi]vida|qual\s+(a\s+)?d[íi]vida\s+de)/i },
@@ -157,24 +157,90 @@ function inferUserSearchEntity(text: string): Record<string, string> {
   return {};
 }
 
+const PAYMENT_ACTION_PATTERN = /(baixar|dar\s+baixa|pagar|pagamento|marcar\s+pagamento|registrar\s+pagamento|quitar|quitou|recebi|recebido|pagou|pago|t[aá]\s+pago|caiu\s+o\s+pix|pix\s+caiu|mandou\s+o\s+pix|fez\s+o\s+pix|acertou|liquidou|matou|matar|mata)/i;
+
+const ORDINAL_INSTALLMENT_WORDS: Record<string, number> = {
+  primeira: 1,
+  primeiro: 1,
+  segunda: 2,
+  segundo: 2,
+  terceira: 3,
+  terceiro: 3,
+  quarta: 4,
+  quarto: 4,
+  quinta: 5,
+  quinto: 5,
+  sexta: 6,
+  sexto: 6,
+  setima: 7,
+  setimo: 7,
+  sétima: 7,
+  sétimo: 7,
+  oitava: 8,
+  oitavo: 8,
+  nona: 9,
+  nono: 9,
+  decima: 10,
+  decimo: 10,
+  décima: 10,
+  décimo: 10,
+};
+
+function normalizeOrdinalToken(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function inferInstallmentNumber(text: string): number | undefined {
+  const numericMatch = text.match(/(?:parcela|presta[cç][aã]o)\s*#?\s*(\d{1,3})/i);
+  if (numericMatch?.[1]) {
+    const parsed = Number(numericMatch[1]);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+
+  const ordinalMatch = text.match(/\b([A-Za-zÀ-ÿ]+)\s+(?:parcela|presta[cç][aã]o)\b/i);
+  if (ordinalMatch?.[1]) {
+    return ORDINAL_INSTALLMENT_WORDS[normalizeOrdinalToken(ordinalMatch[1])];
+  }
+
+  return undefined;
+}
+
+function inferContractId(text: string): number | null {
+  const contractMatch = text.match(/contrato\s*#?\s*(\d+)/i);
+  if (!contractMatch?.[1]) return null;
+  const contractId = Number(contractMatch[1]);
+  return Number.isFinite(contractId) && contractId > 0 ? contractId : null;
+}
+
+function inferReceivablesByContractEntities(text: string): Record<string, string | number> | null {
+  const contractId = inferContractId(text);
+  if (!contractId) return null;
+
+  const normalized = text.toLowerCase();
+  if (!/(parcelas?|presta[cç][oõ]es|em\s+aberto|status|situa[cç][aã]o|como\s+ficou|saldo|contrato)/i.test(normalized)) {
+    return null;
+  }
+  if (PAYMENT_ACTION_PATTERN.test(text)) return null;
+
+  return {
+    contract_id: contractId,
+    filter: 'pending',
+  };
+}
+
 function inferPaymentByContractEntities(text: string): Record<string, string | number> | null {
   const trimmed = text.trim();
-  if (!/(baixar|dar\s+baixa|pagar|pagamento|marcar\s+pagamento|registrar\s+pagamento|quitar)/i.test(trimmed)) {
+  if (!PAYMENT_ACTION_PATTERN.test(trimmed)) {
     return null;
   }
 
-  const contractMatch = trimmed.match(/contrato\s*#?\s*(\d+)/i);
-  if (!contractMatch?.[1]) return null;
+  const contractId = inferContractId(trimmed);
+  if (!contractId) return null;
 
-  const contractId = Number(contractMatch[1]);
-  if (!Number.isFinite(contractId) || contractId <= 0) return null;
-
-  let installmentNumber: number | undefined;
-  const installmentMatch = trimmed.match(/parcela\s*#?\s*(\d+)/i);
-  if (installmentMatch?.[1]) {
-    const parsed = Number(installmentMatch[1]);
-    if (Number.isFinite(parsed) && parsed > 0) installmentNumber = parsed;
-  }
+  const installmentNumber = inferInstallmentNumber(trimmed);
 
   const monthInfo = inferInstallmentMonth(trimmed);
 
@@ -241,6 +307,18 @@ function inferRuleIntent(text: string): RoutedIntent | null {
       intent: 'marcar_pagamento',
       entities: paymentByContract,
       normalizedEntities: normalizeEntities(paymentByContract),
+      confidence: 'high',
+      source: 'rule',
+      decisionPath: 'rule_strong',
+    };
+  }
+
+  const receivablesByContract = inferReceivablesByContractEntities(trimmed);
+  if (receivablesByContract) {
+    return {
+      intent: 'listar_recebiveis',
+      entities: receivablesByContract,
+      normalizedEntities: normalizeEntities(receivablesByContract),
       confidence: 'high',
       source: 'rule',
       decisionPath: 'rule_strong',

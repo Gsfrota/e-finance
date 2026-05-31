@@ -11,7 +11,7 @@
  * resolvida pelo pipeline legado em message-handler.ts (pendingConfirmation).
  */
 
-import type { ToolHandler, ToolOutcome } from './types';
+import type { ToolHandler } from './types';
 import {
   getDashboardSummary,
   getInstallments,
@@ -28,11 +28,15 @@ import {
   getContractOpenInstallmentByNumber,
   getContractOpenInstallmentByMonth,
   getInstallmentByDebtorAndMonth,
+  getInstallmentBulletInfo,
+  searchDebtorsByName,
   isValidCpf,
   normalizeCpf,
   formatDate,
   type ContractOpenInstallment,
+  type ContractDraft,
 } from '../../actions/admin-actions';
+import { formatContractConfirmationMessage } from '../../tools/formatters';
 import { createPendingConfirmation } from '../../assistant/confirmation-store';
 import { getBotTenantConfig, upsertBotTenantConfig } from '../../actions/bot-config-actions';
 import { buildBriefingMessage } from '../../scheduler/morning-briefing';
@@ -60,7 +64,33 @@ export const showDashboardHandler: ToolHandler = async (_input, ctx) => {
   };
 };
 
-export const listReceivablesHandler: ToolHandler<{ filter?: 'pending' | 'late' | 'week' | 'all' }> = async (input, ctx) => {
+interface ListReceivablesInput {
+  filter?: 'pending' | 'late' | 'week' | 'all';
+  contract_id?: number;
+}
+
+export const listReceivablesHandler: ToolHandler<ListReceivablesInput> = async (input, ctx) => {
+  if (input.contract_id) {
+    const page = await getContractOpenInstallments(ctx.tenantId, input.contract_id, 0, 50);
+    const items = page.items;
+    if (items.length === 0) {
+      return { kind: 'text', text: `Nenhuma parcela em aberto no Contrato #${input.contract_id}.` };
+    }
+    const total = items.reduce((a, i) => a + i.amount, 0);
+    return {
+      kind: 'data',
+      summary: `Contrato #${input.contract_id}: ${page.total} parcelas em aberto (${fmt(total)}).`,
+      data: items.map(i => ({
+        contract_id: i.contractId,
+        installment_number: i.number,
+        debtor: i.debtorName,
+        amount: i.amount,
+        due_date: i.dueDate,
+        status: i.status,
+      })),
+    };
+  }
+
   const filter = input.filter ?? 'pending';
   const items = await getInstallments(ctx.tenantId, filter, ctx.companyId ?? undefined);
   if (items.length === 0) {
@@ -473,17 +503,12 @@ interface CreateContractInput {
   amount?: number;
   rate?: number;
   installments?: number;
-  frequency?: 'monthly' | 'weekly' | 'biweekly';
+  frequency?: 'monthly' | 'weekly' | 'biweekly' | 'daily';
   due_day?: number;
   start_date?: string;
   total_repayment?: number;
+  calculation_mode?: 'standard' | 'interest_only';
 }
-
-const FREQUENCY_LABEL: Record<string, string> = {
-  monthly: 'mensais',
-  weekly: 'semanais',
-  biweekly: 'quinzenais',
-};
 
 export const createContractHandler: ToolHandler<CreateContractInput> = async (input, ctx) => {
   const cpfRaw = (input.debtor_cpf || '').replace(/\D/g, '');
@@ -536,6 +561,41 @@ export const createContractHandler: ToolHandler<CreateContractInput> = async (in
       };
     }
     rate = Math.round(rate * 100) / 100;
+  }
+
+  // BOT-008: bullet (juros simples) — preview bullet-aware e argsSnapshot com
+  // calculation_mode. A execução confirmada reusa o capability executor (BOT-005).
+  if (input.calculation_mode === 'interest_only') {
+    const debtorName = (input.debtor_name || 'devedor').trim();
+    const draft: ContractDraft = {
+      debtor_name: debtorName,
+      debtor_cpf: cpfNormalized,
+      amount: input.amount,
+      rate,
+      installments: 1,
+      frequency: input.frequency || 'monthly',
+      due_day: input.due_day,
+      start_date: input.start_date,
+      calculation_mode: 'interest_only',
+    };
+    const safePreview = formatContractConfirmationMessage(draft);
+    const argsSnapshot: Record<string, unknown> = {
+      debtor_name: debtorName,
+      debtor_cpf: cpfNormalized,
+      amount: input.amount,
+      rate,
+      frequency: draft.frequency,
+      ...(input.due_day !== undefined ? { due_day: input.due_day } : {}),
+      ...(input.start_date ? { start_date: input.start_date } : {}),
+      calculation_mode: 'interest_only',
+    };
+    const { confirmationId, idempotencyKey, safeUserMessage } = await createPendingConfirmation(
+      ctx.session,
+      'create_contract',
+      argsSnapshot,
+      safePreview,
+    );
+    return { kind: 'preview', preview: safeUserMessage, confirmationId, idempotencyKey, argsSnapshot };
   }
 
   const installments = installmentsRaw;
@@ -615,12 +675,20 @@ interface MarkInstallmentPaidInput {
   debtor_name?: string;
   amount?: number;
   paid_at?: string;
+  bullet_mode?: 'interest' | 'settle';
 }
 
 async function resolveInstallmentForPayment(
   input: MarkInstallmentPaidInput,
   ctx: Parameters<ToolHandler>[1],
-): Promise<{ kind: 'ok'; installment: ContractOpenInstallment } | { kind: 'ambiguous'; options: ContractOpenInstallment[] } | { kind: 'not_found' }> {
+): Promise<{ kind: 'ok'; installment: ContractOpenInstallment } | { kind: 'ambiguous'; options: ContractOpenInstallment[] } | { kind: 'ambiguous_debtor'; debtors: Array<{ id: string; full_name: string; cpf: string | null }> } | { kind: 'not_found' }> {
+  // BR-BOT-014 (BOT-007): nome ambíguo → desambigua a pessoa antes de tocar em
+  // qualquer parcela (evita baixar no cliente errado, inclusive com contract_id
+  // inferido pelo LLM). Espelha o executor da capability.
+  if (input.debtor_name && !input.installment_number) {
+    const profiles = await searchDebtorsByName(ctx.tenantId, input.debtor_name);
+    if (profiles.length > 1) return { kind: 'ambiguous_debtor', debtors: profiles };
+  }
   if (input.contract_id && input.installment_number) {
     const found = await getContractOpenInstallmentByNumber(ctx.tenantId, input.contract_id, input.installment_number);
     return found ? { kind: 'ok', installment: found } : { kind: 'not_found' };
@@ -667,6 +735,21 @@ export const markInstallmentPaidHandler: ToolHandler<MarkInstallmentPaidInput> =
     };
   }
 
+  if (resolution.kind === 'ambiguous_debtor') {
+    const lines = resolution.debtors.map((d, idx) => {
+      const tail = (d.cpf || '').replace(/\D/g, '').slice(-2);
+      const cpfLabel = tail ? ` — CPF ***.***.***-${tail}` : '';
+      return `*${idx + 1}.* ${d.full_name}${cpfLabel}`;
+    });
+    return {
+      kind: 'data',
+      summary: `Encontrei ${resolution.debtors.length} clientes com esse nome.`,
+      data: {
+        prompt: `Para evitar baixar no cliente errado, me diga qual deles:\n\n${lines.join('\n')}\n\nResponda com o *número* ou o *final do CPF*.`,
+      },
+    };
+  }
+
   if (resolution.kind === 'ambiguous') {
     const lines = resolution.options.slice(0, 5).map((it, idx) => (
       `*${idx + 1}.* Parcela ${it.number}  ·  ${fmt(it.amount)}  ·  vence ${fmtDateBR(it.dueDate)}`
@@ -682,6 +765,72 @@ export const markInstallmentPaidHandler: ToolHandler<MarkInstallmentPaidInput> =
   }
 
   const installment = resolution.installment;
+
+  // BOT-008: parcela de contrato bullet (interest_only) → escolha rolagem/quitação,
+  // depois preview bullet; argsSnapshot leva bullet_mode → a execução confirmada
+  // reusa o capability executor (payBulletInterest, BOT-005).
+  const bulletInfo = await getInstallmentBulletInfo(installment.id, ctx.tenantId);
+  if (bulletInfo?.isBullet) {
+    const remaining = bulletInfo.remainingBalance;
+    const interestDue = bulletInfo.interestDue;
+    const header = `*${installment.debtorName}*  ·  Contrato *#${installment.contractId}*`;
+
+    if (input.bullet_mode !== 'interest' && input.bullet_mode !== 'settle') {
+      return {
+        kind: 'data',
+        summary: 'Contrato de juros simples (bullet) — preciso saber se é juros ou quitação.',
+        data: {
+          prompt: [
+            '*Contrato de juros simples (bullet)*',
+            '',
+            header,
+            `Principal em aberto: *${fmt(remaining)}*`,
+            `Juros desta parcela: *${fmt(interestDue)}*`,
+            '',
+            'Como deseja registrar a baixa?',
+            `• *Juros* — paga só os juros (${fmt(interestDue)}) e mantém o principal em aberto`,
+            `• *Quitar* — paga juros + principal (${fmt(remaining + interestDue)}) e encerra o contrato`,
+            '',
+            'Responda *juros* ou *quitar*.',
+          ].join('\n'),
+        },
+      };
+    }
+
+    const settle = input.bullet_mode === 'settle';
+    const bulletPreview = ['*Baixar parcela — confirmar*', '', header, ''];
+    if (settle) {
+      bulletPreview.push(
+        '_Quitação (juros + principal)_',
+        `Juros: *${fmt(interestDue)}*`,
+        `Principal: *${fmt(remaining)}*`,
+        `Total: *${fmt(remaining + interestDue)}*`,
+      );
+    } else {
+      bulletPreview.push(
+        '_Rolagem (só juros)_',
+        `Valor: *${fmt(interestDue)}*`,
+        `Principal em aberto após a baixa: *${fmt(remaining)}*`,
+      );
+    }
+    bulletPreview.push('', 'Responda *sim* para confirmar a baixa ou *não* para cancelar.');
+
+    const bulletArgs: Record<string, unknown> = {
+      installment_id: installment.id,
+      contract_id: installment.contractId,
+      installment_number: installment.number,
+      bullet_mode: input.bullet_mode,
+    };
+    const bulletConfirm = await createPendingConfirmation(ctx.session, 'mark_installment_paid', bulletArgs, bulletPreview.join('\n'));
+    return {
+      kind: 'preview',
+      preview: bulletConfirm.safeUserMessage,
+      confirmationId: bulletConfirm.confirmationId,
+      idempotencyKey: bulletConfirm.idempotencyKey,
+      argsSnapshot: bulletArgs,
+    };
+  }
+
   const paidAt = (input.paid_at && /^\d{4}-\d{2}-\d{2}$/.test(input.paid_at))
     ? input.paid_at
     : new Date().toISOString().slice(0, 10);

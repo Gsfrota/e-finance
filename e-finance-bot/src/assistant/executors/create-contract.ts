@@ -34,6 +34,8 @@ export interface CreateContractCapabilityInput {
   rename_mode?: 'use_existing' | 'replace_existing';
   conflict_existing_name?: string;
   conflict_requested_name?: string;
+  // BR-BOT-011: 'interest_only' = bullet (juros simples, prazo indeterminado).
+  calculation_mode?: 'standard' | 'interest_only';
 }
 
 interface CreateContractCapabilityOutput {
@@ -66,6 +68,7 @@ const createContractInputSchema = z.object({
   weekday: z.number().int().min(0).max(6).optional(),
   total_repayment: z.number().positive().optional(),
   rename_mode: z.enum(['use_existing', 'replace_existing']).optional(),
+  calculation_mode: z.enum(['standard', 'interest_only']).optional(),
 }).passthrough();
 
 function normalizeText(text: string): string {
@@ -125,9 +128,20 @@ function extractContractFrequency(text: string): 'monthly' | 'weekly' | 'biweekl
   const normalized = normalizeText(text);
 
   if (/de\s*15\s*em\s*15|cada\s*quinze\s*dias|quinzenal|quinzena|15\s*dias/.test(normalized)) return 'biweekly';
-  if (/todo\s*santo\s*dia|todo\s*dia|diaria|diario|daily/.test(normalized)) return 'daily';
+  if (/todo\s+dia\s*\d{1,2}|vence\s+todo\s+dia\s*\d{1,2}/.test(normalized)) return 'monthly';
+  if (/todo\s*santo\s*dia|todo\s*dia(?!\s*\d)|diaria|diario|daily/.test(normalized)) return 'daily';
   if (/semanal|weekly|toda\s*semana|cada\s*semana/.test(normalized)) return 'weekly';
   if (/mensal|monthly|todo\s*mes|cada\s*mes/.test(normalized)) return 'monthly';
+  return null;
+}
+
+function extractCalculationMode(text: string): 'interest_only' | null {
+  const normalized = normalizeText(text);
+  // BR-BOT-011: gatilhos de bullet/juros simples. "só juros", "juros simples",
+  // "bullet", "interest only", "paga só os juros", "principal no final/em aberto".
+  if (/\bbullet\b|interest[\s-]?only|juros\s*simples|so\s*(os\s*)?juros|s[óo]\s*(os\s*)?juros|paga(ndo)?\s*(so|s[óo]|apenas|somente)\s*(os\s*)?juros|principal\s*(no\s*final|em\s*aberto|so\s*no\s*final|depois)/.test(normalized)) {
+    return 'interest_only';
+  }
   return null;
 }
 
@@ -252,6 +266,9 @@ function buildPatchFromText(text: string): Partial<CreateContractCapabilityInput
   const renameMode = parseRenameMode(text);
   if (renameMode) patch.rename_mode = renameMode;
 
+  const calculationMode = extractCalculationMode(text);
+  if (calculationMode) patch.calculation_mode = calculationMode;
+
   return patch;
 }
 
@@ -334,10 +351,12 @@ function normalizeDraftInput(input: CreateContractCapabilityInput): CreateContra
 
 function getMissingFields(input: CreateContractCapabilityInput): string[] {
   // BR-BOT-010: ordem determinística — nome → valor → taxa → parcelas → CPF → frequência → vencimento
+  // BR-BOT-011: bullet (interest_only) tem prazo indeterminado → pula o slot 'installments'.
+  const isBullet = input.calculation_mode === 'interest_only';
   if (!input.debtor_name) return ['debtor_name'];
   if (input.amount === undefined || input.amount === null) return ['amount'];
   if (input.rate === undefined || input.rate === null) return ['rate'];
-  if (input.installments === undefined || input.installments === null) return ['installments'];
+  if (!isBullet && (input.installments === undefined || input.installments === null)) return ['installments'];
   if (!input.debtor_cpf || !isValidCpf(input.debtor_cpf)) return ['debtor_cpf'];
   if (!input.frequency) return ['frequency'];
 
@@ -400,6 +419,7 @@ function toDraft(input: CreateContractCapabilityInput): ContractDraft {
         : undefined,
     start_date: input.start_date,
     total_repayment: input.total_repayment,
+    calculation_mode: input.calculation_mode === 'interest_only' ? 'interest_only' : 'standard',
   };
 }
 
@@ -440,7 +460,7 @@ export const createContractCapability: CapabilityDefinition<CreateContractCapabi
   kind: 'mutation',
   rolesAllowed: ['admin'],
   requiredArgs: [],
-  optionalArgs: ['debtor_name', 'debtor_cpf', 'amount', 'rate', 'installments', 'frequency', 'due_day', 'start_date', 'weekday', 'total_repayment', 'rename_mode'],
+  optionalArgs: ['debtor_name', 'debtor_cpf', 'amount', 'rate', 'installments', 'frequency', 'due_day', 'start_date', 'weekday', 'total_repayment', 'rename_mode', 'calculation_mode'],
   requiresConfirmation: true,
   idempotencyScope: 'mutation',
   inputSchema: createContractInputSchema,

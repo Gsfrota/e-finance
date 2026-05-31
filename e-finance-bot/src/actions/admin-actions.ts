@@ -46,7 +46,14 @@ export interface ContractDraft {
   total_repayment?: number;
   due_day?: number;
   derived_rate_source?: 'period_total';
+  // BR-BOT-011: bullet/juros simples. 'interest_only' = principal em aberto,
+  // paga só juros por período (prazo indeterminado). Default 'standard' (parcelado).
+  calculation_mode?: 'standard' | 'interest_only';
 }
+
+// BR-BOT-011: sentinela de parcelas para contrato bullet (espelha o app web,
+// que usa 120 em total_installments para representar prazo indeterminado).
+const BULLET_INSTALLMENTS_SENTINEL = 120;
 
 export interface ContractParseResult {
   draft: ContractDraft | null;
@@ -732,7 +739,7 @@ export async function getContractOpenInstallments(
   pageSize = 3
 ): Promise<ContractInstallmentsPage> {
   const safePage = Math.max(0, Math.trunc(page));
-  const safePageSize = Math.max(1, Math.min(10, Math.trunc(pageSize)));
+  const safePageSize = Math.max(1, Math.min(50, Math.trunc(pageSize)));
   const from = safePage * safePageSize;
 
   const { data, error } = await db()
@@ -882,6 +889,109 @@ function parseAmountCandidate(raw: string, unit?: string): number | null {
   return amount >= 1 ? amount : null;
 }
 
+const AMOUNT_WORDS: Record<string, number> = {
+  um: 1,
+  uma: 1,
+  dois: 2,
+  duas: 2,
+  tres: 3,
+  três: 3,
+  quatro: 4,
+  cinco: 5,
+  seis: 6,
+  sete: 7,
+  oito: 8,
+  nove: 9,
+  dez: 10,
+  onze: 11,
+  doze: 12,
+  treze: 13,
+  quatorze: 14,
+  catorze: 14,
+  quinze: 15,
+  dezesseis: 16,
+  dezasseis: 16,
+  dezessete: 17,
+  dezassete: 17,
+  dezoito: 18,
+  dezenove: 19,
+  dezanove: 19,
+  vinte: 20,
+  trinta: 30,
+  quarenta: 40,
+  cinquenta: 50,
+  sessenta: 60,
+  setenta: 70,
+  oitenta: 80,
+  noventa: 90,
+  cem: 100,
+  cento: 100,
+  duzentos: 200,
+  duzentas: 200,
+  trezentos: 300,
+  trezentas: 300,
+  quatrocentos: 400,
+  quatrocentas: 400,
+  quinhentos: 500,
+  quinhentas: 500,
+  seiscentos: 600,
+  seiscentas: 600,
+  setecentos: 700,
+  setecentas: 700,
+  oitocentos: 800,
+  oitocentas: 800,
+  novecentos: 900,
+  novecentas: 900,
+};
+
+function normalizeAmountWordKey(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function parseAmountWordChunk(raw: string): number | null {
+  const tokens = raw
+    .split(/\s+e\s+|\s+/i)
+    .map(token => normalizeAmountWordKey(token).trim())
+    .filter(Boolean);
+
+  if (tokens.length === 0) return null;
+
+  let total = 0;
+  for (const token of tokens) {
+    if (token === 'e') continue;
+    const value = AMOUNT_WORDS[token];
+    if (value === undefined) return null;
+    total += value;
+  }
+
+  return total > 0 ? total : null;
+}
+
+function extractAmountWords(text: string): number | null {
+  const normalized = text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  const wordAlternatives = Object.keys(AMOUNT_WORDS)
+    .map(normalizeAmountWordKey)
+    .filter((value, index, arr) => arr.indexOf(value) === index)
+    .join('|');
+  const chunk = `(?:${wordAlternatives})(?:\\s+e\\s+(?:${wordAlternatives})|\\s+(?:${wordAlternatives}))*`;
+  const milMatch = normalized.match(new RegExp(`\\b(${chunk})\\s+mil\\b(?:\\s+e\\s+(${chunk}))?`));
+  if (milMatch?.[1]) {
+    const thousands = parseAmountWordChunk(milMatch[1]);
+    const remainder = milMatch[2] ? parseAmountWordChunk(milMatch[2]) : 0;
+    if (thousands !== null && remainder !== null) return thousands * 1000 + remainder;
+  }
+
+  const reaisMatch = normalized.match(new RegExp(`\\b(${chunk})\\s+reais?\\b`));
+  if (reaisMatch?.[1]) return parseAmountWordChunk(reaisMatch[1]);
+  return null;
+}
+
 function extractPrincipalAndTotal(text: string): { principal: number; total: number } | null {
   const patterns = [
     /(?:receber|pegar|emprestar|emprestimo|empr[eé]stimo)?[^0-9]{0,30}([0-9][0-9.,]*)\s*(mil|k)?\s*(?:reais?|r\$)?\s*por\s*([0-9][0-9.,]*)\s*(mil|k)?\s*(?:reais?|r\$)?/i,
@@ -915,6 +1025,9 @@ export function extractAmount(text: string): number | null {
     const value = parseAmountCandidate(match[1], match[2]);
     if (value !== null && value >= 100) return value;
   }
+
+  const wordsAmount = extractAmountWords(text);
+  if (wordsAmount !== null && wordsAmount >= 100) return wordsAmount;
 
   return null;
 }
@@ -1010,6 +1123,8 @@ function normalizeNameForCompare(name: string): string {
 
 export function extractDebtorNameSimple(text: string): string | null {
   const cleaned = text
+    .replace(/\bcpf\b\s*[:\-]?\s*(?:\d[\s.-]?){0,11}/gi, '') // marcador + CPF
+    .replace(/\bcpf\b/gi, '')                                // marcador órfão
     .replace(/\b(?:criar?|novo?|contrato|cadastrar?|registrar?|adicionar?)\b/gi, '') // keywords de comando
     .replace(/\d{3}\.?\d{3}\.?\d{3}-?\d{2}/g, '')    // CPF
     .replace(/R?\$?\s*\d+[\d.,]*/g, '')                // valores
@@ -1278,11 +1393,22 @@ export async function createContract(
   const resolvedDebtorCpf = debtorResolution.debtorCpf;
 
   const startDate = draft.start_date || new Date().toISOString().split('T')[0];
-  // rate is monthly interest rate (% a.m.), so total = principal * (1 + rate/100 * installments)
-  const currentValue = draft.total_repayment && draft.total_repayment > 0
-    ? draft.total_repayment
-    : Number((draft.amount * (1 + ((draft.rate || 0) / 100) * Math.max(1, draft.installments))).toFixed(2));
-  const installmentValue = Number((currentValue / Math.max(1, draft.installments)).toFixed(2));
+  const isBullet = draft.calculation_mode === 'interest_only';
+
+  // BR-BOT-011: bullet (juros simples) → paga só juros/período, principal em aberto.
+  //   installment_value = round(principal * taxa%)   (juros por período)
+  //   current_value     = principal                  (= remaining_balance inicial)
+  //   total_installments = sentinela (prazo indeterminado)
+  // Parcelado (standard): total = principal * (1 + taxa/100 * parcelas).
+  const currentValue = isBullet
+    ? draft.amount
+    : draft.total_repayment && draft.total_repayment > 0
+      ? draft.total_repayment
+      : Number((draft.amount * (1 + ((draft.rate || 0) / 100) * Math.max(1, draft.installments))).toFixed(2));
+  const installmentValue = isBullet
+    ? Number((draft.amount * ((draft.rate || 0) / 100)).toFixed(2))
+    : Number((currentValue / Math.max(1, draft.installments)).toFixed(2));
+  const totalInstallments = isBullet ? BULLET_INSTALLMENTS_SENTINEL : draft.installments;
 
   const { data, error } = await db().rpc('create_investment_validated', {
     p_tenant_id: tenantId,
@@ -1295,10 +1421,14 @@ export async function createContract(
     p_current_value: currentValue,
     p_interest_rate: draft.rate,
     p_installment_value: installmentValue,
-    p_total_installments: draft.installments,
+    p_total_installments: totalInstallments,
     p_frequency: draft.frequency,
     p_due_day: draft.due_day ?? null,
     p_start_date: startDate,
+    p_calculation_mode: isBullet ? 'interest_only' : 'manual',
+    // CB-005: bullet rotativo no MVP do bot → principal "junto", sem multa/quebra.
+    p_bullet_principal_mode: isBullet ? null : undefined,
+    p_default_after_days: isBullet ? 20 : undefined,
   });
 
   if (error || !data) {
@@ -1677,12 +1807,144 @@ export async function markInstallmentPaid(
   return true;
 }
 
+// ─── Baixa de contrato bullet (juros simples) ─────────────────────────────────
+
+export interface BulletInstallmentInfo {
+  isBullet: boolean;
+  remainingBalance: number;
+  contractId: number;
+  // BR-BOT-012: juros devidos desta parcela (= amount_interest − interest_payments_total),
+  // espelhando v_interest_due do RPC. NÃO confundir com amount_total (que inclui principal).
+  interestDue: number;
+}
+
+/**
+ * BR-BOT-012: informa se a parcela pertence a um contrato bullet (interest_only),
+ * o saldo devedor (principal) em aberto e os juros devidos da parcela. Escopo por
+ * tenant é validado aqui (o RPC pay_bullet_interest_only é SECURITY DEFINER e não
+ * filtra tenant).
+ */
+export async function getInstallmentBulletInfo(
+  installmentId: string,
+  tenantId: string,
+): Promise<BulletInstallmentInfo | null> {
+  const { data, error } = await db()
+    .from('loan_installments')
+    .select('amount_interest, interest_payments_total, investments!inner(id, tenant_id, calculation_mode, remaining_balance, amount_invested)')
+    .eq('id', installmentId)
+    .eq('investments.tenant_id', tenantId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[getInstallmentBulletInfo] query failed', error);
+    return null;
+  }
+  if (!data) return null;
+
+  const inv = (data as unknown as {
+    investments?: { id?: number; calculation_mode?: string; remaining_balance?: number | string; amount_invested?: number | string };
+  }).investments;
+  if (!inv) return null;
+
+  const remaining = Number(inv.remaining_balance ?? inv.amount_invested ?? 0);
+  const amountInterest = Number((data as { amount_interest?: number | string }).amount_interest ?? 0);
+  const interestPaid = Number((data as { interest_payments_total?: number | string }).interest_payments_total ?? 0);
+  return {
+    isBullet: inv.calculation_mode === 'interest_only',
+    remainingBalance: remaining,
+    contractId: Number(inv.id ?? 0),
+    interestDue: Math.max(0, Number((amountInterest - interestPaid).toFixed(2))),
+  };
+}
+
+export interface PayBulletResult {
+  ok: boolean;
+  contractClosed: boolean;
+  interestPaid: number;
+  principalPaid: number;
+  newBalance: number;
+}
+
+/**
+ * BR-BOT-012: baixa de parcela bullet via RPC pay_bullet_interest_only.
+ *  - settle=false → rolagem: paga só os juros, gera a próxima parcela, mantém saldo.
+ *  - settle=true  → quitação: p_amount_paid = remaining_balance → quita principal+juros.
+ * Valida tenant antes de chamar o RPC (SECURITY DEFINER não filtra tenant).
+ */
+export async function payBulletInterest(
+  installmentId: string,
+  tenantId: string,
+  settle: boolean,
+): Promise<PayBulletResult | null> {
+  const info = await getInstallmentBulletInfo(installmentId, tenantId);
+  if (!info || !info.isBullet) {
+    console.error('[payBulletInterest] parcela não pertence a contrato bullet do tenant', { installmentId, tenantId });
+    return null;
+  }
+
+  const { data, error } = await db().rpc('pay_bullet_interest_only', {
+    p_installment_id: installmentId,
+    p_amount_paid: settle ? info.remainingBalance : undefined,
+  });
+
+  if (error || !data) {
+    if (error) console.error('[payBulletInterest] rpc failed', error);
+    return null;
+  }
+
+  const result = data as {
+    interest_paid?: number;
+    principal_paid?: number;
+    new_balance?: number;
+    contract_closed?: boolean;
+  };
+  return {
+    ok: true,
+    contractClosed: Boolean(result.contract_closed),
+    interestPaid: Number(result.interest_paid ?? 0),
+    principalPaid: Number(result.principal_paid ?? 0),
+    newBalance: Number(result.new_balance ?? 0),
+  };
+}
+
 // ─── Buscar Parcela por Devedor e Mês ─────────────────────────────────────────
+
+export interface DebtorCandidate {
+  id: string;
+  full_name: string;
+  cpf: string | null;
+}
 
 export interface InstallmentByMonthResult {
   installments: ContractOpenInstallment[];
   debtorName: string;
   debtorId: string;
+  // BR-BOT-013: quando o nome casa com mais de um cliente DISTINTO, devolve os
+  // candidatos para o executor desambiguar (em vez de pegar o primeiro às cegas).
+  ambiguousDebtors?: DebtorCandidate[];
+}
+
+/**
+ * BR-BOT-014 (BOT-007): lista perfis de devedor que casam com o nome, para
+ * desambiguar a PESSOA antes de confiar num contract_id (que o LLM pode inferir
+ * do histórico e apontar para o cliente errado).
+ */
+export async function searchDebtorsByName(
+  tenantId: string,
+  nameQuery: string,
+): Promise<DebtorCandidate[]> {
+  const { data } = await db()
+    .from('profiles')
+    .select('id, full_name, cpf')
+    .eq('tenant_id', tenantId)
+    .ilike('full_name', `%${nameQuery}%`)
+    .eq('role', 'debtor')
+    .limit(5);
+  return (data || []).map((d: any) => ({
+    id: String(d.id),
+    full_name: String(d.full_name || ''),
+    cpf: d.cpf ? String(d.cpf) : null,
+  }));
 }
 
 export async function getInstallmentByDebtorAndMonth(
@@ -1690,18 +1952,36 @@ export async function getInstallmentByDebtorAndMonth(
   debtorNameQuery: string,
   month: number,
   year?: number,
+  preselectedDebtorId?: string,
 ): Promise<InstallmentByMonthResult | null> {
   const { data: debtors } = await db()
     .from('profiles')
-    .select('id, full_name')
+    .select('id, full_name, cpf')
     .eq('tenant_id', tenantId)
     .ilike('full_name', `%${debtorNameQuery}%`)
     .eq('role', 'debtor')
-    .limit(3);
+    .limit(5);
 
   if (!debtors || debtors.length === 0) return null;
 
-  const debtor = debtors[0];
+  // BR-BOT-013: homônimos distintos → o executor pergunta qual cliente.
+  // Pulado quando o admin já escolheu (preselectedDebtorId).
+  if (!preselectedDebtorId && debtors.length > 1) {
+    return {
+      installments: [],
+      debtorName: '',
+      debtorId: '',
+      ambiguousDebtors: debtors.map((d: any) => ({
+        id: String(d.id),
+        full_name: String(d.full_name || ''),
+        cpf: d.cpf ? String(d.cpf) : null,
+      })),
+    };
+  }
+
+  const debtor = preselectedDebtorId
+    ? (debtors.find((d: any) => String(d.id) === preselectedDebtorId) || debtors[0])
+    : debtors[0];
   const debtorId = String(debtor.id);
   const debtorName = String(debtor.full_name);
 

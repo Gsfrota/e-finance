@@ -28,6 +28,11 @@ describe('extractDebtorNameSimple', () => {
     const name = extractDebtorNameSimple('João');
     expect(name).toBe('João');
   });
+
+  it('não contamina o nome com marcador de CPF', () => {
+    const name = extractDebtorNameSimple('criar contrato para Ícaro Santos CPF 529.982.247-25');
+    expect(name).toBe('Ícaro Santos');
+  });
 });
 
 describe('CPF helpers', () => {
@@ -123,6 +128,20 @@ describe('parseContractTextDeterministic', () => {
     });
     // rate is monthly: (2000/1000 - 1) * 100 / 10 installments = 10% a.m.
     expect(parsed?.rate).toBeCloseTo(10, 4);
+  });
+
+  it('entende valor por extenso e todo dia 10 como vencimento mensal', () => {
+    const parsed = parseContractTextDeterministic('criar contrato para Ana Paula, CPF 529.982.247-25, cinco mil, 3%, 10 parcelas todo dia 10');
+
+    expect(parsed).toMatchObject({
+      debtor_name: 'Ana Paula',
+      debtor_cpf: '52998224725',
+      amount: 5000,
+      rate: 3,
+      installments: 10,
+      frequency: 'monthly',
+      due_day: 10,
+    });
   });
 
   it('retorna null quando faltam dados mínimos', () => {

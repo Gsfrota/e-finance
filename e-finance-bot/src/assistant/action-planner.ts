@@ -137,14 +137,16 @@ export function createActionPlan(
       return makePlan('execute', 'generate_report', understanding, {}, [], { evidence });
     case 'gerar_convite':
       return makePlan('execute', 'generate_invite', understanding, {}, [], { evidence });
+    // BOT-002: bot é admin-only. Intents de autoatendimento roteiam ao equivalente
+    // admin; o policy-engine nega não-admin nessas capabilities (deny padrão), sem
+    // vazar dado de devedor/investidor. As capabilities view_my_* seguem no registry
+    // como defense-in-depth (handlers AI-native + testes de cross-tenant).
     case 'ver_minhas_parcelas':
-      return makePlan('execute', 'view_my_installments', understanding, {}, [], { evidence });
+      return makePlan('execute', 'list_receivables', understanding, { filter: entities.filter || 'pending' }, [], { evidence });
     case 'ver_meu_saldo_devedor':
-      if (role === 'admin') return makePlan('execute', 'show_dashboard', understanding, {}, [], { evidence });
-      return makePlan('execute', 'view_my_debt_summary', understanding, {}, [], { evidence });
+      return makePlan('execute', 'show_dashboard', understanding, {}, [], { evidence });
     case 'ver_meu_portfolio':
-      if (role === 'admin') return makePlan('execute', 'list_receivables', understanding, { filter: entities.filter || 'pending' }, [], { evidence });
-      return makePlan('execute', 'view_my_portfolio', understanding, {}, [], { evidence });
+      return makePlan('execute', 'list_receivables', understanding, { filter: entities.filter || 'pending' }, [], { evidence });
     case 'ver_exemplo_lembrete':
       return makePlan('execute', 'preview_lembrete', understanding, {}, [], { evidence });
     case 'ver_mensalidade':
@@ -152,6 +154,11 @@ export function createActionPlan(
     case 'reportar_problema':
       return makePlan('execute', 'report_feedback', understanding, {}, [], { evidence });
     case 'configurar_briefing': {
+      // BOT-003: gate de role ANTES do wizard — não-admin recebe o deny de policy
+      // (configure_briefing é admin-only), sem vazar o wizard "Me diga o horário".
+      if (role !== 'admin') {
+        return makePlan('execute', 'configure_briefing', understanding, {}, [], { evidence });
+      }
       const briefingTime = (entities as any).briefing_time as string | undefined;
       const briefingEnabled = (entities as any).briefing_enabled as boolean | undefined;
       if (briefingEnabled === false) {

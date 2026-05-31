@@ -33,6 +33,9 @@ const mocks = vi.hoisted(() => ({
   parseContractTextWithMeta: vi.fn(),
   createContract: vi.fn(),
   markInstallmentPaid: vi.fn(),
+  getInstallmentBulletInfo: vi.fn(),
+  payBulletInterest: vi.fn(),
+  searchDebtorsByName: vi.fn(),
   searchUser: vi.fn(),
   getUserDebt: vi.fn(),
   getUserDebtDetails: vi.fn(),
@@ -44,12 +47,48 @@ const mocks = vi.hoisted(() => ({
   getContractOpenInstallmentByMonth: vi.fn(),
   getInstallmentByDebtorAndMonth: vi.fn(),
   listCompaniesByTenant: vi.fn(),
+  getInvestorPortfolio: vi.fn(),
+  getProfileById: vi.fn(),
 
   getBotTenantConfig: vi.fn(),
   checkWhitelistBlock: vi.fn(),
+  upsertBotTenantConfig: vi.fn(),
+
+  getSubscriptionTenant: vi.fn(),
+  buildSubscriptionPixBlock: vi.fn(),
+
+  recordAndForwardFeedback: vi.fn(),
+
+  buildBriefingMessage: vi.fn(),
 
   logStructuredMessage: vi.fn(),
   estimateCostUsd: vi.fn(),
+
+  // TEST-001: estado controlável do Supabase para o fresh-read do comprovante
+  // (fetchInstallmentReceipt em mark-installment-paid.ts usa getSupabaseClient direto).
+  __supabase: { receiptRow: { data: null as unknown, error: null as unknown } },
+}));
+
+// TEST-001: query-builder encadeável mínimo (from/select/eq/in/order/limit → self;
+// maybeSingle/single → row controlado).
+function buildFakeSupabase() {
+  const query: Record<string, unknown> = {};
+  const chain = () => query;
+  Object.assign(query, {
+    select: chain, eq: chain, in: chain, order: chain, limit: chain,
+    maybeSingle: async () => mocks.__supabase.receiptRow,
+    single: async () => mocks.__supabase.receiptRow,
+  });
+  return {
+    from: () => query,
+    rpc: async () => ({ data: null, error: null }),
+  };
+}
+
+vi.mock('../../src/infra/runtime-clients', () => ({
+  getSupabaseClient: () => buildFakeSupabase(),
+  getGeminiClient: () => ({}),
+  hasGeminiClient: () => false,
 }));
 
 vi.mock('../../src/ai/intent-router', () => ({
@@ -82,7 +121,12 @@ vi.mock('../../src/session/session-manager', () => ({
   getProfileByChannelBinding: mocks.getProfileByChannelBinding,
 }));
 
-vi.mock('../../src/actions/admin-actions', () => ({
+vi.mock('../../src/actions/admin-actions', async () => {
+  // TEST-001: validadores REAIS (fim do fake isValidCpf === '52998224725').
+  const actual = await vi.importActual<typeof import('../../src/actions/admin-actions')>('../../src/actions/admin-actions');
+  return {
+  isValidCpf: actual.isValidCpf,
+  normalizeCpf: actual.normalizeCpf,
   getDashboardSummary: mocks.getDashboardSummary,
   getInstallments: mocks.getInstallments,
   getInstallmentsToday: mocks.getInstallmentsToday,
@@ -96,6 +140,9 @@ vi.mock('../../src/actions/admin-actions', () => ({
   parseContractTextWithMeta: mocks.parseContractTextWithMeta,
   createContract: mocks.createContract,
   markInstallmentPaid: mocks.markInstallmentPaid,
+  getInstallmentBulletInfo: mocks.getInstallmentBulletInfo,
+  payBulletInterest: mocks.payBulletInterest,
+  searchDebtorsByName: mocks.searchDebtorsByName,
   searchUser: mocks.searchUser,
   getUserDebt: mocks.getUserDebt,
   getUserDebtDetails: mocks.getUserDebtDetails,
@@ -107,12 +154,8 @@ vi.mock('../../src/actions/admin-actions', () => ({
   getContractOpenInstallmentByMonth: mocks.getContractOpenInstallmentByMonth,
   getInstallmentByDebtorAndMonth: mocks.getInstallmentByDebtorAndMonth,
   listCompaniesByTenant: mocks.listCompaniesByTenant,
-  normalizeCpf: (value?: string | null) => {
-    if (!value) return null;
-    const digits = String(value).replace(/\D/g, '');
-    return digits.length === 11 ? digits : null;
-  },
-  isValidCpf: (value?: string | null) => value === '52998224725',
+  getInvestorPortfolio: mocks.getInvestorPortfolio,
+  getProfileById: mocks.getProfileById,
   formatCurrency: (value: number) => `R$ ${value.toFixed(2)}`,
   formatDate: (value: string) => value,
   extractDebtorNameSimple: (text: string) => {
@@ -138,11 +181,13 @@ vi.mock('../../src/actions/admin-actions', () => ({
     const n = Number(m[1]);
     return Number.isFinite(n) && n >= 1 ? Math.round(n) : null;
   },
-}));
+  };
+});
 
 vi.mock('../../src/actions/bot-config-actions', () => ({
   getBotTenantConfig: mocks.getBotTenantConfig,
   checkWhitelistBlock: mocks.checkWhitelistBlock,
+  upsertBotTenantConfig: mocks.upsertBotTenantConfig,
 }));
 
 vi.mock('../../src/observability/logger', () => ({
@@ -153,9 +198,51 @@ vi.mock('../../src/observability/cost-estimator', () => ({
   estimateCostUsd: mocks.estimateCostUsd,
 }));
 
+vi.mock('../../src/actions/billing-actions', () => ({
+  getSubscriptionTenant: mocks.getSubscriptionTenant,
+  buildSubscriptionPixBlock: mocks.buildSubscriptionPixBlock,
+}));
+
+vi.mock('../../src/actions/feedback-actions', () => ({
+  recordAndForwardFeedback: mocks.recordAndForwardFeedback,
+}));
+
+vi.mock('../../src/scheduler/morning-briefing', () => ({
+  buildBriefingMessage: mocks.buildBriefingMessage,
+}));
+
 import { handleMessage } from '../../src/handlers/message-handler';
 
 export { mocks as agentEvalMocks };
+
+/**
+ * TEST-001: define o row que o fresh-read do comprovante (fetchInstallmentReceipt)
+ * vê. Estrutura espelha o select de loan_installments + join investments.
+ */
+export function setInstallmentReceiptRow(row: {
+  number: number;
+  amount_total: number;
+  amount_paid: number;
+  due_date: string;
+  paid_at: string | null;
+  investmentId: number;
+  debtorName: string;
+} | null) {
+  mocks.__supabase.receiptRow = row
+    ? {
+        data: {
+          number: row.number,
+          amount_total: row.amount_total,
+          amount_paid: row.amount_paid,
+          due_date: row.due_date,
+          paid_at: row.paid_at,
+          investment_id: row.investmentId,
+          investments: { id: row.investmentId, profiles: { full_name: row.debtorName } },
+        },
+        error: null,
+      }
+    : { data: null, error: null };
+}
 
 function buildState(testCase: AgentEvalCase): AgentEvalHarnessState {
   return {
@@ -184,6 +271,8 @@ function currentSession(state: AgentEvalHarnessState) {
 
 function applyDefaults(state: AgentEvalHarnessState) {
   vi.clearAllMocks();
+  // TEST-001: default = sem fresh-read (fetchInstallmentReceipt cai no fallback).
+  mocks.__supabase.receiptRow = { data: null, error: null };
 
   mocks.getOrCreateSession.mockImplementation(async () => currentSession(state));
   mocks.syncSessionProfileFromChannelBinding.mockImplementation(async (session: any) => ({
@@ -263,6 +352,11 @@ function applyDefaults(state: AgentEvalHarnessState) {
     debtorResolution: 'created',
   });
   mocks.markInstallmentPaid.mockResolvedValue(true);
+  // Default: parcelas pertencem a contrato padrão (não-bullet). Casos bullet
+  // sobrescrevem getInstallmentBulletInfo/payBulletInterest no próprio setup.
+  mocks.getInstallmentBulletInfo.mockResolvedValue({ isBullet: false, remainingBalance: 0, contractId: 123, interestDue: 0 });
+  mocks.payBulletInterest.mockResolvedValue({ ok: true, contractClosed: false, interestPaid: 0, principalPaid: 0, newBalance: 0 });
+  mocks.searchDebtorsByName.mockResolvedValue([]);
   mocks.searchUser.mockResolvedValue([]);
   mocks.getUserDebt.mockResolvedValue(0);
   mocks.getUserDebtDetails.mockResolvedValue({
@@ -271,6 +365,7 @@ function applyDefaults(state: AgentEvalHarnessState) {
     nextDueDate: null,
     nextDueAmount: 0,
     activeContracts: 0,
+    contracts: [],
   });
   mocks.generateInvite.mockResolvedValue('INV123');
   mocks.validateLinkCode.mockResolvedValue({ status: 'invalid_or_expired' });
@@ -316,6 +411,17 @@ function applyDefaults(state: AgentEvalHarnessState) {
 
   mocks.getBotTenantConfig.mockResolvedValue(null);
   mocks.checkWhitelistBlock.mockResolvedValue({ blocked: false, reason: 'whitelist_disabled' });
+  mocks.upsertBotTenantConfig.mockResolvedValue(undefined);
+
+  mocks.getSubscriptionTenant.mockResolvedValue(null);
+  mocks.buildSubscriptionPixBlock.mockReturnValue(null);
+
+  mocks.recordAndForwardFeedback.mockResolvedValue(undefined);
+
+  mocks.buildBriefingMessage.mockResolvedValue('Bom dia! Resumo do dia.');
+
+  mocks.getProfileById.mockResolvedValue({ id: state.profileId, full_name: 'Eval User', tenant_id: state.tenantId, whatsapp_phone: null, telegram_chat_id: null });
+  mocks.getInvestorPortfolio.mockResolvedValue({ totalContracts: 0, totalReceivable: 0, totalReceived: 0, contracts: [] });
 
   mocks.logStructuredMessage.mockResolvedValue(undefined);
   mocks.estimateCostUsd.mockReturnValue(0);
@@ -394,6 +500,36 @@ export async function runAgentEvalCase(testCase: AgentEvalCase): Promise<AgentEv
       details: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+/**
+ * Probe: roda os steps do caso e devolve os textos de saída SEM asserir.
+ * Use para descobrir o texto real do bot ao autorar novos casos.
+ */
+export async function probeAgentEvalCase(testCase: AgentEvalCase): Promise<string[]> {
+  const state = buildState(testCase);
+  applyDefaults(state);
+  testCase.setup?.({ mocks, state });
+  const outputs: string[] = [];
+  for (let index = 0; index < testCase.steps.length; index += 1) {
+    const step = testCase.steps[index];
+    const out = await handleMessage({
+      messageId: step.input.messageId || `${testCase.id}-${index + 1}`,
+      channel: step.input.channel || 'telegram',
+      channelUserId: step.input.channelUserId || 'chat-1',
+      senderName: step.input.senderName || 'Eval User',
+      text: step.input.text,
+      audioBuffer: step.input.audioBuffer,
+      audioMimeType: step.input.audioMimeType,
+      audioDurationSec: step.input.audioDurationSec,
+      audioSizeBytes: step.input.audioSizeBytes,
+      audioKind: step.input.audioKind,
+      imageBuffer: step.input.imageBuffer,
+      imageMimeType: step.input.imageMimeType,
+    });
+    outputs.push(out.text);
+  }
+  return outputs;
 }
 
 export function emitAgentEvalScorecard(scorecard: Record<string, unknown>) {

@@ -12,7 +12,7 @@ import {
 export const createContractTool: ToolDefinition = {
   name: 'create_contract',
   kind: 'mutation',
-  description: 'Cria um novo contrato de empréstimo. ASSIM QUE você tiver debtor_cpf + amount + (rate OU total_repayment), CHAME esta tool IMEDIATAMENTE — não pergunte confirmação extra, não peça campos opcionais primeiro. A tool retorna PREVIEW formatado pedindo "sim/não" do usuário. Campos opcionais (debtor_name, installments, frequency, due_day) podem vir vazios — a tool pede no preview se faltar. ACUMULE dados de turnos anteriores: se o usuário disse "07368816185, 1000, 12, 20%" no turno N e "nome é João" no turno N+1, junte tudo e chame com debtor_name="João". Se o usuário falou "10 parcelas de 200 com principal de 1500", calcule total_repayment = 10*200 = 2000. Use para "criar contrato", "emprestar X para Y", "novo empréstimo".',
+  description: 'Cria um novo contrato de empréstimo. ASSIM QUE você tiver debtor_cpf + amount + (rate OU total_repayment), CHAME esta tool IMEDIATAMENTE — não pergunte confirmação extra, não peça campos opcionais primeiro. A tool retorna PREVIEW formatado pedindo "sim/não" do usuário. Campos opcionais (debtor_name, installments, frequency, due_day) podem vir vazios — a tool pede no preview se faltar. ACUMULE dados de turnos anteriores: se o usuário disse "07368816185, 1000, 12, 20%" no turno N e "nome é João" no turno N+1, junte tudo e chame com debtor_name="João". Se o usuário falou "10 parcelas de 200 com principal de 1500", calcule total_repayment = 10*200 = 2000. CONTRATO BULLET (juros simples): se o usuário disser "só juros", "juros simples", "bullet", "paga só os juros" ou "principal no final", passe calculation_mode="interest_only" — nesse caso NÃO precisa de installments (prazo indeterminado); o devedor paga só os juros por período. Use para "criar contrato", "emprestar X para Y", "novo empréstimo".',
   rolesAllowed: ['admin'],
   requiresConfirmation: true,
   parameters: {
@@ -21,12 +21,13 @@ export const createContractTool: ToolDefinition = {
       debtor_name: { type: 'string', description: 'Nome do devedor.' },
       debtor_cpf: { type: 'string', description: 'CPF do devedor (11 dígitos). OBRIGATÓRIO para criar contrato.' },
       amount: { type: 'number', description: 'Valor principal do empréstimo em reais.' },
-      rate: { type: 'number', description: 'Taxa de juros em % ao mês (ex: 5 para 5%).' },
+      rate: { type: 'number', description: 'Taxa de juros em % por período (ex: 5 para 5%).' },
       installments: { type: 'integer', description: 'Quantidade de parcelas.' },
-      frequency: { type: 'string', enum: ['monthly', 'weekly', 'biweekly'], description: 'Frequência das parcelas.' },
+      frequency: { type: 'string', enum: ['monthly', 'weekly', 'biweekly', 'daily'], description: 'Frequência das parcelas.' },
       due_day: { type: 'integer', description: 'Dia do mês do vencimento (1-31) para parcelas mensais.' },
       start_date: { type: 'string', description: 'Data ISO do primeiro vencimento (YYYY-MM-DD), opcional.' },
       total_repayment: { type: 'number', description: 'Valor total a ser pago (alternativa a rate+installments).' },
+      calculation_mode: { type: 'string', enum: ['standard', 'interest_only'], description: 'standard = parcelado (padrão). interest_only = bullet/juros simples: paga só os juros por período, principal em aberto, prazo indeterminado (sem installments).' },
     },
     required: ['debtor_cpf', 'amount'],
   },
@@ -36,10 +37,11 @@ export const createContractTool: ToolDefinition = {
     amount: z.number().positive(),
     rate: z.number().min(0).max(1000).optional(),
     installments: z.number().int().positive().optional(),
-    frequency: z.enum(['monthly', 'weekly', 'biweekly']).optional(),
+    frequency: z.enum(['monthly', 'weekly', 'biweekly', 'daily']).optional(),
     due_day: z.number().int().min(1).max(31).optional(),
     start_date: z.string().min(1).optional(),
     total_repayment: z.number().positive().optional(),
+    calculation_mode: z.enum(['standard', 'interest_only']).optional(),
   }).passthrough(),
   handler: createContractHandler as unknown as ToolDefinition['handler'],
 };
@@ -47,7 +49,7 @@ export const createContractTool: ToolDefinition = {
 export const markInstallmentPaidTool: ToolDefinition = {
   name: 'mark_installment_paid',
   kind: 'mutation',
-  description: 'Marca uma parcela como paga (total ou parcial). Retorna sempre um PREVIEW primeiro. Use para "marcar como pago", "recebi o pagamento do João", "paguei a parcela 3".',
+  description: 'Marca uma parcela como paga (total ou parcial). Retorna sempre um PREVIEW primeiro. Use para "marcar como pago", "recebi o pagamento do João", "João pagou", "tá pago", "caiu o pix", "mandou o pix", "acertou", "mata a segunda prestação", "paguei a parcela 3". CONTRATO BULLET (juros simples): se a parcela for de contrato interest_only, a tool primeiro pergunta se é "juros" (rolagem: paga só os juros) ou "quitar" (settlement: juros + principal). Quando o usuário escolher, chame de novo com bullet_mode="interest" ou "settle".',
   rolesAllowed: ['admin'],
   requiresConfirmation: true,
   parameters: {
@@ -61,6 +63,7 @@ export const markInstallmentPaidTool: ToolDefinition = {
       installment_year: { type: 'integer', description: 'Ano da parcela (4 dígitos), opcional.' },
       amount: { type: 'number', description: 'Valor pago em reais. Se omitido, assume-se o valor total da parcela.' },
       paid_at: { type: 'string', description: 'Data do pagamento (YYYY-MM-DD). Default: hoje.' },
+      bullet_mode: { type: 'string', enum: ['interest', 'settle'], description: 'Só para contrato bullet (interest_only): "interest" = rolagem (paga só os juros), "settle" = quitação (juros + principal, encerra o contrato).' },
     },
   },
   inputSchema: z.object({
@@ -72,6 +75,7 @@ export const markInstallmentPaidTool: ToolDefinition = {
     installment_year: z.number().int().min(2000).max(2100).optional(),
     amount: z.number().positive().optional(),
     paid_at: z.string().min(1).optional(),
+    bullet_mode: z.enum(['interest', 'settle']).optional(),
   }).passthrough(),
   handler: markInstallmentPaidHandler as unknown as ToolDefinition['handler'],
 };
