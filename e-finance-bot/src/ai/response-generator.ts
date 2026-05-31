@@ -77,7 +77,7 @@ const PERCENT_RE = /\b\d+(?:[.,]\d+)?\s*%/g;
 
 function normalizeFact(s: string): string {
   // Remove espaço/NBSP entre R$ e dígitos para que "R$ 100" e "R$100" colidam no Set.
-  return s.replace(/\s+/g, '').replace(/ /g, '');
+  return s.replace(/\s+/g, '').replace(/\u00A0/g, '');
 }
 
 function extractFacts(text: string): Set<string> {

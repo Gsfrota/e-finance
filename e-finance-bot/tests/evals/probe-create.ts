@@ -16,7 +16,6 @@ import type { AgentEvalCase, AgentEvalSetupContext } from './contracts';
  */
 
 const CONFIRM_CONTRACT = 'Novo contrato — confirmar';
-const CONFIRM_PAYMENT = 'Baixar parcela — confirmar';
 const VALID_CPF = '52998224725'; // CPF válido do dataset
 
 type Entities = Record<string, unknown>;

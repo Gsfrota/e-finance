@@ -1,7 +1,7 @@
 # BOT-006 — Baixa por nome desambigua clientes homônimos
 
 **Agentes:** @dev (impl) → @qa (gate) → @devops (push)
-**Status:** Ready for Review
+**Status:** Ready for Review (QA PASS; aguardando @devops push/deploy)
 **Criada em:** 2026-05-30
 **Sprint:** SPRINT-BOT-01
 **Prioridade:** P0 — segurança de mutação financeira (risco de baixar no cliente errado)
@@ -38,15 +38,33 @@ Comprovado ao vivo: criados dois "João Silva" (CPFs `…-25` e `…-35`), `quan
 
 ## 5. QA Gate
 
+- [x] AC-1: homônimo pergunta qual cliente antes da baixa; `markInstallmentPaid`/`payBulletInterest` não executam às cegas.
+- [x] AC-2: escolha por número/final de CPF resolve o cliente e segue para confirmação normal.
+- [x] AC-3: escolha inválida re-pergunta e não baixa.
+- [x] AC-4: candidatos privados na capability; não usa `candidateSets.debtors`; não regride BOT-FIX-001.
 - **Verdict:** ✅ **PASS** — pronto para `@devops *push` (aguardando autorização; push = deploy prod).
 
-## 6. BOT-007 — contract_id inferido pelo LLM sob homônimos (IMPLEMENTADO)
+## 6. BOT-007 — subitem oficial: contract_id inferido pelo LLM sob homônimos (IMPLEMENTADO)
+
+**Decisão documental:** manter BOT-007 como subitem oficial de BOT-006, sem criar story própria. Motivo: o risco, o fix e as evidências pertencem ao mesmo domínio de segurança de homônimos na baixa; criar story separada agora duplicaria artefatos sem acrescentar gate novo.
 
 O teste live revelou que o **classificador LLM injeta um `contract_id`** a partir do histórico (ex.: contratos recém-criados). "baixar a parcela de junho do João Silva" logo após criar contratos vinha como `{"debtor_name":"João Silva","installment_month":6,"contract_id":<n>}` → o resolve tomava o ramo `contract_id+month` e **pulava a desambiguação por nome** → risco de baixa no **João errado**.
 
 **Fix (BR-BOT-014):**
 - `src/actions/admin-actions.ts`: nova `searchDebtorsByName(tenantId, name)`.
 - `src/assistant/executors/mark-installment-paid.ts`: guarda antes dos ramos de `contract_id` — quando há `debtor_name` + `contract_id` (sem pessoa resolvida) e o nome casa com >1 cliente, **descarta o contract_id** e desambigua a pessoa; ao escolher, `contract_id` é limpo e a baixa resolve por `debtor_id`+mês.
-- `src/ai/tools/handlers.ts` (AI-native, hoje desligado): mesma guarda em `resolveInstallmentForPayment` (variante `ambiguous_debtor`) — defense-in-depth.
+- `src/ai/tools/handlers.ts` (AI-native ativo nos tenants com `ai_enabled`): mesma guarda em `resolveInstallmentForPayment` (variante `ambiguous_debtor`) — defense-in-depth.
 
 **Evidências:** `stress-flows.test.ts` +2 casos (`stress-homonimo-contract_id-inferido-*`, 10/10); `npm test` **312 passed / 4 skipped**; live (`scripts/live-stress-samename.ts`) com histórico cheio: `baixa_desambigua: true` mesmo com o LLM injetando `contract_id`. **Verdict:** ✅ PASS.
+
+## 7. File List (realizado)
+
+| Arquivo | Mudança |
+|---------|---------|
+| `e-finance-bot/src/actions/admin-actions.ts` | `getInstallmentByDebtorAndMonth` com `preselectedDebtorId`; retorno de `ambiguousDebtors`; `searchDebtorsByName` para BOT-007 |
+| `e-finance-bot/src/assistant/executors/mark-installment-paid.ts` | estado privado `debtor_candidates`; escolha por ordinal/final CPF; guarda contra `contract_id` inferido sob homônimos |
+| `e-finance-bot/src/ai/tools/handlers.ts` | defense-in-depth AI-native para `ambiguous_debtor` quando `contract_id` vem junto de nome homônimo |
+| `e-finance-bot/tests/evals/stress-flows.ts` | cenários determinísticos de homônimos, escolhas inválidas e BOT-007 |
+| `e-finance-bot/tests/stress-flows.test.ts` | gate dos cenários de stress (`10/10` após BOT-007) |
+| `e-finance-bot/scripts/live-stress-samename.ts` | validação live prod-like com dois clientes homônimos e histórico cheio |
+| `docs/stories/BOT-006-baixa-desambigua-cliente-homonimo.story.md` | story + decisão de manter BOT-007 como subitem oficial |

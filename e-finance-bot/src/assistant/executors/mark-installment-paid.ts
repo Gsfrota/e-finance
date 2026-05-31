@@ -229,7 +229,7 @@ function resolveDebtorChoice(text: string, candidates: DebtorChoice[]): DebtorCh
 // BR-BOT-012: léxico de escolha na baixa bullet.
 function parseBulletMode(text: string): 'interest' | 'settle' | null {
   const n = normalizeText(text);
-  if (/quitar|quita|quito|liquidar|liquida|pagar\s*tudo|pagar\s*o?\s*principal|abater|principal|fechar\s*contrato/.test(n)) {
+  if (/quitar|quita|quito|liquidar|liquida|liquidou|zerar|encerrar|encerra|matar|mata|matou|fechou|pagar\s*tudo|paga\s*tudo|pagar\s*o?\s*saldo|pagar\s*o?\s*principal|abater|principal|fechar\s*contrato/.test(n)) {
     return 'settle';
   }
   if (/juros|rolar|rola|rolagem|so\s*juros|apenas\s*juros|somente\s*juros|^1$/.test(n)) {
@@ -750,7 +750,7 @@ async function fetchInstallmentReceipt(
   installmentId: string,
   tenantId: string,
 ): Promise<FreshInstallmentReceipt | null> {
-  let data: unknown = null;
+  let data: unknown;
   try {
     const result = await getSupabaseClient()
       .from('loan_installments')

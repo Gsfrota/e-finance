@@ -70,6 +70,21 @@ async function main() {
     checks.push({ label, ok, detail });
   };
 
+  const isBulletModePrompt = (reply: string) => /juros simples|rolagem|quitar/i.test(reply);
+
+  const requestBulletModePrompt = async (contractId: string): Promise<{ reply: string; path: "direct" | "selection" }> => {
+    const initialReply = await ask(`baixar contrato ${contractId}`);
+    if (isBulletModePrompt(initialReply)) {
+      return { reply: initialReply, path: "direct" };
+    }
+
+    // Path-aware: o caminho capability/legado pode listar parcelas e exigir seleção.
+    // No AI-native, "baixar contrato" já costuma abrir a escolha juros/quitar; enviar
+    // um "1" extra nesse caso torna o teste flaky porque o LLM interpreta outro turno.
+    const selectionReply = await ask("1");
+    return { reply: selectionReply, path: "selection" };
+  };
+
   try {
     const { data: createdUser, error: createUserError } = await sb.auth.admin.createUser({
       email, password, email_confirm: true,
@@ -135,10 +150,9 @@ async function main() {
 
     // ---- 2) Baixa por ROLAGEM (só juros) ----
     if (contractId) {
-      await ask(`baixar contrato ${contractId}`);
-      const choiceReply = await ask("1");
-      check("baixa-bullet-pergunta-modo", /juros simples|rolagem|quitar/i.test(choiceReply),
-        choiceReply.slice(0, 200));
+      const modePrompt = await requestBulletModePrompt(contractId);
+      check("baixa-bullet-pergunta-modo", isBulletModePrompt(modePrompt.reply),
+        `path=${modePrompt.path} ${modePrompt.reply.slice(0, 200)}`);
       await ask("juros");
       const rolloverReply = await ask("sim");
       check("baixa-bullet-rolagem-ok", /Pagamento confirmado|Rolagem/i.test(rolloverReply),
@@ -157,8 +171,9 @@ async function main() {
       }
 
       // ---- 3) QUITAÇÃO (settlement) na próxima parcela ----
-      await ask(`baixar contrato ${contractId}`);
-      await ask("1");
+      const settleModePrompt = await requestBulletModePrompt(contractId);
+      check("baixa-bullet-pergunta-modo-quitacao", isBulletModePrompt(settleModePrompt.reply),
+        `path=${settleModePrompt.path} ${settleModePrompt.reply.slice(0, 200)}`);
       await ask("quitar");
       const settleReply = await ask("sim");
       check("baixa-bullet-quita-ok", /quitado|encerrado|Pagamento confirmado/i.test(settleReply),
@@ -183,25 +198,45 @@ async function main() {
     console.log(JSON.stringify(summary, null, 2));
     console.log("__BULLET_SUMMARY_END__");
   } finally {
+    const cleanupErrors: string[] = [];
+    const cleanup = async (label: string, operation: PromiseLike<{ error: any }>) => {
+      const { error } = await operation;
+      if (error) cleanupErrors.push(`${label}: ${error.message || String(error)}`);
+    };
+
     if (channelUserId) {
-      const { data: sessions } = await sb
+      const { data: sessions, error: sessionsError } = await sb
         .from("bot_sessions").select("id").eq("channel", "telegram").eq("channel_user_id", channelUserId);
+      if (sessionsError) cleanupErrors.push(`bot_sessions select: ${sessionsError.message}`);
       const sessionIds = (sessions || []).map((s: any) => s.id);
-      if (sessionIds.length) await sb.from("bot_messages").delete().in("session_id", sessionIds);
-      await sb.from("bot_sessions").delete().eq("channel", "telegram").eq("channel_user_id", channelUserId);
+      if (sessionIds.length) await cleanup("bot_messages", sb.from("bot_messages").delete().in("session_id", sessionIds));
+      await cleanup("bot_sessions", sb.from("bot_sessions").delete().eq("channel", "telegram").eq("channel_user_id", channelUserId));
     }
-    if (profileId) await sb.from("bot_link_codes").delete().eq("profile_id", profileId);
+    if (profileId) await cleanup("bot_link_codes", sb.from("bot_link_codes").delete().eq("profile_id", profileId));
     if (tenantId) {
-      await sb.from("bot_tenant_config").delete().eq("tenant_id", tenantId);
-      await sb.from("loan_installments").delete().eq("tenant_id", tenantId);
-      await sb.from("payment_transactions").delete().eq("tenant_id", tenantId);
-      await sb.from("investments").delete().eq("tenant_id", tenantId);
-      await sb.from("profiles").delete().eq("tenant_id", tenantId);
-      await sb.from("companies").delete().eq("tenant_id", tenantId);
-      await sb.from("tenants").delete().eq("id", tenantId);
+      // audit_events referencia tenants/investments/installments/payment_transactions;
+      // precisa sair antes das tabelas financeiras para não mascarar cleanup com FK.
+      await cleanup("audit_events", sb.from("audit_events").delete().eq("tenant_id", tenantId));
+      await cleanup("bot_tenant_config", sb.from("bot_tenant_config").delete().eq("tenant_id", tenantId));
+      await cleanup("loan_installments", sb.from("loan_installments").delete().eq("tenant_id", tenantId));
+      await cleanup("payment_transactions", sb.from("payment_transactions").delete().eq("tenant_id", tenantId));
+      await cleanup("investments", sb.from("investments").delete().eq("tenant_id", tenantId));
+      await cleanup("profiles", sb.from("profiles").delete().eq("tenant_id", tenantId));
+      await cleanup("companies", sb.from("companies").delete().eq("tenant_id", tenantId));
+      await cleanup("tenants", sb.from("tenants").delete().eq("id", tenantId));
     }
-    if (authUserId) await sb.auth.admin.deleteUser(authUserId);
-    console.log("[cleanup] tenant bullet descartável removido");
+    if (authUserId) {
+      const { error } = await sb.auth.admin.deleteUser(authUserId);
+      if (error) cleanupErrors.push(`auth.users: ${error.message || String(error)}`);
+    }
+
+    if (cleanupErrors.length > 0) {
+      console.error("[cleanup] falhou; tenant descartável pode ter resíduos:");
+      for (const error of cleanupErrors) console.error(`  - ${error}`);
+      process.exitCode = 1;
+    } else {
+      console.log("[cleanup] tenant bullet descartável removido");
+    }
   }
 }
 

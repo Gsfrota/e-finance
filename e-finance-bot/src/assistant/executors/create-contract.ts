@@ -128,7 +128,8 @@ function extractContractFrequency(text: string): 'monthly' | 'weekly' | 'biweekl
   const normalized = normalizeText(text);
 
   if (/de\s*15\s*em\s*15|cada\s*quinze\s*dias|quinzenal|quinzena|15\s*dias/.test(normalized)) return 'biweekly';
-  if (/todo\s*santo\s*dia|todo\s*dia|diaria|diario|daily/.test(normalized)) return 'daily';
+  if (/todo\s+dia\s*\d{1,2}|vence\s+todo\s+dia\s*\d{1,2}/.test(normalized)) return 'monthly';
+  if (/todo\s*santo\s*dia|todo\s*dia(?!\s*\d)|diaria|diario|daily/.test(normalized)) return 'daily';
   if (/semanal|weekly|toda\s*semana|cada\s*semana/.test(normalized)) return 'weekly';
   if (/mensal|monthly|todo\s*mes|cada\s*mes/.test(normalized)) return 'monthly';
   return null;

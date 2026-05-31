@@ -103,11 +103,13 @@ import {
   previewLembreteHandler,
   markInstallmentPaidHandler,
   createContractHandler,
+  listReceivablesHandler,
   queryDebtorBalanceHandler,
 } from '../src/ai/tools/handlers';
 import {
   __resetCircuitBreakerForTests,
 } from '../src/ai/conversation-orchestrator';
+import { createContractTool } from '../src/ai/tools/definitions/mutations';
 import type { ToolContext } from '../src/ai/tools/types';
 
 function buildSession(context: Record<string, unknown> = {}, role: 'admin' | 'investor' | 'debtor' = 'admin') {
@@ -204,6 +206,37 @@ describe('AI-native handlers — wired mutations', () => {
           briefing_time: '08:00',
           enabled: true,
         });
+      }
+    });
+  });
+
+  describe('list_receivables', () => {
+    it('lista parcelas em aberto de um contrato específico sem abrir fluxo de baixa', async () => {
+      const ctx = buildCtx('admin');
+      mocks.getContractOpenInstallments.mockResolvedValue({
+        items: [
+          { id: 'inst-1', number: 1, contractId: 123, debtorName: 'Carlos', amount: 900, dueDate: '2026-03-10', status: 'pending' },
+          { id: 'inst-2', number: 2, contractId: 123, debtorName: 'Carlos', amount: 900, dueDate: '2026-04-10', status: 'pending' },
+        ],
+        page: 0,
+        pageSize: 50,
+        total: 2,
+        hasMore: false,
+      });
+
+      const outcome = await listReceivablesHandler({ contract_id: 123 }, ctx);
+
+      expect(mocks.getContractOpenInstallments).toHaveBeenCalledWith('tenant-1', 123, 0, 50);
+      expect(outcome.kind).toBe('data');
+      if (outcome.kind === 'data') {
+        const data = outcome.data as Array<Record<string, unknown>>;
+        expect(outcome.summary).toContain('Contrato #123');
+        expect(outcome.summary).toContain('2 parcelas');
+        expect(outcome.summary).not.toMatch(/baixar|confirmar/i);
+        expect(data).toEqual([
+          expect.objectContaining({ contract_id: 123, installment_number: 1, debtor: 'Carlos' }),
+          expect.objectContaining({ contract_id: 123, installment_number: 2, debtor: 'Carlos' }),
+        ]);
       }
     });
   });
@@ -377,6 +410,30 @@ describe('AI-native handlers — wired mutations', () => {
         expect(outcome.preview).toContain('prazo indeterminado');
         expect(outcome.preview).not.toContain('Total a pagar');
         expect(outcome.argsSnapshot.calculation_mode).toBe('interest_only');
+      }
+    });
+
+    it('create_contract: schema AI-native aceita bullet diário e preserva frequency no argsSnapshot', async () => {
+      const input = {
+        debtor_name: 'Icaro',
+        debtor_cpf: '52998224725',
+        amount: 5000,
+        rate: 10,
+        frequency: 'daily',
+        start_date: '2026-04-10',
+        calculation_mode: 'interest_only',
+      } as const;
+
+      expect(createContractTool.inputSchema.parse(input).frequency).toBe('daily');
+
+      const ctx = buildCtx('admin');
+      const outcome = await createContractHandler(input, ctx);
+
+      expect(outcome.kind).toBe('preview');
+      if (outcome.kind === 'preview') {
+        expect(outcome.preview).toContain('Juros simples');
+        expect(outcome.argsSnapshot.frequency).toBe('daily');
+        expect(outcome.argsSnapshot.start_date).toBe('2026-04-10');
       }
     });
 

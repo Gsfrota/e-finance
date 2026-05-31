@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runAgentEvalCase, probeAgentEvalCase } from './evals/harness';
+import { runAgentEvalCase } from './evals/harness';
 import { PROBE_BAIXA_CASES } from './evals/probe-baixa';
 
 describe('Probe: Dar Baixa em Parcelas (Mark Installment Paid)', () => {

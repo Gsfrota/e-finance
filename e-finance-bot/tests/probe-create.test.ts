@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { PROBE_CREATE_CASES } from './evals/probe-create';
-import { runAgentEvalCase, probeAgentEvalCase } from './evals/harness';
+import { runAgentEvalCase } from './evals/harness';
 
 const CATEGORIES = ['functional', 'multi_turn'] as const;
 const CRITICALITIES = ['critical', 'core', 'extended'] as const;

@@ -1,7 +1,7 @@
 # BOT-005 — Bot cria e baixa contratos bullet (juros simples / interest-only rotativo)
 
 **Agentes:** @pm (spec) → @sm (draft) → @po (validate) → @dev (impl) → @qa (gate) → @devops (push)
-**Status:** In Progress
+**Status:** Ready for Review (QA PASS; aguardando @devops push/deploy)
 **Criada em:** 2026-05-30
 **Sprint:** SPRINT-BOT-01 (item novo, derivado da campanha de QA contínuo)
 **Prioridade:** P1 — paridade de produto com o app web (admin-only)
@@ -56,15 +56,21 @@ A guarda `awaitingCapabilityInput` (número de fluxo ativo não vira seleção d
 - **BR-BOT-011 (bullet rotativo):** criação com `total_installments=120` sentinela; `current_value=principal`; `installment_value=round(principal×taxa%)`.
 - **BR-BOT-012 (baixa bullet):** rolagem = `p_amount_paid` nulo; quitação = `p_amount_paid = remaining_balance` (lido do contrato). Léxico: "juros"/"rolar"/"só os juros" → rolagem; "quitar"/"liquidar"/"pagar tudo"/"principal" → settlement.
 
-## 5. File List (planejado)
+## 5. File List (realizado)
 
 | Arquivo | Mudança |
 |---------|---------|
-| `e-finance-bot/src/actions/admin-actions.ts` | `ContractDraft.calculation_mode`; `createContract` ramo bullet; wrapper `payBulletInterest` |
+| `e-finance-bot/src/actions/admin-actions.ts` | `ContractDraft.calculation_mode`; `createContract` ramo bullet; wrapper `payBulletInterest`; leitura de dados bullet |
 | `e-finance-bot/src/assistant/executors/create-contract.ts` | input/zod + `extractCalculationMode` + `getMissingFields` (skip installments) + `toDraft` |
 | `e-finance-bot/src/tools/formatters.ts` | confirmação + comprovante bullet-aware |
 | `e-finance-bot/src/assistant/executors/mark-installment-paid.ts` | detecção bullet + escolha rolagem/quitação + roteamento `payBulletInterest` |
 | `e-finance-bot/tests/evals/contract-flows.ts` | casos bullet (criação one-shot/slot, formatação, baixa rolagem/settlement, regressão empresa) |
+| `e-finance-bot/tests/evals/harness.ts` | suporte de harness para cenários bullet |
+| `e-finance-bot/tests/conversation-smoke.test.ts` | smoke/regressão de conversa para criação/baixa |
+| `e-finance-bot/tests/message-handler.test.ts` | regressões do handler ligadas ao fluxo bullet/baixa |
+| `e-finance-bot/tests/tool-executor.mutations.test.ts` | cobertura de mutações usadas pelo fluxo |
+| `e-finance-bot/scripts/live-bullet-cycle.ts` | validação live prod-like de criação, rolagem e quitação bullet |
+| `e-finance-bot/tests/evals/probe-create.ts` / `probe-baixa.ts` / `probe-view.ts` e respectivos `.test.ts` | campanha de probes report-only usada na triagem contínua |
 
 ## 6. QA Gate (@qa — 2026-05-30)
 
@@ -73,6 +79,7 @@ A guarda `awaitingCapabilityInput` (número de fluxo ativo não vira seleção d
 - [x] Regressão BOT-FIX-001 (no-hijack) segue verde, inclusive sob bullet (`cap-mark_installment_paid-bullet-company-no-hijack`).
 - [x] Ciclo live prod-like (`scripts/live-bullet-cycle.ts`, Gemini + Supabase reais, tenant descartável): **11/11 checks** — criação bullet por linguagem natural (`calculation_mode=interest_only`, `installment_value=500`, `remaining=5000`), rolagem (saldo mantém 5000, parcela paga, próxima gerada), quitação (`remaining=0`, `status=completed`).
 - [x] Sem mudança de schema/RPC (uso read-only de RPC existente).
+- [x] File List normalizado de planejado para realizado.
 
 ### Bug encontrado e corrigido no live (valor do teste prod-like)
 O teste live revelou que as mensagens de escolha/preview exibiam **`installment.amount` (= `amount_total` = principal + juros = R$ 5.500)** como "juros da parcela", e a quitação somava R$ 10.500 — **erradas**. Os mocks usavam `amount=500`, então passavam; só o dado real expôs. **Correção:** `getInstallmentBulletInfo` passou a retornar `interestDue` (= `amount_interest − interest_payments_total`, espelhando o `v_interest_due` do RPC); os formatters de escolha/preview usam `interestDue` e a quitação soma `remaining + interestDue`. Regressão travada em `cap-mark_installment_paid-bullet-choice/rollover/settle` (assertam R$ 500 / R$ 5.500 e **excluem** R$ 10.500). Re-validado live: "Juros desta parcela: *R$ 500,00*", "Quitar… *R$ 5.500,00*".

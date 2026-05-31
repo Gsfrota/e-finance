@@ -232,7 +232,7 @@ function extractDebtorFromPaymentText(text: string): string | null {
   }
 
   // "de [nome]" at end of text (not a month/date word)
-  if (/(dar\s+baixa|registrar\s+pagamento|quitar|marcar\s+pagamento|baixar\s+pagamento)/i.test(normalized)) {
+  if (/(dar\s+baixa|registrar\s+pagamento|quitar|quitou|marcar\s+pagamento|baixar\s+pagamento|recebi|recebido|pagou|pago|t[aá]\s+pago|caiu\s+o\s+pix|pix\s+caiu|mandou\s+o\s+pix|fez\s+o\s+pix|acertou|liquidou|matou|matar|mata)/i.test(normalized)) {
     const endMatch = normalized.match(/\bde\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s]{2,}?)(?:\?|!|\.)?$/i);
     if (endMatch?.[1]) {
       const candidate = endMatch[1].trim();
@@ -325,7 +325,8 @@ function extractContractFrequency(text: string): 'monthly' | 'weekly' | 'biweekl
     .toLowerCase();
 
   if (/de\s*15\s*em\s*15|cada\s*quinze\s*dias|quinzenal|quinzena|15\s*dias/.test(normalized)) return 'biweekly';
-  if (/todo\s*santo\s*dia|todo\s*dia|diaria|diario|daily/.test(normalized)) return 'daily';
+  if (/todo\s+dia\s*\d{1,2}|vence\s+todo\s+dia\s*\d{1,2}/.test(normalized)) return 'monthly';
+  if (/todo\s*santo\s*dia|todo\s*dia(?!\s*\d)|diaria|diario|daily/.test(normalized)) return 'daily';
   if (/semanal|weekly|toda\s*semana|cada\s*semana/.test(normalized)) return 'weekly';
   if (/mensal|monthly|todo\s*mes|cada\s*mes/.test(normalized)) return 'monthly';
   return null;
@@ -2269,6 +2270,18 @@ async function startPaymentByContractFlow(
   return formatInstallmentsForContractSelection(contractId, pageData.items, pageData.hasMore);
 }
 
+async function listContractOpenInstallmentsReadOnly(
+  tenantId: string,
+  contractId: number,
+): Promise<string> {
+  const pageData = await getContractOpenInstallments(tenantId, contractId, 0, 50);
+  if (pageData.items.length === 0) {
+    return `✅ Nenhuma parcela em aberto no *Contrato #${contractId}*.`;
+  }
+
+  return formatInstallmentsForContractReadOnly(contractId, pageData.items);
+}
+
 async function startPaymentByDebtorMonthFlow(
   session: Session,
   tenantId: string,
@@ -2398,6 +2411,12 @@ async function dispatchIntent(
 
     case 'listar_recebiveis': {
       if (role !== 'admin') return 'Essa função é apenas para administradores.';
+      if (entities.contract_id) {
+        return withActiveCompanyLabel(
+          await listContractOpenInstallmentsReadOnly(tenantId, Number(entities.contract_id)),
+          activeCompanyLabel,
+        );
+      }
       const resolvedFilter: 'pending' | 'late' | 'week' | 'all' = entities.filter || 'pending';
       const installments = await getInstallments(tenantId, resolvedFilter, activeCompanyId);
       return withActiveCompanyLabel(formatInstallments(installments), activeCompanyLabel);
@@ -3669,6 +3688,17 @@ function formatInstallmentsForContractSelection(
   }
   text += '\n\nDigite o número da parcela (ex: *2*) para escolher uma e confirmar a baixa.';
   return text;
+}
+
+function formatInstallmentsForContractReadOnly(
+  contractId: number,
+  installments: ContractOpenInstallment[],
+): string {
+  const lines = installments.map((item) =>
+    `• Parcela ${item.number} — ${item.debtorName} — ${formatCurrency(item.amount)} — vence ${formatDate(item.dueDate)} — ${item.status}`
+  );
+
+  return `📄 *Contrato #${contractId}* — parcelas em aberto:\n\n${lines.join('\n')}`;
 }
 
 function formatPaymentConfirmation(

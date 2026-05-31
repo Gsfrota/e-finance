@@ -739,7 +739,7 @@ export async function getContractOpenInstallments(
   pageSize = 3
 ): Promise<ContractInstallmentsPage> {
   const safePage = Math.max(0, Math.trunc(page));
-  const safePageSize = Math.max(1, Math.min(10, Math.trunc(pageSize)));
+  const safePageSize = Math.max(1, Math.min(50, Math.trunc(pageSize)));
   const from = safePage * safePageSize;
 
   const { data, error } = await db()
@@ -889,6 +889,109 @@ function parseAmountCandidate(raw: string, unit?: string): number | null {
   return amount >= 1 ? amount : null;
 }
 
+const AMOUNT_WORDS: Record<string, number> = {
+  um: 1,
+  uma: 1,
+  dois: 2,
+  duas: 2,
+  tres: 3,
+  três: 3,
+  quatro: 4,
+  cinco: 5,
+  seis: 6,
+  sete: 7,
+  oito: 8,
+  nove: 9,
+  dez: 10,
+  onze: 11,
+  doze: 12,
+  treze: 13,
+  quatorze: 14,
+  catorze: 14,
+  quinze: 15,
+  dezesseis: 16,
+  dezasseis: 16,
+  dezessete: 17,
+  dezassete: 17,
+  dezoito: 18,
+  dezenove: 19,
+  dezanove: 19,
+  vinte: 20,
+  trinta: 30,
+  quarenta: 40,
+  cinquenta: 50,
+  sessenta: 60,
+  setenta: 70,
+  oitenta: 80,
+  noventa: 90,
+  cem: 100,
+  cento: 100,
+  duzentos: 200,
+  duzentas: 200,
+  trezentos: 300,
+  trezentas: 300,
+  quatrocentos: 400,
+  quatrocentas: 400,
+  quinhentos: 500,
+  quinhentas: 500,
+  seiscentos: 600,
+  seiscentas: 600,
+  setecentos: 700,
+  setecentas: 700,
+  oitocentos: 800,
+  oitocentas: 800,
+  novecentos: 900,
+  novecentas: 900,
+};
+
+function normalizeAmountWordKey(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function parseAmountWordChunk(raw: string): number | null {
+  const tokens = raw
+    .split(/\s+e\s+|\s+/i)
+    .map(token => normalizeAmountWordKey(token).trim())
+    .filter(Boolean);
+
+  if (tokens.length === 0) return null;
+
+  let total = 0;
+  for (const token of tokens) {
+    if (token === 'e') continue;
+    const value = AMOUNT_WORDS[token];
+    if (value === undefined) return null;
+    total += value;
+  }
+
+  return total > 0 ? total : null;
+}
+
+function extractAmountWords(text: string): number | null {
+  const normalized = text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  const wordAlternatives = Object.keys(AMOUNT_WORDS)
+    .map(normalizeAmountWordKey)
+    .filter((value, index, arr) => arr.indexOf(value) === index)
+    .join('|');
+  const chunk = `(?:${wordAlternatives})(?:\\s+e\\s+(?:${wordAlternatives})|\\s+(?:${wordAlternatives}))*`;
+  const milMatch = normalized.match(new RegExp(`\\b(${chunk})\\s+mil\\b(?:\\s+e\\s+(${chunk}))?`));
+  if (milMatch?.[1]) {
+    const thousands = parseAmountWordChunk(milMatch[1]);
+    const remainder = milMatch[2] ? parseAmountWordChunk(milMatch[2]) : 0;
+    if (thousands !== null && remainder !== null) return thousands * 1000 + remainder;
+  }
+
+  const reaisMatch = normalized.match(new RegExp(`\\b(${chunk})\\s+reais?\\b`));
+  if (reaisMatch?.[1]) return parseAmountWordChunk(reaisMatch[1]);
+  return null;
+}
+
 function extractPrincipalAndTotal(text: string): { principal: number; total: number } | null {
   const patterns = [
     /(?:receber|pegar|emprestar|emprestimo|empr[eé]stimo)?[^0-9]{0,30}([0-9][0-9.,]*)\s*(mil|k)?\s*(?:reais?|r\$)?\s*por\s*([0-9][0-9.,]*)\s*(mil|k)?\s*(?:reais?|r\$)?/i,
@@ -922,6 +1025,9 @@ export function extractAmount(text: string): number | null {
     const value = parseAmountCandidate(match[1], match[2]);
     if (value !== null && value >= 100) return value;
   }
+
+  const wordsAmount = extractAmountWords(text);
+  if (wordsAmount !== null && wordsAmount >= 100) return wordsAmount;
 
   return null;
 }
@@ -1017,6 +1123,8 @@ function normalizeNameForCompare(name: string): string {
 
 export function extractDebtorNameSimple(text: string): string | null {
   const cleaned = text
+    .replace(/\bcpf\b\s*[:\-]?\s*(?:\d[\s.-]?){0,11}/gi, '') // marcador + CPF
+    .replace(/\bcpf\b/gi, '')                                // marcador órfão
     .replace(/\b(?:criar?|novo?|contrato|cadastrar?|registrar?|adicionar?)\b/gi, '') // keywords de comando
     .replace(/\d{3}\.?\d{3}\.?\d{3}-?\d{2}/g, '')    // CPF
     .replace(/R?\$?\s*\d+[\d.,]*/g, '')                // valores

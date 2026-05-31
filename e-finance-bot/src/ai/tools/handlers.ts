@@ -11,7 +11,7 @@
  * resolvida pelo pipeline legado em message-handler.ts (pendingConfirmation).
  */
 
-import type { ToolHandler, ToolOutcome } from './types';
+import type { ToolHandler } from './types';
 import {
   getDashboardSummary,
   getInstallments,
@@ -64,7 +64,33 @@ export const showDashboardHandler: ToolHandler = async (_input, ctx) => {
   };
 };
 
-export const listReceivablesHandler: ToolHandler<{ filter?: 'pending' | 'late' | 'week' | 'all' }> = async (input, ctx) => {
+interface ListReceivablesInput {
+  filter?: 'pending' | 'late' | 'week' | 'all';
+  contract_id?: number;
+}
+
+export const listReceivablesHandler: ToolHandler<ListReceivablesInput> = async (input, ctx) => {
+  if (input.contract_id) {
+    const page = await getContractOpenInstallments(ctx.tenantId, input.contract_id, 0, 50);
+    const items = page.items;
+    if (items.length === 0) {
+      return { kind: 'text', text: `Nenhuma parcela em aberto no Contrato #${input.contract_id}.` };
+    }
+    const total = items.reduce((a, i) => a + i.amount, 0);
+    return {
+      kind: 'data',
+      summary: `Contrato #${input.contract_id}: ${page.total} parcelas em aberto (${fmt(total)}).`,
+      data: items.map(i => ({
+        contract_id: i.contractId,
+        installment_number: i.number,
+        debtor: i.debtorName,
+        amount: i.amount,
+        due_date: i.dueDate,
+        status: i.status,
+      })),
+    };
+  }
+
   const filter = input.filter ?? 'pending';
   const items = await getInstallments(ctx.tenantId, filter, ctx.companyId ?? undefined);
   if (items.length === 0) {
@@ -477,18 +503,12 @@ interface CreateContractInput {
   amount?: number;
   rate?: number;
   installments?: number;
-  frequency?: 'monthly' | 'weekly' | 'biweekly';
+  frequency?: 'monthly' | 'weekly' | 'biweekly' | 'daily';
   due_day?: number;
   start_date?: string;
   total_repayment?: number;
   calculation_mode?: 'standard' | 'interest_only';
 }
-
-const FREQUENCY_LABEL: Record<string, string> = {
-  monthly: 'mensais',
-  weekly: 'semanais',
-  biweekly: 'quinzenais',
-};
 
 export const createContractHandler: ToolHandler<CreateContractInput> = async (input, ctx) => {
   const cpfRaw = (input.debtor_cpf || '').replace(/\D/g, '');
