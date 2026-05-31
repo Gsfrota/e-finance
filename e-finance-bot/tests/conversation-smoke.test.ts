@@ -56,6 +56,11 @@ vi.mock('../src/ai/audio-pipeline', () => ({
   transcribeAudioDetailed: mocks.transcribeAudioDetailed,
 }));
 
+vi.mock('../src/ai/response-generator', () => ({
+  renderConversationalReply: vi.fn(async () => ({ text: null, tokensIn: 0, tokensOut: 0 })),
+  generateGreeting: vi.fn(async () => ({ text: null, tokensIn: 0, tokensOut: 0 })),
+}));
+
 vi.mock('../src/session/session-manager', () => ({
   getOrCreateSession: mocks.getOrCreateSession,
   syncSessionProfileFromChannelBinding: mocks.syncSessionProfileFromChannelBinding,
