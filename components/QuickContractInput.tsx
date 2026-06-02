@@ -136,11 +136,13 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
 
   const findDebtorByName = (name: string): Profile | null => {
     const normalized = name.toLowerCase().trim();
+    if (!normalized) return null;
     return (
-      profiles.find(p =>
-        p.full_name.toLowerCase().includes(normalized) ||
-        normalized.includes(p.full_name.toLowerCase().split(' ')[0])
-      ) || null
+      profiles.find(p => {
+        const fullName = (p.full_name || '').toLowerCase();
+        if (!fullName) return false;
+        return fullName.includes(normalized) || normalized.includes(fullName.split(' ')[0]);
+      }) || null
     );
   };
 
@@ -353,7 +355,7 @@ const QuickContractInput: React.FC<QuickContractInputProps> = ({
                         {profiles
                           .filter(p => p.role === 'debtor' && (
                             !debtorSearch.trim() ||
-                            p.full_name.toLowerCase().includes(debtorSearch.toLowerCase()) ||
+                            (p.full_name || '').toLowerCase().includes(debtorSearch.toLowerCase()) ||
                             (p.phone_number || '').includes(debtorSearch)
                           ))
                           .slice(0, 8)

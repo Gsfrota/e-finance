@@ -201,9 +201,10 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
       }
     }
     if (!search.trim()) return items;
-    const q = search.toLowerCase();
+    const q = search.trim().toLowerCase();
     return items.filter(i => {
-      const name = (i as any).investment?.payer?.full_name || '';
+      const fullName = (i as any).investment?.payer?.full_name;
+      const name = String(fullName ?? (i as any).payer_name ?? '');
       return name.toLowerCase().includes(q);
     });
   }, [filter, overdueItems, todayItems, paidToday, partialItems, search]);

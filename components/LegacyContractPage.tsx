@@ -318,7 +318,7 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
   const debtors = profiles.filter(p => p.role === 'debtor');
   const filteredDebtors = debtors.filter(p =>
     !debtorSearch.trim() ||
-    p.full_name.toLowerCase().includes(debtorSearch.toLowerCase()) ||
+    (p.full_name || '').toLowerCase().includes(debtorSearch.toLowerCase()) ||
     (p.phone_number || '').includes(debtorSearch)
   ).slice(0, 8);
 
