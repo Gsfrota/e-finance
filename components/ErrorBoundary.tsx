@@ -3,29 +3,33 @@ import { AlertCircle } from 'lucide-react';
 import { logError } from '../services/supabase';
 
 interface ErrorBoundaryProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 interface ErrorBoundaryState {
   hasError: boolean;
-  error: Error | null;
 }
 
 /**
  * Captura exceções de render em qualquer ponto da árvore e exibe uma tela de erro
  * amigável em vez de desmontar tudo (sintoma "tela azul e some tudo"). O erro real
  * é registrado via logError para diagnóstico em produção.
+ *
+ * Obs.: o projeto não inclui `@types/react`, então os membros herdados de
+ * `React.Component` (`props`/`state`) são declarados explicitamente aqui.
  */
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false, error: null };
+  declare props: ErrorBoundaryProps;
+  state: ErrorBoundaryState = { hasError: false };
 
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
+  static getDerivedStateFromError(): ErrorBoundaryState {
+    return { hasError: true };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+  componentDidCatch(error: unknown, errorInfo: unknown): void {
     logError('React render', error);
-    console.error(errorInfo.componentStack);
+    const stack = (errorInfo as { componentStack?: string } | null)?.componentStack;
+    if (stack) console.error(stack);
   }
 
   render() {
