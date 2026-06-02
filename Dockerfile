@@ -3,6 +3,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+# Commit do deploy (passado via --build-arg) para exibir a versão em Configurações
+ARG COMMIT_SHA=dev
+ENV COMMIT_SHA=$COMMIT_SHA
 RUN npm run build
 
 FROM nginx:alpine

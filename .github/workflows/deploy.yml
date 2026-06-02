@@ -173,6 +173,7 @@ jobs:
       - name: Build & Push Docker image
         run: |
           docker build \
+            --build-arg COMMIT_SHA=${{ github.sha }} \
             --tag ${{ env.IMAGE }}:${{ github.sha }} \
             --tag ${{ env.IMAGE }}:latest \
             .
