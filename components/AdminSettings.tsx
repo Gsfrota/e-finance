@@ -616,6 +616,13 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
           </div>
         </div>
       )}
+
+      <div className="mt-10 border-t border-[color:var(--border-subtle)] pt-4 text-center">
+        <p className="text-xs text-[color:var(--text-faint)]">
+          Versão do sistema <span className="font-mono text-[color:var(--text-muted)]">{__APP_VERSION__}</span>
+          {' · '}atualizado em {new Date(__BUILD_TIME__).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+        </p>
+      </div>
     </div>
   );
 };
