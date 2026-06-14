@@ -186,6 +186,8 @@ export function createApp(): Express {
 
     res.sendStatus(200);
 
+    if (process.env.BOT_DISABLED === 'true') return;
+
     try {
       // Detectar connection events (estrutura diferente de message events)
       const rawEvent = req.body as Record<string, unknown>;
@@ -346,6 +348,8 @@ export function createApp(): Express {
     }
 
     res.sendStatus(200);
+
+    if (process.env.BOT_DISABLED === 'true') return;
 
     try {
       const update = req.body as { update_id: number; message?: import('./channels/telegram').TgMessage };
