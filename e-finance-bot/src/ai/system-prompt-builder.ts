@@ -12,6 +12,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../config';
 import type { Session } from '../session/session-manager';
 import { logStructuredMessage } from '../observability/logger';
+import { messagesFromConfig, type MessageOverrides } from '../i18n/messages';
 
 export type AiTone = 'profissional' | 'casual' | 'amigavel' | 'formal';
 export type AiModelPreference = 'flash' | 'pro';
@@ -27,6 +28,8 @@ export interface TenantAiConfig {
   modelPreference: AiModelPreference;
   monthlyBudgetCents: number;
   currentMonthCentsSpent: number;
+  /** Override de mensagens PT-BR por tenant (bot_tenant_config.messages). */
+  messageOverrides?: MessageOverrides;
 }
 
 interface CacheEntry {
@@ -81,6 +84,7 @@ export async function loadTenantAiConfig(tenantId: string): Promise<TenantAiConf
         ai_model_preference,
         ai_monthly_budget_cents,
         ai_current_month_cents_spent,
+        messages,
         tenants!inner(name)
       `)
       .eq('tenant_id', tenantId)
@@ -104,6 +108,7 @@ export async function loadTenantAiConfig(tenantId: string): Promise<TenantAiConf
       modelPreference: (data?.ai_model_preference as AiModelPreference) ?? DEFAULT_CONFIG.modelPreference,
       monthlyBudgetCents: data?.ai_monthly_budget_cents ?? DEFAULT_CONFIG.monthlyBudgetCents,
       currentMonthCentsSpent: data?.ai_current_month_cents_spent ?? 0,
+      messageOverrides: messagesFromConfig(data as { messages?: unknown } | null),
     };
 
     cache.set(tenantId, { value, fetchedAt: now });

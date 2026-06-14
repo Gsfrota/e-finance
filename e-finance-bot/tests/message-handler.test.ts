@@ -567,7 +567,13 @@ describe('handleMessage', () => {
     }));
   });
 
-  it('fluxo mostrar mais em baixa por contrato mantém paginação', async () => {
+  // Fase 3 — contrato de depreciação: o wizard legado de baixa
+  // (`pendingAction='marcar_pagamento_contrato'` e a paginação "mostrar mais") foi
+  // APOSENTADO. Nenhum caminho vivo seta mais esse pendingAction — a baixa roda 100%
+  // pela capability idempotente `mark_installment_paid`. Uma sessão legada presa
+  // (pré-deploy) degrada de forma graciosa: o handler cai no fallback "Contexto
+  // expirado", sem paginar e sem nunca chamar `markInstallmentPaid`.
+  it('sessão legada de baixa-por-contrato degrada graciosamente (wizard aposentado)', async () => {
     mocks.getOrCreateSession.mockResolvedValue(buildAdminSession({
       context: {
         pendingAction: 'marcar_pagamento_contrato',
@@ -578,23 +584,10 @@ describe('handleMessage', () => {
           pageSize: 3,
           installmentsPreview: [
             { id: 'inst-1', number: 1, contractId: 123, debtorName: 'Carlos', amount: 900, dueDate: '2026-03-10', status: 'pending' },
-            { id: 'inst-2', number: 2, contractId: 123, debtorName: 'Carlos', amount: 900, dueDate: '2026-04-10', status: 'pending' },
-            { id: 'inst-3', number: 3, contractId: 123, debtorName: 'Carlos', amount: 900, dueDate: '2026-05-10', status: 'pending' },
           ],
         },
       },
     }));
-
-    mocks.getContractOpenInstallments.mockResolvedValueOnce({
-      items: [
-        { id: 'inst-4', number: 4, contractId: 123, debtorName: 'Carlos', amount: 900, dueDate: '2026-06-10', status: 'pending' },
-        { id: 'inst-5', number: 5, contractId: 123, debtorName: 'Carlos', amount: 900, dueDate: '2026-07-10', status: 'pending' },
-      ],
-      page: 1,
-      pageSize: 3,
-      total: 5,
-      hasMore: false,
-    });
 
     const out = await handleMessage({
       messageId: 'm-show-more',
@@ -604,16 +597,12 @@ describe('handleMessage', () => {
       text: 'mostrar mais',
     });
 
-    expect(out.text).toContain('Contrato #123');
-    expect(out.text).toContain('Parcela 4');
-    expect(mocks.updateSessionContext).toHaveBeenCalledWith(
-      'session-1',
-      expect.objectContaining({
-        pendingAction: 'marcar_pagamento_contrato',
-        pendingStep: 1,
-        pendingData: expect.objectContaining({ page: 1 }),
-      })
-    );
+    // Não pagina mais (sem "Parcela 4"), volta a mensagem de contexto expirado e
+    // limpa a sessão presa. Nenhuma baixa é executada.
+    expect(out.text).not.toContain('Parcela 4');
+    expect(out.text).toContain('Contexto expirado');
+    expect(mocks.clearSessionContext).toHaveBeenCalledWith('session-1');
+    expect(mocks.markInstallmentPaid).not.toHaveBeenCalled();
   });
 
   it('bloqueia tentativa de trocar conta via código quando chat já está vinculado', async () => {
