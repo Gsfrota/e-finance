@@ -1,6 +1,6 @@
 import { getSupabaseClient } from '../infra/runtime-clients';
 import {
-  getDebtorsToCollectToday, formatCurrency,
+  getDebtorsToCollectToday, getOverdueDebtors, formatCurrency,
 } from '../actions/admin-actions';
 import * as wa from '../channels/whatsapp';
 import * as tg from '../channels/telegram';
@@ -54,38 +54,54 @@ export async function buildBriefingMessage(profile: ProfileChannel, tenantId: st
   const firstName = profile.full_name?.split(' ')[0] || 'Gestor';
 
   try {
-    const collection = await getDebtorsToCollectToday(tenantId);
+    const [collection, overdue] = await Promise.all([
+      getDebtorsToCollectToday(tenantId),
+      getOverdueDebtors(tenantId),
+    ]);
 
     const totalToday = collection.reduce((sum, d) => sum + d.totalDue, 0);
+    const totalOverdue = overdue.reduce((sum, d) => sum + d.totalDue, 0);
 
-    if (collection.length === 0) {
+    // Nada hoje e nada atrasado → tudo em dia
+    if (collection.length === 0 && overdue.length === 0) {
       return [
         `Bom dia, ${firstName}.`,
         '',
-        'Hoje não há cobranças programadas.',
+        'Hoje não há cobranças programadas e não há atrasados. Tudo em dia. 👍',
         '',
         'Posso te mostrar o resumo do mês — é só pedir.',
       ].join('\n');
     }
 
-    const lines = collection.slice(0, 5).map(d => {
+    const formatDebtor = (d: { name: string; totalDue: number; installmentCount: number; daysLate?: number }) => {
       const parcelas = d.installmentCount > 1 ? `  ·  ${d.installmentCount} parcelas` : '';
       return `• ${d.name}  ·  *${formatCurrency(d.totalDue)}*${parcelas}`;
-    });
+    };
 
-    const extraCount = collection.length - 5;
-    const extraLine = extraCount > 0 ? `\n_…e mais ${extraCount} cobrança${extraCount > 1 ? 's' : ''}._` : '';
-
-    return [
+    const sections: string[] = [
       `Bom dia, ${firstName}.`,
-      `Hoje você tem *${formatCurrency(totalToday)}* a receber.`,
-      '',
-      '*Cobranças do dia:*',
-      lines.join('\n'),
-      extraLine,
-      '',
-      'Quer ver o dashboard completo?',
-    ].filter(Boolean).join('\n');
+      `Você tem *${formatCurrency(totalToday + totalOverdue)}* a receber.`,
+    ];
+
+    if (collection.length > 0) {
+      const lines = collection.slice(0, 5).map(formatDebtor);
+      const extra = collection.length - 5;
+      sections.push('', `*Vencendo hoje* — ${formatCurrency(totalToday)}:`, lines.join('\n'));
+      if (extra > 0) sections.push(`_…e mais ${extra} cobrança${extra > 1 ? 's' : ''}._`);
+    }
+
+    if (overdue.length > 0) {
+      const lines = overdue.slice(0, 5).map(d => {
+        const dias = d.daysLate && d.daysLate > 0 ? `  ·  ${d.daysLate} dia${d.daysLate > 1 ? 's' : ''}` : '';
+        return `• ${d.name}  ·  *${formatCurrency(d.totalDue)}*${dias}`;
+      });
+      const extra = overdue.length - 5;
+      sections.push('', `⚠️ *Atrasados* — ${formatCurrency(totalOverdue)}:`, lines.join('\n'));
+      if (extra > 0) sections.push(`_…e mais ${extra} atrasado${extra > 1 ? 's' : ''}._`);
+    }
+
+    sections.push('', 'Quer ver o dashboard completo?');
+    return sections.filter(s => s !== undefined).join('\n');
   } catch (err) {
     console.error('[buildBriefingMessage] erro:', err);
     return `Bom dia ${firstName}! 🌅\nOcorreu um problema ao carregar seu resumo. Tente acessar o dashboard.`;

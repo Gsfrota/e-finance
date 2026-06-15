@@ -1,6 +1,7 @@
-import { getInstallmentsToday, formatCurrency, markInstallmentPaid } from '../actions/admin-actions';
+import { getInstallmentsToday, getOverdueInstallments, formatCurrency, markInstallmentPaid } from '../actions/admin-actions';
 import { getAdminProfiles } from './morning-briefing';
 import { getOrCreateSession, saveMessage, updateSessionContext } from '../session/session-manager';
+import { getSupabaseClient } from '../infra/runtime-clients';
 import * as wa from '../channels/whatsapp';
 import * as tg from '../channels/telegram';
 
@@ -9,9 +10,15 @@ export interface PendingPaymentFollowupItem {
   debtorName: string;
   amount: number;
   dueDate?: string;
+  /** Dias de atraso (0 = vence hoje). Usado para separar "hoje" de "atrasados" na mensagem. */
+  daysLate?: number;
   companyId?: string | null;
   companyName?: string | null;
 }
+
+/** Teto de cobranças listadas/acionáveis no alerta de fim de dia (evita mensagem gigante
+ *  e contexto de sessão inchado em tenants com centenas de parcelas atrasadas). */
+const MAX_EOD_ITEMS = 20;
 
 interface ProfileChannel {
   id: string;
@@ -52,26 +59,60 @@ export function getReferenceDateBrt(now = new Date()): string {
   return brt.toISOString().slice(0, 10);
 }
 
-export function formatPaymentFollowupMessage(items: PendingPaymentFollowupItem[]): string {
-  if (items.length === 0) {
-    return '✅ Nenhuma cobrança do dia ficou sem baixa.';
+/**
+ * Mensagem INFORMATIVA de fim de dia (V45): não baixa nada por padrão.
+ * Separa "vencendo hoje" de "atrasados", lista numerado, consolida atrasos antigos,
+ * e convida o admin a baixar seletivamente (por nome ou número).
+ */
+export function formatPaymentFollowupMessage(items: PendingPaymentFollowupItem[], olderCount = 0): string {
+  if (items.length === 0 && olderCount === 0) {
+    return '✅ Nenhuma cobrança do dia ficou sem baixa. Tudo em dia por aqui.';
   }
 
   const companyName = items.find(item => item.companyName)?.companyName;
-  const companyLine = companyName ? ` da empresa *${companyName}*` : '';
+  const companyLine = companyName ? ` — *${companyName}*` : '';
 
-  if (items.length === 1) {
-    const item = items[0];
-    return `Hoje você ainda não deu baixa${companyLine} em *${item.debtorName}* no valor de *${formatCurrency(item.amount)}*.\n\nDevo dar baixa agora? Responda *sim* ou *não*.`;
+  // Ordem de exibição: vencendo hoje primeiro, depois atrasados (mais antigo por último)
+  const today = items.filter(i => !i.daysLate || i.daysLate <= 0);
+  const overdue = items
+    .filter(i => (i.daysLate ?? 0) > 0)
+    .sort((a, b) => (a.daysLate ?? 0) - (b.daysLate ?? 0));
+
+  // Numeração contínua e estável para o admin responder por número
+  const ordered = [...today, ...overdue];
+  const indexOf = new Map(ordered.map((item, i) => [item, i + 1] as const));
+
+  const lines: string[] = [];
+
+  if (today.length > 0) {
+    lines.push('*Vencendo hoje:*');
+    today.forEach(item => {
+      lines.push(`${indexOf.get(item)}. *${item.debtorName}* — *${formatCurrency(item.amount)}*`);
+    });
   }
 
-  const lines = items.slice(0, 8).map((item, index) =>
-    `${index + 1}. *${item.debtorName}* — *${formatCurrency(item.amount)}*`
-  );
-  const hidden = items.length - lines.length;
-  const hiddenLine = hidden > 0 ? `\n...e mais ${hidden} cobrança(s).` : '';
+  if (overdue.length > 0) {
+    if (lines.length > 0) lines.push('');
+    lines.push('⚠️ *Atrasados:*');
+    overdue.forEach(item => {
+      const d = item.daysLate ?? 0;
+      lines.push(`${indexOf.get(item)}. *${item.debtorName}* — *${formatCurrency(item.amount)}* · ${d} dia${d > 1 ? 's' : ''}`);
+    });
+  }
 
-  return `Hoje ainda não houve baixa${companyLine} nestas cobranças do dia:\n\n${lines.join('\n')}${hiddenLine}\n\nPosso dar baixa em *todas* agora?\nSe alguma *não pagou*, responda com os *números que devo manter em aberto*.\nEx.: *2* ou *1,3*.`;
+  if (olderCount > 0) {
+    lines.push('');
+    lines.push(`_…e mais ${olderCount} cobrança${olderCount > 1 ? 's' : ''} em aberto — veja a lista completa no painel._`);
+  }
+
+  const header = `Fim do dia${companyLine}. Estas cobranças ainda estão *em aberto*:`;
+  const footer = [
+    '',
+    'Quem já pagou? Me diga que eu registro a baixa.',
+    'Ex.: *dar baixa em João e Maria* (ou os números *1, 3*).',
+  ].join('\n');
+
+  return `${header}\n\n${lines.join('\n')}\n${footer}`;
 }
 
 async function dispatchToProfileChannel(
@@ -100,6 +141,7 @@ async function enqueueProfileFollowup(
   companyId: string | null,
   referenceDate: string,
   items: PendingPaymentFollowupItem[],
+  olderCount = 0,
 ): Promise<'sent' | 'skipped_duplicate' | 'skipped_busy'> {
   const session = await getOrCreateSession(channel, channelUserId);
   const currentReferenceDate = String((session.context.pendingData as any)?.referenceDate || '');
@@ -117,7 +159,7 @@ async function enqueueProfileFollowup(
     return 'skipped_busy';
   }
 
-  const message = formatPaymentFollowupMessage(items);
+  const message = formatPaymentFollowupMessage(items, olderCount);
   await dispatchToProfileChannel(channel, channelUserId, message);
   await updateSessionContext(session.id, {
     ...session.context,
@@ -153,17 +195,34 @@ export async function runPaymentFollowupForTenant(
       continue;
     }
 
-    const installments = await getInstallmentsToday(tenantId, profile.company_id);
-    const pendingItems = installments.map(item => ({
-      id: item.id,
-      debtorName: item.debtorName,
-      amount: item.amount,
-      dueDate: item.dueDate,
-      companyId: profile.company_id,
-      companyName: profile.companies?.name || null,
-    }));
+    // Vencendo hoje + atrasados (com lookback de 90d e consolidação dos mais antigos)
+    const [todayInstallments, overdue] = await Promise.all([
+      getInstallmentsToday(tenantId, profile.company_id),
+      getOverdueInstallments(tenantId, profile.company_id),
+    ]);
 
-    if (pendingItems.length === 0) {
+    // Dedup por id (defensivo — uma parcela não deve aparecer nas duas listas)
+    const byId = new Map<string, PendingPaymentFollowupItem>();
+    for (const item of [...todayInstallments, ...overdue.installments]) {
+      if (byId.has(item.id)) continue;
+      byId.set(item.id, {
+        id: item.id,
+        debtorName: item.debtorName,
+        amount: item.amount,
+        dueDate: item.dueDate,
+        daysLate: item.daysLate,
+        companyId: profile.company_id,
+        companyName: profile.companies?.name || null,
+      });
+    }
+    // Ordena (vencendo hoje primeiro, depois atrasos mais recentes) e capa a lista
+    // acionável — em tenants com centenas de atrasados, listar tudo geraria mensagem
+    // gigante e contexto de sessão inchado. O excedente vai para a linha consolidada.
+    const allItems = Array.from(byId.values()).sort((a, b) => (a.daysLate ?? 0) - (b.daysLate ?? 0));
+    const pendingItems = allItems.slice(0, MAX_EOD_ITEMS);
+    const extraCount = (allItems.length - pendingItems.length) + overdue.olderCount;
+
+    if (pendingItems.length === 0 && extraCount === 0) {
       skipped += (profile.whatsapp_phone ? 1 : 0) + (profile.telegram_chat_id ? 1 : 0);
       continue;
     }
@@ -173,7 +232,7 @@ export async function runPaymentFollowupForTenant(
     if (profile.telegram_chat_id) targets.push({ channel: 'telegram', id: profile.telegram_chat_id });
 
     for (const target of targets) {
-      const result = await enqueueProfileFollowup(profile, target.channel, target.id, tenantId, profile.company_id, referenceDate, pendingItems);
+      const result = await enqueueProfileFollowup(profile, target.channel, target.id, tenantId, profile.company_id, referenceDate, pendingItems, extraCount);
       if (result === 'sent') sent += 1;
       else if (result === 'skipped_duplicate') skippedDuplicate += 1;
       else if (result === 'skipped_busy') skippedBusy += 1;
@@ -187,15 +246,40 @@ export async function runPaymentFollowupForTenant(
 export async function confirmPendingPaymentFollowup(
   tenantId: string,
   items: PendingPaymentFollowupItem[],
-): Promise<{ paid: PendingPaymentFollowupItem[]; failed: PendingPaymentFollowupItem[] }> {
+): Promise<{ paid: PendingPaymentFollowupItem[]; alreadyPaid: PendingPaymentFollowupItem[]; failed: PendingPaymentFollowupItem[] }> {
   const paid: PendingPaymentFollowupItem[] = [];
+  const alreadyPaid: PendingPaymentFollowupItem[] = [];
   const failed: PendingPaymentFollowupItem[] = [];
 
+  // Revalida o status atual de cada parcela (anti-stale): se já foi baixada no painel
+  // entre o envio do alerta e a resposta, reporta como "já estava paga", não como erro.
+  const ids = items.map(i => i.id);
+  const statusById = new Map<string, string>();
+  if (ids.length > 0) {
+    const { data, error } = await getSupabaseClient()
+      .from('loan_installments')
+      .select('id, status, investments!inner(tenant_id)')
+      .eq('investments.tenant_id', tenantId)
+      .in('id', ids);
+    if (error) {
+      console.error('[confirmPendingPaymentFollowup] status recheck failed', error);
+    } else {
+      for (const row of (data || []) as Array<{ id: string; status: string }>) {
+        statusById.set(row.id, row.status);
+      }
+    }
+  }
+
   for (const item of items) {
+    const current = statusById.get(item.id);
+    if (current === 'paid') {
+      alreadyPaid.push(item);
+      continue;
+    }
     const ok = await markInstallmentPaid(item.id, tenantId);
     if (ok) paid.push(item);
     else failed.push(item);
   }
 
-  return { paid, failed };
+  return { paid, alreadyPaid, failed };
 }

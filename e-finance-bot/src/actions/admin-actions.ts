@@ -1790,6 +1790,8 @@ export async function markInstallmentPaid(
 
   if (!data) return false;
 
+  // Guard anti-stale: só atualiza se ainda estiver em aberto (evita sobrescrever
+  // amount_paid/paid_at de parcela já baixada — ex.: baixa feita no painel entretanto)
   const { error } = await db()
     .from('loan_installments')
     .update({
@@ -1797,7 +1799,8 @@ export async function markInstallmentPaid(
       amount_paid: Number((data as any).amount_total || 0),
       paid_at: new Date().toISOString(),
     })
-    .eq('id', installmentId);
+    .eq('id', installmentId)
+    .in('status', ['pending', 'late', 'partial']);
 
   if (error) {
     console.error('[markInstallmentPaid] update failed', error);
@@ -2326,6 +2329,49 @@ export async function getInstallmentsToday(tenantId: string, companyId?: string)
   return getInstallmentsInWindow(tenantId, 1, 'today', companyId);
 }
 
+export interface OverdueInstallmentsResult {
+  /** Parcelas em aberto vencidas dentro da janela de lookback (mais recentes primeiro). */
+  installments: Installment[];
+  /** Quantidade de parcelas em aberto vencidas há MAIS que o lookback (consolidadas, não listadas). */
+  olderCount: number;
+}
+
+/**
+ * Parcelas individuais em aberto com vencimento anterior a hoje.
+ * Guardrail de performance: limita o resultado às vencidas nos últimos `lookbackDays`
+ * (evita trazer anos de parcelas esquecidas). As mais antigas vêm consolidadas em `olderCount`.
+ */
+export async function getOverdueInstallments(
+  tenantId: string,
+  companyId?: string,
+  lookbackDays = 90,
+): Promise<OverdueInstallmentsResult> {
+  const yesterday = toYmdInTimeZone(addDays(new Date(), -1), OPERATION_TIMEZONE);
+  const lookbackStart = toYmdInTimeZone(addDays(new Date(), -Math.max(1, lookbackDays)), OPERATION_TIMEZONE);
+
+  // due_date entre [hoje-lookback, ontem] → reusa o range builder (ordena por vencimento asc, mais antigo primeiro)
+  const installments = await getInstallmentsByDateRange(tenantId, lookbackStart, yesterday, companyId);
+
+  // Contagem (head) das vencidas há mais tempo que o lookback — barata, não traz linhas
+  let olderQuery = db()
+    .from('loan_installments')
+    .select('id, investments!inner(tenant_id)', { count: 'exact', head: true })
+    .eq('investments.tenant_id', tenantId)
+    .in('status', ['pending', 'late', 'partial'])
+    .lt('due_date', lookbackStart);
+
+  if (companyId) {
+    olderQuery = olderQuery.eq('company_id', companyId);
+  }
+
+  const { count, error } = await olderQuery;
+  if (error) {
+    console.error('[getOverdueInstallments] older count failed', error);
+  }
+
+  return { installments, olderCount: count ?? 0 };
+}
+
 // ─── Devedores para Cobrar por Janela ────────────────────────────────────────
 
 export interface DebtorToCollect {
@@ -2420,8 +2466,9 @@ export async function getDebtorsToCollectToday(tenantId: string, companyId?: str
   return getDebtorsToCollectInWindow(tenantId, 1, 'today', companyId);
 }
 
-async function getOverdueDebtors(tenantId: string, companyId?: string): Promise<DebtorToCollect[]> {
+export async function getOverdueDebtors(tenantId: string, companyId?: string, lookbackDays = 90): Promise<DebtorToCollect[]> {
   const today = toYmdInTimeZone(new Date(), OPERATION_TIMEZONE);
+  const lookbackStart = toYmdInTimeZone(addDays(new Date(), -Math.max(1, lookbackDays)), OPERATION_TIMEZONE);
   let query = db()
     .from('loan_installments')
     .select(`
@@ -2430,6 +2477,7 @@ async function getOverdueDebtors(tenantId: string, companyId?: string): Promise<
     `)
     .eq('investments.tenant_id', tenantId)
     .in('status', ['pending', 'late', 'partial'])
+    .gte('due_date', lookbackStart)
     .lt('due_date', today)
     .order('due_date', { ascending: true });
 

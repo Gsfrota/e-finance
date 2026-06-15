@@ -25,6 +25,7 @@ import { renderConversationalReply, generateGreeting } from '../ai/response-gene
 import { getFollowupFromTenantConfig } from '../assistant/followup-question-generator';
 import { getBotTenantConfig, checkWhitelistBlock, upsertBotTenantConfig } from '../actions/bot-config-actions';
 import { confirmPendingPaymentFollowup, type PendingPaymentFollowupItem } from '../scheduler/payment-followup';
+import { resolveBaixaSelection, formatBaixaResult, normalizeBaixaText } from '../scheduler/eod-baixa-selection';
 import { understandCommand } from '../assistant/command-understanding';
 import { createActionPlan } from '../assistant/action-planner';
 import { resolveFollowup } from '../assistant/followup-resolver';
@@ -1174,14 +1175,19 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
     // pendingContractDraft → preview duplicado → loop infinito (Guilherme 04/05 16:00 BRT).
     const earlyPending = getPendingConfirmationState(session);
     const earlyConfirmReply = earlyPending ? parseConfirmationReply(textToProcess) : null;
-    const skipAiNativeForConfirmation = earlyPending && earlyConfirmReply !== null;
+    // V45 — Wizards legados stateful (ex.: confirmar_baixas_pendentes do alerta de fim de dia)
+    // precisam ser resolvidos deterministicamente pelo handlePendingAction. Se o AI-native
+    // respondesse primeiro, sequestraria a resposta ("dar baixa em João", "sim") e o passo
+    // pendente nunca seria executado.
+    const earlyLegacyPending = session.context.workingStateV2?.legacyPending?.action || session.context.pendingAction;
+    const skipAiNativeForConfirmation = (earlyPending && earlyConfirmReply !== null) || !!earlyLegacyPending;
 
     if (skipAiNativeForConfirmation) {
       logStructuredMessage('ai_native_skipped_for_confirmation', {
         channel: msg.channel,
         messageId: msg.messageId,
         sessionId: session.id,
-        capability: earlyPending!.capability,
+        capability: earlyPending?.capability ?? `legacy:${earlyLegacyPending}`,
         reply: earlyConfirmReply,
       });
     }
@@ -2259,7 +2265,8 @@ async function handlePendingAction(
     return 'Combinado, deixei desligado. Se mudar de ideia, é só pedir.';
   }
 
-  // V44 — Captura sim/não/lista pra resposta do alerta de fim de dia
+  // V45 — Alerta de fim de dia: informativo + baixa SELETIVA por nome/número com confirmação.
+  // Nunca baixa nada sem (a) seleção explícita e (b) confirmação. Sem default de baixar-tudo.
   if (pendingAction === 'confirmar_baixas_pendentes') {
     const items = (pendingData?.items as PendingPaymentFollowupItem[] | undefined) || [];
     const followupTenantId = String((pendingData as any)?.tenantId || tenantId);
@@ -2268,46 +2275,71 @@ async function handlePendingAction(
       return null;
     }
 
-    const normalized = text.trim().toLowerCase();
-    const sayAll = /^(s|sim|todos|tudo|todas|pode|ok|confirma|confirmar|baixa)$/i.test(normalized);
-    const sayNone = /^(n|nao|não|nenhum|nenhuma|cancela|cancelar|nada)$/i.test(normalized);
-    const numbersMatch = normalized.match(/\d+/g);
-    const keepOpenIdx = numbersMatch
-      ? Array.from(new Set(numbersMatch.map(s => parseInt(s, 10)).filter(n => n >= 1 && n <= items.length)))
-      : [];
+    const step = Number((pendingData as any)?.step ?? session.context.pendingStep ?? 1);
 
-    if (!sayAll && !sayNone && keepOpenIdx.length === 0) {
+    // ── Passo 2: confirmação final da seleção ──
+    if (step === 2) {
+      const selectedIds = ((pendingData as any)?.selectedIds as Array<{ id: string; tenantId: string }> | undefined) || [];
+      const decision = parseConfirmationReply(text);
+      if (decision !== 'confirm') {
+        // "não"/cancelar já é tratado pela camada de cancelamento no topo; aqui pedimos clareza
+        return 'Confirma a baixa nas cobranças que listei? Responda *sim* ou *não*.';
+      }
+
+      // Baixa só os itens cujo (id, tenantId) foi selecionado — guard multitenant
+      const toPay = items.filter(it => selectedIds.some(s => s.id === it.id && s.tenantId === followupTenantId));
+      await clearSessionContext(session.id);
+      if (toPay.length === 0) {
+        return 'Não encontrei as cobranças selecionadas. Pode me dizer de novo quem pagou.';
+      }
+      try {
+        const { paid, alreadyPaid, failed } = await confirmPendingPaymentFollowup(followupTenantId, toPay);
+        return formatBaixaResult(paid, alreadyPaid, failed);
+      } catch (err) {
+        logStructuredMessage('eod_followup_confirm_failed', { tenantId: followupTenantId, error: err instanceof Error ? err.message : String(err) });
+        return 'Não consegui registrar a baixa agora. Tenta de novo daqui a pouco.';
+      }
+    }
+
+    // ── Passo 1: seleção de quem pagou ──
+    const normalized = normalizeBaixaText(text);
+
+    // "ninguém pagou / ainda não / nada ainda" → mantém tudo em aberto, não baixa nada
+    if (/^(nenhum|nenhuma|ningu[eé]m pagou|ningu?em|ainda nao|ainda n[aã]o|nao cobrei|nada ainda|nada por enquanto)$/.test(normalized)
+        || /\bningu?em (ainda )?pagou\b/.test(normalized)) {
+      await clearSessionContext(session.id);
+      return 'Combinado. Mantive todas em aberto. Quando alguém pagar, é só me dizer.';
+    }
+
+    const selection = resolveBaixaSelection(text, items);
+
+    if (selection.kind === 'ambiguous') {
+      return selection.message;
+    }
+    if (selection.kind === 'none') {
       return t('handler.not_understood_baixas');
     }
 
-    await clearSessionContext(session.id);
-
-    if (sayNone) {
-      return 'Combinado. Marquei como ainda em aberto.';
+    const selected = selection.kind === 'all' ? items : selection.selected;
+    if (selected.length === 0) {
+      return t('handler.not_understood_baixas');
     }
 
-    const toPay = sayAll
-      ? items
-      : items.filter((_, i) => !keepOpenIdx.includes(i + 1));
-
-    if (toPay.length === 0) {
-      return 'Combinado. Mantive todas em aberto.';
-    }
-
-    try {
-      const { paid, failed } = await confirmPendingPaymentFollowup(followupTenantId, toPay);
-      const lines: string[] = [];
-      if (paid.length > 0) {
-        lines.push(`✅ Baixa registrada em ${paid.length === 1 ? '*1* cobrança' : `*${paid.length}* cobranças`}.`);
-      }
-      if (failed.length > 0) {
-        lines.push(`⚠️ ${failed.length === 1 ? '1 cobrança' : `${failed.length} cobranças`} não puderam ser baixadas — verifique o painel.`);
-      }
-      return lines.join('\n') || '✅ Concluído.';
-    } catch (err) {
-      logStructuredMessage('eod_followup_confirm_failed', { tenantId: followupTenantId, error: err instanceof Error ? err.message : String(err) });
-      return 'Não consegui registrar a baixa agora. Tenta de novo daqui a pouco.';
-    }
+    // Monta resumo e avança para o passo de confirmação (guardrail: nunca baixa direto)
+    const total = selected.reduce((sum, i) => sum + i.amount, 0);
+    const resumo = selected.map(i => `• *${i.debtorName}* — ${formatCurrency(i.amount)}`).join('\n');
+    await updateSessionContext(session.id, {
+      ...session.context,
+      pendingAction: 'confirmar_baixas_pendentes',
+      pendingActionAt: new Date().toISOString(),
+      pendingStep: 2,
+      pendingData: {
+        ...(pendingData as Record<string, unknown>),
+        step: 2,
+        selectedIds: selected.map(i => ({ id: i.id, tenantId: followupTenantId })),
+      },
+    });
+    return `Vou dar baixa em:\n${resumo}\n\nTotal: *${formatCurrency(total)}*\nConfirma? Responda *sim* ou *não*.`;
   }
 
   if (pendingAction === 'buscar_usuario_selecao') {
