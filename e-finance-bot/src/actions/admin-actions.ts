@@ -1051,7 +1051,10 @@ export function extractInstallments(text: string): number | null {
 }
 
 function extractDueDay(text: string): number | null {
-  const match = text.match(/(?:todo\s+dia|dia\s+de\s+vencimento\s*:?|vence\s+todo\s+dia)\s*(\d{1,2})/i);
+  // Inclui "dia N" puro (ex.: "5 parcelas dia 5") em paridade com
+  // extractContractDueDay; sem isso o parse autoritativo perdia o dia e o
+  // valor velho vazava entre rascunhos de contrato.
+  const match = text.match(/(?:todo\s+dia|dia\s+de\s+vencimento\s*:?|vence\s+todo\s+dia|dia)\s*(\d{1,2})/i);
   if (!match?.[1]) return null;
   const day = Number(match[1]);
   if (!Number.isFinite(day) || day < 1 || day > 31) return null;
