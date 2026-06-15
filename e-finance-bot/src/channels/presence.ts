@@ -94,6 +94,7 @@ export async function runWithPresence<T>(
   let presenceAcquired = false;
   let startRequested = false;
   let whatsappComposingActive = false;
+  let presenceStopped = false;
 
   let typingPulseTimer: ReturnType<typeof setInterval> | null = null;
   let delayedStartTimer: ReturnType<typeof setTimeout> | null = null;
@@ -152,6 +153,35 @@ export async function runWithPresence<T>(
     }
   };
 
+  // Encerra a presença ANTES de enviar a resposta (idempotente). Crucial: para o
+  // pulse de refresh para que nenhum "composing" dispare depois da mensagem e deixe
+  // o "digitando…" preso no WhatsApp.
+  const stopPresence = async (): Promise<void> => {
+    if (presenceStopped) return;
+    presenceStopped = true;
+    if (typingPulseTimer) {
+      clearInterval(typingPulseTimer);
+      typingPulseTimer = null;
+    }
+    try {
+      if (whatsappComposingActive && ctx.channelUserId) {
+        await wa.sendChatPresence(ctx.channelUserId, 'paused');
+      } else if (presenceAcquired && ctx.channel === 'whatsapp' && config.presence.whatsappUseInstancePresence) {
+        await releaseWhatsappPresence(ctx);
+      }
+    } catch (error) {
+      logStructuredMessage('presence_failed', {
+        channel: ctx.channel,
+        messageId: ctx.messageId,
+        sessionId: ctx.sessionId,
+        presenceMode: mode,
+        result: 'error',
+        reason: 'stop_presence_failed',
+        error: toErrorMessage(error),
+      });
+    }
+  };
+
   logStructuredMessage('presence_scheduled', {
     channel: ctx.channel,
     messageId: ctx.messageId,
@@ -195,6 +225,7 @@ export async function runWithPresence<T>(
         }
       }
 
+      await stopPresence();
       await sendReply(result);
       return result;
     }
@@ -215,6 +246,7 @@ export async function runWithPresence<T>(
       }
     }
 
+    await stopPresence();
     await sendReply(result);
     return result;
   } finally {
@@ -222,16 +254,8 @@ export async function runWithPresence<T>(
       clearTimeout(delayedStartTimer);
     }
 
-    if (typingPulseTimer) {
-      clearInterval(typingPulseTimer);
-    }
-
-    if (whatsappComposingActive && ctx.channelUserId) {
-      // Encerra o "digitando…" (a própria mensagem enviada já limpa, mas garantimos)
-      void wa.sendChatPresence(ctx.channelUserId, 'paused').catch(() => { /* best-effort */ });
-    } else if (presenceAcquired && ctx.channel === 'whatsapp' && config.presence.whatsappUseInstancePresence) {
-      await releaseWhatsappPresence(ctx);
-    }
+    // Rede de segurança: garante encerramento mesmo se sendReply lançar antes do stop.
+    await stopPresence();
 
     if (presenceAcquired) {
       const endedAt = Date.now();
