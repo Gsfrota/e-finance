@@ -1239,6 +1239,16 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
           turnId: msg.messageId,
         });
 
+        // Observabilidade: o motor AI-native tem seus próprios tokens/latência. Sem somar
+        // aqui, o flush do trace (finally) sobrescrevia tokens/custo com 0 (→ null) e o
+        // tempo do orchestrator ficava fora de llmMs (aparecia como "não contabilizado").
+        if (result.tokensIn || result.tokensOut) {
+          llmUsage.callCount += 1;
+          llmUsage.tokensIn += result.tokensIn;
+          llmUsage.tokensOut += result.tokensOut;
+        }
+        latencyBreakdown.llmMs += result.latencyMs;
+
         // V44b — Atualiza/limpa o draft com base no outcome do create_contract
         const ccCall = result.toolCalls.find(tc => tc.name === 'create_contract');
         if (ccCall) {
