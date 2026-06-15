@@ -65,43 +65,42 @@ export async function buildBriefingMessage(profile: ProfileChannel, tenantId: st
     // Nada hoje e nada atrasado → tudo em dia
     if (collection.length === 0 && overdue.length === 0) {
       return [
-        `Bom dia, ${firstName}.`,
+        `☀️ *Bom dia, ${firstName}!*`,
         '',
-        'Hoje não há cobranças programadas e não há atrasados. Tudo em dia. 👍',
+        '✅ Nada a cobrar hoje e nenhum atrasado. Tudo em dia! 👏',
         '',
-        'Posso te mostrar o resumo do mês — é só pedir.',
+        '📊 Se quiser, posso mostrar o resumo do mês.',
       ].join('\n');
     }
 
-    const formatDebtor = (d: { name: string; totalDue: number; installmentCount: number; daysLate?: number }) => {
-      const parcelas = d.installmentCount > 1 ? `  ·  ${d.installmentCount} parcelas` : '';
-      return `• ${d.name}  ·  *${formatCurrency(d.totalDue)}*${parcelas}`;
-    };
-
     const sections: string[] = [
-      `Bom dia, ${firstName}.`,
-      `Você tem *${formatCurrency(totalToday + totalOverdue)}* a receber.`,
+      `☀️ *Bom dia, ${firstName}!*`,
+      '',
+      `💰 Você tem *${formatCurrency(totalToday + totalOverdue)}* a receber.`,
     ];
 
     if (collection.length > 0) {
-      const lines = collection.slice(0, 5).map(formatDebtor);
+      sections.push('', `📅 *Vencendo hoje*  ·  ${formatCurrency(totalToday)}`);
+      collection.slice(0, 5).forEach(d => {
+        const parcelas = d.installmentCount > 1 ? `  ·  _${d.installmentCount} parcelas_` : '';
+        sections.push(`•  ${d.name} — *${formatCurrency(d.totalDue)}*${parcelas}`);
+      });
       const extra = collection.length - 5;
-      sections.push('', `*Vencendo hoje* — ${formatCurrency(totalToday)}:`, lines.join('\n'));
-      if (extra > 0) sections.push(`_…e mais ${extra} cobrança${extra > 1 ? 's' : ''}._`);
+      if (extra > 0) sections.push(`    _e mais ${extra} cobrança${extra > 1 ? 's' : ''}…_`);
     }
 
     if (overdue.length > 0) {
-      const lines = overdue.slice(0, 5).map(d => {
-        const dias = d.daysLate && d.daysLate > 0 ? `  ·  ${d.daysLate} dia${d.daysLate > 1 ? 's' : ''}` : '';
-        return `• ${d.name}  ·  *${formatCurrency(d.totalDue)}*${dias}`;
+      sections.push('', `⚠️ *Atrasados*  ·  ${formatCurrency(totalOverdue)}`);
+      overdue.slice(0, 5).forEach(d => {
+        const dias = d.daysLate && d.daysLate > 0 ? `  ·  _${d.daysLate} dia${d.daysLate > 1 ? 's' : ''}_` : '';
+        sections.push(`•  ${d.name} — *${formatCurrency(d.totalDue)}*${dias}`);
       });
       const extra = overdue.length - 5;
-      sections.push('', `⚠️ *Atrasados* — ${formatCurrency(totalOverdue)}:`, lines.join('\n'));
-      if (extra > 0) sections.push(`_…e mais ${extra} atrasado${extra > 1 ? 's' : ''}._`);
+      if (extra > 0) sections.push(`    _e mais ${extra} atrasado${extra > 1 ? 's' : ''}…_`);
     }
 
-    sections.push('', 'Quer ver o dashboard completo?');
-    return sections.filter(s => s !== undefined).join('\n');
+    sections.push('', '📊 Quer ver o dashboard completo? É só pedir.');
+    return sections.join('\n');
   } catch (err) {
     console.error('[buildBriefingMessage] erro:', err);
     return `Bom dia ${firstName}! 🌅\nOcorreu um problema ao carregar seu resumo. Tente acessar o dashboard.`;
@@ -125,7 +124,8 @@ export async function dispatchBriefing(profile: ProfileChannel, message: string)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/\*([^*]+)\*/g, '<b>$1</b>');
+        .replace(/\*([^*\n]+)\*/g, '<b>$1</b>')
+        .replace(/_([^_\n]+)_/g, '<i>$1</i>');
       await tg.sendText(profile.telegram_chat_id, htmlMsg, 'HTML');
     } catch (err) {
       errors.push(`telegram: ${err}`);

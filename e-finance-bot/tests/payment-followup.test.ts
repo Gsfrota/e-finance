@@ -89,7 +89,7 @@ describe('payment-followup scheduler', () => {
     ]);
 
     expect(text).toContain('em aberto');
-    expect(text).toContain('Vencendo hoje');
+    expect(text).toContain('Vencem hoje');
     expect(text).toContain('Fulano');
     expect(text).toContain('Beltrano');
     // Não deve mais oferecer baixar tudo nem pedir "números a manter em aberto"
@@ -108,10 +108,10 @@ describe('payment-followup scheduler', () => {
       4,
     );
 
-    expect(text).toContain('Vencendo hoje');
-    expect(text).toContain('Atrasados');
+    expect(text).toContain('Vencem hoje');
+    expect(text).toContain('Em atraso');
     expect(text).toContain('5 dias');
-    expect(text).toContain('mais 4 cobranças em aberto');
+    expect(text).toContain('mais 4 em aberto');
   });
 
   it('mensagem vazia quando nada em aberto e sem atrasos antigos', () => {
@@ -160,6 +160,37 @@ describe('payment-followup scheduler', () => {
     expect(mocks.waSendText).not.toHaveBeenCalled();
     expect(mocks.tgSendText).not.toHaveBeenCalled();
     expect(result.skippedDuplicate).toBe(2);
+  });
+
+  it('pending de wizard EXPIRADO (>30min) não bloqueia o EOD', async () => {
+    mocks.getOrCreateSession.mockResolvedValue({
+      id: 'session-1',
+      context: {
+        pendingAction: 'criar_contrato',
+        pendingActionAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(), // 1h atrás
+      },
+    });
+
+    const result = await runPaymentFollowupForTenant('tenant-a', new Date('2026-03-23T21:00:00Z'));
+
+    expect(mocks.waSendText).toHaveBeenCalled();
+    expect(result.sent).toBeGreaterThan(0);
+    expect(result.skippedBusy).toBe(0);
+  });
+
+  it('pending de wizard RECENTE bloqueia o EOD (skipped_busy)', async () => {
+    mocks.getOrCreateSession.mockResolvedValue({
+      id: 'session-1',
+      context: {
+        pendingAction: 'criar_contrato',
+        pendingActionAt: new Date(Date.now() - 60 * 1000).toISOString(), // 1min atrás
+      },
+    });
+
+    const result = await runPaymentFollowupForTenant('tenant-a', new Date('2026-03-23T21:00:00Z'));
+
+    expect(mocks.waSendText).not.toHaveBeenCalled();
+    expect(result.skippedBusy).toBeGreaterThan(0);
   });
 
   it('janela ±7min do horário configurado em BRT', () => {
