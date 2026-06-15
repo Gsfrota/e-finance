@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   getInstallmentsToday: vi.fn(),
+  getOverdueInstallments: vi.fn(),
   formatCurrency: vi.fn((value: number) => `R$ ${value.toFixed(2)}`),
   markInstallmentPaid: vi.fn(),
   getAdminProfiles: vi.fn(),
@@ -10,10 +11,24 @@ const mocks = vi.hoisted(() => ({
   updateSessionContext: vi.fn(),
   waSendText: vi.fn(),
   tgSendText: vi.fn(),
+  recheckStatus: vi.fn(),
+}));
+
+vi.mock('../src/infra/runtime-clients', () => ({
+  getSupabaseClient: () => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          in: (_col: string, ids: string[]) => mocks.recheckStatus(ids),
+        }),
+      }),
+    }),
+  }),
 }));
 
 vi.mock('../src/actions/admin-actions', () => ({
   getInstallmentsToday: mocks.getInstallmentsToday,
+  getOverdueInstallments: mocks.getOverdueInstallments,
   formatCurrency: mocks.formatCurrency,
   markInstallmentPaid: mocks.markInstallmentPaid,
 }));
@@ -36,7 +51,7 @@ vi.mock('../src/channels/telegram', () => ({
   sendText: mocks.tgSendText,
 }));
 
-import { formatPaymentFollowupMessage, runPaymentFollowupForTenant, isWithinEodAlertWindow } from '../src/scheduler/payment-followup';
+import { formatPaymentFollowupMessage, runPaymentFollowupForTenant, isWithinEodAlertWindow, confirmPendingPaymentFollowup } from '../src/scheduler/payment-followup';
 
 describe('payment-followup scheduler', () => {
   beforeEach(() => {
@@ -46,6 +61,7 @@ describe('payment-followup scheduler', () => {
       { id: 'inst-1', debtorName: 'Fulano', amount: 300, dueDate: '2026-03-23', status: 'pending', daysLate: 0, companyId: 'company-a', companyName: 'Empresa A' },
       { id: 'inst-2', debtorName: 'Beltrano', amount: 200, dueDate: '2026-03-23', status: 'pending', daysLate: 0, companyId: 'company-a', companyName: 'Empresa A' },
     ]);
+    mocks.getOverdueInstallments.mockResolvedValue({ installments: [], olderCount: 0 });
     mocks.getAdminProfiles.mockResolvedValue([
       {
         id: 'admin-1',
@@ -66,23 +82,48 @@ describe('payment-followup scheduler', () => {
     mocks.tgSendText.mockResolvedValue(undefined);
   });
 
-  it('monta mensagem proativa útil para múltiplas cobranças pendentes', () => {
+  it('monta mensagem informativa para múltiplas cobranças em aberto (sem baixar tudo por padrão)', () => {
     const text = formatPaymentFollowupMessage([
-      { id: 'inst-1', debtorName: 'Fulano', amount: 300 },
-      { id: 'inst-2', debtorName: 'Beltrano', amount: 200 },
+      { id: 'inst-1', debtorName: 'Fulano', amount: 300, daysLate: 0 },
+      { id: 'inst-2', debtorName: 'Beltrano', amount: 200, daysLate: 0 },
     ]);
 
-    expect(text).toContain('Hoje ainda não houve baixa');
+    expect(text).toContain('em aberto');
+    expect(text).toContain('Vencendo hoje');
     expect(text).toContain('Fulano');
     expect(text).toContain('Beltrano');
-    expect(text).toContain('números que devo manter em aberto');
+    // Não deve mais oferecer baixar tudo nem pedir "números a manter em aberto"
+    expect(text).not.toContain('dar baixa em *todas*');
+    expect(text).not.toContain('manter em aberto');
+    // Convida baixa seletiva
+    expect(text.toLowerCase()).toContain('dar baixa em');
+  });
+
+  it('separa vencendo hoje de atrasados e consolida os mais antigos', () => {
+    const text = formatPaymentFollowupMessage(
+      [
+        { id: 'inst-1', debtorName: 'Fulano', amount: 300, daysLate: 0 },
+        { id: 'inst-3', debtorName: 'Ciclano', amount: 150, daysLate: 5 },
+      ],
+      4,
+    );
+
+    expect(text).toContain('Vencendo hoje');
+    expect(text).toContain('Atrasados');
+    expect(text).toContain('5 dias');
+    expect(text).toContain('mais 4 cobranças em aberto');
+  });
+
+  it('mensagem vazia quando nada em aberto e sem atrasos antigos', () => {
+    expect(formatPaymentFollowupMessage([], 0)).toContain('Tudo em dia');
   });
 
   it('dispara follow-up só para admins do tenant e grava contexto pendente', async () => {
     const result = await runPaymentFollowupForTenant('tenant-a', new Date('2026-03-23T21:00:00Z'));
 
     expect(mocks.getInstallmentsToday).toHaveBeenCalledWith('tenant-a', 'company-a');
-    expect(mocks.waSendText).toHaveBeenCalledWith('5585999999999', expect.stringContaining('Hoje ainda não houve baixa'));
+    expect(mocks.getOverdueInstallments).toHaveBeenCalledWith('tenant-a', 'company-a');
+    expect(mocks.waSendText).toHaveBeenCalledWith('5585999999999', expect.stringContaining('em aberto'));
     expect(mocks.waSendText).toHaveBeenCalledWith('5585999999999', expect.stringContaining('Empresa A'));
     expect(mocks.tgSendText).toHaveBeenCalledWith('tg-1', expect.any(String), 'HTML');
     expect(mocks.updateSessionContext).toHaveBeenCalledWith(
@@ -133,6 +174,30 @@ describe('payment-followup scheduler', () => {
   it('respeita horário customizado (16:30) em vez do default', () => {
     expect(isWithinEodAlertWindow(new Date('2026-03-23T19:30:00Z'), '16:30')).toBe(true);  // exato
     expect(isWithinEodAlertWindow(new Date('2026-03-23T20:00:00Z'), '16:30')).toBe(false); // 17:00 já fora
+  });
+
+  it('confirmPendingPaymentFollowup baixa só as abertas e marca já-pagas (anti-stale)', async () => {
+    // inst-1 já foi paga no painel; inst-2 ainda aberta
+    mocks.recheckStatus.mockResolvedValue({
+      data: [
+        { id: 'inst-1', status: 'paid' },
+        { id: 'inst-2', status: 'pending' },
+      ],
+      error: null,
+    });
+    mocks.markInstallmentPaid.mockResolvedValue(true);
+
+    const result = await confirmPendingPaymentFollowup('tenant-a', [
+      { id: 'inst-1', debtorName: 'Fulano', amount: 300 },
+      { id: 'inst-2', debtorName: 'Beltrano', amount: 200 },
+    ]);
+
+    expect(result.alreadyPaid.map(i => i.id)).toEqual(['inst-1']);
+    expect(result.paid.map(i => i.id)).toEqual(['inst-2']);
+    expect(result.failed).toHaveLength(0);
+    // só a aberta foi para markInstallmentPaid
+    expect(mocks.markInstallmentPaid).toHaveBeenCalledTimes(1);
+    expect(mocks.markInstallmentPaid).toHaveBeenCalledWith('inst-2', 'tenant-a');
   });
 
   it('lida com janela cruzando meia-noite (00:00)', () => {
