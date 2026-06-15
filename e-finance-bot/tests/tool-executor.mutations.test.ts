@@ -360,6 +360,67 @@ describe('tool-executor mutations', () => {
     expect(legacyDispatch).not.toHaveBeenCalled();
   });
 
+  it('create_contract confirmado replay NÃO cria contrato duplicado (idempotência)', async () => {
+    // Trava o invariante do alvo da convergência (Fase 2): o caminho capability
+    // bloqueia o "2 sim = 2 contratos" — bug que só existe no wizard legado.
+    const session = buildSession();
+    const legacyDispatch = vi.fn();
+
+    const args = {
+      debtor_name: 'Maria',
+      debtor_cpf: '52998224725',
+      amount: 5000,
+      rate: 3,
+      installments: 12,
+      frequency: 'monthly',
+      due_day: 10,
+    };
+    const confirmContext = {
+      session,
+      tenantId: 'tenant-1',
+      profileId: 'profile-1',
+      role: 'admin' as const,
+      channel: 'telegram' as const,
+      rawText: 'sim',
+      confirmed: true,
+      idempotencyKey: 'session-1:create_contract:dup',
+      confirmationId: 'create_contract:dup',
+    };
+
+    const firstResult = await executeActionPlan(
+      buildPlan('create_contract', args),
+      { ...confirmContext, requestId: 'req-create-first' },
+      { executeLegacyIntent: legacyDispatch },
+    );
+
+    // Simula o estado pós-execução persistido (lastMutation grava o idempotencyKey).
+    session.context = {
+      workingStateV2: {
+        version: 2,
+        lastMutation: {
+          capability: 'create_contract',
+          idempotencyKey: 'session-1:create_contract:dup',
+          confirmationId: 'create_contract:dup',
+          completedAt: new Date().toISOString(),
+        },
+      },
+    };
+
+    const replayResult = await executeActionPlan(
+      buildPlan('create_contract', args),
+      { ...confirmContext, requestId: 'req-create-replay' },
+      { executeLegacyIntent: legacyDispatch },
+    );
+
+    expect(firstResult.status).toBe('ok');
+    expect(mocks.createContract).toHaveBeenCalledTimes(1);
+    // O replay NÃO chama createContract de novo → nenhum contrato duplicado.
+    expect(replayResult.status).toBe('ok');
+    expect(replayResult.safeUserMessage).toContain('já foi executada neste chat');
+    expect(mocks.createContract).toHaveBeenCalledTimes(1);
+    expect(legacyDispatch).not.toHaveBeenCalled();
+  });
+
   it('mark_installment_paid entra em confirmação no runtime dedicado', async () => {
     const session = buildSession();
     const legacyDispatch = vi.fn();

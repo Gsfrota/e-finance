@@ -36,3 +36,6 @@ graphify-out/
 # Screenshots locais (referência de protótipo / mocks visuais)
 print/
 prints/
+
+# Artefatos operacionais do bot (snapshots Cloud Run, eval dumps) — não pertencem ao repo
+e-finance-bot/artifacts/

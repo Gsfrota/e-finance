@@ -29,6 +29,7 @@ import {
   type TenantAiConfig,
 } from './system-prompt-builder';
 import { matchFastPath, formatFastPathReply } from './fast-path';
+import { t } from '../i18n/messages';
 import {
   getFunctionDeclarationsByRole,
   getTool,
@@ -104,7 +105,7 @@ const MODEL_PRO = 'gemini-2.5-pro';
 
 // Parte 10 do plano — limites rígidos
 // 600 (era 300, 2026-05-03): com 28 devedores list_collection_targets já usou
-// 314 tokens; folga evita reply truncada que cai em GENERIC_ERROR_MSG.
+// 314 tokens; folga evita reply truncada que cai na resposta genérica de erro.
 const MAX_OUTPUT_TOKENS = 600;
 const MAX_TOOL_ITERATIONS = 3;
 const TIMEOUT_MS = 20_000;
@@ -117,10 +118,6 @@ const PRICE_FLASH_OUT_PER_1M = 0.30;
 const PRICE_PRO_IN_PER_1M = 1.25;
 const PRICE_PRO_OUT_PER_1M = 10.00;
 
-const BUDGET_EXCEEDED_MSG = 'Limite mensal do assistente IA atingido. Fale com o administrador para aumentar o plano.';
-const AI_DISABLED_MSG = 'Assistente IA desativado pelo administrador.';
-const KILL_SWITCH_MSG = 'Assistente IA temporariamente indisponível. Usando modo básico.';
-const GENERIC_ERROR_MSG = 'Tive um problema para processar sua mensagem. Pode reformular?';
 
 export function isKillSwitchActive(): boolean {
   return process.env.AI_NATIVE_KILL_SWITCH === 'true';
@@ -140,19 +137,19 @@ export async function runConversation(input: OrchestratorInput): Promise<Orchest
 
   // 1) Kill switch global
   if (isKillSwitchActive()) {
-    return { ...empty, reply: KILL_SWITCH_MSG, source: 'kill_switch', latencyMs: Date.now() - started };
+    return { ...empty, reply: t('system.kill_switch'), source: 'kill_switch', latencyMs: Date.now() - started };
   }
 
   const tenantId = input.session.profile?.tenant_id;
   if (!tenantId) {
-    return { ...empty, reply: GENERIC_ERROR_MSG, latencyMs: Date.now() - started };
+    return { ...empty, reply: t('system.generic_error'), latencyMs: Date.now() - started };
   }
 
   const tenantConfig = await loadTenantAiConfig(tenantId);
 
   // 2) AI desabilitada no tenant → fallback texto fixo
   if (!tenantConfig.aiEnabled) {
-    return { ...empty, reply: AI_DISABLED_MSG, source: 'ai_disabled', latencyMs: Date.now() - started };
+    return { ...empty, reply: t('system.ai_disabled', undefined, tenantConfig.messageOverrides), source: 'ai_disabled', latencyMs: Date.now() - started };
   }
 
   // 3) Fast-path (NÃO conta no budget)
@@ -165,7 +162,7 @@ export async function runConversation(input: OrchestratorInput): Promise<Orchest
       userFirstName: firstName,
       role,
       hasPendingConfirmation: input.hasPendingConfirmation,
-    });
+    }, tenantConfig.messageOverrides);
     if (reply) {
       return {
         ...empty,
@@ -184,12 +181,12 @@ export async function runConversation(input: OrchestratorInput): Promise<Orchest
       spent: tenantConfig.currentMonthCentsSpent,
       budget: tenantConfig.monthlyBudgetCents,
     });
-    return { ...empty, reply: BUDGET_EXCEEDED_MSG, source: 'budget_blocked', latencyMs: Date.now() - started };
+    return { ...empty, reply: t('system.budget_exceeded', undefined, tenantConfig.messageOverrides), source: 'budget_blocked', latencyMs: Date.now() - started };
   }
 
   // 5) Gemini disponível?
   if (!hasGeminiClient()) {
-    return { ...empty, reply: GENERIC_ERROR_MSG, latencyMs: Date.now() - started };
+    return { ...empty, reply: t('system.generic_error'), latencyMs: Date.now() - started };
   }
 
   // 6) Monta system prompt + history + tools
@@ -298,7 +295,7 @@ async function runLlmLoop(args: LlmLoopInput): Promise<LlmLoopOutput> {
           thoughtsTokens: usage?.thoughtsTokenCount ?? 0,
           iter,
         });
-        return { reply: GENERIC_ERROR_MSG, toolCalls, tokensIn, tokensOut };
+        return { reply: t('system.generic_error'), toolCalls, tokensIn, tokensOut };
       }
       return { reply: text, toolCalls, tokensIn, tokensOut };
     }
@@ -396,7 +393,7 @@ async function callGeminiWithRetry(
           maxOutputTokens: MAX_OUTPUT_TOKENS,
           // 2026-05-03: gemini-2.5-flash em modo automático gasta thinking tokens
           // do MESMO budget de output, deixando 0 candidate tokens e caindo em
-          // GENERIC_ERROR_MSG. thinkingBudget=0 desliga reasoning silencioso.
+          // resposta genérica de erro. thinkingBudget=0 desliga reasoning silencioso.
           thinkingConfig: { thinkingBudget: 0 },
           systemInstruction: args.systemPrompt,
           tools: args.functionDeclarations.length > 0

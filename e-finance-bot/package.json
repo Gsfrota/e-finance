@@ -13,6 +13,7 @@
     "test:agent-evals": "vitest run tests/agent-evals.test.ts",
     "test:agent-evals:scorecard": "AGENT_EVAL_SCORECARD_PATH=artifacts/agent-evals/scorecard.json vitest run tests/agent-evals.test.ts",
     "test:bot-regression": "vitest run tests/message-handler.test.ts tests/conversation-smoke.test.ts tests/payment-followup.test.ts",
+    "test:parity": "vitest run tests/i18n-messages.test.ts tests/intent-router.test.ts tests/intent-classifier.test.ts tests/command-understanding.test.ts tests/followup-resolver.test.ts tests/working-state-store.test.ts tests/tool-executor.mutations.test.ts tests/engine/create-contract-routing.test.ts tests/engine/mark-payment-routing.test.ts tests/contract-flows.test.ts tests/message-handler.test.ts tests/conversation-smoke.test.ts tests/session-manager.test.ts tests/probe-create.test.ts tests/probe-baixa.test.ts tests/probe-view.test.ts tests/confirmation-lexicon.test.ts tests/prompt-guard.test.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:live-bot-e2e": "tsx scripts/live-e2e-bot-test.ts",

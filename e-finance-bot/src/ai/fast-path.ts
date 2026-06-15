@@ -11,6 +11,8 @@
  * conversation-orchestrator (LLM-first).
  */
 
+import { t, type MessageKey, type MessageOverrides } from '../i18n/messages';
+
 export type FastPathKind =
   | 'greeting'
   | 'confirm'
@@ -70,69 +72,51 @@ export interface FastPathContext {
  * Nenhuma chamada LLM. Se o hit for confirm/deny e houver pending confirmation,
  * o caller deve consumir o confirmation-store separadamente — esta função
  * apenas sugere um texto-fallback quando NÃO há pending.
+ *
+ * `overrides` (opcional) vem de bot_tenant_config.messages: sobrescreve textos
+ * por tenant sem deploy. Ausente → usa os defaults do código (t(key)).
  */
-export function formatFastPathReply(hit: FastPathHit, ctx: FastPathContext): string {
+export function formatFastPathReply(
+  hit: FastPathHit,
+  ctx: FastPathContext,
+  overrides?: MessageOverrides,
+): string {
   const name = ctx.userFirstName ? `, ${ctx.userFirstName}` : '';
+  const persona = ctx.personaName;
 
   switch (hit.kind) {
     case 'greeting': {
       const hour = new Date().getHours();
       const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
-      return `${greeting}${name}! Sou ${ctx.personaName}. Como posso ajudar?`;
+      return t('fastpath.greeting', { greeting, name, persona }, overrides);
     }
     case 'slash_start':
-      return `Olá${name}! Sou ${ctx.personaName}. Digite /help para ver o que posso fazer.`;
+      return t('fastpath.start', { name, persona }, overrides);
     case 'slash_help':
-      return helpText(ctx.role, ctx.personaName);
+      return helpText(ctx.role, persona, overrides);
     case 'confirm':
       return ctx.hasPendingConfirmation
         ? '' // caller resolve via confirmation-store
-        : `Ok${name}! Me diz o que posso fazer.`;
+        : t('fastpath.confirm_no_pending', { name }, overrides);
     case 'deny':
       return ctx.hasPendingConfirmation
         ? '' // caller resolve via confirmation-store
-        : `Tudo bem${name}, cancelado.`;
+        : t('fastpath.deny_no_pending', { name }, overrides);
     case 'thanks':
-      return `De nada${name}! 🤝`;
+      return t('fastpath.thanks', { name }, overrides);
     case 'goodbye':
-      return `Até mais${name}! Qualquer coisa é só chamar.`;
+      return t('fastpath.goodbye', { name }, overrides);
   }
 }
 
-function helpText(role: 'admin' | 'investor' | 'debtor', persona: string): string {
-  const header = `Sou ${persona}. Posso te ajudar com:`;
-  if (role === 'admin') {
-    return [
-      header,
-      '',
-      '*Consultas*',
-      '• Dashboard do mês — _"como tá o mês?"_',
-      '• Recebíveis — _"quanto vou receber na semana?"_',
-      '• Cobranças — _"quem cobro hoje?"_',
-      '• Saldo de um cliente — _"quanto o João me deve?"_',
-      '',
-      '*Operações*',
-      '• Criar contrato — _"empresta R$ 2.000 pro Felipe em 10× a 5%"_',
-      '• Marcar parcela paga — _"baixa parcela 3 do João"_',
-      '• Relatório do mês — _"gera relatório"_',
-      '• Convite — _"gera um convite"_',
-      '',
-      'Pode falar comigo em português natural.',
-    ].join('\n');
-  }
-  if (role === 'investor') {
-    return [
-      header,
-      '',
-      '• Seu portfólio — _"como está meu capital?"_',
-      '• Desconectar — _"me desconecta"_',
-    ].join('\n');
-  }
-  return [
-    header,
-    '',
-    '• Suas parcelas — _"quais as próximas?"_',
-    '• Saldo devedor — _"quanto eu devo?"_',
-    '• Desconectar — _"me desconecta"_',
-  ].join('\n');
+function helpText(
+  role: 'admin' | 'investor' | 'debtor',
+  persona: string,
+  overrides?: MessageOverrides,
+): string {
+  const key: MessageKey =
+    role === 'admin' ? 'fastpath.help.admin'
+    : role === 'investor' ? 'fastpath.help.investor'
+    : 'fastpath.help.debtor';
+  return t(key, { persona }, overrides);
 }

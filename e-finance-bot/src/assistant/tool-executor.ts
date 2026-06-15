@@ -11,6 +11,7 @@ import {
   searchUser,
 } from '../actions/admin-actions';
 import { getBotTenantConfig, upsertBotTenantConfig } from '../actions/bot-config-actions';
+import { t } from '../i18n/messages';
 import { buildSubscriptionPixBlock, getSubscriptionTenant } from '../actions/billing-actions';
 import { recordAndForwardFeedback } from '../actions/feedback-actions';
 import { buildBriefingMessage } from '../scheduler/morning-briefing';
@@ -293,7 +294,7 @@ async function executeRegistryCapability(
   if (!policy.allowed) {
     return {
       status: 'forbidden',
-      safeUserMessage: 'Essa ação não está disponível para o seu perfil neste chat.',
+      safeUserMessage: t('system.action_not_allowed'),
       audit: {
         requestId: context.requestId,
         capability: plan.capability,
@@ -364,8 +365,8 @@ async function executeRegistryCapability(
     return {
       status: blocked ? 'forbidden' : 'error',
       safeUserMessage: blocked
-        ? 'Essa ação não está disponível para o seu perfil neste chat.'
-        : 'Não consegui validar essa ação agora.',
+        ? t('system.action_not_allowed')
+        : t('system.validate_failed'),
       audit: {
         requestId: context.requestId,
         capability: plan.capability,
@@ -475,7 +476,7 @@ export async function executeActionPlan(
   if (!policy.allowed) {
     return {
       status: 'forbidden',
-      safeUserMessage: 'Essa ação não está disponível para o seu perfil neste chat.',
+      safeUserMessage: t('system.action_not_allowed'),
       audit: {
         requestId: context.requestId,
         capability: plan.capability,

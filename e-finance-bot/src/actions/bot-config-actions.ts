@@ -25,6 +25,8 @@ export interface BotTenantConfig {
   eod_alert_promoted_at: string | null;      // NULL = feature nunca promovida
   // Lembrete de mensalidade SaaS — ciclo 'YYYY-MM' já notificado (dedup mensal)
   last_subscription_reminder_cycle: string | null;
+  // I18N-001 — override de mensagens PT-BR por tenant (chave→texto), editável sem deploy
+  messages: Record<string, string>;
 }
 
 export const EOD_ALERT_DEFAULT_TIME = '17:00';
