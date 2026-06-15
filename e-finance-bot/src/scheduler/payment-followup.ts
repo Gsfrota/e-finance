@@ -20,6 +20,9 @@ export interface PendingPaymentFollowupItem {
  *  e contexto de sessão inchado em tenants com centenas de parcelas atrasadas). */
 const MAX_EOD_ITEMS = 20;
 
+/** TTL de um pending de wizard legado — alinhado ao handler (30min). */
+const PENDING_ACTION_TTL_MS = 30 * 60 * 1000;
+
 interface ProfileChannel {
   id: string;
   full_name: string;
@@ -66,11 +69,11 @@ export function getReferenceDateBrt(now = new Date()): string {
  */
 export function formatPaymentFollowupMessage(items: PendingPaymentFollowupItem[], olderCount = 0): string {
   if (items.length === 0 && olderCount === 0) {
-    return '✅ Nenhuma cobrança do dia ficou sem baixa. Tudo em dia por aqui.';
+    return '✅ *Tudo em dia!*\nNenhuma cobrança ficou em aberto hoje. 👏';
   }
 
   const companyName = items.find(item => item.companyName)?.companyName;
-  const companyLine = companyName ? ` — *${companyName}*` : '';
+  const companyLine = companyName ? `  ·  _${companyName}_` : '';
 
   // Ordem de exibição: vencendo hoje primeiro, depois atrasados (mais antigo por último)
   const today = items.filter(i => !i.daysLate || i.daysLate <= 0);
@@ -82,37 +85,41 @@ export function formatPaymentFollowupMessage(items: PendingPaymentFollowupItem[]
   const ordered = [...today, ...overdue];
   const indexOf = new Map(ordered.map((item, i) => [item, i + 1] as const));
 
-  const lines: string[] = [];
+  const lines: string[] = [
+    `🔔 *Fechamento do dia*${companyLine}`,
+    '',
+    'Ainda constam *em aberto*:',
+  ];
 
   if (today.length > 0) {
-    lines.push('*Vencendo hoje:*');
+    lines.push('', '📅 *Vencem hoje*');
     today.forEach(item => {
-      lines.push(`${indexOf.get(item)}. *${item.debtorName}* — *${formatCurrency(item.amount)}*`);
+      lines.push(`${indexOf.get(item)}.  ${item.debtorName} — *${formatCurrency(item.amount)}*`);
     });
   }
 
   if (overdue.length > 0) {
-    if (lines.length > 0) lines.push('');
-    lines.push('⚠️ *Atrasados:*');
+    lines.push('', '⚠️ *Em atraso*');
     overdue.forEach(item => {
       const d = item.daysLate ?? 0;
-      lines.push(`${indexOf.get(item)}. *${item.debtorName}* — *${formatCurrency(item.amount)}* · ${d} dia${d > 1 ? 's' : ''}`);
+      lines.push(`${indexOf.get(item)}.  ${item.debtorName} — *${formatCurrency(item.amount)}*  ·  _${d} dia${d > 1 ? 's' : ''}_`);
     });
   }
 
   if (olderCount > 0) {
-    lines.push('');
-    lines.push(`_…e mais ${olderCount} cobrança${olderCount > 1 ? 's' : ''} em aberto — veja a lista completa no painel._`);
+    lines.push('', `➕ _e mais ${olderCount} em aberto — veja no painel_`);
   }
 
-  const header = `Fim do dia${companyLine}. Estas cobranças ainda estão *em aberto*:`;
-  const footer = [
+  lines.push(
     '',
-    'Quem já pagou? Me diga que eu registro a baixa.',
-    'Ex.: *dar baixa em João e Maria* (ou os números *1, 3*).',
-  ].join('\n');
+    '➖➖➖➖➖',
+    '💬 Quem já pagou? Eu registro a baixa.',
+    'Responda com *nomes* ou *números*:',
+    '•  _dar baixa em João e Maria_',
+    '•  _ou: 1, 3_',
+  );
 
-  return `${header}\n\n${lines.join('\n')}\n${footer}`;
+  return lines.join('\n');
 }
 
 async function dispatchToProfileChannel(
@@ -129,7 +136,8 @@ async function dispatchToProfileChannel(
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/\*([^*]+)\*/g, '<b>$1</b>');
+    .replace(/\*([^*\n]+)\*/g, '<b>$1</b>')
+    .replace(/_([^_\n]+)_/g, '<i>$1</i>');
   await tg.sendText(channelUserId, htmlMsg, 'HTML');
 }
 
@@ -155,8 +163,17 @@ async function enqueueProfileFollowup(
     return 'skipped_duplicate';
   }
 
+  // Só considera a sessão "ocupada" se houver um pending NÃO expirado. Wizards travados
+  // (ex.: criar_contrato abandonado semanas atrás) não devem bloquear o EOD para sempre —
+  // o handler já expira pending com mais de 30min, então aqui aplicamos o mesmo TTL.
   if (session.context.pendingAction && session.context.pendingAction !== 'confirmar_baixas_pendentes') {
-    return 'skipped_busy';
+    const pendingAtMs = session.context.pendingActionAt
+      ? new Date(session.context.pendingActionAt).getTime()
+      : 0;
+    const pendingExpired = !pendingAtMs || (Date.now() - pendingAtMs) > PENDING_ACTION_TTL_MS;
+    if (!pendingExpired) {
+      return 'skipped_busy';
+    }
   }
 
   const message = formatPaymentFollowupMessage(items, olderCount);
