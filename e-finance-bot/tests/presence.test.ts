@@ -169,6 +169,38 @@ describe('runWithPresence', () => {
     await task;
   });
 
+  it('para o "digitando" (paused) ANTES de enviar a resposta — sem composing depois', async () => {
+    const order: string[] = [];
+    mocks.waSendChatPresence.mockImplementation((_n: string, p: string) => {
+      order.push(`presence:${p}`);
+      return Promise.resolve(undefined);
+    });
+    const sendReply = vi.fn().mockImplementation(() => {
+      order.push('reply');
+      return Promise.resolve(undefined);
+    });
+    const hold = deferred<void>();
+
+    const task = runWithPresence(
+      { channel: 'whatsapp', messageId: 'wa-order', channelUserId: '5585' },
+      async () => { await hold.promise; return { text: 'ok' }; },
+      sendReply,
+    );
+
+    await vi.advanceTimersByTimeAsync(2500); // composing inicial
+    hold.resolve();
+    await vi.runAllTicks();
+    await vi.advanceTimersByTimeAsync(1000);
+    await task;
+
+    // paused tem que vir antes do reply, e nada de composing depois do paused
+    const pausedIdx = order.indexOf('presence:paused');
+    const replyIdx = order.indexOf('reply');
+    expect(pausedIdx).toBeGreaterThanOrEqual(0);
+    expect(pausedIdx).toBeLessThan(replyIdx);
+    expect(order.slice(pausedIdx + 1).some(e => e === 'presence:composing')).toBe(false);
+  });
+
   it('controla concorrencia do WhatsApp com available/unavailable uma vez por lote (instance presence)', async () => {
     config.presence.whatsappComposing = false; // testa o fallback de presence global da instância
     config.presence.whatsappSlowOnly = false;
