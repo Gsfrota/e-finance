@@ -108,7 +108,7 @@ const MODEL_PRO = 'gemini-2.5-pro';
 // 314 tokens; folga evita reply truncada que cai na resposta genérica de erro.
 const MAX_OUTPUT_TOKENS = 600;
 const MAX_TOOL_ITERATIONS = 3;
-const TIMEOUT_MS = 20_000;
+const TIMEOUT_MS = config.aiNative?.timeoutMs ?? 15_000;
 const MAX_HISTORY_MESSAGES = 8;
 
 // Pricing per 1M tokens (USD) — Flash

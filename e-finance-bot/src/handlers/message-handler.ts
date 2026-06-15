@@ -1301,15 +1301,20 @@ export async function handleMessage(msg: IncomingMessage): Promise<OutgoingMessa
           cost_cents: result.estimatedCostCents ?? null,
         });
 
-        // Handled pela pipeline nova
-        if (result.reply && (result.source === 'fast_path' || result.source === 'llm' || result.source === 'budget_blocked')) {
+        // Handled pela pipeline nova. 'error' também retorna aqui: o orchestrator já
+        // devolve uma resposta amigável ("instabilidade, tente de novo"), então NÃO
+        // reprocessamos no legado (evita somar +20-40s a um turno que já falhou).
+        if (result.reply && (result.source === 'fast_path' || result.source === 'llm' || result.source === 'budget_blocked' || result.source === 'error')) {
           await saveMessageTimed(session.id, 'user', textToProcess, userMediaType, `ai:${result.source}`);
           await saveMessageTimed(session.id, 'assistant', result.reply, 'text', `ai:${result.source}`);
           responseTextForLog = result.reply.slice(0, 300);
           getActiveTrace()?.setField('reply_text', responseTextForLog);
+          if (result.source === 'error') {
+            telemetry.result = 'error';
+          }
           return { text: result.reply };
         }
-        // Caso 'ai_disabled', 'kill_switch', 'error' → fallthrough para pipeline antiga
+        // Caso 'ai_disabled', 'kill_switch' → fallthrough para pipeline antiga (legado intencional)
       } catch (err) {
         logStructuredMessage('ai_native_error', {
           channel: msg.channel,
