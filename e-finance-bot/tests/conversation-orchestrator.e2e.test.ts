@@ -48,6 +48,7 @@ vi.mock('../src/config', () => ({
       workingStateTtlMs: 30 * 60 * 1000,
       confirmationTtlMs: 10 * 60 * 1000,
     },
+    aiNative: { timeoutMs: 15000 },
   },
 }));
 

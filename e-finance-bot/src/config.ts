@@ -166,6 +166,9 @@ export const config = {
     killSwitch: process.env.AI_NATIVE_KILL_SWITCH === 'true',
     // Rollout por tenant (csv de UUIDs) — se vazio, respeita bot_tenant_config.ai_enabled
     tenantAllowlist: (process.env.AI_NATIVE_TENANT_ALLOWLIST || '').split(',').map(s => s.trim()).filter(Boolean),
+    // Timeout do loop de LLM do orchestrator. Reduzido de 20s p/ falhar rápido em
+    // instabilidade do Gemini (evita pendurar antes de responder ao usuário).
+    timeoutMs: parseInt(process.env.AI_NATIVE_TIMEOUT_MS || '15000', 10),
   },
 
   // Tracing por turno (debugging em produção) — BR-BOT-009
