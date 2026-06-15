@@ -4,6 +4,7 @@ import { config } from '../src/config';
 const mocks = vi.hoisted(() => ({
   tgSendChatAction: vi.fn(),
   waSetInstancePresence: vi.fn(),
+  waSendChatPresence: vi.fn(),
   logStructuredMessage: vi.fn(),
 }));
 
@@ -13,6 +14,7 @@ vi.mock('../src/channels/telegram', () => ({
 
 vi.mock('../src/channels/whatsapp', () => ({
   setInstancePresence: mocks.waSetInstancePresence,
+  sendChatPresence: mocks.waSendChatPresence,
 }));
 
 vi.mock('../src/observability/logger', () => ({
@@ -44,9 +46,12 @@ beforeEach(() => {
   config.presence.whatsappUseInstancePresence = true;
   config.presence.whatsappSlowOnly = true;
   config.presence.whatsappSlowThresholdMs = 2500;
+  config.presence.whatsappComposing = true;
+  config.presence.whatsappPulseMs = 10000;
 
   mocks.tgSendChatAction.mockResolvedValue(undefined);
   mocks.waSetInstancePresence.mockResolvedValue(undefined);
+  mocks.waSendChatPresence.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -106,10 +111,11 @@ describe('runWithPresence', () => {
       async () => {},
     );
 
+    expect(mocks.waSendChatPresence).not.toHaveBeenCalled();
     expect(mocks.waSetInstancePresence).not.toHaveBeenCalled();
   });
 
-  it('whatsapp slow-only ativa available/unavailable quando ultrapassa threshold', async () => {
+  it('whatsapp slow-only manda "digitando" (composing) por chat quando ultrapassa threshold', async () => {
     const hold = deferred<void>();
 
     const task = runWithPresence(
@@ -122,20 +128,49 @@ describe('runWithPresence', () => {
     );
 
     await vi.advanceTimersByTimeAsync(2499);
-    expect(mocks.waSetInstancePresence).not.toHaveBeenCalled();
+    expect(mocks.waSendChatPresence).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1);
-    expect(mocks.waSetInstancePresence).toHaveBeenCalledWith('available');
+    expect(mocks.waSendChatPresence).toHaveBeenCalledWith('5585', 'composing');
 
     hold.resolve();
     await vi.runAllTicks();
     await vi.advanceTimersByTimeAsync(1000);
     await task;
 
-    expect(mocks.waSetInstancePresence.mock.calls.map(call => call[0])).toEqual(['available', 'unavailable']);
+    // composing no início, paused ao final
+    expect(mocks.waSendChatPresence).toHaveBeenCalledWith('5585', 'paused');
+    expect(mocks.waSetInstancePresence).not.toHaveBeenCalled();
   });
 
-  it('controla concorrencia do WhatsApp com available/unavailable uma vez por lote', async () => {
+  it('refaz "digitando" (pulse) durante processamento longo', async () => {
+    config.presence.whatsappPulseMs = 10000;
+    const hold = deferred<void>();
+
+    const task = runWithPresence(
+      { channel: 'whatsapp', messageId: 'wa-long', channelUserId: '5585' },
+      async () => {
+        await hold.promise;
+        return { text: 'ok' };
+      },
+      async () => {},
+    );
+
+    await vi.advanceTimersByTimeAsync(2500); // dispara composing inicial
+    const composingCalls = () => mocks.waSendChatPresence.mock.calls.filter(c => c[1] === 'composing').length;
+    expect(composingCalls()).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(20000); // 2 pulses de 10s
+    expect(composingCalls()).toBe(3);
+
+    hold.resolve();
+    await vi.runAllTicks();
+    await vi.advanceTimersByTimeAsync(1000);
+    await task;
+  });
+
+  it('controla concorrencia do WhatsApp com available/unavailable uma vez por lote (instance presence)', async () => {
+    config.presence.whatsappComposing = false; // testa o fallback de presence global da instância
     config.presence.whatsappSlowOnly = false;
     config.presence.startDelayMs = 0;
     config.presence.minVisibleMs = 0;

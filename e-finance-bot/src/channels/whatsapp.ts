@@ -62,6 +62,17 @@ export async function setInstancePresence(presence: WaPresence): Promise<void> {
   await api.post('/instance/presence', { presence });
 }
 
+// Presença POR CHAT ("digitando…"/composing) — UazAPI POST /message/presence.
+export type WaChatPresence = 'composing' | 'recording' | 'paused';
+export async function sendChatPresence(to: string, presence: WaChatPresence, delayMs?: number): Promise<void> {
+  const phone = extractPhone(to);
+  await api.post('/message/presence', {
+    number: phone,
+    presence,
+    ...(delayMs ? { delay: delayMs } : {}),
+  });
+}
+
 function extractBase64Media(data: unknown): string | null {
   if (!data || typeof data !== 'object') return null;
 

@@ -76,6 +76,12 @@ export const config = {
     whatsappUseInstancePresence: process.env.PRESENCE_WHATSAPP_INSTANCE !== 'false',
     whatsappSlowOnly: process.env.PRESENCE_WHATSAPP_SLOW_ONLY !== 'false',
     whatsappSlowThresholdMs: parseInt(process.env.PRESENCE_WHATSAPP_SLOW_THRESHOLD_MS || '2500', 10),
+    // "Digitando…" por chat (composing) no WhatsApp via UazAPI POST /message/presence.
+    // Preferido sobre o presence global da instância: mostra digitação no chat certo.
+    whatsappComposing: process.env.PRESENCE_WHATSAPP_COMPOSING !== 'false',
+    // Refresh do composing — o WhatsApp expira "digitando" em ~25s; reenviamos antes disso
+    // para manter visível durante processamento longo (respostas de 15-70s).
+    whatsappPulseMs: parseInt(process.env.PRESENCE_WHATSAPP_PULSE_MS || '10000', 10),
   },
 
   // Buffer adaptativo de mensagens inbound

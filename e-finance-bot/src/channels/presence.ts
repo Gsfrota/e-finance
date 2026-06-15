@@ -83,12 +83,17 @@ export async function runWithPresence<T>(
   const startDelayMs = Math.max(0, config.presence.startDelayMs);
   const minVisibleMs = Math.max(0, config.presence.minVisibleMs);
   const pulseMs = Math.max(1000, config.presence.telegramPulseMs);
+  const waPulseMs = Math.max(3000, config.presence.whatsappPulseMs);
   const waSlowThresholdMs = Math.max(0, config.presence.whatsappSlowThresholdMs);
+
+  // WhatsApp tem presença habilitada se composing (por chat) OU presence global da instância.
+  const whatsappPresenceEnabled = config.presence.whatsappComposing || config.presence.whatsappUseInstancePresence;
 
   const startedAt = Date.now();
   let presenceStartedAt = 0;
   let presenceAcquired = false;
   let startRequested = false;
+  let whatsappComposingActive = false;
 
   let typingPulseTimer: ReturnType<typeof setInterval> | null = null;
   let delayedStartTimer: ReturnType<typeof setTimeout> | null = null;
@@ -107,9 +112,20 @@ export async function runWithPresence<T>(
           }, pulseMs);
           presenceAcquired = true;
         }
-      } else if (ctx.channel === 'whatsapp' && config.presence.whatsappUseInstancePresence) {
-        await acquireWhatsappPresence(ctx);
-        presenceAcquired = true;
+      } else if (ctx.channel === 'whatsapp') {
+        const number = ctx.channelUserId;
+        if (config.presence.whatsappComposing && number) {
+          // "Digitando…" por chat + refresh (composing expira em ~25s no WhatsApp)
+          await wa.sendChatPresence(number, 'composing');
+          typingPulseTimer = setInterval(() => {
+            void wa.sendChatPresence(number, 'composing');
+          }, waPulseMs);
+          whatsappComposingActive = true;
+          presenceAcquired = true;
+        } else if (config.presence.whatsappUseInstancePresence) {
+          await acquireWhatsappPresence(ctx);
+          presenceAcquired = true;
+        }
       }
 
       if (presenceAcquired) {
@@ -150,14 +166,14 @@ export async function runWithPresence<T>(
     delayedStartTimer = setTimeout(() => {
       void startPresence();
     }, startDelayMs);
-  } else if (!config.presence.whatsappSlowOnly && config.presence.whatsappUseInstancePresence) {
+  } else if (ctx.channel === 'whatsapp' && !config.presence.whatsappSlowOnly && whatsappPresenceEnabled) {
     delayedStartTimer = setTimeout(() => {
       void startPresence();
     }, startDelayMs);
   }
 
   try {
-    if (ctx.channel === 'whatsapp' && config.presence.whatsappUseInstancePresence && config.presence.whatsappSlowOnly) {
+    if (ctx.channel === 'whatsapp' && whatsappPresenceEnabled && config.presence.whatsappSlowOnly) {
       const workPromise = work();
       const thresholdReached = waSlowThresholdMs === 0
         ? true
@@ -210,7 +226,10 @@ export async function runWithPresence<T>(
       clearInterval(typingPulseTimer);
     }
 
-    if (presenceAcquired && ctx.channel === 'whatsapp' && config.presence.whatsappUseInstancePresence) {
+    if (whatsappComposingActive && ctx.channelUserId) {
+      // Encerra o "digitando…" (a própria mensagem enviada já limpa, mas garantimos)
+      void wa.sendChatPresence(ctx.channelUserId, 'paused').catch(() => { /* best-effort */ });
+    } else if (presenceAcquired && ctx.channel === 'whatsapp' && config.presence.whatsappUseInstancePresence) {
       await releaseWhatsappPresence(ctx);
     }
 
