@@ -11,10 +11,12 @@ for arg in "$@"; do
 done
 
 # ── Configurações ─────────────────────────────────────────
+# Região sa-east-1 (São Paulo) — mesma do Supabase, elimina latência cross-region
+# nas leituras de DB (antes us-west1 ↔ sa-east-1 custava 5-13s por turno).
 PROJECT="tribal-pillar-476701-a3"
-REGION="us-west1"
+REGION="southamerica-east1"
 SERVICE="e-finance-bot"
-IMAGE="us-west1-docker.pkg.dev/${PROJECT}/cloud-run-source-deploy/${SERVICE}"
+IMAGE="southamerica-east1-docker.pkg.dev/${PROJECT}/cloud-run-source-deploy/${SERVICE}"
 UAZAPI_SERVER_URL="https://processai.uazapi.com"
 
 # ── Helpers ───────────────────────────────────────────────
