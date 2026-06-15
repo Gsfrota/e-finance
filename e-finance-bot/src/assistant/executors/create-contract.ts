@@ -349,6 +349,25 @@ function normalizeDraftInput(input: CreateContractCapabilityInput): CreateContra
   return next;
 }
 
+// Teto de taxa mensal aceita — espelha createContractInputSchema.rate.max(1000).
+// Acima disso é quase sempre erro de digitação (ex.: "1000" no lugar de "10").
+const RATE_MAX_AM = 1000;
+
+function validateRanges(
+  input: CreateContractCapabilityInput,
+): { field: 'rate'; message: string } | null {
+  if (typeof input.rate === 'number' && (input.rate < 0 || input.rate > RATE_MAX_AM)) {
+    return {
+      field: 'rate',
+      message:
+        `A taxa informada (*${input.rate}% a.m.*) está fora da faixa aceita ` +
+        `(0 a ${RATE_MAX_AM}% a.m.). Qual é a *taxa de juros mensal* correta? ` +
+        `Se não houver juros, responda *pular*.`,
+    };
+  }
+  return null;
+}
+
 function getMissingFields(input: CreateContractCapabilityInput): string[] {
   // BR-BOT-010: ordem determinística — nome → valor → taxa → parcelas → CPF → frequência → vencimento
   // BR-BOT-011: bullet (interest_only) tem prazo indeterminado → pula o slot 'installments'.
@@ -490,6 +509,20 @@ export const createContractCapability: CapabilityDefinition<CreateContractCapabi
         status: 'needs_clarification',
         safeUserMessage: getClarificationMessage(merged, missingFields[0]),
         workingStatePatch: buildWorkingStatePatch(merged, missingFields),
+      } satisfies CapabilityResolveResult<CreateContractCapabilityInput>;
+    }
+
+    // Sanity-check de faixa: com todos os slots preenchidos, rejeita valores
+    // implausíveis (ex.: fat-finger "99999%") em vez de montar um preview
+    // monstruoso. Nunca capa silenciosamente — re-pede o campo (escrita
+    // financeira sempre explícita).
+    const rangeError = validateRanges(merged);
+    if (rangeError) {
+      const sanitized = { ...merged, [rangeError.field]: undefined };
+      return {
+        status: 'needs_clarification',
+        safeUserMessage: rangeError.message,
+        workingStatePatch: buildWorkingStatePatch(sanitized, [rangeError.field]),
       } satisfies CapabilityResolveResult<CreateContractCapabilityInput>;
     }
 
