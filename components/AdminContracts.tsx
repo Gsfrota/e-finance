@@ -886,6 +886,16 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
     );
   }
 
+  const zeroRateBanner = (
+    <div className="flex items-start gap-2 rounded-2xl border border-amber-400 bg-amber-50 dark:bg-amber-950/40 p-3 text-amber-800 dark:text-amber-300">
+      <span className="text-base leading-none mt-0.5">⚠️</span>
+      <div>
+        <p className="font-bold text-sm">ATENÇÃO: Contrato sem juros (0%)</p>
+        <p className="text-xs mt-0.5">Este contrato não gerará rendimento ao investidor. Confirme que essa é a intenção antes de prosseguir.</p>
+      </div>
+    </div>
+  );
+
   if (contractsSubView === 'create') {
     return (
       <div className="flex h-full flex-col bg-[color:var(--bg-elevated)] overflow-hidden">
@@ -1464,10 +1474,10 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                             className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold text-lg outline-none focus:border-[color:var(--accent-steel)] transition-all text-center"
                                             value={rateInput}
                                             onChange={e => setRateInput(e.target.value)}
-                                            onFocus={e => { setRateInput(String(parseFloat(rateInput.replace(',', '.')) || '')); e.target.select(); }}
+                                            onFocus={e => { const n = parseFloat(rateInput.replace(',', '.')); setRateInput(isNaN(n) ? '' : String(n)); e.target.select(); }}
                                             onBlur={() => {
                                                 const parsed = parseFloat(rateInput.replace(',', '.'));
-                                                if (!isNaN(parsed) && parsed > 0) {
+                                                if (!isNaN(parsed) && parsed >= 0) {
                                                     const rounded = Math.round(parsed * 100) / 100;
                                                     setRateInput(String(rounded));
                                                     updateFormState({ interest_rate: rounded });
@@ -1481,6 +1491,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     <div className="text-center text-xs text-[color:var(--text-secondary)]">
                                         Parcela Estimada: <strong className="text-[color:var(--text-primary)]">{formatCurrency(formData.installment_value)}</strong>
                                     </div>
+                                    {formData.interest_rate === 0 && zeroRateBanner}
                                 </div>
                             )}
 
@@ -1510,6 +1521,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                     <div className="text-center text-xs text-[color:var(--text-secondary)]">
                                         Taxa Implícita: <strong className="text-[color:var(--text-primary)]">{(Number(formData.interest_rate) || 0).toFixed(2)}%</strong>
                                     </div>
+                                    {formData.interest_rate === 0 && zeroRateBanner}
                                 </div>
                             )}
                         </>
@@ -1528,14 +1540,14 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                         onChange={e => {
                                             setRateInput(e.target.value);
                                             const parsed = parseFloat(e.target.value.replace(',', '.'));
-                                            if (!isNaN(parsed) && parsed > 0) {
+                                            if (!isNaN(parsed) && parsed >= 0) {
                                                 updateFormState({ interest_rate: Math.round(parsed * 100) / 100 });
                                             }
                                         }}
-                                        onFocus={e => { setRateInput(String(parseFloat(rateInput.replace(',', '.')) || '')); e.target.select(); }}
+                                        onFocus={e => { const n = parseFloat(rateInput.replace(',', '.')); setRateInput(isNaN(n) ? '' : String(n)); e.target.select(); }}
                                         onBlur={() => {
                                             const parsed = parseFloat(rateInput.replace(',', '.'));
-                                            if (!isNaN(parsed) && parsed > 0) {
+                                            if (!isNaN(parsed) && parsed >= 0) {
                                                 const rounded = Math.round(parsed * 100) / 100;
                                                 setRateInput(String(rounded));
                                                 updateFormState({ interest_rate: rounded });
@@ -1549,6 +1561,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                                 <div className="text-center text-xs text-[color:var(--text-secondary)]">
                                     Juros 1ª cobrança: <strong className="text-[color:var(--accent-caution)]">{formatCurrency(formData.installment_value)}</strong>
                                 </div>
+                                {formData.interest_rate === 0 && zeroRateBanner}
                             </div>
 
                             <div>
