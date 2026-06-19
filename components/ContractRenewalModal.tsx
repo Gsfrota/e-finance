@@ -100,7 +100,7 @@ const ContractRenewalModal: React.FC<ContractRenewalModalProps> = ({
     setForm({
       asset_name: `${sourceContract.asset_name} (Renovação)`,
       amount_invested: Number(sourceContract.amount_invested) || 0,
-      interest_rate: Number(sourceContract.interest_rate) || 10,
+      interest_rate: sourceContract.interest_rate != null ? Number(sourceContract.interest_rate) : 10,
       total_installments: Number(sourceContract.total_installments) || 12,
       frequency: (sourceContract.frequency as RenewalForm['frequency']) || 'monthly',
       due_day: Number(sourceContract.due_day) || 10,
