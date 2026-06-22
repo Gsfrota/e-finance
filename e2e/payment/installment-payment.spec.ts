@@ -183,6 +183,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   test('PAY-04: Valor excedente → Step 2 exibe alerta "Excedente" e opção Próxima', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
     await goToParcelasTab(page, testData!.companyId);
+    await switchToAllPeriods(page);
 
     const inst = testData!.installments.find(
       (i) => i.status === 'pending' && i.id !== testData!.currentInstallmentId
@@ -218,6 +219,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   test('PAY-05: Excedente com parcelas atrasadas → opção "Pagar atrasadas" aparece no Step 2', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
     await goToParcelasTab(page, testData!.companyId);
+    await switchToAllPeriods(page);
 
     // Usa parcela pendente (#3 ou #4); as atrasadas #1 e #2 existem no contrato
     const inst = testData!.installments.find(i => i.status === 'pending')
@@ -241,6 +243,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   test('PAY-06: Overpayment → Step 2 exibe opções "Desconsiderar" e "Adicionar ao montante"', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
     await goToParcelasTab(page, testData!.companyId);
+    await switchToAllPeriods(page);
 
     const inst = testData!.installments.find(i => i.status === 'pending')
       ?? testData!.installments[2];
@@ -265,6 +268,7 @@ test.describe('Fluxo de Pagamento e Baixa de Parcelas', () => {
   test('PAY-07: Overpayment discard → parcelas quitadas e comprovante exibido', async ({ page }) => {
     test.skip(!testData, 'Sem dados de teste');
     await goToParcelasTab(page, testData!.companyId);
+    await switchToAllPeriods(page);
 
     const inst = testData!.installments.find(i => i.status === 'pending')
       ?? testData!.installments[2];
