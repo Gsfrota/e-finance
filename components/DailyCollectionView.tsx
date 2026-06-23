@@ -236,6 +236,15 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
     );
   }
 
+  // ── Estados de render (stale-while-revalidate) ─────────────────────────────
+  // Evita o "piscar azul": durante um refetch (ex.: após registrar uma baixa)
+  // mantém a lista atual visível em vez de trocá-la pelo spinner de tela cheia.
+  // O spinner só aparece no primeiro carregamento, quando ainda não há dados.
+  const hasData = installments.length > 0;
+  const showInitialLoader = loading && !hasData;
+  const showError = !!error && !hasData;
+  const showContent = !showInitialLoader && !showError;
+
   // ── Main view ──────────────────────────────────────────────────────────────
   return (
     <div className="animate-fade-in min-h-screen pb-10"
@@ -280,7 +289,7 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
       </div>
 
       {/* ── Banner persistente de atrasados ─────────────────────────────── */}
-      {!loading && overdueItems.length > 0 && (
+      {showContent && overdueItems.length > 0 && (
         <button
           onClick={() => setFilter('overdue')}
           className="mx-5 flex w-[calc(100%-2.5rem)] items-center justify-between transition-all hover:opacity-90 active:scale-[0.99]"
@@ -301,15 +310,15 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
         </button>
       )}
 
-      {/* ── Loading ─────────────────────────────────────────────────────── */}
-      {loading && (
+      {/* ── Loading (apenas primeiro carregamento, sem dados em cache) ──── */}
+      {showInitialLoader && (
         <div className="flex items-center justify-center py-20">
           <Loader2 size={32} className="animate-spin" style={{ color: T.navy }} />
         </div>
       )}
 
-      {/* ── Error ───────────────────────────────────────────────────────── */}
-      {!loading && error && (
+      {/* ── Error (apenas quando não há dados para exibir) ──────────────── */}
+      {showError && (
         <div className="mx-5 mt-4 p-6 text-center"
           style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, boxShadow: T.shadow }}>
           <AlertCircle size={32} className="mx-auto mb-3" style={{ color: T.red }} />
@@ -317,7 +326,7 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
         </div>
       )}
 
-      {!loading && !error && (
+      {showContent && (
         <div className="px-5 pt-3 space-y-3">
 
           {/* ── 4 Stat Cards horizontais ───────────────────────────────── */}
@@ -490,7 +499,7 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
           <div className="flex items-center gap-2 pt-4 pb-2">
             <Lock size={13} style={{ color: T.textMuted }} />
             <p style={{ color: T.textMuted, fontSize: 12, fontWeight: 500 }}>
-              {isStale ? 'Atualizando…' : `Dados atualizados às ${lastFetchedLabel}`}
+              {(isStale || loading) ? 'Atualizando…' : `Dados atualizados às ${lastFetchedLabel}`}
             </p>
           </div>
         </div>
