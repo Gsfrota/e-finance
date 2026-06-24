@@ -17,6 +17,8 @@ import {
   InstallmentAction as SharedInstallmentAction,
 } from './InstallmentDetailFlow';
 
+const InstallmentHistory = React.lazy(() => import('./InstallmentHistory'));
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const fmt = (v: number) =>
@@ -392,7 +394,6 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
 
   // ── Sub-view: histórico do contrato (BR-REL-016) ──
   if (showHistoryView && data) {
-    const InstallmentHistory = React.lazy(() => import('./InstallmentHistory'));
     const debtorName = data.investment.payer?.full_name || (data.investment as any).payer_name || 'Cliente';
     return (
       <React.Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 size={32} className="animate-spin" style={{ color: 'var(--header-blue)' }} /></div>}>

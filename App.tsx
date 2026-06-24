@@ -813,10 +813,10 @@ const App: React.FC = () => {
 
     supabase.auth.getSession().then(({ data: { session }, error }) => {
         if (error) logError("GetSession", error);
-        if (session) {
+        if (session?.user && !profileLoadedRef.current) {
             console.log('[GetSession] Found session, loading app data');
             loadAppData(session.user);
-        } else {
+        } else if (!session) {
             console.log('[GetSession] No session found, showing login');
             setIsLoading(false);
         setCurrentView(AppView.LOGIN);

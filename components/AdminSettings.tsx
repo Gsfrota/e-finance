@@ -235,7 +235,6 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
 
     const updates = {
       owner_name: ownerName.trim() || null,
-      owner_email: ownerEmail.trim() || null,
     };
 
     setOwnerLoading(true);

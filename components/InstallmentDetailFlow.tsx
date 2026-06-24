@@ -12,6 +12,8 @@ import {
 
 type SurplusAction = 'next' | 'last' | 'spread' | 'pay_late';
 import { LoanInstallment, Tenant } from '../types';
+
+const InstallmentHistory = React.lazy(() => import('./InstallmentHistory'));
 import { getBrazilToday, addDaysBR } from '../services/dateUtils';
 
 interface ActionSummary {
@@ -211,7 +213,6 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
 
   // History sub-view
   if (showHistory && (installment as any).investment) {
-    const InstallmentHistory = React.lazy(() => import('./InstallmentHistory'));
     return (
       <React.Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 size={32} className="animate-spin" style={{ color: 'var(--header-blue)' }} /></div>}>
         <InstallmentHistory
