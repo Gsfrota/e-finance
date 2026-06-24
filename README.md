@@ -49,69 +49,192 @@ O **Juros Certo** resolve um problema real de gestores de carteiras de crédito 
 
 ---
 
-## Arquitetura do Sistema
+## Arquitetura
+
+### 1 · Topologia do Sistema
+
+Dois serviços independentes no Cloud Run — painel web e bot — compartilham o mesmo banco Supabase com isolamento garantido por RLS em todas as tabelas.
 
 ```mermaid
 graph TD
-    subgraph Canais["Canais de Entrada"]
-        WA[📱 WhatsApp]
-        TG[💬 Telegram]
-        WEB[🖥️ Painel Web<br/>React 19 + TypeScript]
+    subgraph Clientes["Clientes"]
+        WA["📱 WhatsApp<br/>(UazAPI)"]
+        TG["💬 Telegram<br/>(Bot API)"]
+        WEB["🖥️ Painel Web<br/>React 19 · TypeScript · Vite"]
     end
 
-    subgraph Bot["E-Finance Bot  ·  Google Cloud Run"]
-        direction TB
-        WH[Webhook]
-        NLU["Pipeline NLU<br/>20 estágios"]
-        GEM["🤖 Gemini AI<br/>NLU fallback + transcrição de áudio"]
+    subgraph GCP["☁️  Google Cloud Platform"]
+        subgraph CR["Cloud Run"]
+            BOT["🤖 e-finance-bot<br/>Node.js + Express<br/>Pipeline NLU · 20 estágios"]
+            APP["📋 e-finance-web<br/>nginx · React SPA"]
+        end
+        SCHED["⏰ Cloud Scheduler<br/>9h briefing · 17h cobrança EOD"]
+        AR["📦 Artifact Registry"]
+        SM["🔒 Secret Manager"]
+        GHA["🔄 GitHub Actions<br/>typecheck · Playwright E2E · deploy"]
     end
 
-    subgraph Agendamento["Agendamento  ·  Cloud Scheduler"]
-        SCHED_M["☀️ Briefing matinal<br/>vencimentos do dia"]
-        SCHED_E["🌆 Follow-up tarde<br/>cobrança EOD"]
+    subgraph AI["Inteligência Artificial"]
+        GEM["🧠 Gemini 1.5 Flash<br/>NLU fallback · transcrição de áudio<br/>análise de portfólio"]
     end
 
-    subgraph Backend["Supabase  ·  Backend as a Service"]
-        AUTH["🔐 Auth<br/>e-mail + OAuth"]
-        DB[("🗄️ PostgreSQL<br/>Row Level Security<br/>por tenant / empresa")]
-        EDGE["⚡ Edge Functions"]
+    subgraph SB["🗄️  Supabase — BaaS"]
+        AUTH["🔐 Auth<br/>JWT · OAuth · RLS"]
+        DB[("PostgreSQL<br/>Row Level Security<br/>isolamento tenant + empresa")]
+        EF["⚡ Edge Functions"]
     end
 
-    WA -->|UazAPI| WH
-    TG -->|Bot API| WH
-    WH --> NLU
-    NLU <-->|fallback LLM| GEM
-    NLU -->|tool-executor| DB
-    SCHED_M --> NLU
-    SCHED_E --> NLU
-    WEB -->|Supabase JS| AUTH
-    WEB -->|queries RLS| DB
+    WA & TG -->|"webhook POST"| BOT
+    SCHED -->|cron| BOT
+    BOT <-->|"fallback LLM  &lt; 500 ms"| GEM
+    BOT -->|"RPC · RLS enforced"| DB
+    WEB -->|"Supabase JS SDK"| AUTH
+    WEB -->|"queries + mutations"| DB
     AUTH --> DB
+    GHA -->|"push image"| AR
+    AR -->|deploy| BOT & APP
+    SM -. "secrets em runtime" .-> BOT & APP
+    APP -. "serve SPA" .-> WEB
 ```
 
 ---
 
-## Pipeline NLU do Bot — 20 Estágios
+### 2 · Pipeline NLU — 20 Estágios
+
+NLU híbrido: rotas de alta confiança (regex, ~100 ms) passam direto para execução; intents ambíguas caem no fallback Gemini (<500 ms). O `policy-engine` funciona como portão de segurança antes de qualquer mutação.
 
 ```mermaid
 flowchart LR
-    IN([📨 Mensagem]) --> DD[dedup] --> RL[rate-limit] --> BUF["inbound-buffer\ndebounce 3.5s"]
+    IN(["📨 Mensagem<br/>WhatsApp / Telegram"])
 
-    BUF --> SM[session-manager] --> PG[prompt-guard] --> AU[audio-pipeline]
-    AU --> CS[confirmation-store] --> FR[followup-resolver] --> CU[command-understanding]
+    subgraph Ingestao["Ingestão"]
+        A[dedup] --> B[rate-limit] --> C["inbound-buffer<br/>debounce 3.5 s"]
+    end
 
-    CU --> IR{"intent-router\n80+ regex\n~100ms"}
-    IR -->|alta confiança| PL[action-planner]
-    IR -->|baixa confiança| GF["🤖 Gemini\n< 500ms"]
-    GF --> IC[intent-classifier] --> PL
+    subgraph Sessao["Sessão & Contexto"]
+        D[session-manager] --> E[prompt-guard] --> F[audio-pipeline]
+        F --> G[confirmation-store] --> H[followup-resolver] --> I[command-understanding]
+    end
 
-    PL --> PE[policy-engine] --> TE[tool-executor] --> RG[response-generator]
-    RG --> OUT([📤 WhatsApp / Telegram])
+    subgraph NLU["NLU — Intent Recognition"]
+        J{{"intent-router<br/>80 + regex · ~100 ms"}}
+        J -->|"✅ alta confiança"| L[action-planner]
+        J -->|"❓ baixa confiança"| K["🧠 Gemini<br/>fallback &lt; 500 ms"]
+        K --> M[intent-classifier] --> L
+    end
 
-    style IR fill:#f0b429,color:#0f1d33
-    style GF fill:#8E75B2,color:#fff
-    style PE fill:#e74c3c,color:#fff
+    subgraph Execucao["Execução"]
+        N["🛡️ policy-engine<br/>confirmação + gates"]
+        O[tool-executor] --> P[response-generator]
+    end
+
+    IN --> A
+    C --> D
+    I --> J
+    L --> N --> O
+    P --> OUT(["📤 Resposta<br/>+ comprovante PNG"])
+
+    style J fill:#f0b429,color:#0f1d33,font-weight:bold
+    style K fill:#7C3AED,color:#fff
+    style N fill:#dc2626,color:#fff,font-weight:bold
 ```
+
+---
+
+### 3 · Fluxo de uma Conversa no WhatsApp
+
+Exemplo real: dar baixa em parcela com desambiguação de devedor homônimo.
+
+```mermaid
+sequenceDiagram
+    actor Gestor
+    participant WA as WhatsApp
+    participant Bot as Bot (Cloud Run)
+    participant GEM as Gemini AI
+    participant DB as PostgreSQL (Supabase)
+
+    Gestor->>WA: "baixar parcela do João"
+    WA->>Bot: POST /webhook
+    Note over Bot: dedup → buffer 3.5 s → session
+    Bot->>Bot: intent-router (80+ regex)
+    Note over Bot: confiança < threshold
+    Bot->>GEM: NLU fallback
+    GEM-->>Bot: intent=PAY_INSTALLMENT · entity=João
+    Bot->>DB: SELECT installments WHERE debtor ILIKE 'João%'
+    DB-->>Bot: João Silva (R$ 350 · vence hoje)<br/>João Costa (R$ 820 · vence amanhã)
+    Bot->>WA: "Encontrei 2 devedores chamados João.\n1. João Silva — R$ 350 (vence hoje)\n2. João Costa — R$ 820 (vence amanhã)"
+    WA->>Gestor: 💬 pergunta de desambiguação
+
+    Gestor->>WA: "1"
+    WA->>Bot: POST /webhook
+    Note over Bot: confirmation-store resolve
+    Bot->>Bot: 🛡️ policy-engine → gate OK
+    Bot->>DB: RPC pay_installment(id, paid_at)
+    DB-->>Bot: OK + receipt_id
+    Bot->>WA: 🧾 comprovante PNG + mensagem de confirmação
+    WA->>Gestor: ✅ baixa registrada
+```
+
+---
+
+### 4 · Modelo de Dados
+
+Multi-tenant com dois níveis de isolamento: `tenant_id` separa clientes SaaS; `company_id` separa CNPJs dentro do mesmo tenant (plano empresarial).
+
+```mermaid
+erDiagram
+    TENANT ||--o{ COMPANY        : possui
+    TENANT ||--o{ BOT_CONFIG     : configura
+    COMPANY ||--o{ PROFILE       : tem
+    COMPANY ||--o{ INVESTMENT    : tem
+    COMPANY ||--o{ INVITE        : gera
+    INVESTMENT ||--o{ LOAN_INSTALLMENT       : gera
+    INVESTMENT ||--o{ CONTRACT_RENEGOTIATION : tem
+    INVESTMENT ||--o{ AVULSO_PAYMENT         : tem
+
+    TENANT {
+        uuid      id           PK
+        string    plan            "free | caderneta | empresarial"
+        string    plan_status
+        timestamp trial_ends_at
+    }
+    COMPANY {
+        uuid   id         PK
+        uuid   tenant_id  FK
+        string cnpj
+        string name
+    }
+    PROFILE {
+        uuid   id         PK
+        uuid   company_id FK
+        string role          "admin | investor | debtor"
+        string email
+    }
+    INVESTMENT {
+        uuid    id              PK
+        uuid    company_id      FK
+        uuid    user_id         FK "investidor"
+        uuid    payer_id        FK "devedor"
+        decimal principal
+        decimal interest_rate
+        int     installment_count
+        string  source_capital     "own | profit"
+        string  contract_type      "standard | bullet"
+    }
+    LOAN_INSTALLMENT {
+        uuid    id                    PK
+        uuid    investment_id         FK
+        int     installment_number
+        string  status                   "pending | paid | late | partial"
+        decimal fine_amount
+        decimal interest_delay_amount
+        date    due_date
+        date    paid_at
+        string  receipt_id
+    }
+```
+
+Row Level Security garante isolamento total entre tenants — e, no modelo multi-empresa, entre CNPJs do mesmo tenant.
 
 ---
 
@@ -172,93 +295,6 @@ flowchart LR
 
 ---
 
-## Modelo de Dados
-
-```mermaid
-erDiagram
-    TENANT ||--o{ COMPANY : possui
-    TENANT ||--o{ BOT_CONFIG : configura
-    COMPANY ||--o{ PROFILE : tem
-    COMPANY ||--o{ INVESTMENT : tem
-    COMPANY ||--o{ INVITE : gera
-    INVESTMENT ||--o{ LOAN_INSTALLMENT : gera
-    INVESTMENT ||--o{ CONTRACT_RENEGOTIATION : tem
-    INVESTMENT ||--o{ AVULSO_PAYMENT : tem
-
-    TENANT {
-        uuid id PK
-        string plan "free | caderneta | empresarial"
-        string plan_status
-        timestamp trial_ends_at
-    }
-    COMPANY {
-        uuid id PK
-        uuid tenant_id FK
-        string cnpj
-        string name
-    }
-    PROFILE {
-        uuid id PK
-        uuid company_id FK
-        string role "admin | investor | debtor"
-        string email
-    }
-    INVESTMENT {
-        uuid id PK
-        uuid company_id FK
-        uuid user_id FK
-        uuid payer_id FK
-        decimal principal
-        decimal interest_rate
-        int installment_count
-        string source_capital "own | profit"
-    }
-    LOAN_INSTALLMENT {
-        uuid id PK
-        uuid investment_id FK
-        int installment_number
-        string status "pending | paid | late | partial"
-        decimal fine_amount
-        decimal interest_delay_amount
-        date due_date
-        date paid_at
-    }
-```
-
-Row Level Security garante isolamento total entre tenants — e, no modelo multi-empresa, entre CNPJs do mesmo tenant.
-
----
-
-## Fluxo de Requisição (Frontend)
-
-```mermaid
-graph TD
-    APP["App.tsx\nrotas via AppView enum"]
-    LOGIN[Login.tsx]
-    RESET[ResetPassword.tsx]
-    DASH["Dashboard.tsx\ndispatch por role"]
-
-    ADMIN_C[AdminContracts]
-    ADMIN_U[AdminUsers]
-    ADMIN_S[AdminSettings]
-    INV["InvestorDashboard\nuseInvestorMetrics"]
-    DEB["DebtorDashboard\nuseDebtorFinance"]
-
-    HOOKS["hooks/\ncustom hooks"]
-    SVC["services/supabase.ts\ngetSupabaseClient()"]
-    DB[("Supabase\nPostgreSQL")]
-
-    APP --> LOGIN
-    APP --> RESET
-    APP --> DASH
-    DASH --> ADMIN_C & ADMIN_U & ADMIN_S
-    DASH --> INV
-    DASH --> DEB
-    ADMIN_C & INV & DEB --> HOOKS
-    HOOKS --> SVC --> DB
-```
-
----
 
 ## Segurança
 
