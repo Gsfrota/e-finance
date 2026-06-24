@@ -417,7 +417,7 @@ nav.glass-border {
   border-radius: 9999px; font-weight: 600; font-size: 0.875rem;
   letter-spacing: 0.02em; transition: all 0.18s cubic-bezier(0.22, 1, 0.36, 1);
   cursor: pointer; padding: 0.625rem 1.5rem; border: none; outline: none;
-  white-space: nowrap;
+  white-space: nowrap; min-height: 2.75rem;
 }
 .btn-primary {
   background: var(--gradient-accent);
@@ -572,6 +572,8 @@ html {
   input[type="number"],
   input[type="text"],
   input[type="email"],
+  input[type="password"],
+  input[type="tel"],
   input[type="date"],
   select,
   textarea {
