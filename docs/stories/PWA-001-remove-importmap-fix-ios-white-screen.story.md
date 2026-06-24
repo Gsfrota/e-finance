@@ -1,7 +1,7 @@
 # PWA-001 — Remover importmap + corrigir tela branca iOS e dual React runtime
 
 **Agentes:** @qa (auditoria) → @dev → @qa → @devops
-**Status:** InReview
+**Status:** Done
 **Criada em:** 2026-06-24
 **Prioridade:** P0 — tela branca em ~10% da base iOS, crash de hooks em qualquer browser
 **Complexidade:** M (4 arquivos, sem migration, risco de dependência npm a auditar)

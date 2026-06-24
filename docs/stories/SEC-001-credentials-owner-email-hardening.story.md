@@ -1,7 +1,7 @@
 # SEC-001 — Remover credenciais do git + bloquear escalada de privilégio via owner_email
 
 **Agentes:** @qa (auditoria) → @dev → @qa → @devops
-**Status:** InReview
+**Status:** Done
 **Criada em:** 2026-06-24
 **Prioridade:** P0 — exploitável agora por qualquer pessoa com acesso ao repositório
 **Complexidade:** S (3 arquivos, sem migration, sem lógica nova)
