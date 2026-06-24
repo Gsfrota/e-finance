@@ -28,6 +28,7 @@ export interface CompanyContextValue {
   isEnterpriseTenant: boolean;
   isTrialActive: boolean;
   isFreePlanLocked: boolean;
+  isPlatformOwnerServer: boolean;
   companyAccessMode: CompanyAccessMode | null;
   canManageMultipleCompanies: boolean;
   canUseAggregateScope: boolean;
@@ -47,6 +48,7 @@ const CompanyContext = createContext<CompanyContextValue>({
   isEnterpriseTenant: false,
   isTrialActive: false,
   isFreePlanLocked: false,
+  isPlatformOwnerServer: false,
   companyAccessMode: null,
   canManageMultipleCompanies: false,
   canUseAggregateScope: false,

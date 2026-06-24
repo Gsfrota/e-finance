@@ -35,7 +35,6 @@ import {
   isAggregateCompanyScope,
   isEnterpriseTenant as isEnterprisePlan,
   isFreePlanLocked,
-  isPlatformOwner,
   isTrialActive,
 } from './services/companyScope';
 import {
@@ -359,7 +358,7 @@ const Layout: React.FC<LayoutProps> = ({
               </button>
             </>
           )}
-          {isPlatformOwner(profile, tenant) && (
+          {isPlatformOwnerServer && (
             <button
               onClick={() => handleViewChange(AppView.PLATFORM_OWNER)}
               title={collapsed ? 'Plataforma' : undefined}
@@ -549,6 +548,7 @@ const App: React.FC = () => {
   const [investorDefaultTab, setInvestorDefaultTab] = useState<'portfolio' | 'monthly'>('portfolio');
   const [adminDashboardDefaultTab, setAdminDashboardDefaultTab] = useState<'overview' | 'receivables' | 'collection' | 'monthly' | 'yield'>('overview');
   const [isLoading, setIsLoading] = useState(true);
+  const [isPlatformOwnerServer, setIsPlatformOwnerServer] = useState(false);
   const [loadingPhase, setLoadingPhase] = useState<'init' | 'auth' | 'profile' | 'ready'>(isOAuthCallback() ? 'auth' : 'init');
   const [appError, setAppError] = useState<string | null>(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
@@ -785,6 +785,15 @@ const App: React.FC = () => {
     localStorage.setItem(getCompanyScopeStorageKey(tenant.id), activeCompanyScope);
   }, [tenant?.id, activeCompanyScope]);
 
+  useEffect(() => {
+    if (!profile) { setIsPlatformOwnerServer(false); return; }
+    const supabase = getSupabase();
+    if (!supabase) return;
+    supabase.rpc('is_platform_owner').then(({ data }) => {
+      setIsPlatformOwnerServer(data === true);
+    });
+  }, [profile?.id]);
+
   const handleCompanyScopeChange = (scope: CompanyScope) => {
     const primaryCompanyId = companies.find((company) => company.is_primary)?.id ?? companies[0]?.id ?? profile?.company_id ?? null;
     const nextScope = companyAccessMode === 'enabled' ? scope : primaryCompanyId;
@@ -975,6 +984,7 @@ const App: React.FC = () => {
     isEnterpriseTenant: isEnterprisePlan(tenant),
     isTrialActive: isTrialTenant,
     isFreePlanLocked: isFreeLocked,
+    isPlatformOwnerServer,
     companyAccessMode,
     canManageMultipleCompanies: canAggregateCompanies,
     canUseAggregateScope: canAggregateCompanies,
@@ -1168,7 +1178,7 @@ const App: React.FC = () => {
                 <AssistantPaywall tenant={tenant} />
               )
           )}
-          {currentView === AppView.PLATFORM_OWNER && isPlatformOwner(profile, tenant) && (
+          {currentView === AppView.PLATFORM_OWNER && isPlatformOwnerServer && (
             <PlatformOwnerPanel />
           )}
         </Layout>
