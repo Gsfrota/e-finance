@@ -101,7 +101,11 @@ export const useDebtorFinance = () => {
             // Processa Parcelas deste contrato
             const insts: DebtorInstallment[] = (inv.loan_installments || []).map((inst: any) => {
                 const isLate = inst.status !== 'paid' && inst.due_date < todayYMD;
-                const daysLate = isLate ? Math.floor((new Date(todayYMD).getTime() - new Date(inst.due_date + 'T00:00:00').getTime()) / (1000 * 3600 * 24)) : 0;
+                const daysLate = isLate ? (() => {
+                    const [ty, tm, td] = todayYMD.split('-').map(Number);
+                    const [dy, dm, dd] = inst.due_date.split('-').map(Number);
+                    return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(dy, dm - 1, dd)) / (1000 * 3600 * 24));
+                })() : 0;
                 
                 if (inst.status === 'paid') {
                     contractPaid += Number(inst.amount_total);
@@ -135,7 +139,8 @@ export const useDebtorFinance = () => {
                 }
                 return sum;
             }, 0);
-            const balance = Math.max(0, contractTotal + totalFines - contractPaid);
+            const contractPaidRounded = Math.round(contractPaid * 100) / 100;
+            const balance = Math.max(0, Math.round((contractTotal + totalFines - contractPaidRounded) * 100) / 100);
             // progress mede o contrato original (sem encargos): ex. 80% = pagou 80% do principal+juros contratados
             // balance já inclui multas, por isso pode ser > 0 mesmo com progress alto
             const progress = contractTotal > 0 ? (contractPaid / contractTotal) * 100 : 0;

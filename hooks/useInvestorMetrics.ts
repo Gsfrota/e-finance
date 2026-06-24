@@ -512,9 +512,14 @@ export const useInvestorMetrics = (filter: InvestorFilter = defaultFilter) => {
             `)
             .eq('user_id', investmentOwnerId)
             .order('created_at', { ascending: false })
+            .limit(500)
         );
 
         if (error) throw error;
+
+        if (invData && invData.length === 500) {
+          console.warn('[useInvestorMetrics] Query truncada em 500 investimentos — dados podem estar incompletos.');
+        }
 
         const userName = profile?.full_name?.split(' ')[0] || 'Investidor';
         const rawData: CachedRawData = { invData: invData || [], userName };
