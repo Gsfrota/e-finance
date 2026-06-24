@@ -39,15 +39,11 @@ export interface DebtorMetrics {
 }
 
 export const useDebtorFinance = () => {
-  const [metrics, setMetrics] = useState<DebtorMetrics>(() => {
-    const cached = getCached<DebtorMetrics>('debtor_finance');
-    return cached?.data ?? { currentBalance: 0, hasLatePayment: false, nextPayment: null, userName: '', contracts: [] };
+  const [metrics, setMetrics] = useState<DebtorMetrics>({
+    currentBalance: 0, hasLatePayment: false, nextPayment: null, userName: '', contracts: [],
   });
   const [loading, setLoading] = useState(true);
-  const [isStale, setIsStale] = useState(() => {
-    const cached = getCached<DebtorMetrics>('debtor_finance');
-    return cached?.stale ?? false;
-  });
+  const [isStale, setIsStale] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {

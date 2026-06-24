@@ -4,6 +4,7 @@ import MonthlyInvestorView from './investor/MonthlyInvestorView';
 import { InstallmentDetailScreen, type InstallmentAction } from './InstallmentDetailFlow';
 import { LoanInstallment } from '../types';
 import { getSupabase } from '../services/supabase';
+import { useCompanyContext } from '../services/companyScope';
 import {
   ArrowUpRight,
   Landmark,
@@ -42,6 +43,7 @@ const InvestorDashboard: React.FC<InvestorDashboardProps> = ({ defaultTab = 'por
   const { metrics, investments, loading, isStale, monthlyView, selectedMonthKey, setSelectedMonthKey } = useInvestorMetrics(filter);
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
   const [installmentAction, setInstallmentAction] = useState<InstallmentAction>(null);
+  const { profile } = useCompanyContext();
 
   const handleInstallmentClick = async (installmentId: string, investmentId: number) => {
     const supabase = getSupabase();
@@ -50,6 +52,7 @@ const InvestorDashboard: React.FC<InvestorDashboardProps> = ({ defaultTab = 'por
       .from('loan_installments')
       .select('*, investment:investments(*, payer:profiles!investments_payer_id_fkey(id, full_name), loan_installments(*))')
       .eq('id', installmentId)
+      .eq('tenant_id', profile?.tenant_id ?? '')
       .single();
     if (data) setSelectedInstallment(data as unknown as LoanInstallment);
   };
