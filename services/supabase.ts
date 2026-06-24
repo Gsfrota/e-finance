@@ -29,8 +29,14 @@ const getBrowserRuntimeEnv = (): RuntimeEnv => {
 
 const getViteEnv = (): RuntimeEnv => {
   try {
-    const meta = import.meta as any;
-    return (meta?.env || {}) as RuntimeEnv;
+    // Referências diretas garantem que Vite substitua os valores tanto em dev quanto em build
+    return {
+      VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+      VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      VITE_SUPABASE_KEY: import.meta.env.VITE_SUPABASE_KEY,
+      SUPABASE_URL: import.meta.env.SUPABASE_URL,
+      SUPABASE_ANON_KEY: import.meta.env.SUPABASE_ANON_KEY,
+    } as RuntimeEnv;
   } catch {
     return {};
   }

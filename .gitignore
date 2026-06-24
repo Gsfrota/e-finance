@@ -42,3 +42,8 @@ e-finance-bot/artifacts/
 
 # Runtime env vars injetados pelo docker-entrypoint.sh — não commitar credenciais
 public/env-config.js
+
+# Scripts de teste locais avulsos na raiz (não pertencem ao repositório)
+*.cjs
+pw-check*.js
+test_*.js
