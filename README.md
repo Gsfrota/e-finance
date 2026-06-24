@@ -4,9 +4,9 @@
 
 <img src="https://img.shields.io/badge/-%F0%9F%8F%A6%20Juros%20Certo-0f1d33?style=for-the-badge&logoColor=f0b429&labelColor=0f1d33&color=f0b429" alt="Juros Certo" height="42"/>
 
-# Juros Certo — Plataforma de Gestão de Crédito
+# Juros Certo — Gestão de Crédito operada por um Agente de IA no WhatsApp
 
-**SaaS multi-tenant** para gestão completa de carteiras de crédito privado: contratos, parcelas, inadimplência, PIX e um bot conversacional com NLU em português.
+**SaaS multi-tenant** para gestão de carteiras de crédito privado, operável por inteiro através de um **agente de IA conversacional no WhatsApp** — que cadastra contratos e clientes, dá baixa em pagamentos e dispara lembretes automáticos de manhã e à tarde — somado a um painel web completo (PIX nativo, inadimplência, multi-CNPJ).
 
 <br/>
 
@@ -17,6 +17,8 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Google Cloud Run](https://img.shields.io/badge/Cloud_Run-4285F4?style=flat-square&logo=googlecloud&logoColor=white)](https://cloud.google.com/run)
 [![Gemini AI](https://img.shields.io/badge/Gemini_AI-8E75B2?style=flat-square&logo=google&logoColor=white)](https://ai.google.dev)
+[![WhatsApp](https://img.shields.io/badge/WhatsApp_AI_Agent-25D366?style=flat-square&logo=whatsapp&logoColor=white)](#-agente-de-ia-no-whatsapp)
+[![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 
 <br/>
 
@@ -29,6 +31,29 @@
 O **Juros Certo** resolve um problema real de gestores de carteiras de crédito privado: controlar múltiplos contratos, parcelas, pagamentos e inadimplências em um único lugar, acessível tanto pelo painel web quanto pelo WhatsApp ou Telegram via linguagem natural.
 
 > Plataforma pensada para o mercado brasileiro: cálculo de juros compostos, PIX nativo, multi-CNPJ e suporte completo a PT-BR.
+
+---
+
+## 🤖 Agente de IA no WhatsApp
+
+> O coração do Juros Certo. Um **agente de IA conversacional** que opera a carteira inteira por **linguagem natural** no WhatsApp — o gestor administra contratos, cobranças e pagamentos sem nunca abrir o painel.
+
+| Capacidade | Como o gestor usa (texto ou áudio) |
+|------------|-----------------------------------|
+| 📝 **Cadastra contratos e clientes** | *"cria contrato de 5 mil pra Maria, 12x, 3% ao mês"* |
+| ✅ **Dá baixa em pagamentos** | *"baixar parcela do João"* → gera comprovante em PNG |
+| 🔔 **Lembretes automáticos de manhã e à tarde** | briefing matinal dos vencimentos do dia + follow-up de cobrança no fim do dia (Cloud Scheduler) |
+| 💬 **Responde consultas em PT-BR** | *"quem vence essa semana?"*, *"extrato do João?"* |
+| 🎙️ **Entende mensagens de voz** | transcrição de áudio via Gemini |
+| 🛡️ **Confirma antes de agir** | confirmação explícita + *policy-engine* antes de qualquer mutação de dados |
+
+**Como funciona por baixo:** um pipeline de **NLU de 20 estágios** em **Node.js + Express**, com um *intent-router* de 80+ regex (~100ms) e *fallback* para o **Google Gemini** quando a confiança é baixa (<500ms). Integração com WhatsApp via **UazAPI** (e Telegram), rodando no **Google Cloud Run** — `webhook → dedup → rate-limit → buffer → session → prompt-guard → áudio → intent-router → action-planner → policy-engine → tool-executor → response-generator`.
+
+```
+WhatsApp ─▶ Webhook ─▶ Pipeline NLU (20 estágios) ─▶ Ação confirmada ─▶ Supabase (RLS por tenant)
+   ▲                         │
+   └──── resposta em PT-BR ◀─┘     ⏰ Cloud Scheduler ─▶ lembretes (manhã + tarde)
+```
 
 ---
 
@@ -66,7 +91,7 @@ O **Juros Certo** resolve um problema real de gestores de carteiras de crédito 
 - Consultas em linguagem natural: *"quem vence essa semana?"*, *"extrato do João?"*
 - Criação de contratos por texto/voz: *"cria contrato de 5 mil pra Maria, 12x, 3% ao mês"*
 - Confirmação explícita antes de qualquer mutação de dados
-- Briefing matinal automático (Cloud Scheduler)
+- Lembretes automáticos de manhã (briefing dos vencimentos) e à tarde (follow-up de cobrança) via Cloud Scheduler
 - Transcrição de áudio via Gemini (suporte a mensagens de voz no WhatsApp)
 
 ### Análise com IA
