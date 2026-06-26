@@ -63,31 +63,64 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
   const [filter, setFilter] = useState<CollectionFilter>('all');
   const [showOtherDues, setShowOtherDues] = useState(false);
 
+  // ── Update otimista da baixa ────────────────────────────────────────────────
+  // Após "dar baixa", o refetch recarrega TODO o dataset (todos os investimentos
+  // + parcelas, paginado) — leva segundos, e o stale-while-revalidate mantém a
+  // lista antiga visível. Para o cliente sumir da lista imediatamente, aplicamos
+  // um override local da parcela quitada e o descartamos assim que o dado fresco
+  // confirma a quitação (ou a parcela some da lista).
+  const [optimisticPaid, setOptimisticPaid] = useState<Map<string, Partial<LoanInstallment>>>(() => new Map());
+
+  const effectiveInstallments = useMemo(() => {
+    if (optimisticPaid.size === 0) return installments;
+    return installments.map(i => {
+      const patch = optimisticPaid.get(i.id);
+      return patch ? { ...i, ...patch } : i;
+    });
+  }, [installments, optimisticPaid]);
+
+  useEffect(() => {
+    if (optimisticPaid.size === 0) return;
+    setOptimisticPaid(prev => {
+      const next = new Map(prev);
+      let changed = false;
+      for (const id of prev.keys()) {
+        const fresh = installments.find(i => i.id === id);
+        // Dado fresco já reflete a quitação (ou parcela saiu da lista) → remove override
+        if (!fresh || fresh.status === 'paid' || (fresh.status === 'partial' && Number(fresh.amount_paid) > 0)) {
+          next.delete(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [installments]);
+
   const today = useMemo(() => getBrazilToday(), []);
 
   const overdueItems = useMemo(
-    () => installments.filter(i => i.due_date < today && i.status !== 'paid'),
-    [installments, today],
+    () => effectiveInstallments.filter(i => i.due_date < today && i.status !== 'paid'),
+    [effectiveInstallments, today],
   );
 
   const todayItems = useMemo(
-    () => installments.filter(i => i.due_date === today && i.status !== 'paid'),
-    [installments, today],
+    () => effectiveInstallments.filter(i => i.due_date === today && i.status !== 'paid'),
+    [effectiveInstallments, today],
   );
 
   const paidToday = useMemo(
-    () => installments.filter(i => {
+    () => effectiveInstallments.filter(i => {
       if (i.status !== 'paid' && i.status !== 'partial') return false;
       if (Number(i.amount_paid) === 0) return false;
       if (!i.paid_at) return false;
       return isoToBrazilYMD(i.paid_at) === today;
     }),
-    [installments, today],
+    [effectiveInstallments, today],
   );
 
   const partialItems = useMemo(
-    () => installments.filter(i => i.status === 'partial' && Number(i.amount_paid) > 0),
-    [installments],
+    () => effectiveInstallments.filter(i => i.status === 'partial' && Number(i.amount_paid) > 0),
+    [effectiveInstallments],
   );
 
   const totalOverdue = useMemo(
@@ -113,14 +146,14 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
   const d30 = useMemo(() => addDaysBR(today, 30), [today]);
 
   const futureBuckets = useMemo(() => {
-    const pending = installments.filter(i => i.status !== 'paid');
+    const pending = effectiveInstallments.filter(i => i.status !== 'paid');
     return {
       '3d':  pending.filter(i => i.due_date > today && i.due_date <= d3),
       '7d':  pending.filter(i => i.due_date > d3 && i.due_date <= d7),
       '15d': pending.filter(i => i.due_date > d7 && i.due_date <= d15),
       '30d': pending.filter(i => i.due_date > d15 && i.due_date <= d30),
     };
-  }, [installments, today, d3, d7, d15, d30]);
+  }, [effectiveInstallments, today, d3, d7, d15, d30]);
 
   const totalFuture = useMemo(() => {
     const all: LoanInstallment[] = [
@@ -217,6 +250,20 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
         tenant={tenant ?? null}
         onBack={() => setInstallmentAction(null)}
         onSuccess={() => {
+          // A parcela já foi mutada (status='paid') pelo InstallmentFormScreen antes
+          // do onSuccess. Se foi quitada, esconde-a da lista na hora (update otimista).
+          const justPaid = installmentAction?.installment;
+          if (justPaid && justPaid.status === 'paid') {
+            setOptimisticPaid(prev => {
+              const next = new Map(prev);
+              next.set(justPaid.id, {
+                status: 'paid',
+                amount_paid: Number(justPaid.amount_paid) || 0,
+                paid_at: justPaid.paid_at,
+              });
+              return next;
+            });
+          }
           setInstallmentAction(null);
           setSelectedInstallment(null);
           refetch();
