@@ -157,9 +157,13 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
       return;
     }
 
-    if ((calculationMode === 'auto' || calculationMode === 'interest_only') && !(Number(interestRate) > 0)) {
-      setCreateError('Preencha a taxa de juros.');
-      return;
+    if (calculationMode === 'auto' || calculationMode === 'interest_only') {
+      const rate = Number(interestRate);
+      // Permite taxa 0 (contrato sem juros); só exige que o campo esteja preenchido e válido
+      if (interestRate.trim() === '' || isNaN(rate) || rate < 0) {
+        setCreateError('Preencha a taxa de juros (use 0 para contrato sem juros).');
+        return;
+      }
     }
 
     if (!legacyFirstDueDate) {
