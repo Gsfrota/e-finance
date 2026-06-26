@@ -96,6 +96,7 @@ interface LayoutProps {
   isEnterpriseTenant?: boolean;
   companyAccessMode?: CompanyAccessMode | null;
   freePlanLocked?: boolean;
+  isPlatformOwnerServer?: boolean;
   onSelectCompanyScope: (scope: CompanyScope) => void;
   onOpenCompanySettings: (section?: SettingsSection) => void;
   onOpenSubscriptionSettings: () => void;
@@ -117,6 +118,7 @@ const Layout: React.FC<LayoutProps> = ({
   isEnterpriseTenant = false,
   freePlanLocked = false,
   companyAccessMode = null,
+  isPlatformOwnerServer = false,
   onSelectCompanyScope,
   onOpenCompanySettings,
   onOpenSubscriptionSettings,
@@ -1043,6 +1045,7 @@ const App: React.FC = () => {
           isEnterpriseTenant={isEnterprisePlan(tenant)}
           freePlanLocked={isFreeLocked}
           companyAccessMode={companyAccessMode}
+          isPlatformOwnerServer={isPlatformOwnerServer}
           onSelectCompanyScope={handleCompanyScopeChange}
           onOpenCompanySettings={openSettingsSection}
           onOpenSubscriptionSettings={() => openSettingsSection('assinatura')}

@@ -2025,19 +2025,35 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredContracts.map(contract => (
-                <div key={contract.id} className="panel-card relative flex h-full flex-col justify-between rounded-[2rem] p-7 transition-all hover:border-white/15">
+            {filteredContracts.map(contract => {
+              // Contrato 100% quitado (status='completed') ganha destaque verde para o admin
+              // identificar de relance na lista; 'renewed' (renovado) recebe um selo discreto.
+              const isSettled = contract.status === 'completed';
+              const isRenewed = contract.status === 'renewed';
+              return (
+                <div key={contract.id} className="panel-card relative flex h-full flex-col justify-between rounded-[2rem] p-7 transition-all hover:border-white/15"
+                    style={isSettled ? { borderColor: 'rgba(52,211,153,0.45)', boxShadow: '0 0 0 1px rgba(52,211,153,0.20)' } : undefined}>
                     <div>
                         <div className="flex justify-between items-start mb-6">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.18)]"><Wallet size={20}/></div>
+                            <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ring-1 ${isSettled ? 'bg-[rgba(52,211,153,0.14)] text-[color:var(--accent-positive)] ring-[rgba(52,211,153,0.30)]' : 'bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] ring-[rgba(202,176,122,0.18)]'}`}>{isSettled ? <CheckCircle2 size={20}/> : <Wallet size={20}/>}</div>
                             <div className="flex items-center gap-1">
                                 <button onClick={() => { if (onPaywallRedirect) { onPaywallRedirect(); return; } setViewingContractId(contract.id); setViewingContract(contract); setContractsSubView('detail'); }} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-[color:var(--text-primary)]" title="Ver detalhes"><Eye size={16}/></button>
                                 <button onClick={() => handleOpenContractEdit(contract)} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-[color:var(--accent-brass)]" title="Editar contrato"><Pencil size={16}/></button>
                                 <button onClick={() => { setContractToDelete(contract); setIsDeleteConfirmOpen(true); }} className="rounded-full border border-white/10 bg-white/[0.03] p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[color:var(--text-muted)] transition-all hover:text-[color:var(--accent-danger)]" title="Excluir contrato"><Trash2 size={16}/></button>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
                             <span className="section-kicker">Contrato #{contract.id}</span>
+                            {isSettled && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[rgba(52,211,153,0.14)] text-[color:var(--accent-positive)] text-[10px] font-bold uppercase tracking-wider">
+                                    <CheckCircle2 size={10}/> Quitado
+                                </span>
+                            )}
+                            {isRenewed && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)] text-[10px] font-bold uppercase tracking-wider">
+                                    Renovado
+                                </span>
+                            )}
                             {contract.calculation_mode === 'interest_only' && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[color:var(--accent-caution-bg)] text-[color:var(--accent-caution)] text-[10px] font-bold uppercase tracking-wider">
                                     <Activity size={10}/> Juros Simples
@@ -2094,7 +2110,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                         </div>
                     </div>
                 </div>
-            ))}
+              );
+            })}
         </div>
       )}
 
