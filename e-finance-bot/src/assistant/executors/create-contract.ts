@@ -5,6 +5,7 @@ import {
   extractDebtorNameSimple,
   extractInstallments,
   extractRate,
+  formatCurrency,
   isValidCpf,
   normalizeCpf,
   parseContractTextWithMeta,
@@ -455,6 +456,15 @@ function buildWorkingStatePatch(
   };
 }
 
+// Acima disto, destaca o valor no preview para o usuário reconferir (defense-in-depth
+// contra parse/LLM gerando 1000x). Não bloqueia — só alerta antes do "sim".
+const AMOUNT_SANITY_LIMIT = 1_000_000;
+
+export function withHighAmountWarning(preview: string, amount: number): string {
+  if (amount < AMOUNT_SANITY_LIMIT) return preview;
+  return `⚠️ *Valor alto: ${formatCurrency(amount)}* — confira se não sobrou um "mil". Se estiver certo, confirme normalmente.\n\n${preview}`;
+}
+
 export const createContractCapability: CapabilityDefinition<CreateContractCapabilityInput, CreateContractCapabilityOutput> = {
   name: 'create_contract',
   kind: 'mutation',
@@ -494,13 +504,14 @@ export const createContractCapability: CapabilityDefinition<CreateContractCapabi
     }
 
     const draft = toDraft(merged);
+    const preview = stripConfirmationSuffix(formatContractConfirmationMessage(draft));
     return {
       status: 'ready',
       input: {
         ...merged,
         debtor_cpf: draft.debtor_cpf,
       },
-      confirmationPreview: stripConfirmationSuffix(formatContractConfirmationMessage(draft)),
+      confirmationPreview: withHighAmountWarning(preview, draft.amount),
       workingStatePatch: buildWorkingStatePatch(merged, []),
     } satisfies CapabilityResolveResult<CreateContractCapabilityInput>;
   },
