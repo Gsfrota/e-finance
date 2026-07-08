@@ -884,7 +884,10 @@ function extractDebtorName(text: string): string | null {
 function parseAmountCandidate(raw: string, unit?: string): number | null {
   const value = parsePtBrNumber(raw);
   if (value === null) return null;
-  const multiplier = unit ? 1000 : 1;
+  // "mil"/"k" só multiplica quando a base é < 1000. Se o número já vem em milhares
+  // (ex.: "4.000 mil"), o "mil" é redundante e multiplicar daria 1000x — o cliente
+  // digitou "4 mil" e o contrato saía R$ 4 milhões.
+  const multiplier = unit && value < 1000 ? 1000 : 1;
   const amount = value * multiplier;
   return amount >= 1 ? amount : null;
 }
