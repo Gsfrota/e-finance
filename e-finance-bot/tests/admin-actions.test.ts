@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildCanonicalInstallmentSchedule,
+  extractAmount,
   extractDebtorNameSimple,
   isValidCpf,
   normalizeCpf,
@@ -147,6 +148,22 @@ describe('parseContractTextDeterministic', () => {
   it('retorna null quando faltam dados mínimos', () => {
     const parsed = parseContractTextDeterministic('quero criar algo pra depois');
     expect(parsed).toBeNull();
+  });
+});
+
+describe('extractAmount — "mil" não pode dupla-contar (bug 4 mil → 4 milhões)', () => {
+  it('multiplica "mil"/"k" apenas quando a base é < 1000', () => {
+    expect(extractAmount('4 mil')).toBe(4000);
+    expect(extractAmount('R$ 4 mil')).toBe(4000);
+    expect(extractAmount('40 mil')).toBe(40000);
+    expect(extractAmount('400 mil')).toBe(400000);
+    expect(extractAmount('4k')).toBe(4000);
+  });
+
+  it('não aplica ×1000 quando o número já vem em milhares', () => {
+    expect(extractAmount('4.000 mil')).toBe(4000);
+    expect(extractAmount('4000 mil')).toBe(4000);
+    expect(extractAmount('R$ 4.000 mil')).toBe(4000);
   });
 });
 

@@ -193,6 +193,9 @@ function toNumber(value: unknown): number | undefined {
     .replace(/\s+reais?\b/g, '')
     .replace(/\s+real\b/g, '')
     .replace(/\s+/g, '')
+    // Número já em milhares seguido de "mil"/"k" → dupla-contagem. Remove o sufixo
+    // redundante ("4.000mil"/"4000mil" → "4.000"/"4000") antes de expandir os legítimos.
+    .replace(/(\d{1,3}(?:\.\d{3})+|\d{4,})(?:mil|k)\b/g, '$1')
     .replace(/mil/g, '000')
     .replace(/k/g, '000')
     .replace(/\.(?=\d{3}(\D|$))/g, '')
