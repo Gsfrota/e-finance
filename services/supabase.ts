@@ -8,9 +8,12 @@ const STORAGE_KEYS = {
   LEGACY_KEY: 'EF_EXTERNAL_SUPABASE_KEY',
 };
 
+// ponytail: anon key é pública (vai no bundle, protegida por RLS). Cravada como fallback
+// porque o Cloud Run (que injetava env-config.js em runtime) morreu — na Vercel não há injeção.
+// window._env_ e VITE_* continuam com prioridade e sobrescrevem estes defaults.
 const SYSTEM_DEFAULTS = {
-  URL: '',
-  KEY: '',
+  URL: 'https://enzgerrnlbiojkuzeilw.supabase.co',
+  KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuemdlcnJubGJpb2prdXplaWx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5MzIzMzgsImV4cCI6MjA4NDUwODMzOH0.Aka_UfDCUdJ1t0_MAy3HxIZngo3kNOv7eDTJPDhgl4o',
 };
 
 type RuntimeEnv = Record<string, string | undefined>;
