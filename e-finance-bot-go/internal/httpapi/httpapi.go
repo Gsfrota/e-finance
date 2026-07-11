@@ -1,8 +1,9 @@
-// Package httpapi monta o mux (Go 1.22+ method routing) e os handlers de borda.
-// M1: /health + webhooks retornando 200 (o decode real dos payloads é M2).
+// Package httpapi monta o mux (Go 1.22+ method routing), decodifica os webhooks e chama o pipeline.
+// M2: decode → pipeline.Handle (echo). O envio real ao provider (outbound channel) é M2b.
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -10,16 +11,18 @@ import (
 	"time"
 
 	"github.com/Gsfrota/efinance-bot-go/internal/config"
+	"github.com/Gsfrota/efinance-bot-go/internal/pipeline"
+	"github.com/Gsfrota/efinance-bot-go/internal/store"
 )
 
 // Version é sobrescrito via -ldflags "-X ...httpapi.Version=<sha>" no build.
 var Version = "dev"
 
-func NewMux(cfg config.Config, log *slog.Logger) http.Handler {
+func NewMux(cfg config.Config, log *slog.Logger, st *store.Store) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
-	mux.HandleFunc("POST /webhook/whatsapp/{secret}", waWebhook(cfg, log))
-	mux.HandleFunc("POST /webhook/telegram", tgWebhook(cfg, log))
+	mux.HandleFunc("POST /webhook/whatsapp/{secret}", waWebhook(cfg, log, st))
+	mux.HandleFunc("POST /webhook/telegram", tgWebhook(cfg, log, st))
 	return logMiddleware(mux, log)
 }
 
@@ -31,34 +34,50 @@ func health(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-// waWebhook valida o secret (path {secret} ou header do UazAPI) e responde 200.
-// M1 é no-op: só precisa aceitar o webhook pro provider registrar. Decode real = M2.
-func waWebhook(cfg config.Config, log *slog.Logger) http.HandlerFunc {
+func waWebhook(cfg config.Config, log *slog.Logger, st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !validWhatsAppSecret(cfg, r) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		io.Copy(io.Discard, r.Body) // drena; M2 decodifica
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		if in, ok := decodeWhatsApp(body); ok {
+			process(r.Context(), log, st, in)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true}) // sempre 200: provider não deve re-tentar
 	}
 }
 
-func tgWebhook(cfg config.Config, log *slog.Logger) http.HandlerFunc {
+func tgWebhook(cfg config.Config, log *slog.Logger, st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Telegram valida via header secret token (setWebhook). Vazio = aceita (M1).
 		if cfg.TelegramWebhookSecret != "" &&
 			r.Header.Get("X-Telegram-Bot-Api-Secret-Token") != cfg.TelegramWebhookSecret {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		io.Copy(io.Discard, r.Body)
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		if in, ok := decodeTelegram(body); ok {
+			process(r.Context(), log, st, in)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	}
 }
 
-// validWhatsAppSecret: se nenhum secret está configurado, aceita (dev). Senão exige match
-// no path {secret} OU num dos headers que o UazAPI manda.
+// process roda o pipeline e, por ora (M2), loga a reply. O envio ao provider entra no M2b.
+func process(ctx context.Context, log *slog.Logger, st *store.Store, in pipeline.Inbound) {
+	if st == nil {
+		log.Warn("sem store: mensagem não processada", "channel", in.Channel)
+		return
+	}
+	reply, err := pipeline.Handle(ctx, st, in)
+	if err != nil {
+		log.Error("pipeline", "err", err, "channel", in.Channel)
+		return
+	}
+	log.Info("reply", "channel", in.Channel, "user", in.ChannelUserID, "texts", reply.Texts)
+}
+
+// validWhatsAppSecret: sem secret configurado, aceita (dev). Senão exige match no path ou header.
 func validWhatsAppSecret(cfg config.Config, r *http.Request) bool {
 	want := cfg.WhatsAppWebhookSecret
 	if want == "" {
@@ -77,7 +96,6 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-// logMiddleware registra método, rota, status e duração de cada request (observabilidade básica).
 func logMiddleware(next http.Handler, log *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

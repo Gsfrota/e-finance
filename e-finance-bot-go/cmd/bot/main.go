@@ -14,15 +14,33 @@ import (
 
 	"github.com/Gsfrota/efinance-bot-go/internal/config"
 	"github.com/Gsfrota/efinance-bot-go/internal/httpapi"
+	"github.com/Gsfrota/efinance-bot-go/internal/store"
 )
 
 func main() {
 	cfg := config.Load()
 	log := newLogger(cfg)
 
+	// Store é opcional pro /health subir; webhooks precisam dele (senão logam warn e ignoram).
+	var st *store.Store
+	if cfg.DatabaseURL != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		s, err := store.New(ctx, cfg.DatabaseURL)
+		cancel()
+		if err != nil {
+			log.Error("store: conexão falhou (webhooks vão ignorar mensagens)", "err", err)
+		} else {
+			st = s
+			defer st.Close()
+			log.Info("store conectado")
+		}
+	} else {
+		log.Warn("DATABASE_URL vazio: rodando sem banco (só /health)")
+	}
+
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.NewMux(cfg, log),
+		Handler:           httpapi.NewMux(cfg, log, st),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,

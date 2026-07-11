@@ -52,5 +52,7 @@ go build ./...
 go test ./...
 ```
 
-Postgres local pro spike/testes:
-`docker run -d --rm --name efbot-spike-pg -e POSTGRES_PASSWORD=spike -p 55432:5432 postgres:16-alpine`
+Testes de integração usam **embedded-postgres** (in-process, baixa o binário 1x) — **sem Docker**,
+CI-friendly. Override com `TEST_DATABASE_URL=postgres://...` pra apontar num PG existente. A bateria
+black-box (M3+) segue a mesma abordagem. Schema local mínimo em `tests/testdata/schema.sql` (extraído
+de prod via MCP; as 2 tabelas novas da spec só existem aqui até a migration ser aprovada em prod).
