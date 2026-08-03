@@ -198,13 +198,68 @@ jobs:
             --memory=512Mi
             --cpu=1
             --port=8080
+            --allow-unauthenticated
             --remove-env-vars=API_KEY,GEMINI_API_KEY,SUPABASE_SERVICE_ROLE_KEY_EFINANCE
             --update-secrets=SUPABASE_ANON_KEY=SUPABASE_ANON_KEY_EFINANCE:latest,SUPABASE_URL=SUPABASE_URL_EFINANCE:latest
+
+      - name: Ensure public ingress
+        run: |
+          gcloud run services add-iam-policy-binding ${{ env.SERVICE }} \
+            --project=${{ env.PROJECT_ID }} \
+            --region=${{ env.REGION }} \
+            --member="allUsers" \
+            --role="roles/run.invoker" \
+            --quiet
 
       - name: Show service URL
         run: |
           echo "✅ Deploy concluído!"
           echo "URL: $(gcloud run services describe ${{ env.SERVICE }} --region=${{ env.REGION }} --format='value(status.url)')"
+
+      - name: Validate published frontend
+        run: |
+          published_url=$(gcloud run services describe ${{ env.SERVICE }} --region=${{ env.REGION }} --format='value(status.url)')
+          deploy_check_dir=$(mktemp -d /tmp/e-finance-deploy-check.XXXXXX)
+          trap 'rm -rf -- "${deploy_check_dir}"' EXIT
+
+          published_status=""
+          for attempt in $(seq 1 20); do
+            published_status=$(curl -sS -o "${deploy_check_dir}/index.html" -w '%{http_code}' --max-time 20 "${published_url}/" || true)
+            if [ "${published_status}" = "200" ]; then
+              break
+            fi
+            echo "Aguardando endpoint público: HTTP ${published_status:-erro} (${attempt}/20)"
+            sleep 2
+          done
+
+          test "${published_status}" = "200"
+          grep -q 'data-testid="pre-react-fallback"' "${deploy_check_dir}/index.html"
+          grep -q 'Limpar cache e tentar novamente' "${deploy_check_dir}/index.html"
+
+          main_asset=$(grep -oE 'src="/assets/index-[^"]+\.js"' "${deploy_check_dir}/index.html" | head -n 1 | cut -d'"' -f2)
+          test -n "${main_asset}"
+
+          assert_cache_contains() {
+            checked_path="$1"
+            expected_value="$2"
+            cache_value=$(curl -fsSI --max-time 20 "${published_url}${checked_path}" \
+              | tr -d '\r' \
+              | awk -F': ' 'tolower($1) == "cache-control" { print tolower($2) }' \
+              | tail -n 1)
+            echo "${checked_path}: cache-control=${cache_value}"
+            echo "${cache_value}" | grep -q "${expected_value}"
+          }
+
+          assert_cache_contains / no-cache
+          assert_cache_contains /index.html no-cache
+          assert_cache_contains /service-worker.js no-cache
+          assert_cache_contains /env-config.js no-cache
+          assert_cache_contains "${main_asset}" immutable
+
+          curl -fsS --max-time 20 "${published_url}/service-worker.js" \
+            | grep -q 'caches.delete(cacheName)'
+
+          echo "✅ Frontend publicado e validado em ${published_url}"
 
       - name: Notificar sucesso no Telegram
         if: success()

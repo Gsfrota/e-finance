@@ -153,7 +153,7 @@ testar o bundle de produção em servidor isolado.
 - [x] Bloquear/auditar qualquer request Supabase não mockada nos testes funcionais.
 - [x] Integrar o gate crítico ao workflow de deploy antes dos testes com ambiente real.
 - [x] Executar o gate completo.
-- [ ] Publicar somente o hotfix após o gate aprovado.
+- [x] Publicar somente o hotfix após o gate aprovado.
 - [ ] Validar status do deploy e comportamento no endpoint publicado.
 
 #### File List do gate/deploy
@@ -177,3 +177,14 @@ testar o bundle de produção em servidor isolado.
   inesperadas/não mockadas.
 
 **Gate:** aprovado; deploy liberado pelo script.
+
+#### Primeira publicação e correção do gate externo
+
+- ✅ Commit isolado `773a33a` enviado para `main`; Vercel concluiu o deploy.
+- ✅ GitHub Actions: gate isolado, auth, schema, Tier 1 e Tier 2 passaram; imagem e revisão
+  Cloud Run foram publicadas.
+- ❌ Smoke externo detectou `HTTP 403` no endpoint Cloud Run, apesar do job ter marcado
+  sucesso: o workflow não garantia invocação pública.
+- 🔧 Workflow endurecido com `--allow-unauthenticated`, binding explícito
+  `allUsers → roles/run.invoker` e validação pós-deploy do HTML, fallback, bundle com hash,
+  service worker e headers de cache. O deploy só fica verde quando o endpoint responde 200.
