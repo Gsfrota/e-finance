@@ -99,6 +99,13 @@ for (const [name, source] of [
 }
 
 assertCheck(
+  collectionSource.includes('COLLECTION_RENDER_BATCH = 75')
+    && collectionSource.includes('visibleItems.slice(0, visibleLimit)')
+    && collectionSource.includes('data-testid="daily-collection-card"'),
+  'Cobrança diária limita a quantidade de cards montados no DOM',
+);
+
+assertCheck(
   serviceWorkerSource.includes('caches.keys()')
     && serviceWorkerSource.includes('caches.delete(cacheName)'),
   'service worker remove caches legados na ativação',
