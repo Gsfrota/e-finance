@@ -176,7 +176,7 @@ function operationalStatusBadge(status: OperationalInstallmentStatus) {
 
 const CadernetaBullet: React.FC<CadernetaBulletProps> = ({ tenant, onBack, onInstallmentClick }) => {
   const { activeCompanyId } = useCompanyContext();
-  const { investments, allPaidInstallments, installments, loading, error, refetch } =
+  const { investments, allPaidInstallments, installments, loading, hasLoaded, error, refetch } =
     useDashboardData(tenant?.id, activeCompanyId);
 
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
@@ -202,7 +202,7 @@ const CadernetaBullet: React.FC<CadernetaBulletProps> = ({ tenant, onBack, onIns
     setInstallmentAction(null);
   };
 
-  if (loading) {
+  if (loading && !hasLoaded) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3">
         <Loader2 size={32} className="animate-spin" style={{ color: 'var(--accent-caution)' }} />
@@ -211,7 +211,7 @@ const CadernetaBullet: React.FC<CadernetaBulletProps> = ({ tenant, onBack, onIns
     );
   }
 
-  if (error) {
+  if (error && !hasLoaded) {
     return (
       <div className="panel-card rounded-[1.8rem] flex flex-col items-center justify-center py-16 gap-3">
         <AlertTriangle size={28} style={{ color: 'var(--accent-danger)' }} />
@@ -242,13 +242,36 @@ const CadernetaBullet: React.FC<CadernetaBulletProps> = ({ tenant, onBack, onIns
   }
 
   return (
-    <CadernetaBulletView
-      investments={investments}
-      allPaidInstallments={allPaidInstallments}
-      pendingInstallments={installments}
-      onBack={onBack}
-      onInstallmentClick={handleInstallmentClick}
-    />
+    <>
+      {loading && hasLoaded && (
+        <div
+          role="status"
+          data-testid="caderneta-refreshing"
+          className="mb-2 flex items-center justify-end gap-2 px-1 type-caption"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          <Loader2 size={13} className="animate-spin" />
+          Atualizando dados…
+        </div>
+      )}
+      {error && hasLoaded && (
+        <div
+          role="alert"
+          className="mb-3 flex items-center gap-2 rounded-2xl border px-4 py-3 type-caption"
+          style={{ borderColor: 'var(--accent-danger-border)', color: 'var(--accent-danger)' }}
+        >
+          <AlertTriangle size={15} className="shrink-0" />
+          Não foi possível atualizar agora. Os últimos dados continuam visíveis.
+        </div>
+      )}
+      <CadernetaBulletView
+        investments={investments}
+        allPaidInstallments={allPaidInstallments}
+        pendingInstallments={installments}
+        onBack={onBack}
+        onInstallmentClick={handleInstallmentClick}
+      />
+    </>
   );
 };
 

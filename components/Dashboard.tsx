@@ -13,6 +13,7 @@ import {
   AlertCircle,
   WalletCards,
   Clock,
+  Loader2,
   WifiOff,
   Landmark,
   TrendingUp,
@@ -80,7 +81,7 @@ const DashboardSkeleton: React.FC = () => (
 // Sub-component for Admin View
 const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultTab?: 'overview' | 'receivables' | 'collection' | 'monthly' | 'yield'; onNavigate?: (view: AppView) => void }> = ({ tenant, defaultTab = 'overview', onNavigate }) => {
   const { activeCompanyId } = useCompanyContext();
-  const { stats, detailedKPIs, investments, installments, allPaidInstallments, loading, isStale, error, refetch } = useDashboardData(tenant?.id, activeCompanyId);
+  const { stats, detailedKPIs, investments, installments, allPaidInstallments, loading, hasLoaded, isStale, error, refetch } = useDashboardData(tenant?.id, activeCompanyId);
   const [activeTab, setActiveTab] = useState<'overview' | 'receivables' | 'collection' | 'monthly' | 'yield'>(defaultTab);
 
   // Visão Mensal — mês selecionado
@@ -238,13 +239,13 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
     );
   }
 
-  // Só mostra skeleton no carregamento inicial (sem dados); refetch preserva UI/modal aberto
-  const hasData = installments.length > 0 || investments.length > 0;
-  if (loading && !hasData) {
+  // Só mostra skeleton antes da primeira consulta concluída; uma carteira vazia também
+  // conta como carregada e deve continuar visível durante refetches.
+  if (loading && !hasLoaded) {
     return <DashboardSkeleton />;
   }
 
-  if (error) {
+  if (error && !hasLoaded) {
     return (
       <div className="flex h-96 items-center justify-center">
         <div className="panel-card flex max-w-md flex-col items-center gap-4 rounded-[2rem] p-8 text-center">
@@ -265,6 +266,17 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
 
   return (
     <div className="space-y-6 pb-12 animate-fade-in">
+      {loading && hasLoaded && (
+        <div role="status" data-testid="dashboard-refreshing" className="flex items-center justify-end gap-2 px-4 type-caption text-[color:var(--text-muted)]">
+          <Loader2 size={13} className="animate-spin" /> Atualizando dados…
+        </div>
+      )}
+      {error && hasLoaded && (
+        <div role="alert" className="flex items-center gap-2 rounded-2xl border border-[color:var(--accent-danger-border)] px-4 py-3 type-caption text-[color:var(--accent-danger)]">
+          <AlertCircle size={15} className="shrink-0" />
+          Não foi possível atualizar agora. Os últimos dados continuam visíveis.
+        </div>
+      )}
       {isStale && (
         <div className="flex items-center gap-1.5 px-4 py-1 text-xs text-amber-400">
           <WifiOff size={12} /> Exibindo dados da última sessão

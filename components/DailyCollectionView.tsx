@@ -56,7 +56,7 @@ const T = {
 
 const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBack }) => {
   const { activeCompanyId } = useCompanyContext();
-  const { installments, loading, error, refetch, isStale } = useDashboardData(tenant?.id, activeCompanyId);
+  const { installments, loading, hasLoaded, error, refetch, isStale } = useDashboardData(tenant?.id, activeCompanyId);
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
   const [installmentAction, setInstallmentAction] = useState<InstallmentAction>(null);
   const [search, setSearch] = useState('');
@@ -286,10 +286,9 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
   // ── Estados de render (stale-while-revalidate) ─────────────────────────────
   // Evita o "piscar azul": durante um refetch (ex.: após registrar uma baixa)
   // mantém a lista atual visível em vez de trocá-la pelo spinner de tela cheia.
-  // O spinner só aparece no primeiro carregamento, quando ainda não há dados.
-  const hasData = installments.length > 0;
-  const showInitialLoader = loading && !hasData;
-  const showError = !!error && !hasData;
+  // O spinner só aparece antes de a primeira consulta terminar.
+  const showInitialLoader = loading && !hasLoaded;
+  const showError = !!error && !hasLoaded;
   const showContent = !showInitialLoader && !showError;
 
   // ── Main view ──────────────────────────────────────────────────────────────
@@ -357,19 +356,32 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
         </button>
       )}
 
-      {/* ── Loading (apenas primeiro carregamento, sem dados em cache) ──── */}
+      {/* ── Loading (apenas antes da primeira consulta concluída) ──────── */}
       {showInitialLoader && (
         <div className="flex items-center justify-center py-20">
           <Loader2 size={32} className="animate-spin" style={{ color: T.navy }} />
         </div>
       )}
 
-      {/* ── Error (apenas quando não há dados para exibir) ──────────────── */}
+      {/* ── Error (apenas quando a primeira consulta falha) ─────────────── */}
       {showError && (
         <div className="mx-5 mt-4 p-6 text-center"
           style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, boxShadow: T.shadow }}>
           <AlertCircle size={32} className="mx-auto mb-3" style={{ color: T.red }} />
           <p style={{ color: T.textSecondary, fontSize: 14 }}>{error}</p>
+        </div>
+      )}
+
+      {error && hasLoaded && (
+        <div
+          role="alert"
+          className="mx-5 mt-3 flex items-center gap-2 px-4 py-3"
+          style={{ background: T.redSoft, border: `1px solid ${T.redBorder}`, borderRadius: 16, color: T.red }}
+        >
+          <AlertCircle size={16} className="shrink-0" />
+          <span style={{ fontSize: 13, fontWeight: 600 }}>
+            Não foi possível atualizar agora. Os últimos dados continuam visíveis.
+          </span>
         </div>
       )}
 

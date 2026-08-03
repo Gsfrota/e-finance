@@ -12,10 +12,10 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <ToastProvider>
-      <ErrorBoundary>
+    <ErrorBoundary>
+      <ToastProvider>
         <App />
-      </ErrorBoundary>
-    </ToastProvider>
+      </ToastProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );
