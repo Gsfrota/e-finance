@@ -62,6 +62,19 @@ de novo no próximo campo que a criação ganhar.
 lado das do filho — dívida dupla. Não dispara no caso do cliente (renovar após quitação,
 onde o pai fica `completed`), mas dispara para qualquer contrato ativo renovado.
 
+Medido em produção: os 3 contratos `renewed` existentes têm **zero** parcelas em aberto,
+ou seja, o bug é **latente** — não está cobrando ninguém a mais hoje. Ele passa a valer
+justamente quando a renovação fica acessível e completa, que é o objetivo deste trabalho.
+
+Um levantamento posterior mostrou que o problema é mais amplo do que estes três pontos:
+`hooks/useDashboardData.ts` (`safeInvestments`) e `components/Dashboard.tsx` (o `forEach`
+que reinjeta contratos sem parcelas) não filtram status **nenhum**, nem `completed`. Ambos
+entram no escopo. Duas armadilhas foram identificadas e precisam ser respeitadas:
+`hooks/useYieldMetrics.ts` testa `completed || defaulted` e a troca tem de ser aditiva,
+porque `defaulted` não pertence à lista de inativos; e
+`components/dashboard/CadernetaBullet.tsx` exclui `renewed` de propósito, mantendo
+`completed` — aplicar a constante ali quebra a tela.
+
 ## Solução
 
 Renovar deixa de ter formulário próprio e passa a abrir o wizard de criação
@@ -167,10 +180,47 @@ Em `docs/business-rules/e-finance-br.md`:
 - **BR-CNT-011** — registrar que contratos `renewed` também são excluídos das telas de
   cobrança, dashboard e métricas de rendimento.
 
+## Escopo adicional — remoção dos dashboards de investidor e devedor
+
+Acrescentado em 2026-08-03, por decisão do usuário, e executado **antes** da renovação
+porque apaga dois dos hooks que ela teria de corrigir (`useInvestorMetrics` e
+`useDebtorFinance`).
+
+As duas telas estão mortas: em produção há 310 perfis `debtor` (18 com login) e 77
+`investor` (2 com login), e **nenhum deles logou nos últimos 90 dias** — o último acesso
+foi em 2026-03-27.
+
+O ponto sensível é que `components/Dashboard.tsx` faz fall-through para
+`AdminDashboardView`, e os dois `if` de role são a **única barreira de frontend** entre um
+não-admin e o painel administrativo: o botão "Dashboard" da sidebar aparece para todas as
+roles e `AppView.DASHBOARD` não tem gate de role. Removê-los sem mais nada transformaria a
+limpeza em vazamento de dados, incluindo as abas de Cobranças e Recebíveis, que expõem
+ações de escrita.
+
+Portanto a ordem é: (1) instalar um gate de role em `App.tsx` com uma tela terminal de
+acesso indisponível para não-admin; (2) só então remover as telas.
+
+Sai por completo: `InvestorDashboard`, `DebtorDashboard`, o `PaymentModal` da raiz (não o
+homônimo de `InstallmentModals`, que é do admin), `useDebtorFinance`, `useGeneratePix`,
+`services/pix.ts` (já órfão antes desta mudança) e a dependência `qrcode.react`.
+
+Sobrevive, apesar do nome ou do caminho sugerirem o contrário:
+`components/investor/MonthlyInvestorView.tsx` e os helpers `monthKeyToDate`,
+`dateToMonthKey` e `computeMonthlyView` de `hooks/useInvestorMetrics.ts` — todos alimentam
+a aba "Visão Mensal" **do admin**. O arquivo é podado, não deletado.
+
+O fluxo de convite (`Login.tsx` e `OnboardingWizard.tsx`) também é fechado: ele continua
+criando contas logáveis com role `investor`/`debtor`, que agora nasceriam direto na tela
+de bloqueio.
+
 ## Testes
 
 `e2e/contract/contract-lifecycle.spec.ts` (CNT-LC-01 e CNT-LC-02) exercita a renovação
 pela UI e vai quebrar quando a tela mudar — atualizar os seletores para o wizard.
+
+CNT-LC-01 hoje **não cobre nada**: ele procura `[data-testid="contract-card"]`, atributo
+que não existe no DOM, e faz `test.skip` em todo run. Expor esse atributo no card da lista
+é pré-requisito para o teste voltar a ter valor.
 
 Casos a acrescentar:
 
