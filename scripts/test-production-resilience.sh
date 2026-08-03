@@ -61,7 +61,32 @@ assert_cache_contains() {
   fi
 }
 
-echo "[1/4] Bootstrap público e origem Vercel"
+echo "[1/5] GET da versão publicada"
+fetch_production_file "/version.json" "${task_temp_dir}/version.json" "${task_temp_dir}/version.headers"
+node --input-type=module - "${task_temp_dir}/version.json" "${EXPECTED_COMMIT_SHA:-}" <<'NODE'
+import { readFileSync } from 'node:fs';
+
+const versionFile = process.argv[2];
+const expectedCommit = process.argv[3];
+const version = JSON.parse(readFileSync(versionFile, 'utf8'));
+
+if (!/^[0-9a-f]{40}$/i.test(version.commitSha ?? '')) {
+  throw new Error(`commitSha inválido em version.json: ${version.commitSha ?? '<ausente>'}`);
+}
+if (version.version !== version.commitSha.slice(0, 7)) {
+  throw new Error(`version ${version.version} não corresponde ao commit ${version.commitSha}`);
+}
+if (Number.isNaN(Date.parse(version.builtAt ?? ''))) {
+  throw new Error(`builtAt inválido em version.json: ${version.builtAt ?? '<ausente>'}`);
+}
+if (expectedCommit && version.commitSha !== expectedCommit) {
+  throw new Error(`produção está em ${version.commitSha}, esperado ${expectedCommit}`);
+}
+
+console.log(`GET /version.json → versão=${version.version} commit=${version.commitSha} ref=${version.ref} ambiente=${version.environment} build=${version.builtAt}`);
+NODE
+
+echo "[2/5] Bootstrap público e origem Vercel"
 fetch_production_file "/" "${task_temp_dir}/index.html" "${task_temp_dir}/root.headers"
 grep -qi '^server: Vercel' "${task_temp_dir}/root.headers"
 grep -q 'data-testid="pre-react-fallback"' "${task_temp_dir}/index.html"
@@ -76,7 +101,7 @@ if [[ -z "${task_main_asset}" ]]; then
   exit 1
 fi
 
-echo "[2/4] Assets publicados e service worker recuperável"
+echo "[3/5] Assets publicados e service worker recuperável"
 fetch_production_file "/index.html" "${task_temp_dir}/index-explicit.html" "${task_temp_dir}/index.headers"
 fetch_production_file "/service-worker.js" "${task_temp_dir}/service-worker.js" "${task_temp_dir}/service-worker.headers"
 fetch_production_file "/env-config.js" "${task_temp_dir}/env-config.js" "${task_temp_dir}/env-config.headers"
@@ -85,14 +110,15 @@ fetch_production_file "${task_main_asset}" "${task_temp_dir}/main.js" "${task_te
 test -s "${task_temp_dir}/main.js"
 grep -q 'caches.delete(cacheName)' "${task_temp_dir}/service-worker.js"
 
-echo "[3/4] Política de cache contra bootstrap obsoleto"
+echo "[4/5] Política de cache contra bootstrap obsoleto"
+assert_cache_contains "${task_temp_dir}/version.headers" "no-cache" "/version.json"
 assert_cache_contains "${task_temp_dir}/root.headers" "no-cache" "/"
 assert_cache_contains "${task_temp_dir}/index.headers" "no-cache" "/index.html"
 assert_cache_contains "${task_temp_dir}/service-worker.headers" "no-cache" "/service-worker.js"
 assert_cache_contains "${task_temp_dir}/env-config.headers" "no-cache" "/env-config.js"
 assert_cache_contains "${task_temp_dir}/main.headers" "immutable" "${task_main_asset}"
 
-echo "[4/4] Playwright funcional no bundle de produção, sem acesso ao Supabase real"
+echo "[5/5] Playwright funcional no bundle de produção, sem acesso ao Supabase real"
 PLAYWRIGHT_BASE_URL="${task_production_url}" \
 PLAYWRIGHT_EXTERNAL_SERVER=1 \
 PLAYWRIGHT_JSON_TIER="${PLAYWRIGHT_JSON_TIER:-production-resilience}" \

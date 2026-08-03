@@ -209,4 +209,5 @@ jobs:
         run: npm run test:production:resilience
         env:
           FRONTEND_PRODUCTION_URL: https://e-finance-eight.vercel.app
+          EXPECTED_COMMIT_SHA: ${{ github.sha }}
           PLAYWRIGHT_JSON_TIER: production-resilience

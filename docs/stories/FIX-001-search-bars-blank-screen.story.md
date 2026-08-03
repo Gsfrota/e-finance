@@ -197,3 +197,5 @@ testar o bundle de produção em servidor isolado.
   nenhuma leitura ou escrita atingiu o Supabase real.
 - 🔧 O job pós-deploy agora aguarda o status `Vercel` e executa o smoke estrutural e os
   quatro cenários funcionais no domínio oficial. O workflow só fica verde após produção passar.
+- 🔎 Cada build também publica `GET /version.json`; o job exige que o SHA retornado seja
+  exatamente `github.sha`, impedindo validar um alias que ainda esteja na versão anterior.
