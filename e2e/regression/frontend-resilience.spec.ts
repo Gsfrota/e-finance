@@ -4,7 +4,7 @@ const TENANT_ID = '5e0473c9-b912-4ac3-a144-d9211bcf137d';
 const COMPANY_A_ID = '11111111-1111-4111-8111-111111111111';
 const COMPANY_B_ID = '22222222-2222-4222-8222-222222222222';
 const USER_ID = '00000000-0000-4000-8000-000000000001';
-const STORAGE_KEY = 'ef_dev_session';
+const STORAGE_KEYS = ['ef_dev_session', 'ef_prod_session'];
 const TEST_SUPABASE_ORIGIN = 'https://e-finance-resilience.invalid';
 
 const fakeJwt = [
@@ -87,8 +87,10 @@ async function fulfillJson(route: Parameters<Parameters<Page['route']>[1]>[0], b
 async function setupEmptyEnterprise(page: Page) {
   const unexpectedSupabaseRequests: string[] = [];
 
-  await page.addInitScript(({ session, tenantId, companyId, storageKey, supabaseOrigin, anonKey }) => {
-    localStorage.setItem(storageKey, JSON.stringify(session));
+  await page.addInitScript(({ session, tenantId, companyId, storageKeys, supabaseOrigin, anonKey }) => {
+    for (const storageKey of storageKeys) {
+      localStorage.setItem(storageKey, JSON.stringify(session));
+    }
     localStorage.setItem(`EF_ACTIVE_COMPANY_SCOPE_${tenantId}`, companyId);
     localStorage.setItem('EF_EXTERNAL_SUPABASE_URL', supabaseOrigin);
     localStorage.setItem('EF_EXTERNAL_SUPABASE_ANON_KEY', anonKey);
@@ -96,16 +98,29 @@ async function setupEmptyEnterprise(page: Page) {
     session: fakeSession,
     tenantId: TENANT_ID,
     companyId: COMPANY_A_ID,
-    storageKey: STORAGE_KEY,
+    storageKeys: STORAGE_KEYS,
     supabaseOrigin: TEST_SUPABASE_ORIGIN,
     anonKey: fakeJwt,
   });
 
   // Rotas são LIFO no Playwright: o fallback entra primeiro e as específicas depois.
   // Qualquer endpoint que não seja explicitamente mockado cai neste bloqueio e reprova o teste.
-  await page.route(`${TEST_SUPABASE_ORIGIN}/**`, async (route) => {
-    unexpectedSupabaseRequests.push(new URL(route.request().url()).pathname);
-    await route.abort('blockedbyclient');
+  await page.route('**/*', async (route) => {
+    const request = route.request();
+    const requestUrl = new URL(request.url());
+    const isSupabaseHost = requestUrl.hostname.includes('supabase')
+      || requestUrl.origin === TEST_SUPABASE_ORIGIN;
+    const isSupabaseApi = /^\/(auth|functions|realtime|rest|storage)\/v1(?:\/|$)/.test(requestUrl.pathname);
+
+    const isUnexpectedWrite = !['GET', 'HEAD', 'OPTIONS'].includes(request.method());
+
+    if ((isSupabaseHost && isSupabaseApi) || isUnexpectedWrite) {
+      unexpectedSupabaseRequests.push(`${request.method()} ${requestUrl.pathname}`);
+      await route.abort('blockedbyclient');
+      return;
+    }
+
+    await route.continue();
   });
 
   await page.route('**/rest/v1/**', async (route) => {
@@ -149,7 +164,10 @@ async function setupEmptyEnterprise(page: Page) {
 }
 
 test.describe('FIX-001 — resiliência contra tela azul/vazia', () => {
-  test.use({ storageState: { cookies: [], origins: [] } });
+  test.use({
+    storageState: { cookies: [], origins: [] },
+    serviceWorkers: 'block',
+  });
 
   test('exibe recuperação HTML quando o bundle principal não carrega', async ({ page }) => {
     await page.route('**/*', async (route) => {

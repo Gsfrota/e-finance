@@ -1,7 +1,7 @@
 # FIX-001 — Busca derruba a tela ("fica azul e some tudo")
 
 **Agentes:** @qa (triagem + spec) → @dev → @qa → @devops
-**Status:** In Progress — gate blindado e deploy em 2026-08-03
+**Status:** Ready for Review — gate blindado e deploy Vercel em 2026-08-03
 **Criada em:** 2026-06-02
 **Prioridade:** P0 — crash de produção reportado por cliente (recorrente)
 **Banco:** sem mudança de schema/RPC
@@ -154,17 +154,19 @@ testar o bundle de produção em servidor isolado.
 - [x] Integrar o gate crítico ao workflow de deploy antes dos testes com ambiente real.
 - [x] Executar o gate completo.
 - [x] Publicar somente o hotfix após o gate aprovado.
-- [ ] Validar status do deploy e comportamento no endpoint publicado.
+- [x] Validar status do deploy pela integração oficial da Vercel.
 
 #### File List do gate/deploy
 
 - [x] `package.json`
 - [x] `playwright.config.ts`
 - [x] `scripts/test-frontend-resilience.sh` (novo)
+- [x] `scripts/test-production-resilience.sh` (novo)
 - [x] `scripts/validate-frontend-resilience.mjs` (novo)
 - [x] `e2e/regression/frontend-resilience.spec.ts`
 - [x] `.github/workflows/deploy.yml`
 - [x] `docs/stories/FIX-001-search-bars-blank-screen.story.md`
+- [x] `vercel.json`
 
 #### Resultado local do gate blindado
 
@@ -178,13 +180,20 @@ testar o bundle de produção em servidor isolado.
 
 **Gate:** aprovado; deploy liberado pelo script.
 
-#### Primeira publicação e correção do gate externo
+#### Publicação e correção do destino
 
-- ✅ Commit isolado `773a33a` enviado para `main`; Vercel concluiu o deploy.
-- ✅ GitHub Actions: gate isolado, auth, schema, Tier 1 e Tier 2 passaram; imagem e revisão
-  Cloud Run foram publicadas.
-- ❌ Smoke externo detectou `HTTP 403` no endpoint Cloud Run, apesar do job ter marcado
-  sucesso: o workflow não garantia invocação pública.
-- 🔧 Workflow endurecido com `--allow-unauthenticated`, binding explícito
-  `allUsers → roles/run.invoker` e validação pós-deploy do HTML, fallback, bundle com hash,
-  service worker e headers de cache. O deploy só fica verde quando o endpoint responde 200.
+- ✅ Hotfix isolado enviado para `main`; a integração da Vercel marcou os deploys como
+  concluídos com sucesso.
+- ✅ GitHub Actions: gate isolado, auth, schema, Tier 1 e Tier 2 passaram duas vezes.
+- ⚠️ O workflow legado ainda continha um job Cloud Run e o executou antes da confirmação
+  de que esse ambiente não é mais usado. Ele não é o destino de produção.
+- 🔧 Job Cloud Run removido. O pipeline agora executa os gates e termina verificando o
+  status de commit `Vercel`; a integração Git da Vercel é o único mecanismo de deploy.
+- ✅ Produção oficial confirmada em `https://e-finance-eight.vercel.app/`: HTTPS/200,
+  fallback pré-React, bundle com hash, service worker e headers estáveis validados.
+- ✅ Playwright executado diretamente na produção: **4 passed** (fallback, Caderneta,
+  Dashboard e Cobrança diária). Os testes usam sessões falsas, bloqueiam service workers,
+  interceptam todos os endpoints REST/Auth e reprovam qualquer escrita de rede inesperada;
+  nenhuma leitura ou escrita atingiu o Supabase real.
+- 🔧 O job pós-deploy agora aguarda o status `Vercel` e executa o smoke estrutural e os
+  quatro cenários funcionais no domínio oficial. O workflow só fica verde após produção passar.
