@@ -22,15 +22,23 @@ do deploy (que já é notificado no Telegram).
   Telegram de deploy; em dev = short SHA do git local; fallback `dev` se indisponível.
 - **AC-3:** Valores injetados em build-time (sem chamada de rede/runtime).
 - **AC-4:** `npx tsc --noEmit` verde (gate de CI).
+- **AC-5:** `GET /version.json` retorna versão, SHA completo, branch, ambiente e data do
+  build; o arquivo nunca pode ficar preso em cache.
+- **AC-6:** O gate pós-deploy compara o `commitSha` retornado em produção com
+  `github.sha` e falha se o alias ainda servir outra versão.
 
 ## 3. Implementação
 
-- `vite.config.ts` — `define` injeta `__APP_VERSION__` (env `COMMIT_SHA`/`VITE_APP_VERSION`/
-  `GITHUB_SHA` → senão `git rev-parse --short HEAD` → senão `dev`) e `__BUILD_TIME__` (ISO).
+- `vite.config.ts` — `define` injeta `__APP_VERSION__` e `__BUILD_TIME__`; o plugin de
+  build emite `version.json`, priorizando `VERCEL_GIT_COMMIT_SHA` e usando o git local
+  como fallback.
 - `global.d.ts` (novo) — declara as constantes globais para o TS.
 - `Dockerfile` — `ARG COMMIT_SHA` + `ENV COMMIT_SHA` antes do `npm run build`.
-- `.github/workflows/deploy.yml` — `--build-arg COMMIT_SHA=${{ github.sha }}` no docker build.
+- `.github/workflows/deploy.yml` — após a Vercel concluir, faz GET da versão no domínio
+  oficial e exige `commitSha === github.sha` antes de aprovar produção.
 - `components/AdminSettings.tsx` — rodapé "Versão do sistema {sha} · atualizado em {data}".
+- `vercel.json` — `/version.json` com `no-cache, no-store, must-revalidate`.
+- `scripts/test-production-resilience.sh` — valida o contrato do endpoint e a versão exata.
 
 ## 4. File List
 
@@ -39,6 +47,8 @@ do deploy (que já é notificado no Telegram).
 - `Dockerfile`
 - `.github/workflows/deploy.yml`
 - `components/AdminSettings.tsx`
+- `vercel.json`
+- `scripts/test-production-resilience.sh`
 
 ## 5. QA Results
 
@@ -48,3 +58,11 @@ do deploy (que já é notificado no Telegram).
 - ✅ AC-4: `npx tsc --noEmit` exit 0; `npm run build` verde; string presente no bundle.
 
 **Gate:** PASS.
+
+## 6. Extensão Vercel — 2026-08-03
+
+- [x] Gerar `version.json` em todo build, sem depender de arquivo manual.
+- [x] Expor `GET /version.json` sem cache persistente.
+- [x] Manter a versão curta visível em Configurações e publicar também o SHA completo.
+- [x] Comparar a versão de produção com o SHA esperado no workflow.
+- [x] Confirmar o GET e o gate no novo deploy Vercel.

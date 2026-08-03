@@ -52,6 +52,7 @@ const [
   serviceWorkerSource,
   nginxSource,
   vercelSource,
+  viteConfigSource,
 ] = await Promise.all([
   readProjectFile('index.html'),
   readProjectFile('index.tsx'),
@@ -62,6 +63,7 @@ const [
   readProjectFile('public/service-worker.js'),
   readProjectFile('nginx.conf'),
   readProjectFile('vercel.json'),
+  readProjectFile('vite.config.ts'),
 ]);
 
 assertCheck(
@@ -118,7 +120,7 @@ try {
   failures.push(`vercel.json inválido: ${error.message}`);
 }
 
-for (const source of ['/', '/index.html', '/service-worker.js', '/env-config.js']) {
+for (const source of ['/', '/index.html', '/service-worker.js', '/env-config.js', '/version.json']) {
   const rule = vercelConfig?.headers?.find((candidate) => candidate.source === source);
   const cacheControl = rule?.headers?.find((header) => header.key.toLowerCase() === 'cache-control')?.value ?? '';
   assertCheck(
@@ -126,6 +128,13 @@ for (const source of ['/', '/index.html', '/service-worker.js', '/env-config.js'
     `Vercel revalida ${source}`,
   );
 }
+
+assertCheck(
+  viteConfigSource.includes('VERCEL_GIT_COMMIT_SHA')
+    && viteConfigSource.includes("fileName: 'version.json'")
+    && viteConfigSource.includes('commitSha'),
+  'build publica version.json com o SHA da Vercel',
+);
 
 const immutableAssetRule = vercelConfig?.headers?.find((candidate) => candidate.source === '/assets/(.*)');
 const immutableAssetCacheControl = immutableAssetRule?.headers
@@ -147,9 +156,10 @@ for (const filePath of e2eFiles) {
 assertCheck(focusedTests.length === 0, `nenhum teste focado com .only (${focusedTests.join(', ') || 'ok'})`);
 
 if (validateDist) {
-  const [distHtml, distServiceWorker] = await Promise.all([
+  const [distHtml, distServiceWorker, distVersionSource] = await Promise.all([
     readProjectFile('dist/index.html'),
     readProjectFile('dist/service-worker.js'),
+    readProjectFile('dist/version.json'),
   ]);
   assertCheck(
     distHtml.includes('data-testid="pre-react-fallback"'),
@@ -163,6 +173,18 @@ if (validateDist) {
   assertCheck(
     distServiceWorker.includes('caches.delete(cacheName)'),
     'bundle de produção contém limpeza de caches legados',
+  );
+  let distVersion = null;
+  try {
+    distVersion = JSON.parse(distVersionSource);
+  } catch (error) {
+    failures.push(`dist/version.json inválido: ${error.message}`);
+  }
+  assertCheck(
+    /^[0-9a-f]{7,40}$/i.test(distVersion?.commitSha ?? '')
+      && distVersion?.version === distVersion?.commitSha.slice(0, 7)
+      && !Number.isNaN(Date.parse(distVersion?.builtAt ?? '')),
+    'bundle de produção identifica versão, commit e data do build',
   );
 }
 
