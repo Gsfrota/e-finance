@@ -6,7 +6,14 @@ const PROXY_PREFIX = '/api-proxy/';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    Promise.all([
+      caches.keys().then((cacheNames) => Promise.all(
+        cacheNames.map((cacheName) => caches.delete(cacheName))
+      )),
+      self.clients.claim(),
+    ])
+  );
 });
 
 self.addEventListener('fetch', (event) => {

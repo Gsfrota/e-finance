@@ -12,12 +12,149 @@
     <meta name="apple-mobile-web-app-title" content="Juros Certo">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <link rel="icon" href="data:image/svg+xml,%3Csvg width='64' height='64' viewBox='0 0 64 64' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M32 2L8 22L32 62L56 22L32 2Z' fill='url(%23grad1)'/%3E%3Cpath d='M32 2L8 22L32 32L56 22L32 2Z' fill='url(%23grad2)'/%3E%3Cpath d='M8 22L32 32L32 62L8 22Z' fill='url(%23grad3)'/%3E%3Cpath d='M56 22L32 32L32 62L56 22Z' fill='url(%23grad4)'/%3E%3Cdefs%3E%3ClinearGradient id='grad1' x1='32' y1='2' x2='32' y2='62' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%2314b8a6'/%3E%3Cstop offset='1' stop-color='%230d9488'/%3E%3C/linearGradient%3E%3ClinearGradient id='grad2' x1='32' y1='2' x2='32' y2='32' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%23f0fdfa'/%3E%3Cstop offset='1' stop-color='%23ccfbf1'/%3E%3C/linearGradient%3E%3ClinearGradient id='grad3' x1='8' y1='22' x2='32' y2='62' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%230f766e'/%3E%3Cstop offset='1' stop-color='%23134e4a'/%3E%3C/linearGradient%3E%3ClinearGradient id='grad4' x1='56' y1='22' x2='32' y2='62' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%230d9488'/%3E%3Cstop offset='1' stop-color='%23115e59'/%3E%3C/linearGradient%3E%3C/defs%3E%3C/svg%3E">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      #app-boot-screen {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: #0f1d33;
+        color: #f0f4ff;
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      #app-boot-card {
+        width: min(100%, 440px);
+        padding: 36px 28px;
+        border: 1px solid rgba(148, 180, 255, 0.18);
+        border-radius: 28px;
+        background: #172540;
+        box-shadow: 0 24px 60px rgba(4, 6, 10, 0.28);
+        text-align: center;
+      }
+      #app-boot-mark {
+        width: 52px;
+        height: 52px;
+        margin: 0 auto 20px;
+        display: grid;
+        place-items: center;
+        border-radius: 18px;
+        background: #f0b429;
+        color: #17120b;
+        font-size: 24px;
+        font-weight: 800;
+      }
+      #app-boot-title { margin: 0; font-size: 24px; line-height: 1.2; }
+      #app-boot-copy { margin: 12px auto 0; max-width: 340px; color: #a8b8d8; font-size: 14px; line-height: 1.6; }
+      #app-boot-recover {
+        margin-top: 24px;
+        min-height: 44px;
+        padding: 0 22px;
+        border: 0;
+        border-radius: 999px;
+        background: #f0b429;
+        color: #17120b;
+        cursor: pointer;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      #app-boot-recover[hidden] { display: none; }
+      #app-boot-recover:disabled { cursor: wait; opacity: 0.65; }
+    </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root">
+      <div id="app-boot-screen" data-testid="pre-react-fallback" role="status" aria-live="polite">
+        <div id="app-boot-card">
+          <div id="app-boot-mark" aria-hidden="true">J</div>
+          <h1 id="app-boot-title">Abrindo sua operação</h1>
+          <p id="app-boot-copy">Carregando os dados com segurança. Isso pode levar alguns segundos.</p>
+          <button id="app-boot-recover" type="button" hidden onclick="window.__EF_RECOVER_APP__(this)">
+            Limpar cache e tentar novamente
+          </button>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var bootTimer;
+
+        function getBootScreen() {
+          return document.getElementById('app-boot-screen');
+        }
+
+        window.__EF_SHOW_BOOT_ERROR__ = function (reason) {
+          var screen = getBootScreen();
+          if (!screen) return;
+
+          window.clearTimeout(bootTimer);
+          screen.setAttribute('role', 'alert');
+          screen.setAttribute('data-state', 'error');
+          document.getElementById('app-boot-title').textContent = 'Não foi possível abrir o sistema';
+          document.getElementById('app-boot-copy').textContent =
+            'Uma versão antiga pode ter ficado salva neste aparelho. Limpe o cache do aplicativo e tente novamente.';
+          document.getElementById('app-boot-recover').hidden = false;
+          console.error('[AppBootstrap]', reason || 'Falha antes da montagem do React');
+        };
+
+        window.__EF_RECOVER_APP__ = async function (button) {
+          button.disabled = true;
+          button.textContent = 'Limpando…';
+
+          try {
+            var tasks = [];
+            if ('caches' in window) {
+              tasks.push(caches.keys().then(function (names) {
+                return Promise.all(names.map(function (name) { return caches.delete(name); }));
+              }));
+            }
+            if ('serviceWorker' in navigator) {
+              tasks.push(navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                return Promise.all(registrations.map(function (registration) { return registration.unregister(); }));
+              }));
+            }
+            await Promise.all(tasks);
+          } catch (error) {
+            console.error('[AppRecovery]', error);
+          }
+
+          var nextUrl = new URL(window.location.href);
+          nextUrl.searchParams.set('_recover', String(Date.now()));
+          window.location.replace(nextUrl.toString());
+        };
+
+        window.addEventListener('error', function (event) {
+          var target = event.target;
+          if (target && target.tagName === 'SCRIPT' && target.getAttribute('type') === 'module') {
+            window.__EF_SHOW_BOOT_ERROR__('Falha ao carregar o bundle principal');
+            return;
+          }
+          if (event.error && getBootScreen()) {
+            window.__EF_SHOW_BOOT_ERROR__(event.error.message);
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function (event) {
+          if (getBootScreen()) {
+            window.__EF_SHOW_BOOT_ERROR__('Falha assíncrona durante a inicialização');
+          }
+        });
+
+        bootTimer = window.setTimeout(function () {
+          if (getBootScreen()) {
+            window.__EF_SHOW_BOOT_ERROR__('Tempo limite excedido durante a inicialização');
+          }
+        }, 15000);
+      }());
+    </script>
     <!-- Runtime env vars injetados pelo docker-entrypoint.sh (Cloud Run) -->
     <script src="/env-config.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         theme: {
@@ -61,15 +198,13 @@
         }
       }
     </script>
-<link rel="stylesheet" href="/index.css">
-</head>
-  <body>
-    <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('/service-worker.js');
+        navigator.serviceWorker.register('/service-worker.js', { updateViaCache: 'none' })
+          .then(function (registration) { return registration.update(); })
+          .catch(function (error) { console.error('[ServiceWorker]', error); });
       });
     }
   </script>

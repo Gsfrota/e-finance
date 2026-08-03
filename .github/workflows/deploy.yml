@@ -55,6 +55,12 @@ jobs:
       - name: Install Playwright + Chromium
         run: npx playwright install chromium --with-deps
 
+      - name: "Tier -1: Frontend resilience (isolated, no production writes)"
+        run: npm run test:resilience
+        env:
+          RESILIENCE_SKIP_BUILD: "1"
+          PLAYWRIGHT_JSON_TIER: resilience
+
       - name: Start preview server
         run: npx vite preview --port 4173 &
 

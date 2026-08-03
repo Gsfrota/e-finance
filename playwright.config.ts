@@ -2,6 +2,9 @@ import { defineConfig, devices } from '@playwright/test';
 import { config as dotenv } from 'dotenv';
 dotenv({ path: '.env.local' });
 
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:4173';
+const usesExternalServer = process.env.PLAYWRIGHT_EXTERNAL_SERVER === '1';
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
@@ -13,7 +16,7 @@ export default defineConfig({
       ]
     : [['list']],
   use: {
-    baseURL: 'http://localhost:4173',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'on',
   },
@@ -76,9 +79,11 @@ export default defineConfig({
       ],
     },
   ],
-  webServer: {
-    command: 'npx vite --port 4173',
-    url: 'http://localhost:4173',
-    reuseExistingServer: true,
-  },
+  webServer: usesExternalServer
+    ? undefined
+    : {
+        command: 'npx vite --port 4173',
+        url: baseURL,
+        reuseExistingServer: true,
+      },
 });

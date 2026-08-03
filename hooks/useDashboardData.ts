@@ -15,6 +15,7 @@ export interface DashboardDataState {
   installments: LoanInstallment[];
   allPaidInstallments: LoanInstallment[];
   loading: boolean;
+  hasLoaded: boolean;
   isStale: boolean;
   error: string | null;
   refetch: () => void;
@@ -235,6 +236,7 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
       return {
         ...cached.data,
         loading: true,
+        hasLoaded: true,
         isStale: true,
         error: null,
         refetch: () => {},
@@ -247,6 +249,7 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
       installments: [],
       allPaidInstallments: [],
       loading: true,
+      hasLoaded: false,
       isStale: false,
       error: null,
       refetch: () => {},
@@ -438,6 +441,7 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
       setData({
         ...newData,
         loading: false,
+        hasLoaded: true,
         isStale: false,
         error: null,
         refetch: fetchData,
