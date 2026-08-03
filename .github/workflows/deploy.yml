@@ -1,4 +1,4 @@
-name: Deploy to Cloud Run
+name: Frontend CI and Vercel Verification
 
 on:
   push:
@@ -9,11 +9,9 @@ on:
       - 'docs/**'
       - '*.md'
 
-env:
-  PROJECT_ID: tribal-pillar-476701-a3
-  REGION: us-west1
-  SERVICE: e-finance
-  IMAGE: us-west1-docker.pkg.dev/tribal-pillar-476701-a3/cloud-run-source-deploy/e-finance
+concurrency:
+  group: frontend-production-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -157,121 +155,58 @@ jobs:
             test-results/
           retention-days: 7
 
-  deploy:
-    name: Build & Deploy
+  verify-vercel:
+    name: Verify Vercel Production
     needs: [test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      statuses: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
-
-      - name: Build & Push Docker image
+      - name: Confirm successful Vercel status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
-          docker build \
-            --build-arg COMMIT_SHA=${{ github.sha }} \
-            --tag ${{ env.IMAGE }}:${{ github.sha }} \
-            --tag ${{ env.IMAGE }}:latest \
-            .
-          docker push ${{ env.IMAGE }}:${{ github.sha }}
-          docker push ${{ env.IMAGE }}:latest
+          for attempt in $(seq 1 30); do
+            vercel_state=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${COMMIT_SHA}/statuses" \
+              --jq '[.[] | select(.context == "Vercel")][0].state // "pending"')
+            vercel_target=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${COMMIT_SHA}/statuses" \
+              --jq '[.[] | select(.context == "Vercel")][0].target_url // ""')
 
-      - name: Deploy to Cloud Run
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: ${{ env.SERVICE }}
-          region: ${{ env.REGION }}
-          image: ${{ env.IMAGE }}:${{ github.sha }}
-          flags: |
-            --min-instances=0
-            --max-instances=3
-            --memory=512Mi
-            --cpu=1
-            --port=8080
-            --allow-unauthenticated
-            --remove-env-vars=API_KEY,GEMINI_API_KEY,SUPABASE_SERVICE_ROLE_KEY_EFINANCE
-            --update-secrets=SUPABASE_ANON_KEY=SUPABASE_ANON_KEY_EFINANCE:latest,SUPABASE_URL=SUPABASE_URL_EFINANCE:latest
-
-      - name: Ensure public ingress
-        run: |
-          gcloud run services add-iam-policy-binding ${{ env.SERVICE }} \
-            --project=${{ env.PROJECT_ID }} \
-            --region=${{ env.REGION }} \
-            --member="allUsers" \
-            --role="roles/run.invoker" \
-            --quiet
-
-      - name: Show service URL
-        run: |
-          echo "✅ Deploy concluído!"
-          echo "URL: $(gcloud run services describe ${{ env.SERVICE }} --region=${{ env.REGION }} --format='value(status.url)')"
-
-      - name: Validate published frontend
-        run: |
-          published_url=$(gcloud run services describe ${{ env.SERVICE }} --region=${{ env.REGION }} --format='value(status.url)')
-          deploy_check_dir=$(mktemp -d /tmp/e-finance-deploy-check.XXXXXX)
-          trap 'rm -rf -- "${deploy_check_dir}"' EXIT
-
-          published_status=""
-          for attempt in $(seq 1 20); do
-            published_status=$(curl -sS -o "${deploy_check_dir}/index.html" -w '%{http_code}' --max-time 20 "${published_url}/" || true)
-            if [ "${published_status}" = "200" ]; then
-              break
+            echo "Vercel: ${vercel_state} (${attempt}/30) ${vercel_target}"
+            if [ "${vercel_state}" = "success" ]; then
+              echo "✅ Deploy Vercel concluído para ${COMMIT_SHA}"
+              exit 0
             fi
-            echo "Aguardando endpoint público: HTTP ${published_status:-erro} (${attempt}/20)"
-            sleep 2
+            if [ "${vercel_state}" = "failure" ] || [ "${vercel_state}" = "error" ]; then
+              echo "❌ Deploy Vercel falhou: ${vercel_target}"
+              exit 1
+            fi
+            sleep 10
           done
 
-          test "${published_status}" = "200"
-          grep -q 'data-testid="pre-react-fallback"' "${deploy_check_dir}/index.html"
-          grep -q 'Limpar cache e tentar novamente' "${deploy_check_dir}/index.html"
+          echo "❌ Timeout aguardando o status da Vercel"
+          exit 1
 
-          main_asset=$(grep -oE 'src="/assets/index-[^"]+\.js"' "${deploy_check_dir}/index.html" | head -n 1 | cut -d'"' -f2)
-          test -n "${main_asset}"
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
 
-          assert_cache_contains() {
-            checked_path="$1"
-            expected_value="$2"
-            cache_value=$(curl -fsSI --max-time 20 "${published_url}${checked_path}" \
-              | tr -d '\r' \
-              | awk -F': ' 'tolower($1) == "cache-control" { print tolower($2) }' \
-              | tail -n 1)
-            echo "${checked_path}: cache-control=${cache_value}"
-            echo "${cache_value}" | grep -q "${expected_value}"
-          }
+      - name: Install dependencies
+        run: npm ci
 
-          assert_cache_contains / no-cache
-          assert_cache_contains /index.html no-cache
-          assert_cache_contains /service-worker.js no-cache
-          assert_cache_contains /env-config.js no-cache
-          assert_cache_contains "${main_asset}" immutable
+      - name: Install Playwright + Chromium
+        run: npx playwright install chromium --with-deps
 
-          curl -fsS --max-time 20 "${published_url}/service-worker.js" \
-            | grep -q 'caches.delete(cacheName)'
-
-          echo "✅ Frontend publicado e validado em ${published_url}"
-
-      - name: Notificar sucesso no Telegram
-        if: success()
-        run: |
-          URL=$(gcloud run services describe ${{ env.SERVICE }} --region=${{ env.REGION }} --format='value(status.url)')
-          MSG="🚀 *Deploy concluído*%0A%0AServiço: \`${{ env.SERVICE }}\`%0ACommit: \`${{ github.sha }}\`%0APor: ${{ github.actor }}%0AURL: ${URL}"
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -d "chat_id=7354814208&text=${MSG}&parse_mode=Markdown" > /dev/null
-
-      - name: Notificar falha no Telegram
-        if: failure()
-        run: |
-          MSG="❌ *Deploy falhou*%0A%0AServiço: \`${{ env.SERVICE }}\`%0ACommit: \`${{ github.sha }}\`%0APor: ${{ github.actor }}%0A%0A🔍 Detalhes: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -d "chat_id=7354814208&text=${MSG}&parse_mode=Markdown" > /dev/null
+      - name: Test published production without real Supabase access
+        run: npm run test:production:resilience
+        env:
+          FRONTEND_PRODUCTION_URL: https://e-finance-eight.vercel.app
+          PLAYWRIGHT_JSON_TIER: production-resilience

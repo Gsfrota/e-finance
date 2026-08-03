@@ -127,6 +127,15 @@ for (const source of ['/', '/index.html', '/service-worker.js', '/env-config.js'
   );
 }
 
+const immutableAssetRule = vercelConfig?.headers?.find((candidate) => candidate.source === '/assets/(.*)');
+const immutableAssetCacheControl = immutableAssetRule?.headers
+  ?.find((header) => header.key.toLowerCase() === 'cache-control')?.value ?? '';
+assertCheck(
+  immutableAssetCacheControl.includes('max-age=31536000')
+    && immutableAssetCacheControl.includes('immutable'),
+  'Vercel mantém assets com hash em cache imutável',
+);
+
 const e2eFiles = await listTypeScriptFiles('e2e');
 const focusedTests = [];
 for (const filePath of e2eFiles) {
