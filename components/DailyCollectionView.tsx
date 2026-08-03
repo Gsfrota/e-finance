@@ -36,6 +36,7 @@ interface DailyCollectionViewProps {
 }
 
 type CollectionFilter = 'all' | 'today' | 'overdue' | 'paid' | 'partial';
+const COLLECTION_RENDER_BATCH = 75;
 
 // ── Design tokens (escopo local — financial mobile palette) ─────────────────
 const T = {
@@ -62,6 +63,7 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<CollectionFilter>('all');
   const [showOtherDues, setShowOtherDues] = useState(false);
+  const [visibleLimit, setVisibleLimit] = useState(COLLECTION_RENDER_BATCH);
 
   // ── Update otimista da baixa ────────────────────────────────────────────────
   // Após "dar baixa", o refetch recarrega TODO o dataset (todos os investimentos
@@ -242,6 +244,15 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
     });
   }, [filter, overdueItems, todayItems, paidToday, partialItems, search]);
 
+  useEffect(() => {
+    setVisibleLimit(COLLECTION_RENDER_BATCH);
+  }, [activeCompanyId, filter, search]);
+
+  const renderedItems = useMemo(
+    () => visibleItems.slice(0, visibleLimit),
+    [visibleItems, visibleLimit],
+  );
+
   // ── Sub-view: Form Screen ──────────────────────────────────────────────────
   if (installmentAction !== null) {
     return (
@@ -293,7 +304,7 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
 
   // ── Main view ──────────────────────────────────────────────────────────────
   return (
-    <div className="animate-fade-in min-h-screen pb-10"
+    <div data-testid="daily-collection-root" className="animate-fade-in min-h-screen pb-10"
       style={{ background: T.bg, fontFamily: "'Inter', sans-serif" }}>
 
       {/* ── Título da área (kicker + h1 + refresh) ───────────────────────── */}
@@ -543,14 +554,40 @@ const DailyCollectionView: React.FC<DailyCollectionViewProps> = ({ tenant, onBac
               </p>
             </div>
           ) : (
-            <div className="space-y-2.5">
-              {visibleItems.map(inst => (
+            <div data-testid="daily-collection-list" className="space-y-2.5">
+              {renderedItems.map(inst => (
                 <ClientCard
                   key={inst.id}
                   inst={inst}
                   onClick={() => setSelectedInstallment(inst)}
                 />
               ))}
+            </div>
+          )}
+
+          {visibleItems.length > 0 && (
+            <div className="flex flex-col items-center gap-2 pt-1">
+              <p data-testid="daily-collection-count" style={{ color: T.textMuted, fontSize: 12, fontWeight: 600 }}>
+                Exibindo {renderedItems.length} de {visibleItems.length} cobranças
+              </p>
+              {renderedItems.length < visibleItems.length && (
+                <button
+                  type="button"
+                  onClick={() => setVisibleLimit(limit => Math.min(limit + COLLECTION_RENDER_BATCH, visibleItems.length))}
+                  className="transition-colors hover:opacity-80"
+                  style={{
+                    background: T.surface,
+                    border: `1px solid ${T.border}`,
+                    borderRadius: 12,
+                    color: T.textSecondary,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    padding: '9px 16px',
+                  }}
+                >
+                  Carregar mais cobranças
+                </button>
+              )}
             </div>
           )}
 
@@ -751,6 +788,7 @@ const ClientCard: React.FC<{
 
   return (
     <button
+      data-testid="daily-collection-card"
       onClick={onClick}
       className="group w-full flex items-center gap-2 text-left transition-all hover:shadow-md active:scale-[0.99]"
       style={{

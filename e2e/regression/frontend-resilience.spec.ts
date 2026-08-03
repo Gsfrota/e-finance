@@ -84,8 +84,111 @@ async function fulfillJson(route: Parameters<Parameters<Page['route']>[1]>[0], b
   });
 }
 
-async function setupEmptyEnterprise(page: Page) {
+type DashboardFixture = {
+  investments: Record<string, unknown>[];
+  loan_installments: Record<string, unknown>[];
+};
+
+type SetupEnterpriseOptions = {
+  companyA?: DashboardFixture;
+  companyB?: DashboardFixture;
+};
+
+const EMPTY_DASHBOARD_FIXTURE: DashboardFixture = {
+  investments: [],
+  loan_installments: [],
+};
+
+async function fulfillPagedJson(
+  route: Parameters<Parameters<Page['route']>[1]>[0],
+  rows: Record<string, unknown>[],
+) {
+  const requestUrl = new URL(route.request().url());
+  const rangeHeader = route.request().headers().range ?? '0-999';
+  const rangeMatch = /^(\d+)-(\d+)$/.exec(rangeHeader);
+  const from = Number(requestUrl.searchParams.get('offset') ?? rangeMatch?.[1] ?? 0);
+  const requestedLimit = Number(requestUrl.searchParams.get('limit') ?? 0);
+  const to = requestedLimit > 0
+    ? from + requestedLimit - 1
+    : Number(rangeMatch?.[2] ?? Math.max(rows.length - 1, 0));
+  const pageRows = rows.slice(from, to + 1);
+  const rangeEnd = pageRows.length > 0 ? from + pageRows.length - 1 : from;
+
+  await route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    headers: { 'Content-Range': pageRows.length > 0 ? `${from}-${rangeEnd}/${rows.length}` : '*/0' },
+    body: JSON.stringify(pageRows),
+  });
+}
+
+function buildLargeCollectionFixture(count: number): DashboardFixture {
+  const investments: Record<string, unknown>[] = [];
+  const loanInstallments: Record<string, unknown>[] = [];
+
+  for (let index = 0; index < count; index += 1) {
+    const investmentId = 10_000 + index;
+    const payer = {
+      id: `payer-stress-${index}`,
+      full_name: `Cliente Stress ${String(index).padStart(4, '0')}`,
+      email: `stress-${index}@example.invalid`,
+      photo_url: null,
+    };
+    const investment = {
+      id: investmentId,
+      tenant_id: TENANT_ID,
+      company_id: COMPANY_A_ID,
+      status: 'active',
+      user_id: USER_ID,
+      payer_id: payer.id,
+      asset_name: `Contrato Stress ${index}`,
+      amount_invested: 1_000,
+      current_value: 1_200,
+      interest_rate: 20,
+      source_capital: 1_000,
+      source_profit: 0,
+      total_installments: 12,
+      installment_value: 100,
+      calculation_mode: 'price',
+      frequency: 'monthly',
+      remaining_balance: 1_000,
+      created_at: '2024-01-01T12:00:00.000Z',
+      investor: { id: USER_ID, full_name: 'Admin Resiliência', email: fakeUser.email, role: 'admin' },
+      payer,
+    };
+
+    investments.push(investment);
+    loanInstallments.push({
+      id: `installment-stress-${index}`,
+      tenant_id: TENANT_ID,
+      company_id: COMPANY_A_ID,
+      investment_id: investmentId,
+      number: 1,
+      due_date: '2024-01-15',
+      status: 'late',
+      amount_total: 100,
+      amount_principal: 80,
+      amount_interest: 20,
+      amount_paid: 0,
+      fine_amount: 0,
+      interest_delay_amount: 0,
+      paid_at: null,
+      investment: {
+        ...investment,
+        investor: { role: 'admin' },
+      },
+    });
+  }
+
+  return { investments, loan_installments: loanInstallments };
+}
+
+async function setupEmptyEnterprise(page: Page, options: SetupEnterpriseOptions = {}) {
   const unexpectedSupabaseRequests: string[] = [];
+  const fixtures = {
+    [COMPANY_A_ID]: options.companyA ?? EMPTY_DASHBOARD_FIXTURE,
+    [COMPANY_B_ID]: options.companyB ?? EMPTY_DASHBOARD_FIXTURE,
+  };
 
   await page.addInitScript(({ session, tenantId, companyId, storageKeys, supabaseOrigin, anonKey }) => {
     for (const storageKey of storageKeys) {
@@ -150,7 +253,9 @@ async function setupEmptyEnterprise(page: Page) {
       if (companyFilter === `eq.${COMPANY_B_ID}`) {
         await new Promise((resolve) => setTimeout(resolve, 1_800));
       }
-      await fulfillJson(route, []);
+      const requestedCompanyId = companyFilter?.replace(/^eq\./, '') ?? COMPANY_A_ID;
+      const fixture = fixtures[requestedCompanyId] ?? EMPTY_DASHBOARD_FIXTURE;
+      await fulfillPagedJson(route, fixture[table as keyof DashboardFixture]);
     });
   }
 
@@ -248,6 +353,38 @@ test.describe('FIX-001 — resiliência contra tela azul/vazia', () => {
 
     await expect(page.getByRole('button', { name: 'Atualizar' })).toBeEnabled({ timeout: 5_000 });
     await expect(portfolioCard).toBeVisible();
+    expect(unexpectedSupabaseRequests).toEqual([]);
+  });
+
+  test('Cobranças mantém a tela responsiva com 1.500 parcelas e limita o DOM', async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+    const unexpectedSupabaseRequests = await setupEmptyEnterprise(page, {
+      companyA: buildLargeCollectionFixture(1_500),
+    });
+
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    const collectionButton = page.getByRole('button', { name: 'Cobranças' }).first();
+    await expect(collectionButton).toBeVisible({ timeout: 20_000 });
+    await collectionButton.click();
+
+    const root = page.getByTestId('daily-collection-root');
+    const cards = page.getByTestId('daily-collection-card');
+    await expect(root).toBeVisible({ timeout: 12_000 });
+    await expect(page.getByTestId('daily-collection-count')).toHaveText('Exibindo 75 de 1500 cobranças');
+    await expect(cards).toHaveCount(75);
+
+    await page.getByRole('button', { name: 'Carregar mais cobranças' }).click();
+    await expect(page.getByTestId('daily-collection-count')).toHaveText('Exibindo 150 de 1500 cobranças');
+    await expect(cards).toHaveCount(150);
+
+    const search = page.getByPlaceholder('Buscar cliente...');
+    await search.fill('Cliente Stress 1499');
+    await expect(page.getByText('Cliente Stress 1499', { exact: true })).toBeVisible({ timeout: 5_000 });
+    await expect(cards).toHaveCount(1);
+    await expect(root).toBeVisible();
+
+    expect(pageErrors).toEqual([]);
     expect(unexpectedSupabaseRequests).toEqual([]);
   });
 });

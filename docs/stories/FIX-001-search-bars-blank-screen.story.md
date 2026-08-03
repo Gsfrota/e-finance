@@ -191,11 +191,20 @@ testar o bundle de produção em servidor isolado.
   status de commit `Vercel`; a integração Git da Vercel é o único mecanismo de deploy.
 - ✅ Produção oficial confirmada em `https://e-finance-eight.vercel.app/`: HTTPS/200,
   fallback pré-React, bundle com hash, service worker e headers estáveis validados.
-- ✅ Playwright executado diretamente na produção: **4 passed** (fallback, Caderneta,
-  Dashboard e Cobrança diária). Os testes usam sessões falsas, bloqueiam service workers,
+- ✅ Playwright executado diretamente na produção: **5 passed** (fallback, Caderneta,
+  Dashboard, Cobrança diária vazia e Cobrança com 1.500 parcelas). Os testes usam sessões falsas, bloqueiam service workers,
   interceptam todos os endpoints REST/Auth e reprovam qualquer escrita de rede inesperada;
   nenhuma leitura ou escrita atingiu o Supabase real.
 - 🔧 O job pós-deploy agora aguarda o status `Vercel` e executa o smoke estrutural e os
-  quatro cenários funcionais no domínio oficial. O workflow só fica verde após produção passar.
+  cinco cenários funcionais no domínio oficial. O workflow só fica verde após produção passar.
 - 🔎 Cada build também publica `GET /version.json`; o job exige que o SHA retornado seja
   exatamente `github.sha`, impedindo validar um alias que ainda esteja na versão anterior.
+
+#### Proteção para alto volume em Cobranças
+
+- [x] Simular 1.500 contratos e 1.500 parcelas, incluindo paginação PostgREST em blocos
+  de 1.000, sem acessar o Supabase real.
+- [x] Limitar a montagem inicial a 75 cards e liberar lotes adicionais por “Carregar mais”.
+- [x] Garantir que a busca encontra o item 1.500 mesmo quando ele não estava montado no DOM.
+- [x] Reprovar em qualquer `pageerror`, request Supabase inesperada ou desaparecimento da tela.
+- [x] Executar esse quinto cenário no preview isolado e novamente no bundle de produção.
