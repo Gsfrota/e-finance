@@ -2,9 +2,13 @@
  * Testes E2E — Visão Mensal do Investidor
  *
  * Cobertura:
- *   REL-INV-01  BR-REL-007  Visão mensal do investidor com 7 elementos obrigatórios
+ *   REL-INV-01  BR-REL-007  Visão mensal com 7 elementos obrigatórios
  *
- * Execução: --project=chromium-investor
+ * Roda como admin (a aba "Visão Mensal" é do admin; as telas de investidor foram
+ * removidas). As asserções abaixo são permissivas de propósito — a checagem real
+ * da aba mensal está em e2e/reports/dashboard-monthly.spec.ts (REL-MON-01).
+ *
+ * Execução: --project=chromium
  */
 
 import { test, expect } from '@playwright/test';

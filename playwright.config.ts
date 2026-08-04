@@ -36,46 +36,12 @@ export default defineConfig({
         storageState: 'e2e/.auth/admin.json',
       },
       dependencies: ['setup'],
-      // Exclui: login (sem auth), debtor/investor (auth próprio), role-views (requer roles), screenshot (porta 3001)
+      // Exclui: login (sem auth), screenshot (porta 3001)
       // Exclui deprecated: payment-flows (→ payment/installment-payment.spec.ts)
-      // Exclui por role: payment-debtor-pix (→ chromium-debtor), role-isolation (→ chromium-investor/debtor)
       testIgnore: [
         /.*\/auth\/login\.spec\.ts/,
-        /.*\/debtor\/.*/,
-        /.*\/investor\/.*/,
-        /.*\/e2e-full\/role-views\.spec\.ts/,
         /.*screenshot-header\.spec\.ts/,
         /.*\/e2e-full\/payment-flows\.spec\.ts/,
-        /.*\/payment\/payment-debtor-pix\.spec\.ts/,
-        /.*\/auth\/role-isolation\.spec\.ts/,
-      ],
-    },
-    {
-      name: 'chromium-investor',
-      use: {
-        ...devices['Desktop Chrome'],
-        storageState: 'e2e/.auth/investor.json',
-      },
-      dependencies: ['setup'],
-      testMatch: [
-        /.*\/investor\/(?!dashboard).*\.spec\.ts/,
-        /.*\/e2e-full\/role-views\.spec\.ts/,
-        /.*\/reports\/investor-monthly\.spec\.ts/,
-        /.*\/auth\/role-isolation\.spec\.ts/,
-      ],
-    },
-    {
-      name: 'chromium-debtor',
-      use: {
-        ...devices['Desktop Chrome'],
-        storageState: 'e2e/.auth/debtor.json',
-      },
-      dependencies: ['setup'],
-      testMatch: [
-        /.*\/debtor\/(?!dashboard).*\.spec\.ts/,
-        /.*\/e2e-full\/role-views\.spec\.ts/,
-        /.*\/payment\/payment-debtor-pix\.spec\.ts/,
-        /.*\/auth\/role-isolation\.spec\.ts/,
       ],
     },
   ],

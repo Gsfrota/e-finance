@@ -1,100 +1,67 @@
 /**
- * Testes E2E — Isolamento de Roles
+ * Testes E2E — Isolamento de dados (RLS)
  *
  * Cobertura:
- *   USR-ISO-01  BR-USR-002  Investidor vê apenas dados da própria empresa
- *   USR-ISO-02  BR-USR-002  Devedor vê apenas os próprios contratos
- *   USR-ISO-03  BR-USR-005  Login mostra opção "Ativar Conta" (invite signup)
+ *   USR-ISO-01  BR-USR-002  JWT autenticado só lê linhas do próprio tenant
+ *   USR-ISO-02  BR-USR-002  Sem JWT (anon key), RLS não devolve nem aceita nada
  *
- * Execução: --project=chromium-investor e --project=chromium-debtor
+ * Por que REST e não UI: o gate de role em App.tsx é de UI. Um usuário não-admin
+ * bloqueado na tela continua com JWT válido — a barreira real contra leitura/escrita
+ * indevida é a RLS do Supabase. Estes testes batem direto no PostgREST.
+ *
+ * Execução: --project=chromium (storageState de admin)
  */
 
 import { test, expect } from '@playwright/test';
 import { getCtx, restCall } from '../fixtures/e2e-test-helpers';
 
-// ─── USR-ISO-01: Investidor isolado ─────────────────────────────────────────
-
-test('USR-ISO-01 [BR-USR-002]: Investidor acessa apenas dados da própria empresa', async ({ page }) => {
+// O goto existe só para hidratar o localStorage do storageState (é de onde getCtx
+// lê url/anon/token). Nenhuma asserção abaixo depende da UI.
+async function ctxOrSkip(page: import('@playwright/test').Page) {
   await page.goto('/');
-  await expect(page.locator('aside')).toBeVisible({ timeout: 12_000 });
-  await page.locator('.animate-spin').waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => {});
-
-  // Investidor não deve ter menus de admin (Usuários, Contratos admin)
-  const usersMenuBtn = page.locator('aside').getByRole('button', { name: /^Usuários$/ });
-  const contractsMenuBtn = page.locator('aside').getByRole('button', { name: /^Contratos$/ });
-
-  const usersVisible = await usersMenuBtn.isVisible({ timeout: 3_000 }).catch(() => false);
-  const contractsVisible = await contractsMenuBtn.isVisible({ timeout: 3_000 }).catch(() => false);
-
-  // Menus de admin não devem estar visíveis para investidor (BR-USR-002)
-  expect(usersVisible).toBeFalsy();
-  expect(contractsVisible).toBeFalsy();
-
-  // Verifica via RLS: investidor só vê investimentos vinculados a ele
   const ctx = await getCtx(page);
-  if (ctx) {
-    const investments = await restCall(ctx, `investments?select=user_id,payer_id&limit=10`);
-    if (investments && investments.length > 0) {
-      // Todos os investimentos retornados pela RLS devem ser do próprio investidor
-      for (const inv of investments) {
-        expect([inv.user_id, inv.payer_id]).toContain(ctx.userId);
-      }
-    }
+  test.skip(!ctx?.token || ctx.token === ctx.anon, 'Sem sessão autenticada (TEST_ADMIN_* não configurado)');
+  return ctx!;
+}
+
+// ─── USR-ISO-01: isolamento por tenant ───────────────────────────────────────
+
+test('USR-ISO-01 [BR-USR-002]: RLS só devolve linhas do próprio tenant', async ({ page }) => {
+  const ctx = await ctxOrSkip(page);
+
+  const me = await restCall(ctx, `profiles?select=id,tenant_id&id=eq.${ctx.userId}&limit=1`);
+  const tenantId = me?.[0]?.tenant_id;
+  expect(tenantId, 'profile do usuário logado deve ter tenant_id').toBeTruthy();
+
+  // Sem filtro de tenant na query: quem filtra é a RLS.
+  let totalRows = 0;
+  for (const table of ['investments', 'profiles', 'companies']) {
+    const rows = await restCall(ctx, `${table}?select=id,tenant_id&limit=200`);
+    expect(Array.isArray(rows), `${table} deve responder uma lista`).toBe(true);
+    totalRows += rows.length;
+    const foreign = rows.filter((r: any) => r.tenant_id !== tenantId);
+    expect(foreign, `${table} vazou linhas de outro tenant`).toEqual([]);
   }
+  // Guarda anti-teste-vazio: profiles + companies do próprio tenant nunca são zero.
+  expect(totalRows, 'RLS não devolveu nenhuma linha — teste seria vácuo').toBeGreaterThan(0);
 });
 
-// ─── USR-ISO-02: Devedor isolado ─────────────────────────────────────────────
+// ─── USR-ISO-02: sem JWT não lê nem escreve ──────────────────────────────────
 
-test('USR-ISO-02 [BR-USR-002]: Devedor acessa apenas os próprios contratos', async ({ page }) => {
-  await page.goto('/');
-  await expect(page.locator('aside')).toBeVisible({ timeout: 12_000 }).catch(() => {
-    // Devedor pode não ter sidebar — acessa view direta
-  });
-  await page.waitForTimeout(1_000);
+test('USR-ISO-02 [BR-USR-002]: anon key sem JWT não lê nem escreve', async ({ page }) => {
+  const ctx = await ctxOrSkip(page);
+  const anonCtx = { ...ctx, token: ctx.anon };
 
-  // Devedor não deve ver menus de admin
-  const usersMenuBtn = page.locator('aside').getByRole('button', { name: /^Usuários$/ });
-  const usersVisible = await usersMenuBtn.isVisible({ timeout: 3_000 }).catch(() => false);
-  expect(usersVisible).toBeFalsy();
-
-  // Verifica via RLS: devedor só vê seus próprios contratos (payer_id = self)
-  const ctx = await getCtx(page);
-  if (ctx && ctx.userId) {
-    const investments = await restCall(ctx, `investments?select=payer_id&limit=10`);
-    if (investments && investments.length > 0) {
-      for (const inv of investments) {
-        expect(inv.payer_id).toBe(ctx.userId);
-      }
-    }
+  for (const table of ['investments', 'profiles', 'loan_installments']) {
+    // 401/403 (throw) ou lista vazia são ambos aceitáveis — o que não pode é vir dado.
+    const rows = await restCall(anonCtx, `${table}?select=id&limit=5`).catch(() => []);
+    expect(rows ?? [], `${table} legível sem JWT`).toEqual([]);
   }
-});
 
-// ─── USR-ISO-03: Login com opção "Ativar Conta" ──────────────────────────────
-
-test('USR-ISO-03 [BR-USR-005]: Página de login exibe opção de ativar conta via convite', async ({ page }) => {
-  // Abre o login em contexto sem autenticação (nova guia anônima)
-  // Como estamos com auth do investidor/devedor, tenta acessar a tela de login
-  await page.goto('/?logout=true').catch(() => page.goto('/'));
-  await page.waitForTimeout(1_000);
-
-  // Verifica se está na tela de login
-  const emailInput = page.locator('input[type="email"]').first();
-  const isLogin = await emailInput.isVisible({ timeout: 5_000 }).catch(() => false);
-
-  if (isLogin) {
-    // Verifica opção de "Ativar Conta" / signup com convite (BR-USR-005)
-    const activateLink = page.getByText(/Ativar.*Conta|Cadastrar.*convite|Signup.*invite/i).first();
-    const activateVisible = await activateLink.isVisible({ timeout: 3_000 }).catch(() => false);
-
-    // Pode também estar como botão de alternância
-    const switchBtn = page.getByRole('button', { name: /Ativar Conta|Tenho um convite/i }).first();
-    const switchVisible = await switchBtn.isVisible({ timeout: 3_000 }).catch(() => false);
-
-    expect(activateVisible || switchVisible).toBeTruthy();
-  } else {
-    // Já logado — verifica que o modo de login com convite é suportado pelo componente
-    // (verificação estática de que a rota existe)
-    const currentUrl = page.url();
-    expect(currentUrl).toBeTruthy();
-  }
+  // 42501 = row-level security policy violation. Casar a mensagem evita que um erro
+  // de schema (coluna faltando) faça o teste passar sem provar nada sobre a RLS.
+  await expect(
+    restCall(anonCtx, 'investments', 'POST', { asset_name: 'E2E_RLS_PROBE', amount_invested: 1 }),
+    'INSERT sem JWT deveria ser barrado pela RLS',
+  ).rejects.toThrow(/42501|row-level security/i);
 });
