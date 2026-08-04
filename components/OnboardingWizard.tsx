@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertCircle, ArrowRight, Loader2, Key } from 'lucide-react';
+import { AlertCircle, ArrowRight, Loader2 } from 'lucide-react';
 import { cleanNumbers, fetchProfileByAuthUserId, getSupabase, isValidCPF } from '../services/supabase';
 import { Tenant } from '../types';
 
@@ -36,8 +36,6 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
     sessionUser?.user_metadata?.full_name || sessionUser?.user_metadata?.name || ''
   );
   const [companyName, setCompanyName] = useState(tenant?.name || '');
-  const [inviteMode, setInviteMode] = useState<'company' | 'invite'>('company');
-  const [inviteCode, setInviteCode] = useState('');
 
   // PIX
   const [pixKeyType, setPixKeyType] = useState<'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'EVP'>(
@@ -72,8 +70,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   const handleStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim()) { setError('Informe seu nome.'); return; }
-    if (inviteMode === 'company' && !companyName.trim()) { setError('Informe o nome da organização.'); return; }
-    if (inviteMode === 'invite' && !inviteCode.trim()) { setError('Informe o código de convite.'); return; }
+    if (!companyName.trim()) { setError('Informe o nome da organização.'); return; }
 
     setError(null);
     setLoading(true);
@@ -83,9 +80,9 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
     try {
       const { data, error: rpcError } = await supabase.rpc('complete_oauth_onboarding', {
         p_full_name: fullName.trim(),
-        p_mode: inviteMode,
-        p_company_name: inviteMode === 'company' ? companyName.trim() : null,
-        p_invite_code: inviteMode === 'invite' ? inviteCode.toUpperCase().trim() : null,
+        p_mode: 'company',
+        p_company_name: companyName.trim(),
+        p_invite_code: null,
       });
 
       if (rpcError) throw rpcError;
@@ -97,15 +94,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
       const { data: tid } = await supabase.rpc('get_my_tenant_id');
       if (tid) {
         setResolvedTenantId(tid);
-        if (inviteMode === 'company') {
-          await supabase.from('tenants').update({ timezone }).eq('id', tid);
-        }
-      }
-
-      // Se entrou via convite, não precisa configurar PIX do tenant novo — vai direto pro app
-      if (inviteMode === 'invite') {
-        onComplete();
-        return;
+        await supabase.from('tenants').update({ timezone }).eq('id', tid);
       }
 
       setStep(2);
@@ -245,26 +234,8 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
           <p className="section-kicker">Bem-vindo(a)</p>
           <h2 className="type-title text-[color:var(--text-primary)]">Configure sua conta</h2>
           <p className="type-body text-[color:var(--text-secondary)]">
-            Sua conta Google foi autenticada. Agora defina como você quer acessar a plataforma.
+            Sua conta Google foi autenticada. Vamos configurar sua organização.
           </p>
-        </div>
-
-        {/* Seletor de modo */}
-        <div className="mb-6 flex rounded-2xl border border-[color:var(--border-strong)] bg-white/[0.02] p-1">
-          <button
-            type="button"
-            onClick={() => setInviteMode('company')}
-            className={`flex-1 rounded-xl py-2.5 text-xs font-bold uppercase tracking-[0.18em] transition-all ${inviteMode === 'company' ? 'bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)]' : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'}`}
-          >
-            Nova organização
-          </button>
-          <button
-            type="button"
-            onClick={() => setInviteMode('invite')}
-            className={`flex-1 rounded-xl py-2.5 text-xs font-bold uppercase tracking-[0.18em] transition-all ${inviteMode === 'invite' ? 'bg-[rgba(202,176,122,0.14)] text-[color:var(--accent-brass)]' : 'text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)]'}`}
-          >
-            Código de convite
-          </button>
         </div>
 
         <form onSubmit={handleStep1} className="space-y-5">
@@ -280,50 +251,29 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
             />
           </div>
 
-          {inviteMode === 'company' && (
-            <>
-            <div>
-              <label className="mb-2 block type-label text-[color:var(--text-faint)]">Organização</label>
-              <input
-                required
-                type="text"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                className={baseInputClass}
-                placeholder="Nome da organização"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block type-label text-[color:var(--text-faint)]">Fuso Horário</label>
-              <select
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                className={baseInputClass}
-              >
-                {TIMEZONE_OPTIONS.map(tz => (
-                  <option key={tz.value} value={tz.value}>{tz.label}</option>
-                ))}
-              </select>
-            </div>
-            </>
-          )}
-
-          {inviteMode === 'invite' && (
-            <div>
-              <label className="mb-2 block type-label text-[color:var(--text-faint)]">Código de convite</label>
-              <div className="relative">
-                <Key className="absolute left-4 top-4 text-[color:var(--text-faint)]" size={16} />
-                <input
-                  required
-                  type="text"
-                  value={inviteCode}
-                  onChange={(e) => setInviteCode(e.target.value)}
-                  className={`${baseInputClass} pl-12 font-mono tracking-[0.2em]`}
-                  placeholder="CÓDIGO"
-                />
-              </div>
-            </div>
-          )}
+          <div>
+            <label className="mb-2 block type-label text-[color:var(--text-faint)]">Organização</label>
+            <input
+              required
+              type="text"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              className={baseInputClass}
+              placeholder="Nome da organização"
+            />
+          </div>
+          <div>
+            <label className="mb-2 block type-label text-[color:var(--text-faint)]">Fuso Horário</label>
+            <select
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              className={baseInputClass}
+            >
+              {TIMEZONE_OPTIONS.map(tz => (
+                <option key={tz.value} value={tz.value}>{tz.label}</option>
+              ))}
+            </select>
+          </div>
 
           {errorBox}
 
