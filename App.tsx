@@ -19,6 +19,7 @@ import TopClientes from './components/TopClientes';
 import CompanySwitcher from './components/CompanySwitcher';
 import CompanyScopeGate from './components/CompanyScopeGate';
 import AdminSettings, { type SettingsSection } from './components/AdminSettings';
+import AccessUnavailable from './components/AccessUnavailable';
 import { AppView, UserRole, Tenant, Profile, Company, CompanyAccessMode, CompanyScope } from './types';
 import { clearAllCache } from './services/cache';
 import { fetchProfileByAuthUserId, getSupabase, isProduction, logError } from './services/supabase';
@@ -35,6 +36,7 @@ import {
   isAggregateCompanyScope,
   isEnterpriseTenant as isEnterprisePlan,
   isFreePlanLocked,
+  isRoleBlocked,
   isTrialActive,
 } from './services/companyScope';
 import {
@@ -1019,6 +1021,13 @@ const App: React.FC = () => {
       onManageCompanies={() => openSettingsSection(companyAccessMode === 'enabled' ? 'empresas' : 'assinatura')}
     />
   );
+
+  // Gate de role: a aplicação é exclusiva de admin. Perfis investor/debtor foram
+  // descontinuados. Vem ANTES do Layout para que não-admin nunca monte a sidebar
+  // nem alcance AppView.DASHBOARD (que faz fall-through para AdminDashboardView).
+  if (profile && isRoleBlocked(profile)) {
+    return <AccessUnavailable onLogout={handleLogout} />;
+  }
 
   return (
     <Router>
