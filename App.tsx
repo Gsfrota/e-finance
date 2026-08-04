@@ -744,6 +744,9 @@ const App: React.FC = () => {
                 auth_user_id: sessionUser.id,
                 email: sessionUser.email,
                 full_name: meta.full_name || 'Novo Usuário',
+                // Default 'investor' quando meta.role falta: cai no gate isRoleBlocked
+                // (services/companyScope.ts) e mostra AccessUnavailable — nega por padrão,
+                // não concede acesso de admin por engano.
                 role: (meta.role as UserRole) || 'investor',
                 tenant_id: meta.tenant_id || '00000000-0000-0000-0000-000000000000',
                 company_id: meta.company_id || null,
@@ -1025,7 +1028,7 @@ const App: React.FC = () => {
   // Gate de role: a aplicação é exclusiva de admin. Perfis investor/debtor foram
   // descontinuados. Vem ANTES do Layout para que não-admin nunca monte a sidebar
   // nem alcance AppView.DASHBOARD (que faz fall-through para AdminDashboardView).
-  if (profile && isRoleBlocked(profile)) {
+  if (isRoleBlocked(profile)) {
     return <AccessUnavailable onLogout={handleLogout} />;
   }
 
