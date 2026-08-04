@@ -189,7 +189,12 @@ export interface Investment {
 /**
  * Contratos que NÃO representam dívida viva: já quitados ou substituídos por
  * uma renovação. Devem sair de cobrança, dashboard e métricas de capital.
- * 'defaulted' NÃO entra aqui — inadimplente continua sendo dinheiro na rua.
+ *
+ * 'defaulted' deliberadamente NÃO entra nesta lista — cada tela decide o que
+ * fazer com inadimplente, e as decisões hoje divergem: `useYieldMetrics`
+ * exclui `defaulted` do capital ativo, enquanto as telas de cobrança o mantêm
+ * (dívida vencida ainda é cobrável). Por isso, ao usar este helper num call-site
+ * novo, trate `defaulted` explicitamente em vez de assumir que ele está coberto.
  */
 export const INACTIVE_CONTRACT_STATUSES = ['completed', 'renewed'] as const;
 
