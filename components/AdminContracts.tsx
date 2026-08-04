@@ -2031,7 +2031,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               const isSettled = contract.status === 'completed';
               const isRenewed = contract.status === 'renewed';
               return (
-                <div key={contract.id} className="panel-card relative flex h-full flex-col justify-between rounded-[2rem] p-7 transition-all hover:border-white/15"
+                <div key={contract.id} data-testid="contract-card" data-contract-id={contract.id} className="panel-card relative flex h-full flex-col justify-between rounded-[2rem] p-7 transition-all hover:border-white/15"
                     style={isSettled ? { borderColor: 'rgba(52,211,153,0.45)', boxShadow: '0 0 0 1px rgba(52,211,153,0.20)' } : undefined}>
                     <div>
                         <div className="flex justify-between items-start mb-6">
