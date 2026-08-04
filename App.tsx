@@ -549,7 +549,6 @@ const App: React.FC = () => {
   const [settingsInitialSection, setSettingsInitialSection] = useState<SettingsSection | undefined>(undefined);
   const [targetUserId, setTargetUserId] = useState<string | undefined>(undefined);
   const [contractAutoNew, setContractAutoNew] = useState(false);
-  const [investorDefaultTab, setInvestorDefaultTab] = useState<'portfolio' | 'monthly'>('portfolio');
   const [adminDashboardDefaultTab, setAdminDashboardDefaultTab] = useState<'overview' | 'receivables' | 'collection' | 'monthly' | 'yield'>('overview');
   const [isLoading, setIsLoading] = useState(true);
   const [isPlatformOwnerServer, setIsPlatformOwnerServer] = useState(false);
@@ -1062,28 +1061,6 @@ const App: React.FC = () => {
           onOpenCompanySettings={openSettingsSection}
           onOpenSubscriptionSettings={() => openSettingsSection('assinatura')}
         >
-          {currentView === AppView.HOME && profile?.role === 'investor' && (
-            <div className="mx-auto max-w-7xl space-y-4 p-4 animate-fade-in md:space-y-6">
-              <div className="panel-card rounded-[2rem] px-6 py-7 md:px-8">
-                <p className="section-kicker mb-2">Bem-vindo</p>
-                <h1 className="type-display text-[color:var(--text-primary)]">Olá, {profile.full_name?.split(' ')[0]}</h1>
-              </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <button onClick={() => { setInvestorDefaultTab('portfolio'); setCurrentView(AppView.DASHBOARD); }}
-                  className="panel-card card-hover rounded-[1.8rem] p-6 text-left">
-                  <p className="section-kicker mb-2">Contratos</p>
-                  <h3 className="type-title font-display text-[color:var(--text-primary)]">Minha Carteira</h3>
-                  <p className="mt-3 type-body text-[color:var(--text-secondary)]">Visão geral dos seus investimentos e recebimentos.</p>
-                </button>
-                <button onClick={() => { setInvestorDefaultTab('monthly'); setCurrentView(AppView.DASHBOARD); }}
-                  className="panel-card card-hover rounded-[1.8rem] p-6 text-left">
-                  <p className="section-kicker mb-2 text-[color:var(--accent-brass)]">Organização</p>
-                  <h3 className="type-title font-display text-[color:var(--text-primary)]">Análise Mensal</h3>
-                  <p className="mt-3 type-body text-[color:var(--text-secondary)]">% pagamento, atrasados e breakdown por devedor mês a mês.</p>
-                </button>
-              </div>
-            </div>
-          )}
           {currentView === AppView.HOME && profile?.role === 'admin' && !isFreeLocked && (
             <AdminHome
               tenant={tenant}
@@ -1104,7 +1081,6 @@ const App: React.FC = () => {
                 userRole={profile?.role}
                 tenant={tenant}
                 defaultTab={adminDashboardDefaultTab}
-                investorDefaultTab={investorDefaultTab}
                 onBack={targetUserId ? () => { setTargetUserId(undefined); setCurrentView(AppView.USERS); } : undefined}
                 onNavigate={(view) => {
                     if (view !== AppView.DASHBOARD && view !== AppView.USER_DETAILS) setTargetUserId(undefined);
