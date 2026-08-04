@@ -27,7 +27,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from 'recharts';
-import { AppView, UserRole, Tenant, MonthlyViewData, LoanInstallment } from '../types';
+import { AppView, Tenant, MonthlyViewData, LoanInstallment } from '../types';
 import { useCompanyContext } from '../services/companyScope';
 import { CollectionDashboard } from './dashboard/CollectionDashboard';
 import MonthlyInvestorView from './investor/MonthlyInvestorView';
@@ -37,10 +37,7 @@ import { InstallmentDetailScreen, type InstallmentAction } from './InstallmentDe
 import { getSupabase } from '../services/supabase';
 
 interface DashboardProps {
-    targetUserId?: string;
-    onBack?: () => void;
     onNavigate?: (view: AppView) => void;
-    userRole?: UserRole;
     tenant?: Tenant | null;
     defaultTab?: 'overview' | 'receivables' | 'collection' | 'monthly' | 'yield';
 }
@@ -456,7 +453,7 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
 };
 
 // Main Component acting as Router/Controller based on Role
-const Dashboard: React.FC<DashboardProps> = ({ targetUserId, userRole, tenant, onBack, defaultTab, onNavigate }) => {
+const Dashboard: React.FC<DashboardProps> = ({ tenant, defaultTab, onNavigate }) => {
   return <AdminDashboardView tenant={tenant} defaultTab={defaultTab} onNavigate={onNavigate} />;
 };
 

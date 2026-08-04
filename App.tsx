@@ -1077,11 +1077,8 @@ const App: React.FC = () => {
           )}
           {currentView === AppView.DASHBOARD && !(isFreeLocked && profile?.role === 'admin') && (
             <Dashboard
-                targetUserId={targetUserId}
-                userRole={profile?.role}
                 tenant={tenant}
                 defaultTab={adminDashboardDefaultTab}
-                onBack={targetUserId ? () => { setTargetUserId(undefined); setCurrentView(AppView.USERS); } : undefined}
                 onNavigate={(view) => {
                     if (view !== AppView.DASHBOARD && view !== AppView.USER_DETAILS) setTargetUserId(undefined);
                     setCurrentView(view);
