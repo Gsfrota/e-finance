@@ -497,6 +497,19 @@ Simplificar. Cuidado: **não** remova a prop `userRole` do `Layout` sem verifica
 - `components/Login.tsx` — dois blocos adjacentes ficaram com a guarda idêntica `authMode === 'signUpAdmin'`; fundir em um. A única diferença entre eles é a classe `animate-fade-in-down`, que **não está definida em lugar nenhum do repo** (nem em `index.css`, nem em config de Tailwind) — é no-op, então a fusão é idêntica em comportamento.
 - `components/OnboardingWizard.tsx` — `const displayStep` é declarado e nunca usado. Pré-existente (não foi introduzido pela Task 4) e invisível ao `tsc` porque `noUnusedLocals` está desligado.
 
+- [ ] **Step 3a: Resíduos mortos deixados pela Task 5**
+
+- `e2e/fixtures/test-data.ts` — o export `storageStates` ainda lista `e2e/.auth/investor.json` e `e2e/.auth/debtor.json`, arquivos que nunca mais serão criados (os `setup(...)` correspondentes saíram). O export inteiro está morto: só `TEST_CPFS` é importado desse arquivo.
+- `scripts/ci/telegram-report.sh` — ainda faz `sed 's/-chromium-investor$//'` e `-chromium-debtor`, projetos que não existem mais. No-op inofensivo, mas mentiroso.
+
+- [ ] **Step 3b-bis: Decidir o destino de `e2e/reports/investor-monthly.spec.ts` (REL-INV-01)**
+
+Este teste é **tautológico**: termina em `expect(hasPrevNext || true).toBeTruthy()`, que é verdadeiro por construção. Ele passa sempre, sem exercitar nada — e dá cobertura falsa à **BR-REL-007**. Roda no projeto `chromium` com storageState de admin, e só faz `goto('/')` + checar `<aside>`.
+
+A verificação real da aba mensal vive em `dashboard-monthly.spec.ts` (REL-MON-01).
+
+Decidir: reescrever para de fato clicar na aba "Mensal" e asserir conteúdo, ou deletar. **Não deixar como está** — um teste que não pode falhar é pior que nenhum teste, porque conta como cobertura.
+
 - [ ] **Step 3c: Decidir o destino do link de convite órfão**
 
 `components/AdminUsers.tsx` — `handleSendLink` copia um link `?convite=<code>`, e o botão "Enviar Link" aparece para convites pendentes legados. **Nada no app lê o parâmetro `?convite=`** (o `App.tsx` só trata `code=` e `checkout=`), e o formulário de resgate que o consumia foi removido na Task 4. Códigos de convite continuam sendo gerados sem nenhum caminho de resgate.
@@ -918,6 +931,25 @@ BEGIN
 END;
 $function$;
 ```
+
+- [ ] **Step 3b: Remover a superfície de PIX órfã (aprovado pelo usuário em 2026-08-04)**
+
+Na **mesma migration**, remover o que a Fase 0 deixou sem consumidor. Verificado: nenhuma das duas RPCs tem chamador em lugar nenhum do repo, incluindo os dois bots.
+
+```sql
+DROP FUNCTION IF EXISTS public.get_pix_generation_data(uuid);
+DROP FUNCTION IF EXISTS public.get_pix_generation_data_secure(uuid, uuid, uuid);
+```
+
+`get_pix_generation_data` é `SECURITY DEFINER` com `EXECUTE` concedido a **`anon`** e **nenhuma verificação de autorização** — dado um UUID de parcela, devolve `pix_key`, beneficiário, cidade e valor em aberto de qualquer tenant. `get_pix_generation_data_secure` filtra por `p_actor_user_id`, mas esse valor é parâmetro: confia em quem o chamador diz ser.
+
+Nenhuma é enumerável (exige acertar um UUID v4), e ambas ficaram sem chamador quando a Task 2 removeu `useGeneratePix`.
+
+- [ ] **Step 3c: Despublicar a Edge Function `generate-pix`**
+
+Ativa, versão 9, `verify_jwt: false`, sem chamador. Ela não existe em `supabase/functions/` — foi deployada apenas no Supabase. Além de inútil, mantém `SUPABASE_SERVICE_ROLE_KEY` e `GEMINI_API_KEY` acessíveis a uma função que ninguém usa, e aceita invocação não autenticada.
+
+Confirmar que segue sem chamador antes de despublicar.
 
 - [ ] **Step 4: Validar que ficou UMA função só**
 
