@@ -406,13 +406,24 @@ Corrigir também as entradas que apontam `testFiles: ['e2e/debtor/dashboard.spec
 
 Remover de `ALL_SPEC_FILES` as entradas `'e2e/investor/dashboard.spec.ts'` e `'e2e/debtor/dashboard.spec.ts'`.
 
-- [ ] **Step 4: Remover os projetos de role do `playwright.config.ts`**
+- [ ] **Step 4: Reescrever `role-isolation.spec.ts` como teste puramente REST — NÃO apenas realocar**
 
-Remover os projetos `chromium-investor` e `chromium-debtor` e as entradas de `testIgnore` que referenciam `/investor/` e `/debtor/`.
+⚠️ **Correção de uma premissa errada deste plano** (encontrada na revisão da Task 1): `e2e/auth/role-isolation.spec.ts` **não** é puramente REST. USR-ISO-01 e USR-ISO-02 fazem asserções de **UI**:
 
-⚠️ Antes de remover, confirmar o destino de `e2e/auth/role-isolation.spec.ts` e `e2e/e2e-full/role-views.spec.ts`, que hoje só rodam nesses projetos. `role-isolation.spec.ts` valida **RLS via REST**, não via UI — ele sobrevive e deve ser realocado para o projeto `chromium` (storageState de admin), não deletado. É a única cobertura de isolamento entre tenants.
+- `await expect(page.locator('aside')).toBeVisible({ timeout: 12_000 })` — **sem `.catch()`**. Após o gate da Task 1, um investidor nunca renderiza `<aside>`, então este teste passa a falhar por timeout e as asserções de RLS abaixo dele nunca são alcançadas.
+- `expect(usersVisible).toBeFalsy()` — rodar isso com storageState de **admin** faz `usersVisible` ser `true`, ou seja, o teste falha. E `e2e/auth/` **está no Tier 2 do CI**, então a falha bloquearia o deploy.
 
-- [ ] **Step 5: Rodar a suíte que o CI roda**
+Portanto: **não realocar como está.** Reescrever USR-ISO-01 e USR-ISO-02 para validar isolamento **apenas via REST**, sem `page.goto` e sem asserção de UI — obtendo o token do investidor/devedor via API e verificando o que a RLS retorna. É essa a cobertura que importa: o gate da Task 1 é de UI, e um não-admin bloqueado continua com JWT válido. A barreira real contra leitura/escrita indevida é a RLS do Supabase, e este spec é a única coisa que a cobre.
+
+Se reescrever integralmente for grande demais para esta task, **pare e reporte** em vez de deletar o arquivo ou realocá-lo quebrado. Perder essa cobertura é pior que adiar a limpeza dos projetos.
+
+- [ ] **Step 5: Remover os projetos de role do `playwright.config.ts`**
+
+Só depois que o passo anterior estiver resolvido: remover os projetos `chromium-investor` e `chromium-debtor` e as entradas de `testIgnore` que referenciam `/investor/` e `/debtor/`.
+
+Remover também de `e2e/auth.setup.ts` os dois `setup(...)` que autenticam investidor e devedor. Eles chamam `loginAs`, que espera `waitForSelector('aside')` — após o gate da Task 1, isso trava 15 s por role para qualquer dev que configure `TEST_INVESTOR_*` / `TEST_DEBTOR_*`. Hoje não morde porque essas variáveis não existem nem no CI nem no `.env.local`, e o setup cai no ramo `writeEmptyAuth`.
+
+- [ ] **Step 6: Rodar a suíte que o CI roda**
 
 Run: `npm run build && npm run preview` em um terminal, e em outro:
 ```bash
@@ -422,7 +433,7 @@ Expected: mesma quantidade de falhas de antes da Fase 0 (idealmente zero). Qualq
 
 ⚠️ Verificar especificamente `e2e/reports/investor-monthly.spec.ts` (REL-INV-01): ele **roda** no projeto `chromium` com storageState de admin e seu cabeçalho menciona `chromium-investor`. Confirmar que ele exercita a aba mensal do admin e não o `InvestorDashboard` removido.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add -A
