@@ -27,7 +27,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from 'recharts';
-import { AppView, Tenant, MonthlyViewData, LoanInstallment } from '../types';
+import { AppView, Tenant, MonthlyViewData, LoanInstallment, isInactiveContract } from '../types';
 import { useCompanyContext } from '../services/companyScope';
 import { CollectionDashboard } from './dashboard/CollectionDashboard';
 import MonthlyInvestorView from './investor/MonthlyInvestorView';
@@ -118,6 +118,7 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
 
     // Garante que contratos sem parcelas apareçam no capital alocado
     investments.forEach((inv: any) => {
+      if (isInactiveContract(inv.status)) return;
       if (!map.has(inv.id)) {
         map.set(inv.id, {
           id: inv.id,

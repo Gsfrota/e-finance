@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { LoanInstallment, Tenant } from '../../types';
+import { LoanInstallment, Tenant, isInactiveContract } from '../../types';
 import { getBrazilToday, addDaysBR, isoToBrazilYMD } from '../../services/dateUtils';
 import {
   InstallmentAction,
@@ -85,7 +85,7 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
   const pendingInstallments = useMemo(
     () => installments.filter((i) =>
       i.status !== 'paid' &&
-      (i.investment as any)?.status !== 'completed' &&
+      !isInactiveContract((i.investment as any)?.status) &&
       calcOutstanding(i) > 0.01
     ),
     [installments],

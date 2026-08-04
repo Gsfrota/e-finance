@@ -186,6 +186,18 @@ export interface Investment {
   renewals?: Investment[];
 }
 
+/**
+ * Contratos que NÃO representam dívida viva: já quitados ou substituídos por
+ * uma renovação. Devem sair de cobrança, dashboard e métricas de capital.
+ * 'defaulted' NÃO entra aqui — inadimplente continua sendo dinheiro na rua.
+ */
+export const INACTIVE_CONTRACT_STATUSES = ['completed', 'renewed'] as const;
+
+export type InactiveContractStatus = (typeof INACTIVE_CONTRACT_STATUSES)[number];
+
+export const isInactiveContract = (status?: string | null): boolean =>
+  !!status && (INACTIVE_CONTRACT_STATUSES as readonly string[]).includes(status);
+
 // Histórico de renegociação (V18)
 export interface ContractRenegotiation {
   id: number;

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Investment, LoanInstallment } from '../types';
+import { Investment, LoanInstallment, isInactiveContract } from '../types';
 import { getBrazilToday, isoToBrazilYMD } from '../services/dateUtils';
 
 // --- TYPES ---
@@ -154,7 +154,7 @@ export function useYieldMetrics(
     const activeByCategory = new Map<ContractCategory, { count: number; capital: number }>();
 
     investments.forEach((inv) => {
-      if (inv.status === 'completed' || inv.status === 'defaulted') return;
+      if (isInactiveContract(inv.status) || inv.status === 'defaulted') return;
       const calcMode = inv.calculation_mode;
       const freq = inv.frequency;
       const { key, category } = classifyContract(calcMode, freq);
