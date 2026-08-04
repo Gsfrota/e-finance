@@ -180,7 +180,7 @@ const Layout: React.FC<LayoutProps> = ({
   };
 
   const operationLabel = getOperationLabel(tenant, activeCompany, activeCompanyScope);
-  const showCompanySwitcher = userRole === 'admin' && (companies.length > 0 || companyAccessMode === 'upsell_locked');
+  const showCompanySwitcher = companies.length > 0 || companyAccessMode === 'upsell_locked';
 
   const handleViewChange = (view: AppView) => {
     onChangeView(view);
@@ -219,7 +219,7 @@ const Layout: React.FC<LayoutProps> = ({
                 </p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <p className="text-[0.72rem] font-medium text-[color:var(--text-muted)]">
-                    {userRole === 'admin' ? 'Administrador' : userRole === 'investor' ? 'Investidor' : userRole === 'debtor' ? 'Devedor' : 'Workspace'}
+                    Administrador
                   </p>
                   {isProduction() && (
                     <span className="chip chip-active" style={{ fontSize: '0.55rem', padding: '0.15rem 0.5rem' }}>● LIVE</span>
@@ -266,102 +266,99 @@ const Layout: React.FC<LayoutProps> = ({
             )}
           </button>
 
-          {userRole === 'admin' && (
-            <>
-              <button
-                onClick={() => handleViewChange(AppView.USERS)}
-                title={collapsed ? 'Usuários' : undefined}
-                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${(activeView === AppView.USERS || activeView === AppView.USER_DETAILS) ? activeClass : inactiveClass}`}
-              >
-                <Users size={20} className="shrink-0" />
-                {!collapsed && (
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">Usuários</div>
-                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Relacionamentos</div>
-                  </div>
-                )}
-              </button>
+          <button
+            onClick={() => handleViewChange(AppView.USERS)}
+            title={collapsed ? 'Usuários' : undefined}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${(activeView === AppView.USERS || activeView === AppView.USER_DETAILS) ? activeClass : inactiveClass}`}
+          >
+            <Users size={20} className="shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold">Usuários</div>
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Relacionamentos</div>
+              </div>
+            )}
+          </button>
 
-              <button
-                onClick={() => handleViewChange(AppView.CONTRACTS)}
-                title={collapsed ? 'Contratos' : undefined}
-                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.CONTRACTS ? activeClass : inactiveClass}`}
-              >
-                <BriefcaseBusiness size={20} className="shrink-0" />
-                {!collapsed && (
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">Contratos</div>
-                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Crédito e prazos</div>
-                  </div>
-                )}
-              </button>
+          <button
+            onClick={() => handleViewChange(AppView.CONTRACTS)}
+            title={collapsed ? 'Contratos' : undefined}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.CONTRACTS ? activeClass : inactiveClass}`}
+          >
+            <BriefcaseBusiness size={20} className="shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold">Contratos</div>
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Crédito e prazos</div>
+              </div>
+            )}
+          </button>
 
-              <button
-                onClick={() => handleViewChange(AppView.COLLECTION)}
-                title={collapsed ? 'Cobranças' : undefined}
-                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.COLLECTION ? activeClass : inactiveClass}`}
-              >
-                <PhoneCall size={20} className="shrink-0" />
-                {!collapsed && (
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 text-sm font-semibold">
-                      Cobranças
-                      {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
-                    </div>
-                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Agenda do dia</div>
-                  </div>
-                )}
-              </button>
+          <button
+            onClick={() => handleViewChange(AppView.COLLECTION)}
+            title={collapsed ? 'Cobranças' : undefined}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.COLLECTION ? activeClass : inactiveClass}`}
+          >
+            <PhoneCall size={20} className="shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-sm font-semibold">
+                  Cobranças
+                  {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
+                </div>
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Agenda do dia</div>
+              </div>
+            )}
+          </button>
 
-              <button
-                onClick={() => handleViewChange(AppView.TOP_CLIENTES)}
-                title={collapsed ? 'Top Clientes' : undefined}
-                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.TOP_CLIENTES ? activeClass : inactiveClass}`}
-              >
-                <Trophy size={20} className="shrink-0" />
-                {!collapsed && (
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 text-sm font-semibold">
-                      Top Clientes
-                      {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
-                    </div>
-                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Ranking de pagadores</div>
-                  </div>
-                )}
-              </button>
+          <button
+            onClick={() => handleViewChange(AppView.TOP_CLIENTES)}
+            title={collapsed ? 'Top Clientes' : undefined}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.TOP_CLIENTES ? activeClass : inactiveClass}`}
+          >
+            <Trophy size={20} className="shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-sm font-semibold">
+                  Top Clientes
+                  {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
+                </div>
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Ranking de pagadores</div>
+              </div>
+            )}
+          </button>
 
-              <button
-                onClick={() => handleViewChange(AppView.ASSISTANT)}
-                title={collapsed ? 'Assistente' : undefined}
-                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.ASSISTANT ? activeClass : inactiveClass}`}
-              >
-                <Bot size={20} className="shrink-0" />
-                {!collapsed && (
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 text-sm font-semibold">
-                      Assistente
-                      {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
-                    </div>
-                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Automações e conexões</div>
-                  </div>
-                )}
-              </button>
+          <button
+            onClick={() => handleViewChange(AppView.ASSISTANT)}
+            title={collapsed ? 'Assistente' : undefined}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.ASSISTANT ? activeClass : inactiveClass}`}
+          >
+            <Bot size={20} className="shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-sm font-semibold">
+                  Assistente
+                  {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
+                </div>
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Automações e conexões</div>
+              </div>
+            )}
+          </button>
 
-              <button
-                onClick={() => handleViewChange(AppView.SETTINGS)}
-                title={collapsed ? 'Ajustes' : undefined}
-                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.SETTINGS ? activeClass : inactiveClass}`}
-              >
-                <Building2 size={20} className="shrink-0" />
-                {!collapsed && (
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">Ajustes</div>
-                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Empresa e financeiro</div>
-                  </div>
-                )}
-              </button>
-            </>
-          )}
+          <button
+            onClick={() => handleViewChange(AppView.SETTINGS)}
+            title={collapsed ? 'Ajustes' : undefined}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.SETTINGS ? activeClass : inactiveClass}`}
+          >
+            <Building2 size={20} className="shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold">Ajustes</div>
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Empresa e financeiro</div>
+              </div>
+            )}
+          </button>
+
           {isPlatformOwnerServer && (
             <button
               onClick={() => handleViewChange(AppView.PLATFORM_OWNER)}

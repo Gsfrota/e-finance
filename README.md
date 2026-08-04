@@ -384,11 +384,10 @@ npm run test:qa           # smoke tests pré-deploy
 ```
 e-finance/
 ├── components/          # UI (React) — Login, Dashboard, contratos, modais
-├── hooks/               # Data fetching — useInvestorMetrics, useDebtorFinance
+├── hooks/               # Data fetching — useAdminMetrics, useDashboardData, etc.
 ├── services/
 │   ├── supabase.ts      # Cliente + helpers (parseSupabaseError, isValidCPF)
-│   ├── gemini.ts        # Google GenAI — análise de portfólio
-│   └── pix.ts           # Geração de strings PIX
+│   └── gemini.ts        # Google GenAI — análise de portfólio
 ├── types.ts             # Tipos globais TypeScript
 ├── context/             # SQL migrations (v25–v44) + schema completo
 ├── e-finance-bot/       # Bot WhatsApp/Telegram

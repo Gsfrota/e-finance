@@ -10,9 +10,3 @@ export const TEST_INVESTMENTS = {
   installments: 12,
   dueDay: 10,
 };
-
-export const storageStates = {
-  admin: 'e2e/.auth/admin.json',
-  investor: 'e2e/.auth/investor.json',
-  debtor: 'e2e/.auth/debtor.json',
-};

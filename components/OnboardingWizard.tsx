@@ -64,7 +64,6 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
     'w-full rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-base)] px-4 py-3.5 text-sm text-[color:var(--text-primary)] outline-none transition-all placeholder:text-[color:var(--text-faint)] focus:border-[color:var(--accent-steel)]';
 
   const totalSteps = TOTAL_STEPS[mode];
-  const displayStep = mode === 'full' ? step : step - 1; // passo visual para barra de progresso
 
   // ─── Passo 1: Organização (modo full) ──────────────────────────────────────
   const handleStep1 = async (e: React.FormEvent) => {

@@ -217,17 +217,17 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         {/* Formulário */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {authMode === 'signUpAdmin' && (
-            <div className="animate-fade-in-down">
-              <label className="mb-2 block type-label text-[color:var(--text-faint)]">Organização</label>
-              <input required type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={baseInputClass} placeholder="Nome da organização" />
-            </div>
-          )}
+            <>
+              <div>
+                <label className="mb-2 block type-label text-[color:var(--text-faint)]">Organização</label>
+                <input required type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={baseInputClass} placeholder="Nome da organização" />
+              </div>
 
-          {authMode === 'signUpAdmin' && (
-            <div>
-              <label className="mb-2 block type-label text-[color:var(--text-faint)]">Nome completo</label>
-              <input required type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className={baseInputClass} placeholder="Seu nome" />
-            </div>
+              <div>
+                <label className="mb-2 block type-label text-[color:var(--text-faint)]">Nome completo</label>
+                <input required type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className={baseInputClass} placeholder="Seu nome" />
+              </div>
+            </>
           )}
 
           <div>

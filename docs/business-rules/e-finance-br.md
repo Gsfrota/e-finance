@@ -256,7 +256,7 @@ Categorias:
 - **Resultado:** `amount_fixed = installment.amount_total + encargos`. PIX code gerado com valor fixo. Status da parcela só muda após confirmação via webhook (futuro) ou validação manual pelo admin
 - **Exceções:** Enquanto webhook não estiver implementado, admin confirma manualmente. Pagamentos parciais não são permitidos via self-service
 - **Tabelas:** `loan_installments`, `tenants` (config PIX)
-- **Status:** ativa
+- **Status:** descontinuada em 2026-08 — telas de role removidas
 
 ### BR-PAG-017: Marcação automática de atraso — carência e notificação
 - **Descrição:** `update_overdue_installments` marca como `late` parcelas com `due_date < (today - carência)`. A carência padrão é 0 dias (sem carência). Após marcar, deve haver trigger de notificação configurável por tenant

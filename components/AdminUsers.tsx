@@ -5,14 +5,13 @@ import { Profile, UserRole, Tenant, Invite } from '../types';
 import { useCompanyContext } from '../services/companyScope';
 import { useAdminMetrics } from '../hooks/useAdminMetrics';
 import { useDebtorLateMap } from '../hooks/useDebtorLateMap';
-import { User, PlusCircle, Search, X, DollarSign, Activity, Users, CreditCard, Pencil, AlertTriangle, FileSearch, RefreshCw, Crown, Shield, Clipboard, Check, Key, Mail, Phone, Briefcase, Send, Trash2, Hourglass, UserPlus, MapPin, Upload, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { User, PlusCircle, Search, X, DollarSign, Activity, Users, CreditCard, Pencil, AlertTriangle, FileSearch, RefreshCw, Crown, Shield, Clipboard, Check, Key, Mail, Phone, Briefcase, Trash2, Hourglass, UserPlus, MapPin, Upload, CheckCircle2, ArrowLeft } from 'lucide-react';
 
 // View Model para unificar a exibição
 type DisplayUser = {
   id: string;
   isInvite: boolean;
   inviteId?: string;
-  inviteCode?: string;
   fullName: string;
   email: string;
   role: UserRole;
@@ -63,7 +62,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
 
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [copiedInviteCode, setCopiedInviteCode] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [clientCreated, setClientCreated] = useState(false);
@@ -135,7 +133,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
             id: i.id,
             isInvite: true,
             inviteId: i.id,
-            inviteCode: i.code,
             fullName: i.full_name || 'Convidado',
             email: i.email || 'E-mail pendente',
             role: i.role as UserRole,
@@ -267,13 +264,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
     setUploadError(null);
     setSubmitting(false);
     fetchUsersAndInvites();
-  };
-
-  const handleSendLink = (code: string) => {
-    const inviteLink = `${window.location.origin}${window.location.pathname}?convite=${code}`;
-    navigator.clipboard.writeText(inviteLink);
-    setCopiedInviteCode(code);
-    setTimeout(() => setCopiedInviteCode(null), 2000);
   };
 
   const handleEditCepLookup = async (digits: string) => {
@@ -786,20 +776,13 @@ const AdminUsers: React.FC<AdminUsersProps> = ({ onViewDashboard }) => {
                                     </div>
                                 );
                             })()
-                        ) : (
+                        ) : !isPending ? (
                         <div className="grid grid-cols-1 gap-3">
-                            {isPending ? (
-                                <button onClick={() => handleSendLink(user.inviteCode!)} className="flex items-center justify-center gap-2 bg-[color:var(--bg-base)] hover:bg-[color:var(--accent-caution-bg-strong)] border border-[color:var(--border-subtle)] hover:border-[color:var(--accent-caution-border)] text-[color:var(--accent-caution)] type-label py-3 rounded-xl transition-colors">
-                                    {copiedInviteCode === user.inviteCode ? <Check size={14} /> : <Send size={14} />}
-                                    {copiedInviteCode === user.inviteCode ? 'Copiado!' : 'Enviar Link'}
-                                </button>
-                            ) : (
                                 <button onClick={() => onViewDashboard(user.id)} className="flex items-center justify-center gap-2 bg-[color:var(--bg-base)] hover:bg-[color:var(--bg-soft)] text-[color:var(--text-primary)] border border-[color:var(--border-subtle)] type-label py-3 rounded-xl transition-colors">
                                     <FileSearch size={14} /> Ver Perfil
                                 </button>
-                            )}
                         </div>
-                        )}
+                        ) : null}
                     </div>
                 );
             })}
