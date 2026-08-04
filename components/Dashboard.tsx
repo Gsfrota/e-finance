@@ -30,7 +30,6 @@ import {
 import { AppView, UserRole, Tenant, MonthlyViewData, LoanInstallment } from '../types';
 import { useCompanyContext } from '../services/companyScope';
 import InvestorDashboard from './InvestorDashboard';
-import DebtorDashboard from './DebtorDashboard';
 import { CollectionDashboard } from './dashboard/CollectionDashboard';
 import MonthlyInvestorView from './investor/MonthlyInvestorView';
 import YieldByContractType from './dashboard/YieldByContractType';
@@ -462,7 +461,6 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
 const Dashboard: React.FC<DashboardProps> = ({ targetUserId, userRole, tenant, onBack, defaultTab, onNavigate, investorDefaultTab }) => {
   // If explicitly targeting a user (e.g. Admin viewing specific investor), or if role is Investor/Debtor
   if (userRole === 'investor' && !targetUserId) return <InvestorDashboard defaultTab={investorDefaultTab} />;
-  if (userRole === 'debtor' && !targetUserId) return <DebtorDashboard />;
 
   // Default to Admin Dashboard
   return <AdminDashboardView tenant={tenant} defaultTab={defaultTab} onNavigate={onNavigate} />;
