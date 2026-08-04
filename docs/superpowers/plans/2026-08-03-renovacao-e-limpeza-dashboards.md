@@ -402,7 +402,11 @@ Em `e2e/e2e-full/role-views.spec.ts`, remover o bloco `describe` "Devedor — Co
 
 - [ ] **Step 3: Limpar `scripts/qa/flow-map.ts`**
 
-Remover as entradas cujo `filePattern` aponta para arquivos deletados: `InvestorDashboard.tsx`, `DebtorDashboard.tsx`, `useDebtorFinance.ts`, e a de `useInvestorMetrics.ts` (o arquivo sobrevive, mas o mapeamento para `e2e/investor/dashboard.spec.ts` fica inválido).
+Remover as entradas cujo `filePattern` aponta para arquivos que **deixaram de existir**: `InvestorDashboard.tsx`, `DebtorDashboard.tsx`, `useDebtorFinance.ts`.
+
+⚠️ **Correção de uma instrução errada deste plano** (encontrada na revisão da Task 3): a entrada de `useInvestorMetrics.ts` deve ser **repontada, não removida**. O arquivo sobrevive à Task 3 contendo `computeMonthlyView` — a matemática que alimenta a aba "Visão Mensal" do admin. Remover a entrada deixaria cálculo de dinheiro sem nenhuma cobertura no mapa de QA, que é o oposto do objetivo. Repontar para um spec de admin (`e2e/admin/` ou `e2e/reports/`), projeto `chromium`.
+
+O mesmo raciocínio vale para as entradas de `InstallmentDetailFlow.tsx`, `InstallmentRowActions.tsx`, `InstallmentModals.tsx` e `PaymentModal.tsx` tratadas no parágrafo seguinte: o critério é **repontar o que continua vivo** e remover só o que morreu.
 
 Corrigir também as entradas que apontam `testFiles: ['e2e/debtor/dashboard.spec.ts']` para componentes que **continuam vivos** — `InstallmentDetailFlow.tsx`, `InstallmentRowActions.tsx`, `InstallmentModals.tsx`. Redirecionar para um spec de admin existente (`e2e/payment/` ou `e2e/e2e-full/payment-flows.spec.ts`); do contrário, mexer nesses arquivos deixaria de rodar qualquer teste.
 
@@ -443,6 +447,70 @@ Expected: mesma quantidade de falhas de antes da Fase 0 (idealmente zero). Qualq
 git add -A
 git commit -m "test: remover specs e mapeamentos de QA das telas de investidor/devedor"
 ```
+
+---
+
+## Task 5b: Cauda da Fase 0 — documentação e resíduos
+
+Itens levantados pelas revisões das Tasks 2 e 3. Agrupados aqui de propósito: cada linha de documentação é tocada **uma vez só**, depois que as três remoções já aconteceram.
+
+**Files:**
+- Modify: `CLAUDE.md`, `README.md`, `docs/business-rules/e-finance-br.md`, `App.tsx`
+
+- [ ] **Step 1: Corrigir a documentação que descreve código removido**
+
+- `CLAUDE.md` — o diagrama de *Request Flow* ainda tem `└── InvestorDashboard ← useInvestorMetrics hook` e `└── DebtorDashboard ← useDebtorFinance hook`. Ambas as telas não existem; o `Dashboard` agora despacha só para as views de admin.
+- `CLAUDE.md`, seção *Key Services* — a linha `services/pix.ts — Generates PIX payment strings ... used with qrcode.react in PaymentModal.tsx` descreve **três** arquivos deletados. Remover a entrada inteira.
+- `README.md` — `hooks/ # Data fetching — useInvestorMetrics, useDebtorFinance`. `useDebtorFinance` não existe; `useInvestorMetrics` não exporta mais hook nenhum.
+
+- [ ] **Step 2: Aposentar BR-PAG-016**
+
+`docs/business-rules/e-finance-br.md` tem a regra **BR-PAG-016** ("Pagamento self-service do devedor via PIX"), com condição `DebtorDashboard + PaymentModal` e **Status: ativa** — uma regra de negócio afirmando uma capacidade que não tem mais implementação.
+
+Mudar o Status para algo como `descontinuada em 2026-08 — telas de role removidas`, mantendo o texto histórico. Não apagar a regra: o `CHANGELOG.md` referencia o comportamento e o registro tem valor.
+
+- [ ] **Step 3: Remover branches de role inalcançáveis no `Layout`**
+
+Em `App.tsx`, dentro do `Layout`, sobraram ramificações que não podem mais ser atingidas, porque o gate da Task 1 garante `role === 'admin'` em tudo que renderiza o `Layout`:
+
+- o label do usuário: `userRole === 'investor' ? 'Investidor' : userRole === 'debtor' ? 'Devedor' : 'Workspace'` — sempre resolve para `'Administrador'`
+- as guardas `userRole === 'admin' &&` no `showCompanySwitcher` e no bloco de menus — sempre verdadeiras
+
+Simplificar. Cuidado: **não** remova a prop `userRole` do `Layout` sem verificar todos os usos; simplifique apenas as expressões comprovadamente constantes.
+
+- [ ] **Step 4: Typecheck, build e commit**
+
+Run: `npx tsc --noEmit && npm run build`
+Expected: ambos limpos.
+
+```bash
+git add CLAUDE.md README.md docs/business-rules/e-finance-br.md App.tsx
+git commit -m "docs: alinhar documentação e BR-PAG-016 à remoção das telas de role"
+```
+
+⚠️ `CLAUDE.md` tem uma modificação pendente **pré-existente e não relacionada** a este trabalho (mexe em CI/deploy e caminhos de contrato). Ao editar o arquivo, preserve-a — e confira o diff antes de commitar para não arrastar nem descartar mudança de terceiros.
+
+- [ ] **Step 5 (opcional): renomear `hooks/useInvestorMetrics.ts`**
+
+Depois da poda, o arquivo não exporta hook nenhum, não importa React e serve só telas de admin. Um nome `use*` dentro de `hooks/` é convenção carregada de significado — a regra de lint de hooks se apoia nela, e o próximo leitor vai procurar um hook que não existe.
+
+Destino sugerido: `services/monthlyView.ts`, ao lado de `services/dateUtils.ts`, que ele já importa.
+
+Custo: `git mv` + 3 caminhos de import (`components/Dashboard.tsx`, `components/dashboard/CadernetaBullet.tsx`, `components/investor/MonthlyInvestorView.tsx`) + a entrada em `scripts/qa/flow-map.ts`, que a Task 5 já está reescrevendo.
+
+Fazer **junto da Task 5** ou não fazer. Renomear em qualquer outro momento significa tocar o `flow-map.ts` duas vezes.
+
+- [ ] **Step 6 (requer decisão do usuário): resíduos de PIX**
+
+Dois itens levantados na revisão da Task 2, ambos **fora** do que este plano pode decidir sozinho:
+
+1. **Config de PIX virou write-only.** Os forms em `components/AdminSettings.tsx` e `components/OnboardingWizard.tsx` gravam `pix_key`, `pix_key_type`, `pix_name` e `pix_city`, e `services/companyScope.ts` os copia para `Company`/`CompanyBranding` — mas **nada lê** esses campos, em nenhum codebase. A justificativa original ("o bot lê") foi verificada e é **falsa**: o bot lê `PLATFORM_PIX_KEY` de env, que é a chave da própria plataforma para cobrar assinatura. Decidir se os forms ficam (aguardando um consumidor futuro) ou saem.
+
+2. **Superfície órfã no banco.** A Edge Function `generate-pix` continua publicada e ativa sem chamador. E duas RPCs ficaram sem consumidor, uma delas com problema de autorização **pré-existente**:
+   - `public.get_pix_generation_data(p_installment_id uuid)` — `SECURITY DEFINER`, `EXECUTE` concedido a `anon`, **sem nenhuma verificação de autorização**: dado um UUID de parcela, devolve `pix_key`, beneficiário, cidade e valor em aberto de qualquer tenant.
+   - `public.get_pix_generation_data_secure(...)` — recebe `p_actor_user_id` como parâmetro e filtra por ele, ou seja, confia em quem o chamador diz ser.
+
+   Nenhuma é enumerável (exige acertar UUID v4), e nenhuma tem chamador no repo. Remover as duas e despublicar a Edge Function é mudança de banco: **exige aprovação explícita do usuário**, e pode ser feita junto da migration da Task 8.
 
 ---
 
