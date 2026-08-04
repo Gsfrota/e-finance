@@ -221,9 +221,13 @@ Expected: `package-lock.json` atualizado, sem erro.
 
 Run:
 ```bash
-grep -rn "DebtorDashboard\|useDebtorFinance\|useGeneratePix\|services/pix\|qrcode.react" --include="*.ts" --include="*.tsx" --include="*.json" . | grep -v node_modules | grep -v e-finance-bot
+grep -rn "DebtorDashboard\|useDebtorFinance\|useGeneratePix\|services/pix\|qrcode.react" \
+  --include="*.ts" --include="*.tsx" --include="*.json" . \
+  | grep -v node_modules | grep -v e-finance-bot | grep -v "^./e2e/" | grep -v "^./scripts/"
 ```
-Expected: nenhuma linha (a busca exclui os bots de propósito — o bot tem cópia própria de pix).
+Expected: nenhuma linha.
+
+A busca exclui de propósito: os bots (têm cópia própria de `pix.ts`, não um import), `e2e/` e `scripts/` (são escopo da Task 5 — `payment-debtor-pix.spec.ts`, os projetos `chromium-debtor`/`chromium-investor` do `playwright.config.ts` e as entradas de `flow-map.ts` continuam referenciando estes nomes até lá, sem quebrar `tsc` nem o build). Qualquer sobra **fora** de `e2e/` e `scripts/` é um importador não previsto — parar e investigar antes de deletar.
 
 - [ ] **Step 5: Typecheck**
 
