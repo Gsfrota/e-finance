@@ -388,6 +388,20 @@ git commit -m "chore: remover resgate de convite — só admin acessa a aplicaç
 - Delete: `e2e/debtor/dashboard.spec.ts`, `e2e/investor/dashboard.spec.ts`, `e2e/payment/payment-debtor-pix.spec.ts`
 - Modify: `e2e/e2e-full/role-views.spec.ts`, `scripts/qa/flow-map.ts`, `playwright.config.ts`
 
+- [ ] **Step 0: Corrigir AUTH-04 — este é o único item da Task 5 que bloqueia o CI**
+
+⚠️ A Task 4 (remoção do resgate de convite) quebrou `e2e/auth/login.spec.ts`, teste **AUTH-04**: ele clica em "Ativar Conta" e espera o texto "Ativar Conta com Convite" e o placeholder "CÓDIGO". Nada disso existe mais.
+
+Diferente dos outros specs desta task, `e2e/auth/` **está no Tier 2 do CI** — então esta é a única correção aqui que é pré-requisito para qualquer push. Enquanto ela não for feita, o job `test` falha, o `deploy` vira *skipped* e produção congela silenciosamente no último build.
+
+Remover AUTH-04. O fluxo que ele cobria não existe mais — não há o que reescrever.
+
+Preservar os demais testes do arquivo: AUTH-01, 02, 03 e AUTH-05 continuam válidos (AUTH-05 exercita "Registrar Empresa" / "Criar Organização", que permanecem).
+
+**Um segundo teste quebrou pelo mesmo motivo:** `e2e/auth/role-isolation.spec.ts`, **USR-ISO-03**, afirma que a tela de login exibe a opção "Ativar Conta". Ele falha sempre que a tela de login renderizar — tem um `else` permissivo que pode mascarar a falha quando já existe sessão autenticada, mas está quebrado do mesmo jeito. Remover essa asserção.
+
+⚠️ Cuidado ao mexer nesse arquivo: ele é o mesmo que o Step 4 manda **reescrever como teste REST**. Trate os dois de uma vez para não editá-lo duas vezes — e não confunda USR-ISO-03 (asserção sobre convite, some) com USR-ISO-01/02 (isolamento entre tenants, que precisa ser preservado como cobertura REST).
+
 - [ ] **Step 1: Deletar os specs mortos**
 
 ```bash
@@ -477,6 +491,17 @@ Em `App.tsx`, dentro do `Layout`, sobraram ramificações que não podem mais se
 - as guardas `userRole === 'admin' &&` no `showCompanySwitcher` e no bloco de menus — sempre verdadeiras
 
 Simplificar. Cuidado: **não** remova a prop `userRole` do `Layout` sem verificar todos os usos; simplifique apenas as expressões comprovadamente constantes.
+
+- [ ] **Step 3b: Cleanups de uma linha herdados da Task 4**
+
+- `components/Login.tsx` — dois blocos adjacentes ficaram com a guarda idêntica `authMode === 'signUpAdmin'`; fundir em um. A única diferença entre eles é a classe `animate-fade-in-down`, que **não está definida em lugar nenhum do repo** (nem em `index.css`, nem em config de Tailwind) — é no-op, então a fusão é idêntica em comportamento.
+- `components/OnboardingWizard.tsx` — `const displayStep` é declarado e nunca usado. Pré-existente (não foi introduzido pela Task 4) e invisível ao `tsc` porque `noUnusedLocals` está desligado.
+
+- [ ] **Step 3c: Decidir o destino do link de convite órfão**
+
+`components/AdminUsers.tsx` — `handleSendLink` copia um link `?convite=<code>`, e o botão "Enviar Link" aparece para convites pendentes legados. **Nada no app lê o parâmetro `?convite=`** (o `App.tsx` só trata `code=` e `checkout=`), e o formulário de resgate que o consumia foi removido na Task 4. Códigos de convite continuam sendo gerados sem nenhum caminho de resgate.
+
+Remover o botão e o handler, ou decidir explicitamente mantê-los. Não deixar sem dono.
 
 - [ ] **Step 4: Typecheck, build e commit**
 
