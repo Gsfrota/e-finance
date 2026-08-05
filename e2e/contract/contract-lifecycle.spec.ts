@@ -2,12 +2,14 @@
  * Testes E2E — Ciclo de Vida de Contratos
  *
  * Cobertura:
- *   CNT-LC-01  BR-CNT-007  Renovação → parent status='renewed', child.parent_investment_id
+ *   CNT-LC-01  BR-CNT-007  Renovação via wizard → filho com parent_investment_id
  *   CNT-LC-02  BR-CNT-007  Contrato renovado exibe link ao filho na UI
  *   CNT-LC-03  BR-CNT-009  Todas parcelas pagas → contrato status='completed'
  *   CNT-LC-04  BR-CNT-009  Transições de estado permitidas (active→defaulted via admin)
  *   CNT-LC-05  BR-CNT-004  Bullet: remaining_balance correto após pagamento de juros
- *   CNT-LC-06  BR-CNT-008  Import legado: validação + código único por tenant
+ *   CNT-LC-06  BR-CNT-007  Renovar contrato quitado mantém o pai como completed
+ *   CNT-LC-07  BR-CNT-007  Renovar contrato defaulted é rejeitado pelo RPC
+ *   CNT-LC-08  BR-CNT-008  Import legado: validação + código único por tenant
  */
 
 import { test, expect } from '@playwright/test';
@@ -18,6 +20,7 @@ import {
   waitForApp,
   navigateToView,
   selectSpecificCompany,
+  isDashboardPaywalled,
 } from '../fixtures/e2e-test-helpers';
 import { createBulletContractViaREST } from '../fixtures/payment-test-data';
 
@@ -66,44 +69,88 @@ async function createTwoProfileContract(page: any): Promise<{ investmentId: numb
 
 // ─── CNT-LC-01: Renovação cria parent->child ─────────────────────────────────
 
-test('CNT-LC-01 [BR-CNT-007]: Renovar contrato via UI → parent status=renewed, child com parent_investment_id', async ({ page }) => {
+test('CNT-LC-01 [BR-CNT-007]: Renovar contrato via wizard → filho com parent_investment_id', async ({ page }) => {
+  test.setTimeout(60_000); // fluxo completo de UI (app + lista + wizard 3 steps) + cleanup
   await waitForApp(page);
+  const ctx = await getCtx(page);
+  if (!ctx) { test.skip(true, 'Credenciais ausentes'); return; }
+  const { tenantId } = await resolveScope(ctx);
+  if (!tenantId) { test.skip(true, 'Tenant não encontrado'); return; }
+
   await selectSpecificCompany(page);
   await navigateToView(page, 'Contratos');
 
-  // Verifica se há contratos ativos para renovar
-  const contractCards = page.locator('[data-testid="contract-card"], [data-contract-id], tr[data-id]').first();
-  const hasContracts = await contractCards.isVisible({ timeout: 8_000 }).catch(() => false);
-  if (!hasContracts) { test.skip(true, 'Sem contratos visíveis para renovar'); return; }
+  // waitFor (e não isVisible, cujo `timeout` é ignorado) — a lista ainda está carregando aqui.
+  const cards = page.locator('[data-testid="contract-card"]');
+  const listLoaded = await cards.first().waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+  if (!listLoaded) { test.skip(true, 'Sem contratos visíveis para renovar'); return; }
 
-  // Clica no primeiro contrato
-  await contractCards.click();
-  await page.waitForTimeout(500);
+  // O RPC rejeita pai 'defaulted'/'renewed' — escolhe na lista um contrato renovável de verdade,
+  // em vez de assumir que o primeiro card serve (a lista ordena por created_at, sem filtro de status).
+  const ids = (await cards.evaluateAll(els => els.map(el => el.getAttribute('data-contract-id'))))
+    .filter((id): id is string => !!id);
+  const rows: any[] = (await restCall(ctx, `investments?id=in.(${ids.join(',')})&select=id,status`)) ?? [];
+  const renewable = new Set(
+    rows.filter(r => r.status === 'active' || r.status === 'completed').map(r => String(r.id)),
+  );
+  const parentId = ids.find(id => renewable.has(id));
+  if (!parentId) { test.skip(true, 'Nenhum contrato renovável (active/completed) na lista'); return; }
 
-  // Procura botão "Renovar"
-  const renewBtn = page.getByRole('button', { name: /Renov/i }).first();
-  const renewVisible = await renewBtn.isVisible({ timeout: 5_000 }).catch(() => false);
-  if (!renewVisible) { test.skip(true, 'Botão Renovar não encontrado'); return; }
+  const parentStatusBefore = rows.find(r => String(r.id) === parentId)?.status;
+  const childrenBefore: string[] =
+    ((await restCall(ctx, `investments?parent_investment_id=eq.${parentId}&select=id`)) ?? [])
+      .map((r: any) => String(r.id));
 
-  await renewBtn.click();
-  await page.waitForTimeout(500);
+  try {
+    // Abre o detalhe pelo botão de olho do card escolhido
+    await page.locator(`[data-contract-id="${parentId}"]`).getByTitle('Ver detalhes').click();
 
-  // Modal de renovação deve abrir
-  const modalTitle = page.getByText(/Renovar Contrato/i).first();
-  await expect(modalTitle).toBeVisible({ timeout: 5_000 });
+    const renewBtn = page.getByRole('button', { name: /Renovar Contrato/i }).first();
+    const detailOpened = await renewBtn.waitFor({ state: 'visible', timeout: 8_000 }).then(() => true).catch(() => false);
+    if (!detailOpened) {
+      // Plano free sem trial ativo: o card redireciona para o paywall em vez de abrir o detalhe.
+      const paywalled = await isDashboardPaywalled(page);
+      test.skip(true, paywalled
+        ? 'Tenant de QA em plano free sem trial — paywall bloqueia o detalhe do contrato'
+        : 'Botão "Renovar Contrato" não apareceu no detalhe');
+      return;
+    }
+    await renewBtn.click();
 
-  // Confirma renovação
-  const confirmBtn = page.getByRole('button', { name: /Renovar Contrato/i }).first();
-  const confirmVisible = await confirmBtn.isVisible({ timeout: 3_000 }).catch(() => false);
-  if (!confirmVisible) return;
+    // O wizard abre no step 2 — "Termos Financeiros"
+    await expect(page.getByText(/Termos Financeiros/i).first()).toBeVisible({ timeout: 8_000 });
 
-  await confirmBtn.click();
-  await page.waitForTimeout(1_500);
+    // Nome exato: no step 2 também existe o botão "Próximo mês" (primeira cobrança).
+    await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+    await expect(page.getByText(/Revisão Final/i).first()).toBeVisible({ timeout: 6_000 });
+    await page.getByRole('button', { name: /Renovar Contrato/i }).last().click();
 
-  // Verifica via UI que aparece mensagem de sucesso ou status renovado
-  const successEl = page.getByText(/renovado|Renovado|sucesso|criado/i).first();
-  const isSuccess = await successEl.isVisible({ timeout: 8_000 }).catch(() => false);
-  expect(isSuccess).toBeTruthy();
+    // Confirma o vínculo no banco (a UI volta para a lista após o RPC)
+    await expect
+      .poll(
+        async () => {
+          const children = await restCall(
+            ctx,
+            `investments?tenant_id=eq.${tenantId}&parent_investment_id=eq.${parentId}&select=id`,
+          );
+          return children?.length ?? 0;
+        },
+        { timeout: 15_000, message: 'contrato filho não foi criado pela renovação' },
+      )
+      .toBeGreaterThan(childrenBefore.length);
+  } finally {
+    // Este teste cria contrato REAL no tenant de QA — remove o filho e devolve o pai ao status original.
+    const children: any[] = (await restCall(ctx, `investments?parent_investment_id=eq.${parentId}&select=id`).catch(() => [])) ?? [];
+    for (const child of children.filter(c => !childrenBefore.includes(String(c.id)))) {
+      await restCall(ctx, `loan_installments?investment_id=eq.${child.id}`, 'DELETE').catch(() => {});
+      await restCall(ctx, `payment_transactions?investment_id=eq.${child.id}`, 'DELETE').catch(() => {});
+      await restCall(ctx, `investments?id=eq.${child.id}`, 'DELETE').catch(() => {});
+    }
+    const after = await restCall(ctx, `investments?id=eq.${parentId}&select=status`).catch(() => null);
+    if (parentStatusBefore && after?.[0]?.status && after[0].status !== parentStatusBefore) {
+      await restCall(ctx, `investments?id=eq.${parentId}`, 'PATCH', { status: parentStatusBefore }).catch(() => {});
+    }
+  }
 });
 
 // ─── CNT-LC-02: Contrato renovado mostra link ao filho ───────────────────────
@@ -306,9 +353,118 @@ test('CNT-LC-05 [BR-CNT-004]: Bullet: remaining_balance decrementado apenas por 
   }
 });
 
-// ─── CNT-LC-06: Import legado ────────────────────────────────────────────────
+// ─── CNT-LC-06: Renovar contrato quitado mantém o pai completed ──────────────
 
-test('CNT-LC-06 [BR-CNT-008]: Página de importação legada existe e tem validação', async ({ page }) => {
+test('CNT-LC-06 [BR-CNT-007]: Renovar contrato quitado mantém o pai como completed', async ({ page }) => {
+  await waitForApp(page);
+  const ctx = await getCtx(page);
+  if (!ctx) { test.skip(true, 'Credenciais ausentes'); return; }
+  const { tenantId, companyId } = await resolveScope(ctx);
+  if (!tenantId) { test.skip(true, 'Tenant não encontrado'); return; }
+
+  const profs = await restCall(ctx, `profiles?select=id&tenant_id=eq.${tenantId}&limit=2`);
+  if (!profs || profs.length < 2) { test.skip(true, 'Perfis insuficientes'); return; }
+
+  // O pai nasce pelo RPC: INSERT direto é barrado pela RLS (exige company_id do tenant,
+  // que o RPC resolve sozinho). Depois é quitado via PATCH.
+  const parentId = await restCall(ctx, 'rpc/create_investment_validated', 'POST', {
+    p_tenant_id: tenantId, p_user_id: profs[0].id, p_payer_id: profs[1].id,
+    p_asset_name: 'TESTE E2E RENOVACAO QUITADO',
+    p_amount_invested: 1000, p_source_capital: 1000, p_source_profit: 0,
+    p_current_value: 1100, p_interest_rate: 10, p_installment_value: 1100,
+    p_total_installments: 1, p_frequency: 'monthly', p_due_day: 10,
+    p_calculation_mode: 'auto', p_company_id: companyId || null,
+  });
+  expect(parentId).toBeTruthy();
+  await restCall(ctx, `investments?id=eq.${parentId}`, 'PATCH', { status: 'completed' });
+
+  let childId: any = null;
+  try {
+    childId = await restCall(ctx, 'rpc/create_investment_validated', 'POST', {
+      p_tenant_id: tenantId, p_user_id: profs[0].id, p_payer_id: profs[1].id,
+      p_asset_name: 'TESTE E2E RENOVACAO FILHO',
+      p_amount_invested: 1000, p_source_capital: 1000, p_source_profit: 0,
+      p_current_value: 1100, p_interest_rate: 10, p_installment_value: 1100,
+      p_total_installments: 1, p_frequency: 'monthly', p_due_day: 10,
+      p_calculation_mode: 'auto', p_company_id: companyId || null,
+      p_parent_investment_id: parentId,
+    });
+    expect(childId).toBeTruthy();
+
+    const parent = await restCall(ctx, `investments?id=eq.${parentId}&select=status`);
+    expect(parent?.[0]?.status).toBe('completed');   // BR-CNT-007: quitado NÃO vira renewed
+
+    const child = await restCall(ctx, `investments?id=eq.${childId}&select=parent_investment_id`);
+    expect(Number(child?.[0]?.parent_investment_id)).toBe(Number(parentId));
+  } finally {
+    // Cleanup no finally: uma asserção que falha no meio não pode deixar contrato de teste em prod.
+    if (childId) {
+      await restCall(ctx, `loan_installments?investment_id=eq.${childId}`, 'DELETE').catch(() => {});
+      await restCall(ctx, `investments?id=eq.${childId}`, 'DELETE').catch(() => {});
+    }
+    await restCall(ctx, `loan_installments?investment_id=eq.${parentId}`, 'DELETE').catch(() => {});
+    await restCall(ctx, `investments?id=eq.${parentId}`, 'DELETE').catch(() => {});
+  }
+});
+
+// ─── CNT-LC-07: Renovar contrato defaulted é rejeitado ──────────────────────
+
+test('CNT-LC-07 [BR-CNT-007]: Renovar contrato defaulted é rejeitado pelo RPC', async ({ page }) => {
+  await waitForApp(page);
+  const ctx = await getCtx(page);
+  if (!ctx) { test.skip(true, 'Credenciais ausentes'); return; }
+  const { tenantId, companyId } = await resolveScope(ctx);
+  if (!tenantId) { test.skip(true, 'Tenant não encontrado'); return; }
+
+  const profs = await restCall(ctx, `profiles?select=id&tenant_id=eq.${tenantId}&limit=2`);
+  if (!profs || profs.length < 2) { test.skip(true, 'Perfis insuficientes'); return; }
+
+  // Pai criado pelo RPC (RLS barra INSERT direto) e marcado como inadimplente via PATCH.
+  const parentId = await restCall(ctx, 'rpc/create_investment_validated', 'POST', {
+    p_tenant_id: tenantId, p_user_id: profs[0].id, p_payer_id: profs[1].id,
+    p_asset_name: 'TESTE E2E RENOVACAO DEFAULTED',
+    p_amount_invested: 1000, p_source_capital: 1000, p_source_profit: 0,
+    p_current_value: 1100, p_interest_rate: 10, p_installment_value: 1100,
+    p_total_installments: 1, p_frequency: 'monthly', p_due_day: 10,
+    p_calculation_mode: 'auto', p_company_id: companyId || null,
+  });
+  expect(parentId).toBeTruthy();
+  await restCall(ctx, `investments?id=eq.${parentId}`, 'PATCH', { status: 'defaulted' });
+
+  try {
+    let rejected = false;
+    try {
+      await restCall(ctx, 'rpc/create_investment_validated', 'POST', {
+        p_tenant_id: tenantId, p_user_id: profs[0].id, p_payer_id: profs[1].id,
+        p_asset_name: 'TESTE E2E FILHO PROIBIDO',
+        p_amount_invested: 1000, p_source_capital: 1000, p_source_profit: 0,
+        p_current_value: 1100, p_interest_rate: 10, p_installment_value: 1100,
+        p_total_installments: 1, p_frequency: 'monthly', p_due_day: 10,
+        p_calculation_mode: 'auto', p_company_id: companyId || null,
+        p_parent_investment_id: parentId,
+      });
+    } catch {
+      rejected = true;   // restCall lança em resposta !ok
+    }
+    expect(rejected).toBeTruthy();
+
+    const children = await restCall(ctx, `investments?parent_investment_id=eq.${parentId}&select=id`);
+    expect(children?.length ?? 0).toBe(0);
+  } finally {
+    // Se o RPC tiver criado filho (regressão), remove antes do pai para não sujar prod.
+    const orphans: any[] = (await restCall(ctx, `investments?parent_investment_id=eq.${parentId}&select=id`).catch(() => [])) ?? [];
+    for (const o of orphans) {
+      await restCall(ctx, `loan_installments?investment_id=eq.${o.id}`, 'DELETE').catch(() => {});
+      await restCall(ctx, `investments?id=eq.${o.id}`, 'DELETE').catch(() => {});
+    }
+    await restCall(ctx, `loan_installments?investment_id=eq.${parentId}`, 'DELETE').catch(() => {});
+    await restCall(ctx, `investments?id=eq.${parentId}`, 'DELETE').catch(() => {});
+  }
+});
+
+// ─── CNT-LC-08: Import legado ────────────────────────────────────────────────
+
+test('CNT-LC-08 [BR-CNT-008]: Página de importação legada existe e tem validação', async ({ page }) => {
   await waitForApp(page);
   await selectSpecificCompany(page);
 
