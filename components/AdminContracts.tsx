@@ -586,7 +586,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               p_tenant_id: currentTenant.id,
               p_user_id: selectedInvestor.id,
               p_payer_id: selectedPayer.id,
-              p_asset_name: formData.asset_name || `Contrato ${selectedPayer.full_name.split(' ')[0]}`,
+              p_asset_name: formData.asset_name || `Contrato ${selectedPayer.full_name?.split(' ')[0] ?? 'Cliente'}`,
               p_amount_invested: formData.amount_invested,
               p_source_capital: formData.amount_invested - formData.source_profit_amount,
               p_source_profit: formData.source_profit_amount,
@@ -1090,7 +1090,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                             <input
                                 type="text"
                                 className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold focus:border-[color:var(--accent-steel)] outline-none transition-all"
-                                placeholder={`Ex: Empréstimo ${selectedPayer?.full_name.split(' ')[0]}`}
+                                placeholder={`Ex: Empréstimo ${selectedPayer?.full_name?.split(' ')[0] ?? 'Cliente'}`}
                                 value={formData.asset_name}
                                 onChange={e => setFormData({...formData, asset_name: e.target.value})}
                             />
