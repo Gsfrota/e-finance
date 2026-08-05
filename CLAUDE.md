@@ -12,6 +12,22 @@ npm run preview  # Preview production build (porta 4173, usada pelos e2e)
 scripts/claude-agent.sh "seu prompt"  # Claude headless com JSON e MCP do Supabase
 ```
 
+### Unit (vitest) — fórmulas de dinheiro
+
+```bash
+npm run test:unit  # tests/unit/** — funções puras (financials, salary, dateUtils, paymentAudit). ~0,5s, sem browser e sem banco.
+```
+
+Camada mais barata e a única que cobre a fórmula de juros: ela vive em `utils/financials.ts` (TypeScript), **não no banco** — a RPC `create_investment_validated` recebe `current_value`/`installment_value` já calculados. Cada teste afirma um número exato; os que documentam bug conhecido têm comentário `// BUG CONFIRMADO` e afirmam o comportamento **atual**.
+
+### Contrato de banco (vitest, toca PRODUÇÃO)
+
+```bash
+npm run test:db-contract  # e2e/contract-db/**/*.dbspec.ts — RPC + RLS reais no tenant de QA
+```
+
+⚠️ **Falha de propósito**: cada teste vermelho é a prova executável de um bug confirmado (vazamento de tenant na `view_investor_balances`, `pay_bullet_interest_only` inventando dinheiro, RPCs de dinheiro executáveis por `anon`, centavos não redistribuídos na criação de contrato). **Não está em nenhum tier do `deploy.yml`** e a extensão `.dbspec.ts` não casa com o `testMatch` do Playwright, então `npx playwright test` ignora. O harness (`e2e/contract-db/fixture.ts`) recusa rodar fora de um tenant de QA e verifica o cleanup relendo o banco.
+
 ### E2E (Playwright)
 
 ```bash
