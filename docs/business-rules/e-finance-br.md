@@ -2,7 +2,9 @@
 
 > Documento normativo. Toda feature e bug fix deve referenciar as BRs aplicáveis.
 > Mantenedor: @po (Pax)
-> Última atualização: 28/03/2026
+> Última atualização: 04/08/2026
+>
+> ⚠️ **Nota (2026-08):** A aplicação web é exclusiva do perfil `admin`. Perfis `investor` e `debtor` seguem existindo como **dados** (`investments.user_id` e `investments.payer_id`), mas não têm tela própria — usuário autenticado com role não-admin recebe uma tela de acesso indisponível.
 
 ---
 
@@ -82,9 +84,9 @@ Categorias:
 
 ### BR-CNT-007: Renovação cria vínculo parent→child e transita status
 - **Descrição:** Ao renovar um contrato, o novo contrato deve ter `parent_investment_id` apontando para o original. O contrato original deve ter seu `status` alterado para `renewed`
-- **Condição:** Ao executar `ContractRenewalModal` / lógica de renovação
-- **Resultado:** `child.parent_investment_id = parent.id`, `parent.status = 'renewed'`. Novos contratos herdam investidor e devedor; taxas e prazo podem ser alterados
-- **Exceções:** Contrato em status `defaulted` não pode ser renovado sem reverter o status primeiro (decisão administrativa). Em contratos Bullet quitados pelo pagamento total do ciclo, o contrato original deve permanecer `completed`; eventual renovação posterior é uma nova operação explícita/vinculada e não reativa nem reaproveita o contrato quitado.
+- **Condição:** Ao executar `create_investment_validated` com `p_parent_investment_id` não-nulo
+- **Resultado:** Dentro da **mesma transação** que cria o contrato filho, o RPC lê o pai com `SELECT ... FOR UPDATE` (validando que pertence ao mesmo tenant), grava `child.parent_investment_id = parent.id` e, se `parent.status = 'active'`, executa `UPDATE investments SET status = 'renewed' WHERE id = parent.id`. A transição de status **não é opcional** — o formulário próprio de renovação (`ContractRenewalModal`, com checkbox "Marcar contrato original como Renovado") foi removido; renovar agora abre o mesmo wizard de criação de contrato, pré-preenchido, e o vínculo/transição é sempre aplicado pelo RPC. Um evento `contract_renewed` é registrado em `audit_events` via `log_audit_event`. Novos contratos herdam investidor e devedor; taxas e prazo podem ser alterados
+- **Exceções:** Contrato pai não encontrado → exceção. Contrato pai em status `defaulted` não pode ser renovado sem reverter o status primeiro (`'Contrato inadimplente não pode ser renovado — reverta o status primeiro.'`). Contrato pai já em status `renewed` não pode ser renovado novamente (`'Contrato já foi renovado.'`) — sem renovação em cascata. Em contratos (inclusive Bullet) quitados pelo pagamento total do ciclo, o contrato pai `completed` **permanece** `completed` — não transita para `renewed`; apenas pais `active` transicionam. O `SELECT ... FOR UPDATE` sobre o pai existe justamente para travar contra mudança concorrente de status durante a transação.
 - **Tabelas:** `investments`
 - **Status:** ativa
 
@@ -117,7 +119,7 @@ Categorias:
 - **Condição:** Ao final de **qualquer** RPC de mutação financeira que possa levar o saldo devedor a zero: `pay_installment`, `pay_avulso` (todos os destinos), `apply_surplus_action`, `apply_remainder_action`, `refinance_installment`, `admin_update_installment`, `pay_bullet_interest_only`, `generate_next_bullet_installment`
 - **Resultado:** Chamar a função auxiliar `recalculate_investment_status(p_investment_id)` ao final de cada RPC listada acima. A função verifica se todas as parcelas são `paid` (exceto absorvidas via `missed_at` com `amount_total = 0`) e `remaining_balance < 0.01`; se sim, executa `UPDATE investments SET status = 'completed', updated_at = NOW() WHERE id = p_investment_id`
 - **Inverso (revert):** Se uma RPC de reversão (`revert_installment_payment`, `revert_installment_missed`) restaurar saldo > 0 ou parcela não-paga, a mesma função deve restaurar `status = 'active'`
-- **Efeito em UI:** Contratos `completed` NÃO aparecem em telas de cobrança (`CollectionDashboard`, `InstallmentsTable`, KPI de parcelas atrasadas). `useDashboardData` filtra `loan_installments` de investments com `status = 'completed'`. `CollectionDashboard` aplica filtro defensivo: `calcOutstanding(i) > 0.01 && i.investment?.status !== 'completed'`
+- **Efeito em UI:** Contratos `completed` NÃO aparecem em telas de cobrança (`CollectionDashboard`, `InstallmentsTable`, KPI de parcelas atrasadas). `useDashboardData` filtra `loan_installments` de investments com `status = 'completed'`. `CollectionDashboard` aplica filtro defensivo: `calcOutstanding(i) > 0.01 && i.investment?.status !== 'completed'`. Contratos `renewed` também são excluídos de cobrança, dashboard e métricas de capital — via a constante `INACTIVE_CONTRACT_STATUSES = ['completed', 'renewed']` e o helper `isInactiveContract(status)`, ambos em `types.ts`, aplicados em `hooks/useDashboardData.ts`, `components/dashboard/CollectionDashboard.tsx`, `hooks/useYieldMetrics.ts` e `components/Dashboard.tsx`. Antes dessa consolidação, só `completed` era filtrado nessas telas — um contrato `renewed` continuava cobrando ao lado do contrato filho (dívida duplicada). `status = 'defaulted'` **deliberadamente não** entra em `INACTIVE_CONTRACT_STATUSES` — representa dívida vencida ainda cobrável — e o tratamento diverge por tela de propósito: `useYieldMetrics` exclui `defaulted` do capital ativo, enquanto as telas de cobrança o mantêm
 - **Exceções:** Contratos com `status IN ('defaulted', 'renewed')` não são automaticamente completados — requerem ação administrativa explícita. Avulso `penalty_payment` não necessariamente quita o contrato (só paga encargos de atraso); a verificação pela função auxiliar é o árbitro
 - **Tabelas:** `investments`, `loan_installments`
 - **Status:** ativa — *criada em 2026-04-11 (bug: cobranças de quem já pagou; contratos amortizados quitados não fechavam)*
