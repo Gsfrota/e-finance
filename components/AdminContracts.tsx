@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { fetchProfileByAuthUserId, getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { useDebtorLateMap } from '../hooks/useDebtorLateMap';
 import { logEvent } from '../services/eventLog';
@@ -229,6 +229,9 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
   const [viewingContract, setViewingContract] = useState<Investment | null>(null);
   const [contractsSubView, setContractsSubView] = useState<'list' | 'detail' | 'renewal' | 'create' | 'create-client' | 'edit'>(autoOpenCreate ? 'create' : 'list');
   const [renewalSource, setRenewalSource] = useState<Investment | null>(null);
+  // Guarda o id já pré-preenchido: `profiles` é array novo a cada fetchData(), e sem isso
+  // um refetch (troca de empresa) com o wizard aberto reescreveria o que o admin digitou.
+  const prefilledRenewalIdRef = useRef<number | null>(null);
 
   const [contractSearchTerm, setContractSearchTerm] = useState('');
 
@@ -374,6 +377,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
   // investidor/devedor são resolvidos por id.
   useEffect(() => {
     if (!renewalSource || contractsSubView !== 'create' || profiles.length === 0) return;
+    if (prefilledRenewalIdRef.current === renewalSource.id) return;
+    prefilledRenewalIdRef.current = renewalSource.id;
 
     const src = renewalSource;
     const isBullet = src.calculation_mode === 'interest_only';
@@ -481,6 +486,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
       }
       
       setRenewalSource(null);
+      prefilledRenewalIdRef.current = null;
       setSelectedInvestor(defaultInvestor);
       setSelectedPayer(null);
       setPreviewDateStrings([]);
@@ -637,6 +643,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
             });
           }
           setRenewalSource(null);
+          prefilledRenewalIdRef.current = null;
           setContractsSubView('list');
           fetchData();
 
@@ -1000,7 +1007,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
             </div>
             <button
               onClick={() => {
-                  if (renewalSource) { setRenewalSource(null); setContractsSubView('detail'); return; }
+                  if (renewalSource) { setRenewalSource(null); prefilledRenewalIdRef.current = null; setContractsSubView('detail'); return; }
                   setContractsSubView('list');
               }}
               className="p-3 hover:bg-[color:var(--bg-soft)] rounded-full transition-colors group"
