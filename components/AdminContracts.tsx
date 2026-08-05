@@ -369,6 +369,84 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
     fetchBalance();
   }, [selectedInvestor, currentTenant]);
 
+  // Renovação: o wizard é a única tela de contrato. Ao receber um contrato de origem,
+  // espelha os termos dele no formulário — tudo editável. Depende de `profiles` porque
+  // investidor/devedor são resolvidos por id.
+  useEffect(() => {
+    if (!renewalSource || contractsSubView !== 'create' || profiles.length === 0) return;
+
+    const src = renewalSource;
+    const isBullet = src.calculation_mode === 'interest_only';
+
+    setSelectedInvestor(profiles.find(p => p.id === src.user_id) || null);
+    setSelectedPayer(profiles.find(p => p.id === src.payer_id) || null);
+
+    const nextForm = {
+      asset_name: `${src.asset_name} (Renovação)`,
+      amount_invested: Number(src.amount_invested) || 0,
+      total_installments: Number(src.total_installments) || 12,
+      frequency: (src.frequency || 'monthly') as typeof formData.frequency,
+      due_day: Number(src.due_day) || 10,
+      weekday: Number(src.weekday) || 1,
+      start_date: getBrazilToday(),
+      interest_rate: src.interest_rate != null ? Number(src.interest_rate) : 10,
+      installment_value: Number(src.installment_value) || 0,
+      current_value: 0,
+      calculation_mode: (src.calculation_mode || 'auto') as typeof formData.calculation_mode,
+      // source_profit_amount fica 0: availableProfit chega por efeito assíncrono e
+      // qualquer valor pré-preenchido aqui seria clampado a 0 por updateFormState.
+      source_profit_amount: 0,
+      skip_saturday: src.include_saturday === false,
+      skip_sunday: src.include_sunday === false,
+      bullet_principal_mode: (src.bullet_principal_mode || 'together') as typeof formData.bullet_principal_mode,
+      capitalize_interest: src.capitalize_interest !== false,
+      break_fee_percent: isBullet && src.break_fee_percent != null ? String(src.break_fee_percent) : '',
+      default_after_days: Number(src.default_after_days) || 20,
+      late_fine_percent: isBullet && src.late_fine_percent != null ? String(src.late_fine_percent) : '',
+    };
+
+    const financial = calculateFinancials(
+      nextForm.amount_invested,
+      nextForm.total_installments,
+      nextForm.interest_rate,
+      nextForm.calculation_mode,
+      nextForm.installment_value,
+      nextForm.bullet_principal_mode,
+    );
+
+    setFormData({
+      ...nextForm,
+      installment_value: financial.installmentValue,
+      current_value: financial.totalValue,
+      interest_rate: financial.interestRate,
+    });
+
+    setInstallmentsInput(String(nextForm.total_installments));
+    setRateInput(String(financial.interestRate));
+    setInstallmentValueInput(String(financial.installmentValue));
+    setMonthOffset(undefined);
+    setFreelancerDates([]);
+
+    if (nextForm.frequency !== 'freelancer') {
+      const dateObjects = calculateInstallmentDates(
+        nextForm.frequency,
+        nextForm.due_day,
+        nextForm.weekday,
+        nextForm.start_date,
+        nextForm.total_installments,
+        nextForm.skip_saturday,
+        nextForm.skip_sunday,
+        undefined,
+      );
+      setPreviewDateStrings(dateObjects.map(d =>
+        d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })
+      ));
+    } else {
+      setPreviewDateStrings([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renewalSource, contractsSubView, profiles]);
+
   const handleOpenWizard = async () => {
       const today = new Date();
 
@@ -402,6 +480,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
           defaultInvestor = profiles.find(p => p.role === 'admin') || null;
       }
       
+      setRenewalSource(null);
       setSelectedInvestor(defaultInvestor);
       setSelectedPayer(null);
       setPreviewDateStrings([]);
@@ -538,6 +617,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               p_break_fee_percent: formData.calculation_mode === 'interest_only' ? parsePercentInput(formData.break_fee_percent) : null,
               p_default_after_days: formData.default_after_days || 20,
               p_late_fine_percent: formData.calculation_mode === 'interest_only' ? parsePercentInput(formData.late_fine_percent) : null,
+              p_parent_investment_id: renewalSource?.id ?? null,
           });
 
           if (rpcError) throw rpcError;
@@ -545,16 +625,18 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
           if (currentTenant && currentUserId) {
             logEvent({
               tenant_id: currentTenant.id, user_id: currentUserId,
-              event_category: 'contract', event_type: 'contract_created',
+              event_category: 'contract', event_type: renewalSource ? 'contract_renewed' : 'contract_created',
               entity_type: 'investment', entity_id: String(rpcData),
               after: { investor_id: selectedInvestor.id, payer_id: selectedPayer.id, amount_invested: formData.amount_invested, frequency: formData.frequency, calculation_mode: formData.calculation_mode,
                 ...(formData.calculation_mode === 'interest_only' ? {
                   break_fee_percent: parsePercentInput(formData.break_fee_percent),
                   default_after_days: formData.default_after_days || 20,
                   late_fine_percent: parsePercentInput(formData.late_fine_percent),
-                } : {}) },
+                } : {}),
+                ...(renewalSource ? { parent_investment_id: renewalSource.id } : {}) },
             });
           }
+          setRenewalSource(null);
           setContractsSubView('list');
           fetchData();
 
@@ -869,7 +951,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
       <ContractDetail
         investmentId={viewingContractId}
         onBack={() => { setContractsSubView('list'); setViewingContractId(null); setViewingContract(null); }}
-        onRenew={(inv) => { setRenewalSource(inv); setContractsSubView('renewal'); }}
+        onRenew={(inv) => { setRenewalSource(inv); setStep(2); setContractsSubView('create'); }}
         onRefreshList={fetchData}
         tenant={currentTenant}
       />
@@ -902,15 +984,27 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
         <div className="px-8 py-6 border-b border-[color:var(--border-subtle)] flex justify-between items-center bg-[color:var(--bg-base)]/50">
             <div>
                 <h3 className="type-label text-[color:var(--text-primary)] flex items-center gap-2">
-                    Novo Contrato
+                    {renewalSource ? 'Renovar Contrato' : 'Novo Contrato'}
                 </h3>
+                {renewalSource && (
+                    <p className="mt-1 text-xs text-[color:var(--text-faint)] truncate">
+                        Renovação de #{renewalSource.id} —{' '}
+                        <span className="font-semibold text-[color:var(--accent-brass)]">{renewalSource.asset_name}</span>
+                    </p>
+                )}
                 <div className="flex gap-1.5 mt-2">
                     {[1, 2, 3].map(i => (
                         <div key={i} className={`h-1.5 w-8 rounded-full transition-all duration-300 ${step >= i ? 'bg-[color:var(--accent-positive)]' : 'bg-[color:var(--border-subtle)]'}`}></div>
                     ))}
                 </div>
             </div>
-            <button onClick={() => setContractsSubView('list')} className="p-3 hover:bg-[color:var(--bg-soft)] rounded-full transition-colors group">
+            <button
+              onClick={() => {
+                  if (renewalSource) { setRenewalSource(null); setContractsSubView('detail'); return; }
+                  setContractsSubView('list');
+              }}
+              className="p-3 hover:bg-[color:var(--bg-soft)] rounded-full transition-colors group"
+            >
                 <X className="text-[color:var(--text-muted)] group-hover:text-[color:var(--text-primary)]" size={24}/>
             </button>
         </div>
@@ -1691,7 +1785,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                 </button>
             ) : (
                 <button onClick={handleCreateContract} disabled={wizardLoading} className="flex-[2] bg-[color:var(--accent-positive)] hover:opacity-90 disabled:opacity-50 text-white py-4 rounded-2xl type-label flex items-center justify-center gap-2 transition-all shadow-lg shadow-[0_4px_16px_var(--accent-positive-subtle)]">
-                    {wizardLoading ? <RefreshCw className="animate-spin" size={18}/> : <CheckCircle2 size={18}/>} Criar Contrato
+                    {wizardLoading ? <RefreshCw className="animate-spin" size={18}/> : <CheckCircle2 size={18}/>} {renewalSource ? 'Renovar Contrato' : 'Criar Contrato'}
                 </button>
             )}
         </div>
