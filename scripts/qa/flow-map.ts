@@ -170,9 +170,12 @@ export const FLOW_MAP: FlowMapping[] = [
     hasInputs: true,
   },
   {
-    filePattern: 'ContractRenewalModal.tsx',
+    // A renovação deixou de ter tela própria: virou o wizard de AdminContracts
+    // pré-preenchido, com o vínculo pai→filho feito dentro do RPC. A cobertura
+    // vive em contract-lifecycle.spec.ts (CNT-LC-01/06/07).
+    filePattern: 'AdminContracts.tsx',
     flowName: 'contract-renewal',
-    testFiles: [],
+    testFiles: ['e2e/contract/contract-lifecycle.spec.ts'],
     playwrightProject: 'chromium',
     risk: 'high',
     hasInputs: true,

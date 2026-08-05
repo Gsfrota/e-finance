@@ -8,7 +8,6 @@ import { useCompanyContext } from '../services/companyScope';
 import { getBrazilToday, addDaysBR, toBrazilYMD } from '../services/dateUtils';
 import QuickContractInput from './QuickContractInput';
 import ContractDetail from './ContractDetail';
-import ContractRenewalModal from './ContractRenewalModal';
 import {
     Search, PlusCircle, CheckCircle2, X, RefreshCw,
     ArrowRight, Calendar, Zap, Wallet, ChevronRight,
@@ -227,7 +226,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
   const [monthOffset, setMonthOffset] = useState<0 | 1 | undefined>(undefined);
   const [viewingContractId, setViewingContractId] = useState<number | null>(null);
   const [viewingContract, setViewingContract] = useState<Investment | null>(null);
-  const [contractsSubView, setContractsSubView] = useState<'list' | 'detail' | 'renewal' | 'create' | 'create-client' | 'edit'>(autoOpenCreate ? 'create' : 'list');
+  const [contractsSubView, setContractsSubView] = useState<'list' | 'detail' | 'create' | 'create-client' | 'edit'>(autoOpenCreate ? 'create' : 'list');
   const [renewalSource, setRenewalSource] = useState<Investment | null>(null);
   // Guarda o id já pré-preenchido: `profiles` é array novo a cada fetchData(), e sem isso
   // um refetch (troca de empresa) com o wizard aberto reescreveria o que o admin digitou.
@@ -961,16 +960,6 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
         onRenew={(inv) => { setRenewalSource(inv); setStep(2); setContractsSubView('create'); }}
         onRefreshList={fetchData}
         tenant={currentTenant}
-      />
-    );
-  }
-
-  if (contractsSubView === 'renewal') {
-    return (
-      <ContractRenewalModal
-        sourceContract={renewalSource}
-        onBack={() => setContractsSubView('detail')}
-        onSuccess={() => { fetchData(); setContractsSubView('list'); setViewingContractId(null); setRenewalSource(null); }}
       />
     );
   }
