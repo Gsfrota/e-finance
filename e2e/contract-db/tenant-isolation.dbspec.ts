@@ -116,8 +116,11 @@ describe.skipIf(skipReason !== null)('Camada 2 — isolamento de tenant', () => 
 
   it('anon (sem Authorization) não pode reescrever o valor de uma parcela', async () => {
     const alvo = contrato.installments[1];
+    // Sem número mágico: até a v48 as três parcelas saíam idênticas (366,66) porque
+    // o resíduo era descartado. Hoje a distribuição é [366,67 / 366,67 / 366,66], e
+    // cravar um valor aqui só tornaria este teste de SEGURANÇA refém do rateio.
     const antes = num(alvo.amount_total);
-    expect(antes).toBe(366.66);
+    expect(antes).toBeGreaterThan(0);
 
     const res = await rpcRaw(
       ctx,
@@ -133,5 +136,11 @@ describe.skipIf(skipReason !== null)('Camada 2 — isolamento de tenant', () => 
         `amount_total da parcela #${alvo.number} foi de ${antes} para ${num(depois.amount_total)}. ` +
         'Apesar do prefixo "admin_", a função não checa role nem tenant.'
     ).toBeGreaterThanOrEqual(400);
+
+    // O que de fato importa: a chamada anônima não pode ter mudado o valor.
+    expect(
+      num(depois.amount_total),
+      'O valor da parcela mudou depois de uma chamada sem autenticação.'
+    ).toBe(antes);
   });
 });

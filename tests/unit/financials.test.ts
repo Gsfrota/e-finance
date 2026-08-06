@@ -144,12 +144,14 @@ describe('calculateFinancials — guardas de entrada', () => {
   });
 });
 
-describe('distributeEvenly — a redistribuição de centavos que a criação de contrato NÃO usa', () => {
+describe('distributeEvenly — a redistribuição de centavos, agora usada nos dois caminhos', () => {
   // financials.ts:10-17 → joga todo o resíduo na ÚLTIMA posição.
-  // ⚠ Só é chamada em AdminContracts.tsx:891-892 (EDIÇÃO de contrato).
-  // A criação (create_investment_validated, plpgsql) replica ROUND(principal/N,2)
-  // + ROUND(juros/N,2) em todas as parcelas e o resíduo some. Os dois caminhos
-  // discordam por construção — a prova numérica disso está na Camada 2
+  // Chamada em AdminContracts.tsx:891-892 (EDIÇÃO de contrato). Até a migration
+  // v48 a CRIAÇÃO (create_investment_validated, plpgsql) replicava
+  // ROUND(principal/N,2) + ROUND(juros/N,2) em todas as parcelas e o resíduo
+  // sumia — os dois caminhos discordavam por construção. A v48 passou a aplicar
+  // esta mesma convenção no banco, então os números abaixo são também os que a
+  // criação produz. A prova contra o banco real está na Camada 2
   // (e2e/contract-db/installment-generation.dbspec.ts).
   it('1100 em 7 → seis de 157,14 e uma de 157,16, somando exatamente 1100', () => {
     const values = distributeEvenly(1100, 7);
