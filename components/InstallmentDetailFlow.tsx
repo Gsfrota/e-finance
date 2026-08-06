@@ -726,7 +726,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     setLoading(true); setError(null);
     const supabase = getSupabase(); if (!supabase) return;
     try {
-      const { error: err } = await supabase.rpc('pay_bullet_interest_only', {
+      const { data, error: err } = await supabase.rpc('pay_bullet_interest_only', {
         p_installment_id: installment.id,
         p_paid_at:        paymentDate + 'T12:00:00',
         p_payment_method: paymentMethod,
@@ -734,10 +734,14 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
       });
       if (err) throw err;
       // CB-006: auditoria via RPC (payment_transactions + audit_events já gravados)
+      // v47: pagar menos que o juros do ciclo deixa a parcela 'partial'. Espelhar o
+      // que o RPC devolveu em vez de assumir 'paid'.
+      const ret = (data ?? {}) as { installment_status?: string };
+      const quitou = ret.installment_status !== 'partial';
       setActionSummary({ type: 'exact', paidAmount: val, installmentNumber: installment.number });
-      installment.amount_paid = val;
-      installment.status      = 'paid';
-      installment.paid_at     = paymentDate + 'T12:00:00';
+      installment.amount_paid = normalizeNum(installment.amount_paid) + val;
+      installment.status      = quitou ? 'paid' : 'partial';
+      if (quitou) installment.paid_at = paymentDate + 'T12:00:00';
       onSuccess(); setIsReceiptMode(true);
     } catch (e: any) { setError(parseSupabaseError(e)); }
     finally { setLoading(false); }

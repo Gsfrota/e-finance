@@ -258,9 +258,15 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
 
   const editPaidPrincipal = useMemo(() => {
       // Para contratos bullet (interest_only), parcelas pagas via pay_bullet_interest_only
-      // têm amount_principal = saldo devedor (display), mas o principal NUNCA foi amortizado.
-      // Usar 0 para que remainingPrincipal = principal intacto.
-      if (contractToEdit?.calculation_mode === 'interest_only') return 0;
+      // têm amount_principal = saldo devedor (display), então somá-las conta o principal
+      // inteiro como recuperado. A verdade está no remaining_balance do contrato.
+      // v47: pagar acima do juros do ciclo ABATE principal, então isso deixou de ser
+      // sempre zero — assumir 0 aqui redistribuiria o principal cheio nas parcelas abertas.
+      if (contractToEdit?.calculation_mode === 'interest_only') {
+          const investido = Number(contractToEdit.amount_invested || 0);
+          const saldo = Number(contractToEdit.remaining_balance ?? investido);
+          return roundCurrency(Math.max(0, investido - saldo));
+      }
       return roundCurrency(editPaidInstallments.reduce((sum, installment) => sum + Number(installment.amount_principal || 0), 0));
   }, [editPaidInstallments, contractToEdit]);
 
@@ -917,8 +923,11 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               interest_rate: nextInterestRate,
           };
           // Para bullet, manter remaining_balance sincronizado com o principal editado.
+          // Tem que ser o principal AINDA EM ABERTO, não o principal cheio: desde a v47
+          // um pagamento acima do juros do ciclo amortiza o bullet, e gravar `principal`
+          // aqui ressuscitaria o que já foi devolvido.
           if (isBulletEdit) {
-              investmentUpdate.remaining_balance = principal;
+              investmentUpdate.remaining_balance = remainingPrincipal;
           }
 
           const { error: investmentError } = await supabase

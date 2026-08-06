@@ -1874,7 +1874,10 @@ export interface PayBulletResult {
 /**
  * BR-BOT-012: baixa de parcela bullet via RPC pay_bullet_interest_only.
  *  - settle=false → rolagem: paga só os juros, gera a próxima parcela, mantém saldo.
- *  - settle=true  → quitação: p_amount_paid = remaining_balance → quita principal+juros.
+ *  - settle=true  → quitação: p_amount_paid = saldo + juros pendentes.
+ *    v47: o limiar de quitação passou a incluir os juros do ciclo. Mandar só o
+ *    remaining_balance (como era antes) hoje seria pagamento parcial e o contrato
+ *    NÃO fecharia.
  * Valida tenant antes de chamar o RPC (SECURITY DEFINER não filtra tenant).
  */
 export async function payBulletInterest(
@@ -1890,7 +1893,7 @@ export async function payBulletInterest(
 
   const { data, error } = await db().rpc('pay_bullet_interest_only', {
     p_installment_id: installmentId,
-    p_amount_paid: settle ? info.remainingBalance : undefined,
+    p_amount_paid: settle ? info.remainingBalance + info.interestDue : undefined,
   });
 
   if (error || !data) {

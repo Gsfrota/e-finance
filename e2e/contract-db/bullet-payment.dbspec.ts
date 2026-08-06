@@ -1,22 +1,24 @@
 /**
- * ⚠ ESTE ARQUIVO FALHA DE PROPÓSITO. As falhas SÃO o resultado.
- *
  * `pay_bullet_interest_only` — a RPC de baixa do produto de maior ticket
  * (InstallmentDetailFlow.tsx:729,1286; InstallmentModals.tsx:1750).
  *
- * Dois bugs verificados no corpo real da função em produção
- * (`pg_get_functiondef`, 04/08/2026):
+ * Este arquivo nasceu VERMELHO, como prova executável de dois bugs verificados no
+ * corpo real da função em produção (`pg_get_functiondef`, 04/08/2026):
  *
- * (1) RAMO DE ROLAGEM — `p_amount_paid` é IGNORADO:
+ * (1) RAMO DE ROLAGEM — `p_amount_paid` era IGNORADO:
  *       amount_paid = COALESCE(amount_paid,0) + v_interest_due
- *     `p_amount_paid` só decide se é quitação. Pagar R$ 50 de um juros de R$ 250
- *     registra R$ 250 e marca a parcela 'paid'. Dinheiro inventado no ledger.
+ *     Pagar R$ 50 de um juros de R$ 250 registrava R$ 250 e marcava 'paid'.
  *
- * (2) RAMO DE QUITAÇÃO — o limiar ignora os juros:
+ * (2) RAMO DE QUITAÇÃO — o limiar ignorava os juros:
  *       v_is_settlement := v_effective_amt >= (v_remaining - 0.005)
- *     `v_remaining` é só o principal. Pagando exatamente o principal, a função
- *     fecha o contrato e ainda grava `interest_portion = v_interest_due` na
- *     payment_transactions — as porções somam mais que o `amount` da própria linha.
+ *     Pagando só o principal o contrato fechava, e a linha de ledger gravava
+ *     porções que somavam mais que o próprio `amount`.
+ *
+ * A migration v47 corrigiu os dois (imputação única: juros -> principal), então
+ * agora estes testes afirmam o comportamento CORRETO e devem passar. Se algum
+ * voltar a ficar vermelho, o bug de dinheiro voltou.
+ *
+ * Referência de negócio: BR-PAG-015 / FR-PAG-06 (itens 4, 5 e 6).
  *
  * FORA DE QUALQUER TIER DO CI. Rode com `npm run test:db-contract`.
  */
@@ -122,7 +124,8 @@ describe.skipIf(skipReason !== null)('Camada 2 — bullet: pay_bullet_interest_o
     const parcela = c.installments[0];
 
     // Paga EXATAMENTE o saldo devedor (5000), sem um centavo dos R$ 250 de juros.
-    // v_is_settlement := 5000 >= (5000 - 0.005) → TRUE → o contrato fecha.
+    // Antes da v47 isso quitava o contrato (o limiar olhava só o principal).
+    // Agora imputa 250 de juros + 4750 de principal e o contrato segue aberto.
     await rpc(ctx, 'pay_bullet_interest_only', {
       p_installment_id: parcela.id,
       p_paid_at: '2026-08-04T12:00:00',
@@ -133,7 +136,6 @@ describe.skipIf(skipReason !== null)('Camada 2 — bullet: pay_bullet_interest_o
     const txs = await fetchPaymentTransactions(ctx, c.investmentId);
     expect(txs).toHaveLength(1);
     const tx = txs[0];
-    expect(tx.transaction_type).toBe('bullet_settlement');
 
     const amount = num(tx.amount);
     const soma = num(tx.principal_portion) + num(tx.interest_portion);
@@ -141,9 +143,41 @@ describe.skipIf(skipReason !== null)('Camada 2 — bullet: pay_bullet_interest_o
       soma,
       `A linha de ledger não fecha: amount=${amount}, principal_portion=${num(tx.principal_portion)}, ` +
         `interest_portion=${num(tx.interest_portion)} (soma ${soma}). ` +
-        'O limiar de quitação compara o valor pago só com o PRINCIPAL, então o contrato ' +
-        `fecha com R$ ${soma - amount} de juros que nunca foram recebidos.`
+        `Diferença de R$ ${soma - amount} creditada sem lastro.`
     ).toBe(amount);
+
+    // Pagar o principal sem os juros NÃO é quitação: falta R$ 250 do ciclo.
+    const inv = await fetchInvestment(ctx, c.investmentId);
+    expect(tx.transaction_type).toBe('bullet_interest');
+    expect(num(tx.interest_portion)).toBe(250);
+    expect(num(tx.principal_portion)).toBe(4750);
+    expect(num(inv.remaining_balance)).toBe(250);
+    expect(inv.status).toBe('active');
+  });
+
+  it('quitação exige principal + juros (5250) e fecha o contrato sem gerar nova parcela', async () => {
+    const c = await createContract(ctx, BULLET);
+    const parcela = c.installments[0];
+
+    await rpc(ctx, 'pay_bullet_interest_only', {
+      p_installment_id: parcela.id,
+      p_paid_at: '2026-08-04T12:00:00',
+      p_payment_method: 'PIX',
+      p_amount_paid: 5250,
+    });
+
+    const inv = await fetchInvestment(ctx, c.investmentId);
+    const txs = await fetchPaymentTransactions(ctx, c.investmentId);
+    const parcelas = await fetchInstallments(ctx, c.investmentId);
+
+    expect(txs).toHaveLength(1);
+    expect(txs[0].transaction_type).toBe('bullet_settlement');
+    expect(num(txs[0].amount)).toBe(5250);
+    expect(num(txs[0].principal_portion) + num(txs[0].interest_portion)).toBe(5250);
+    expect(num(inv.remaining_balance)).toBe(0);
+    expect(inv.status).toBe('completed');
+    // BR-PAG-015: pagamento total não gera nova cobrança automática.
+    expect(parcelas).toHaveLength(1);
   });
 
   it('conservação: o que foi creditado (principal abatido + juros creditados) = o que foi pago', async () => {
