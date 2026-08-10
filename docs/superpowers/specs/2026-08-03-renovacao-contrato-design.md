@@ -254,3 +254,75 @@ Levantados durante o brainstorming e deliberadamente adiados:
 | Testes E2E de renovação quebram | Previsto — atualização faz parte do escopo |
 | `AdminContracts.tsx` tem 2.156 linhas e fica maior | Ganha ~40 linhas e o repo perde 534. Extrair o step 2 num componente próprio fica para a frente C |
 | Pré-preenchimento corre antes de `profiles` carregar | Efeito depende de `[renewalSource, profiles]` |
+
+---
+
+# Adendo — 2026-08-10: mapa completo e fechamento dos caminhos errados
+
+Com a renovação já rodando pelo wizard, foi feito o levantamento de **todas** as
+possibilidades de renovar e do que cada uma produz. O resultado mudou uma decisão da spec
+original: renovar contrato `active` não é "permitido com ressalva", passa a ser **proibido**.
+
+## Superfície real
+
+Um único ponto de entrada: `ContractDetail.tsx:538` → `AdminContracts.tsx:969` → wizard →
+`create_investment_validated` com `p_parent_investment_id`. Os outros dois caminhos de
+criação (`QuickContractInput`, `LegacyContractPage`) usam `create_legacy_investment`, que
+não tem o parâmetro — não existe renovação por lá.
+
+## O que foi encontrado
+
+| # | Achado | Efeito | Decisão |
+|---|---|---|---|
+| B1 | Renovar contrato **freelancer** cria todas as parcelas vencendo hoje | `setFreelancerDates([])` no pré-preenchimento + `p_custom_dates` vazio → `array_length` NULL → o loop cai no ramo final e usa `CURRENT_DATE`. 19 contratos freelancer em produção | Corrigido nas duas pontas: guarda no RPC (BR-CNT-012) e pré-preenchimento gera as datas com `buildFreelancerDates` |
+| B2 | Botão "Renovar" aparecia em qualquer status | Admin preenchia o wizard inteiro para receber `alert()` do RPC | Botão desabilitado fora de `completed` |
+| B3 | Parcelas em aberto do pai `active` renovado seguiam vivas | `update_overdue_installments` marcava `late` e gravava multa de bullet; `getUserDebt` do bot somava a dívida do pai junto com a do filho. O dashboard as escondia (`INACTIVE_CONTRACT_STATUSES`), o que tornava o problema invisível | Eliminado pela raiz: renovar `active` passa a ser rejeitado |
+| B4 | Renovar `active` contava o capital duas vezes | `view_investor_balances.total_own_capital` soma `source_capital` sem filtrar status, e o principal do pai nunca voltou ao caixa | Idem — rolagem de saldo continua fora de escopo, mas agora o caminho está fechado em vez de errado |
+| B5 | Empresa não era herdada do pai | `p_company_id: activeCompanyId` — com escopo `'all'` o filho podia nascer separado do pai | `renewalSource?.company_id ?? activeCompanyId ?? null` |
+| B6 | Preview mensal divergia do banco | Frontend: `hoje >= due_day → próximo mês`; RPC: `due_day >= hoje → este mês`. Discordavam no dia exato do vencimento | Frontend alinhado ao RPC (`>` em vez de `>=`), com teste unitário |
+| B7 | **Renovar não fazia nada, sem mensagem** | `profiles` é filtrado por `company_id = activeCompanyId` (`AdminContracts.tsx:326`) e a lista de contratos não usa o mesmo critério: um contrato de empresa X com devedor de `company_id` nulo/diferente aparece na lista, mas suas partes ficam fora da lista de perfis. O pré-preenchimento resolvia investidor/devedor por `profiles.find(...)`, achava `null`, e `handleCreateContract` tinha `if (!selectedInvestor \|\| !selectedPayer) return` — voltava em silêncio. O admin preenchia o wizard, clicava em "Renovar Contrato" e **nada acontecia**. 9 contratos em produção com partes fora do filtro, 1 deles quitado (renovável hoje) | Pré-preenchimento busca por id os perfis que faltarem, e o `return` silencioso virou aviso |
+
+> B7 foi encontrado pelo próprio CNT-LC-01 depois de atualizado: com o teste passando a exigir
+> pai `completed`, ele caiu justamente num contrato cujo devedor estava fora do filtro. Antes,
+> como aceitava `active`, escolhia outro contrato e o bug nunca aparecia.
+
+## Fora de escopo, registrado
+
+- **`getUserDebt` do bot** (`e-finance-bot/src/actions/admin-actions.ts:2093`) soma parcelas em
+  aberto de todos os contratos do payer sem filtrar status. Com renovação de `active`
+  bloqueada, nenhum `renewed` novo nasce com parcelas em aberto, e os 3 históricos têm zero —
+  então a dívida dupla via WhatsApp deixa de ter como acontecer. A query continua frágil para
+  contratos `completed` com resíduo. Decisão do usuário: não tocar no bot Node nesta frente.
+- **`get_admin_dashboard_stats`** não filtra status nenhum, mas está órfão — nenhum chamador
+  no frontend nem no bot.
+- **`create_legacy_investment` tem o mesmo furo de freelancer** que a v49 fechou no RPC de
+  criação: sem datas suficientes em `p_custom_dates`, o loop cai no ramo seguinte. O estrago é
+  menor — esse ramo é o diário a partir de `p_first_due_date`, e não `CURRENT_DATE` — mas o
+  contrato sai com vencimentos que o operador não pediu. Zero contratos legacy freelancer em
+  produção. Decisão do usuário em 2026-08-10: registrar, não corrigir nesta frente. Se for
+  corrigir depois, a guarda é a mesma de BR-CNT-012 e vale para os dois caminhos de "Contrato
+  Antigo" (`QuickContractInput` e `LegacyContractPage`).
+- **CNT-LC-02 e CNT-LC-05 pulam sempre**: o tenant de QA não tem contrato `renewed` nem bullet.
+  Pré-existente. A renovação de bullet quitado foi verificada direto no banco (filho
+  `interest_only`, 1 parcela de principal + juros, `remaining_balance` intacto, multa e taxa de
+  quebra herdadas, pai seguindo `completed`), mas não tem teste automatizado.
+- **Rollover de saldo devedor, aporte adicional, entrada e renegociação de inadimplente**
+  seguem fora, como na spec original.
+- **Dado histórico:** 3 contratos `renewed` em produção, só 1 com filho vinculado — sobra do
+  `ContractRenewalModal`, que fazia a transição de status em escrita separada da criação do
+  filho. Todos com zero parcelas em aberto; nenhum dinheiro em jogo.
+
+## Entregue
+
+- `context/migration_v49_renewal_guards.sql` — pai obrigatoriamente `completed`; freelancer
+  exige datas. Assinatura inalterada (`CREATE OR REPLACE`, sem overload).
+- `components/AdminContracts.tsx` — datas de freelancer no pré-preenchimento; empresa herdada;
+  perfis das partes buscados por id quando estão fora do filtro de empresa; submit sem partes
+  selecionadas avisa em vez de voltar em silêncio.
+- `components/ContractDetail.tsx` — gate de status no botão.
+- `utils/financials.ts` — regra do mês alinhada ao RPC.
+- `tests/unit/financials.test.ts` — 4 casos de `calculateInstallmentDates`.
+- `e2e/contract/contract-lifecycle.spec.ts` — CNT-LC-01 passa a exigir pai quitado;
+  CNT-LC-09 (renovar ativo rejeitado) e CNT-LC-10 (freelancer sem datas) novos.
+- `docs/business-rules/e-finance-br.md` — BR-CNT-007 reescrita, BR-CNT-009 ajustada,
+  BR-CNT-012 criada.

@@ -82,13 +82,13 @@ Categorias:
 - **Tabelas:** `investments`, `loan_installments`
 - **Status:** ativa
 
-### BR-CNT-007: Renovação cria vínculo parent→child e transita status
-- **Descrição:** Ao renovar um contrato, o novo contrato deve ter `parent_investment_id` apontando para o original. O contrato original deve ter seu `status` alterado para `renewed`
+### BR-CNT-007: Só contrato QUITADO pode ser renovado, e o vínculo é parent→child
+- **Descrição:** Renovar é reaplicar dinheiro que já voltou ao caixa. Portanto só um contrato `completed` é renovável, e o novo contrato deve ter `parent_investment_id` apontando para o original. O pai **permanece** `completed` — a renovação não transita status
 - **Condição:** Ao executar `create_investment_validated` com `p_parent_investment_id` não-nulo
-- **Resultado:** Dentro da **mesma transação** que cria o contrato filho, o RPC lê o pai com `SELECT ... FOR UPDATE` (validando que pertence ao mesmo tenant), grava `child.parent_investment_id = parent.id` e, se `parent.status = 'active'`, executa `UPDATE investments SET status = 'renewed' WHERE id = parent.id`. A transição de status **não é opcional** — o formulário próprio de renovação (`ContractRenewalModal`, com checkbox "Marcar contrato original como Renovado") foi removido; renovar agora abre o mesmo wizard de criação de contrato, pré-preenchido, e o vínculo/transição é sempre aplicado pelo RPC. Um evento `contract_renewed` é registrado em `audit_events` via `log_audit_event`. Novos contratos herdam investidor e devedor; taxas e prazo podem ser alterados
-- **Exceções:** Contrato pai não encontrado → exceção. Contrato pai em status `defaulted` não pode ser renovado sem reverter o status primeiro (`'Contrato inadimplente não pode ser renovado — reverta o status primeiro.'`). Contrato pai já em status `renewed` não pode ser renovado novamente (`'Contrato já foi renovado.'`) — sem renovação em cascata. Em contratos (inclusive Bullet) quitados pelo pagamento total do ciclo, o contrato pai `completed` **permanece** `completed` — não transita para `renewed`; apenas pais `active` transicionam. O `SELECT ... FOR UPDATE` sobre o pai existe justamente para travar contra mudança concorrente de status durante a transação.
+- **Resultado:** Dentro da **mesma transação** que cria o contrato filho, o RPC lê o pai com `SELECT ... FOR UPDATE` (validando que pertence ao mesmo tenant) e rejeita qualquer status diferente de `completed`. Grava `child.parent_investment_id = parent.id` e registra um evento `contract_renewed` em `audit_events` via `log_audit_event`. Renovar abre o mesmo wizard de criação, pré-preenchido a partir do pai (inclusive empresa, herdada de `parent.company_id`); investidor e devedor vêm do pai, e taxas, prazo e origem do capital podem ser alterados. O `ContractRenewalModal`, que tinha formulário e escrita próprios, foi removido
+- **Exceções:** Contrato pai não encontrado → exceção. Pai `active` → rejeitado (`'Só contrato quitado pode ser renovado — o contrato N está em aberto (quite as parcelas restantes antes).'`); antes de v49 o pai `active` virava `renewed` e as parcelas em aberto dele continuavam vivas — `update_overdue_installments` as marcava `late` e gravava multa de bullet, o bot somava a dívida do pai junto com a do filho, e `view_investor_balances` contava o capital duas vezes, porque o principal do pai nunca tinha voltado ao caixa. Rolagem de saldo devedor é um fato financeiro distinto e não está implementada. Pai `defaulted` → rejeitado (reverter o status antes). Pai `renewed` → rejeitado, sem renovação em cascata. O `SELECT ... FOR UPDATE` sobre o pai trava contra mudança concorrente de status durante a transação. Na UI, `ContractDetail` desabilita o botão "Renovar Contrato" fora de `completed`, para o erro não chegar só no fim do wizard
 - **Tabelas:** `investments`
-- **Status:** ativa
+- **Status:** ativa — *restrita a `completed` em 2026-08-10 (migration v49)*
 
 ### BR-CNT-008: Import legado valida dados e exige unicidade de código
 - **Descrição:** A importação via `create_legacy_investment` deve validar: amount > 0, investidor e devedor válidos no tenant, número de parcelas pré-pagas ≤ total de parcelas. O `original_contract_code`, quando informado, deve ser único por tenant
@@ -101,8 +101,8 @@ Categorias:
 ### BR-CNT-009: Máquina de estados de contratos
 - **Descrição:** O campo `investments.status` segue transições definidas. Apenas as transições listadas são permitidas
 - **Condição:** Qualquer operação que altera `investments.status`
-- **Resultado:** Transições válidas: `active → completed` (todas parcelas pagas), `active → defaulted` (manual admin ou 90+ dias sem pagamento), `active → renewed` (renovação criada), `completed → active` (reversão administrativa). Nenhuma outra transição é permitida
-- **Exceções:** Migrações de dados (scripts DBA com acesso direto) são tratadas separadamente
+- **Resultado:** Transições válidas: `active → completed` (todas parcelas pagas), `active → defaulted` (manual admin ou 90+ dias sem pagamento), `completed → active` (reversão administrativa). Nenhuma outra transição é permitida
+- **Exceções:** Migrações de dados (scripts DBA com acesso direto) são tratadas separadamente. `active → renewed` era produzida pela renovação até a migration v49 (2026-08-10); com BR-CNT-007 restrita a pais `completed`, **nenhuma escrita do sistema gera `renewed`**. O status continua existindo por causa dos contratos históricos (3 em produção, todos sem parcelas em aberto) e segue em `INACTIVE_CONTRACT_STATUSES`, para que esses registros permaneçam fora de cobrança e das métricas de capital
 - **Tabelas:** `investments`
 - **Status:** ativa
 
@@ -123,6 +123,14 @@ Categorias:
 - **Exceções:** Contratos com `status IN ('defaulted', 'renewed')` não são automaticamente completados — requerem ação administrativa explícita. Avulso `penalty_payment` não necessariamente quita o contrato (só paga encargos de atraso); a verificação pela função auxiliar é o árbitro
 - **Tabelas:** `investments`, `loan_installments`
 - **Status:** ativa — *criada em 2026-04-11 (bug: cobranças de quem já pagou; contratos amortizados quitados não fechavam)*
+
+### BR-CNT-012: Frequência "Livre" (freelancer) exige data para cada parcela
+- **Descrição:** Contrato com `frequency = 'freelancer'` tem vencimentos definidos um a um pelo operador (`p_custom_dates`). Sem data explícita não existe vencimento a inferir — a criação deve falhar em vez de arbitrar uma
+- **Condição:** Ao executar `create_investment_validated` com `p_frequency = 'freelancer'`
+- **Resultado:** Rejeitar quando `array_length(p_custom_dates, 1)` for menor que o número de parcelas que serão geradas — `p_total_installments` no modo parcelado, `1` no modo bullet (`interest_only`, que gera um ciclo por vez): `'Frequência freelancer exige N data(s) de vencimento (recebidas: M).'`
+- **Exceções:** Nenhuma. A guarda vive no RPC, não no formulário, para valer para qualquer chamador
+- **Tabelas:** `investments`, `loan_installments`
+- **Status:** ativa — *criada em 2026-08-10 (migration v49). Antes disso, o loop de geração caía no ramo final e gravava **todas** as parcelas vencendo em `CURRENT_DATE`, sem erro. O caminho real era a renovação: o pré-preenchimento do wizard zerava as datas e os botões de intervalo do step 3 só reconstroem a lista quando ela já tem alguma data, então bastava renovar um contrato "Livre" sem tocar em nada. Havia 19 contratos freelancer em produção*
 
 ---
 
