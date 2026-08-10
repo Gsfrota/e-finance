@@ -8,10 +8,11 @@
  *
  * Regra: todo `expect` afirma um número/string exato lido do código-fonte.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildFreelancerDates,
   calculateFinancials,
+  calculateInstallmentDates,
   distributeEvenly,
   formatCurrency,
   formatDecimalInput,
@@ -253,5 +254,51 @@ describe('buildFreelancerDates — datas de contrato "Livre" que vão para o ban
     // afirma "Em BRT (UTC-3), os vencimentos saem um dia adiantados". Isso é FALSO —
     // em offset negativo a meia-noite local vira 03:00 UTC do MESMO dia. O bug só
     // existe para offsets positivos, como o teste acima prova.
+  });
+});
+
+describe('calculateInstallmentDates — mensal sem monthOffset, alinhado ao RPC', () => {
+  // financials.ts:35-40 decide "este mês" ou "o mês que vem" quando o admin não
+  // clica em "Este mês"/"Próximo mês" (monthOffset undefined) — o caso do
+  // pré-preenchimento de renovação, que zera o offset (AdminContracts.tsx:437).
+  // A regra TEM de bater com create_investment_validated, que usa
+  // `due_day >= dia de hoje → este mês`. Divergência = preview mostrando um mês e
+  // o banco gravando outro.
+  const ymd = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const freezeAt = (y: number, m: number, day: number) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(y, m - 1, day, 12, 0, 0));
+  };
+
+  it('due_day no futuro do mês corrente → começa neste mês', () => {
+    freezeAt(2026, 3, 10);
+    expect(calculateInstallmentDates('monthly', 20, 1, '', 2).map(ymd))
+      .toEqual(['2026-03-20', '2026-04-20']);
+  });
+
+  it('due_day já passado → começa no mês seguinte', () => {
+    freezeAt(2026, 3, 10);
+    expect(calculateInstallmentDates('monthly', 5, 1, '', 2).map(ymd))
+      .toEqual(['2026-04-05', '2026-05-05']);
+  });
+
+  it('due_day HOJE → começa neste mês, como o RPC (era o dia divergente)', () => {
+    freezeAt(2026, 3, 10);
+    expect(calculateInstallmentDates('monthly', 10, 1, '', 2).map(ymd))
+      .toEqual(['2026-03-10', '2026-04-10']);
+  });
+
+  it('monthOffset explícito continua mandando mais que a regra do dia', () => {
+    freezeAt(2026, 3, 10);
+    expect(calculateInstallmentDates('monthly', 20, 1, '', 1, false, false, 1).map(ymd))
+      .toEqual(['2026-04-20']);
+    expect(calculateInstallmentDates('monthly', 5, 1, '', 1, false, false, 0).map(ymd))
+      .toEqual(['2026-03-05']);
   });
 });

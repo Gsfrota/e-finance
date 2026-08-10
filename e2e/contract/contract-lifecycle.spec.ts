@@ -10,6 +10,8 @@
  *   CNT-LC-06  BR-CNT-007  Renovar contrato quitado mantém o pai como completed
  *   CNT-LC-07  BR-CNT-007  Renovar contrato defaulted é rejeitado pelo RPC
  *   CNT-LC-08  BR-CNT-008  Import legado: validação + código único por tenant
+ *   CNT-LC-09  BR-CNT-007  Renovar contrato ativo é rejeitado (pai continua active)
+ *   CNT-LC-10  BR-CNT-012  Freelancer sem datas suficientes é rejeitado pelo RPC
  */
 
 import { test, expect } from '@playwright/test';
@@ -85,16 +87,17 @@ test('CNT-LC-01 [BR-CNT-007]: Renovar contrato via wizard → filho com parent_i
   const listLoaded = await cards.first().waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
   if (!listLoaded) { test.skip(true, 'Sem contratos visíveis para renovar'); return; }
 
-  // O RPC rejeita pai 'defaulted'/'renewed' — escolhe na lista um contrato renovável de verdade,
-  // em vez de assumir que o primeiro card serve (a lista ordena por created_at, sem filtro de status).
+  // BR-CNT-007: só contrato quitado é renovável — o RPC rejeita os demais e o botão
+  // fica desabilitado. Escolhe um 'completed' na lista em vez de assumir que o
+  // primeiro card serve (a lista ordena por created_at, sem filtro de status).
   const ids = (await cards.evaluateAll(els => els.map(el => el.getAttribute('data-contract-id'))))
     .filter((id): id is string => !!id);
   const rows: any[] = (await restCall(ctx, `investments?id=in.(${ids.join(',')})&select=id,status`)) ?? [];
   const renewable = new Set(
-    rows.filter(r => r.status === 'active' || r.status === 'completed').map(r => String(r.id)),
+    rows.filter(r => r.status === 'completed').map(r => String(r.id)),
   );
   const parentId = ids.find(id => renewable.has(id));
-  if (!parentId) { test.skip(true, 'Nenhum contrato renovável (active/completed) na lista'); return; }
+  if (!parentId) { test.skip(true, 'Nenhum contrato quitado na lista para renovar'); return; }
 
   const parentStatusBefore = rows.find(r => String(r.id) === parentId)?.status;
   const childrenBefore: string[] =
@@ -489,5 +492,112 @@ test('CNT-LC-08 [BR-CNT-008]: Página de importação legada existe e tem valida
     const legacyExists = await legacyEl.isVisible({ timeout: 3_000 }).catch(() => false);
     // Aceita que o import legado pode não estar acessível via sidebar padrão
     expect(legacyExists || !importVisible).toBeTruthy();
+  }
+});
+
+// ─── CNT-LC-09: Renovar contrato ativo é rejeitado ──────────────────────────
+
+test('CNT-LC-09 [BR-CNT-007]: Renovar contrato ativo é rejeitado e não muda o status do pai', async ({ page }) => {
+  await waitForApp(page);
+  const ctx = await getCtx(page);
+  if (!ctx) { test.skip(true, 'Credenciais ausentes'); return; }
+  const { tenantId, companyId } = await resolveScope(ctx);
+  if (!tenantId) { test.skip(true, 'Tenant não encontrado'); return; }
+
+  const profs = await restCall(ctx, `profiles?select=id&tenant_id=eq.${tenantId}&limit=2`);
+  if (!profs || profs.length < 2) { test.skip(true, 'Perfis insuficientes'); return; }
+
+  // Nasce 'active' pelo RPC — nenhum PATCH necessário.
+  const parentId = await restCall(ctx, 'rpc/create_investment_validated', 'POST', {
+    p_tenant_id: tenantId, p_user_id: profs[0].id, p_payer_id: profs[1].id,
+    p_asset_name: 'TESTE E2E RENOVACAO ATIVO',
+    p_amount_invested: 1000, p_source_capital: 1000, p_source_profit: 0,
+    p_current_value: 1100, p_interest_rate: 10, p_installment_value: 1100,
+    p_total_installments: 1, p_frequency: 'monthly', p_due_day: 10,
+    p_calculation_mode: 'auto', p_company_id: companyId || null,
+  });
+  expect(parentId).toBeTruthy();
+
+  try {
+    let rejected = false;
+    try {
+      await restCall(ctx, 'rpc/create_investment_validated', 'POST', {
+        p_tenant_id: tenantId, p_user_id: profs[0].id, p_payer_id: profs[1].id,
+        p_asset_name: 'TESTE E2E FILHO DE ATIVO',
+        p_amount_invested: 1000, p_source_capital: 1000, p_source_profit: 0,
+        p_current_value: 1100, p_interest_rate: 10, p_installment_value: 1100,
+        p_total_installments: 1, p_frequency: 'monthly', p_due_day: 10,
+        p_calculation_mode: 'auto', p_company_id: companyId || null,
+        p_parent_investment_id: parentId,
+      });
+    } catch {
+      rejected = true;   // restCall lança em resposta !ok
+    }
+    expect(rejected).toBeTruthy();
+
+    // O pai não pode ter virado 'renewed': renovar ativo deixava as parcelas em aberto
+    // cobráveis (cron de atraso + bot) e contava o capital duas vezes.
+    const parent = await restCall(ctx, `investments?id=eq.${parentId}&select=status`);
+    expect(parent?.[0]?.status).toBe('active');
+
+    const children = await restCall(ctx, `investments?parent_investment_id=eq.${parentId}&select=id`);
+    expect(children?.length ?? 0).toBe(0);
+  } finally {
+    const orphans: any[] = (await restCall(ctx, `investments?parent_investment_id=eq.${parentId}&select=id`).catch(() => [])) ?? [];
+    for (const o of orphans) {
+      await restCall(ctx, `loan_installments?investment_id=eq.${o.id}`, 'DELETE').catch(() => {});
+      await restCall(ctx, `investments?id=eq.${o.id}`, 'DELETE').catch(() => {});
+    }
+    await restCall(ctx, `loan_installments?investment_id=eq.${parentId}`, 'DELETE').catch(() => {});
+    await restCall(ctx, `investments?id=eq.${parentId}`, 'DELETE').catch(() => {});
+  }
+});
+
+// ─── CNT-LC-10: Freelancer sem datas suficientes é rejeitado ────────────────
+
+test('CNT-LC-10 [BR-CNT-012]: Freelancer sem datas de vencimento é rejeitado pelo RPC', async ({ page }) => {
+  await waitForApp(page);
+  const ctx = await getCtx(page);
+  if (!ctx) { test.skip(true, 'Credenciais ausentes'); return; }
+  const { tenantId, companyId } = await resolveScope(ctx);
+  if (!tenantId) { test.skip(true, 'Tenant não encontrado'); return; }
+
+  const profs = await restCall(ctx, `profiles?select=id&tenant_id=eq.${tenantId}&limit=2`);
+  if (!profs || profs.length < 2) { test.skip(true, 'Perfis insuficientes'); return; }
+
+  const ASSET = 'TESTE E2E FREELANCER SEM DATAS';
+  const base = {
+    p_tenant_id: tenantId, p_user_id: profs[0].id, p_payer_id: profs[1].id,
+    p_asset_name: ASSET,
+    p_amount_invested: 1000, p_source_capital: 1000, p_source_profit: 0,
+    p_current_value: 1200, p_interest_rate: 20, p_installment_value: 400,
+    p_total_installments: 3, p_frequency: 'freelancer',
+    p_calculation_mode: 'auto', p_company_id: companyId || null,
+  };
+
+  try {
+    // Sem datas: antes da guarda o RPC gravava as 3 parcelas vencendo HOJE, em silêncio.
+    let rejectedEmpty = false;
+    try { await restCall(ctx, 'rpc/create_investment_validated', 'POST', { ...base, p_custom_dates: [] }); }
+    catch { rejectedEmpty = true; }
+    expect(rejectedEmpty).toBeTruthy();
+
+    // Datas de menos (2 para 3 parcelas): a última caía em CURRENT_DATE.
+    let rejectedShort = false;
+    try {
+      await restCall(ctx, 'rpc/create_investment_validated', 'POST', {
+        ...base, p_custom_dates: ['2030-01-10', '2030-02-10'],
+      });
+    } catch { rejectedShort = true; }
+    expect(rejectedShort).toBeTruthy();
+
+    const created = await restCall(ctx, `investments?tenant_id=eq.${tenantId}&asset_name=eq.${encodeURIComponent(ASSET)}&select=id`);
+    expect(created?.length ?? 0).toBe(0);
+  } finally {
+    const leftovers: any[] = (await restCall(ctx, `investments?tenant_id=eq.${tenantId}&asset_name=eq.${encodeURIComponent(ASSET)}&select=id`).catch(() => [])) ?? [];
+    for (const l of leftovers) {
+      await restCall(ctx, `loan_installments?investment_id=eq.${l.id}`, 'DELETE').catch(() => {});
+      await restCall(ctx, `investments?id=eq.${l.id}`, 'DELETE').catch(() => {});
+    }
   }
 });
