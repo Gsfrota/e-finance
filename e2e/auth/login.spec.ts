@@ -48,17 +48,7 @@ test('AUTH-03: Botão de login fica desabilitado durante o carregamento', async 
   await context.close();
 });
 
-// AUTH-04: Troca de modo para signup com convite
-test('AUTH-04: Troca para modo de signup com convite', async ({ browser }) => {
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  await page.goto('/');
-
-  await page.getByText('Ativar Conta').click();
-  await expect(page.getByText('Ativar Conta com Convite')).toBeVisible();
-  await expect(page.getByPlaceholder('CÓDIGO')).toBeVisible();
-  await context.close();
-});
+// AUTH-04 removido: o fluxo "Ativar Conta com Convite" não existe mais (só admin acessa a app).
 
 // AUTH-05: Troca para modo de cadastro de empresa
 test('AUTH-05: Troca para modo de cadastro de empresa', async ({ browser }) => {

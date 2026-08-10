@@ -67,9 +67,8 @@ async function loginAs(page: any, email: string, password: string, authPath: str
   await page.context().storageState({ path: authPath });
 }
 
-// Cada role é configurada independentemente.
-// Configure em .env.local: TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD,
-// TEST_INVESTOR_EMAIL, TEST_INVESTOR_PASSWORD, TEST_DEBTOR_EMAIL, TEST_DEBTOR_PASSWORD
+// Só admin acessa a aplicação. Configure em .env.local:
+// TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD
 
 setup('authenticate as admin', async ({ page }) => {
   if (!process.env.TEST_ADMIN_EMAIL || !process.env.TEST_ADMIN_PASSWORD) {
@@ -85,22 +84,4 @@ setup('authenticate as admin', async ({ page }) => {
     return;
   }
   await loginAs(page, process.env.TEST_ADMIN_EMAIL, process.env.TEST_ADMIN_PASSWORD, 'e2e/.auth/admin.json');
-});
-
-setup('authenticate as investor', async ({ page }) => {
-  if (!process.env.TEST_INVESTOR_EMAIL || !process.env.TEST_INVESTOR_PASSWORD) {
-    console.warn('⚠️  TEST_INVESTOR_EMAIL/PASSWORD não configurado — auth de investor pulado.');
-    writeEmptyAuth('e2e/.auth/investor.json');
-    return;
-  }
-  await loginAs(page, process.env.TEST_INVESTOR_EMAIL, process.env.TEST_INVESTOR_PASSWORD, 'e2e/.auth/investor.json');
-});
-
-setup('authenticate as debtor', async ({ page }) => {
-  if (!process.env.TEST_DEBTOR_EMAIL || !process.env.TEST_DEBTOR_PASSWORD) {
-    console.warn('⚠️  TEST_DEBTOR_EMAIL/PASSWORD não configurado — auth de debtor pulado.');
-    writeEmptyAuth('e2e/.auth/debtor.json');
-    return;
-  }
-  await loginAs(page, process.env.TEST_DEBTOR_EMAIL, process.env.TEST_DEBTOR_PASSWORD, 'e2e/.auth/debtor.json');
 });

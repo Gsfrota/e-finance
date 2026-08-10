@@ -27,10 +27,8 @@ import {
   Tooltip,
   CartesianGrid,
 } from 'recharts';
-import { AppView, UserRole, Tenant, MonthlyViewData, LoanInstallment } from '../types';
+import { AppView, Tenant, MonthlyViewData, LoanInstallment, isInactiveContract } from '../types';
 import { useCompanyContext } from '../services/companyScope';
-import InvestorDashboard from './InvestorDashboard';
-import DebtorDashboard from './DebtorDashboard';
 import { CollectionDashboard } from './dashboard/CollectionDashboard';
 import MonthlyInvestorView from './investor/MonthlyInvestorView';
 import YieldByContractType from './dashboard/YieldByContractType';
@@ -39,13 +37,9 @@ import { InstallmentDetailScreen, type InstallmentAction } from './InstallmentDe
 import { getSupabase } from '../services/supabase';
 
 interface DashboardProps {
-    targetUserId?: string;
-    onBack?: () => void;
     onNavigate?: (view: AppView) => void;
-    userRole?: UserRole;
     tenant?: Tenant | null;
     defaultTab?: 'overview' | 'receivables' | 'collection' | 'monthly' | 'yield';
-    investorDefaultTab?: 'portfolio' | 'monthly';
 }
 
 // Skeleton de loading premium
@@ -124,6 +118,7 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
 
     // Garante que contratos sem parcelas apareçam no capital alocado
     investments.forEach((inv: any) => {
+      if (isInactiveContract(inv.status)) return;
       if (!map.has(inv.id)) {
         map.set(inv.id, {
           id: inv.id,
@@ -459,12 +454,7 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
 };
 
 // Main Component acting as Router/Controller based on Role
-const Dashboard: React.FC<DashboardProps> = ({ targetUserId, userRole, tenant, onBack, defaultTab, onNavigate, investorDefaultTab }) => {
-  // If explicitly targeting a user (e.g. Admin viewing specific investor), or if role is Investor/Debtor
-  if (userRole === 'investor' && !targetUserId) return <InvestorDashboard defaultTab={investorDefaultTab} />;
-  if (userRole === 'debtor' && !targetUserId) return <DebtorDashboard />;
-
-  // Default to Admin Dashboard
+const Dashboard: React.FC<DashboardProps> = ({ tenant, defaultTab, onNavigate }) => {
   return <AdminDashboardView tenant={tenant} defaultTab={defaultTab} onNavigate={onNavigate} />;
 };
 

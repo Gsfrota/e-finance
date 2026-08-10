@@ -19,6 +19,7 @@ import TopClientes from './components/TopClientes';
 import CompanySwitcher from './components/CompanySwitcher';
 import CompanyScopeGate from './components/CompanyScopeGate';
 import AdminSettings, { type SettingsSection } from './components/AdminSettings';
+import AccessUnavailable from './components/AccessUnavailable';
 import { AppView, UserRole, Tenant, Profile, Company, CompanyAccessMode, CompanyScope } from './types';
 import { clearAllCache } from './services/cache';
 import { fetchProfileByAuthUserId, getSupabase, isProduction, logError } from './services/supabase';
@@ -35,6 +36,7 @@ import {
   isAggregateCompanyScope,
   isEnterpriseTenant as isEnterprisePlan,
   isFreePlanLocked,
+  isRoleBlocked,
   isTrialActive,
 } from './services/companyScope';
 import {
@@ -178,7 +180,7 @@ const Layout: React.FC<LayoutProps> = ({
   };
 
   const operationLabel = getOperationLabel(tenant, activeCompany, activeCompanyScope);
-  const showCompanySwitcher = userRole === 'admin' && (companies.length > 0 || companyAccessMode === 'upsell_locked');
+  const showCompanySwitcher = companies.length > 0 || companyAccessMode === 'upsell_locked';
 
   const handleViewChange = (view: AppView) => {
     onChangeView(view);
@@ -217,7 +219,7 @@ const Layout: React.FC<LayoutProps> = ({
                 </p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <p className="text-[0.72rem] font-medium text-[color:var(--text-muted)]">
-                    {userRole === 'admin' ? 'Administrador' : userRole === 'investor' ? 'Investidor' : userRole === 'debtor' ? 'Devedor' : 'Workspace'}
+                    Administrador
                   </p>
                   {isProduction() && (
                     <span className="chip chip-active" style={{ fontSize: '0.55rem', padding: '0.15rem 0.5rem' }}>● LIVE</span>
@@ -264,102 +266,99 @@ const Layout: React.FC<LayoutProps> = ({
             )}
           </button>
 
-          {userRole === 'admin' && (
-            <>
-              <button
-                onClick={() => handleViewChange(AppView.USERS)}
-                title={collapsed ? 'Usuários' : undefined}
-                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${(activeView === AppView.USERS || activeView === AppView.USER_DETAILS) ? activeClass : inactiveClass}`}
-              >
-                <Users size={20} className="shrink-0" />
-                {!collapsed && (
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">Usuários</div>
-                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Relacionamentos</div>
-                  </div>
-                )}
-              </button>
+          <button
+            onClick={() => handleViewChange(AppView.USERS)}
+            title={collapsed ? 'Usuários' : undefined}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${(activeView === AppView.USERS || activeView === AppView.USER_DETAILS) ? activeClass : inactiveClass}`}
+          >
+            <Users size={20} className="shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold">Usuários</div>
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Relacionamentos</div>
+              </div>
+            )}
+          </button>
 
-              <button
-                onClick={() => handleViewChange(AppView.CONTRACTS)}
-                title={collapsed ? 'Contratos' : undefined}
-                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.CONTRACTS ? activeClass : inactiveClass}`}
-              >
-                <BriefcaseBusiness size={20} className="shrink-0" />
-                {!collapsed && (
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">Contratos</div>
-                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Crédito e prazos</div>
-                  </div>
-                )}
-              </button>
+          <button
+            onClick={() => handleViewChange(AppView.CONTRACTS)}
+            title={collapsed ? 'Contratos' : undefined}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.CONTRACTS ? activeClass : inactiveClass}`}
+          >
+            <BriefcaseBusiness size={20} className="shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold">Contratos</div>
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Crédito e prazos</div>
+              </div>
+            )}
+          </button>
 
-              <button
-                onClick={() => handleViewChange(AppView.COLLECTION)}
-                title={collapsed ? 'Cobranças' : undefined}
-                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.COLLECTION ? activeClass : inactiveClass}`}
-              >
-                <PhoneCall size={20} className="shrink-0" />
-                {!collapsed && (
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 text-sm font-semibold">
-                      Cobranças
-                      {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
-                    </div>
-                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Agenda do dia</div>
-                  </div>
-                )}
-              </button>
+          <button
+            onClick={() => handleViewChange(AppView.COLLECTION)}
+            title={collapsed ? 'Cobranças' : undefined}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.COLLECTION ? activeClass : inactiveClass}`}
+          >
+            <PhoneCall size={20} className="shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-sm font-semibold">
+                  Cobranças
+                  {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
+                </div>
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Agenda do dia</div>
+              </div>
+            )}
+          </button>
 
-              <button
-                onClick={() => handleViewChange(AppView.TOP_CLIENTES)}
-                title={collapsed ? 'Top Clientes' : undefined}
-                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.TOP_CLIENTES ? activeClass : inactiveClass}`}
-              >
-                <Trophy size={20} className="shrink-0" />
-                {!collapsed && (
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 text-sm font-semibold">
-                      Top Clientes
-                      {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
-                    </div>
-                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Ranking de pagadores</div>
-                  </div>
-                )}
-              </button>
+          <button
+            onClick={() => handleViewChange(AppView.TOP_CLIENTES)}
+            title={collapsed ? 'Top Clientes' : undefined}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.TOP_CLIENTES ? activeClass : inactiveClass}`}
+          >
+            <Trophy size={20} className="shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-sm font-semibold">
+                  Top Clientes
+                  {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
+                </div>
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Ranking de pagadores</div>
+              </div>
+            )}
+          </button>
 
-              <button
-                onClick={() => handleViewChange(AppView.ASSISTANT)}
-                title={collapsed ? 'Assistente' : undefined}
-                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.ASSISTANT ? activeClass : inactiveClass}`}
-              >
-                <Bot size={20} className="shrink-0" />
-                {!collapsed && (
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 text-sm font-semibold">
-                      Assistente
-                      {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
-                    </div>
-                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Automações e conexões</div>
-                  </div>
-                )}
-              </button>
+          <button
+            onClick={() => handleViewChange(AppView.ASSISTANT)}
+            title={collapsed ? 'Assistente' : undefined}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${locked ? 'opacity-50' : ''} ${activeView === AppView.ASSISTANT ? activeClass : inactiveClass}`}
+          >
+            <Bot size={20} className="shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-sm font-semibold">
+                  Assistente
+                  {locked && <Lock size={11} className="text-[color:var(--text-faint)]" />}
+                </div>
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Automações e conexões</div>
+              </div>
+            )}
+          </button>
 
-              <button
-                onClick={() => handleViewChange(AppView.SETTINGS)}
-                title={collapsed ? 'Ajustes' : undefined}
-                className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.SETTINGS ? activeClass : inactiveClass}`}
-              >
-                <Building2 size={20} className="shrink-0" />
-                {!collapsed && (
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">Ajustes</div>
-                    <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Empresa e financeiro</div>
-                  </div>
-                )}
-              </button>
-            </>
-          )}
+          <button
+            onClick={() => handleViewChange(AppView.SETTINGS)}
+            title={collapsed ? 'Ajustes' : undefined}
+            className={`${btnBase} ${collapsed ? btnCollapsed : btnExpanded} ${activeView === AppView.SETTINGS ? activeClass : inactiveClass}`}
+          >
+            <Building2 size={20} className="shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold">Ajustes</div>
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--text-faint)]">Empresa e financeiro</div>
+              </div>
+            )}
+          </button>
+
           {isPlatformOwnerServer && (
             <button
               onClick={() => handleViewChange(AppView.PLATFORM_OWNER)}
@@ -547,7 +546,6 @@ const App: React.FC = () => {
   const [settingsInitialSection, setSettingsInitialSection] = useState<SettingsSection | undefined>(undefined);
   const [targetUserId, setTargetUserId] = useState<string | undefined>(undefined);
   const [contractAutoNew, setContractAutoNew] = useState(false);
-  const [investorDefaultTab, setInvestorDefaultTab] = useState<'portfolio' | 'monthly'>('portfolio');
   const [adminDashboardDefaultTab, setAdminDashboardDefaultTab] = useState<'overview' | 'receivables' | 'collection' | 'monthly' | 'yield'>('overview');
   const [isLoading, setIsLoading] = useState(true);
   const [isPlatformOwnerServer, setIsPlatformOwnerServer] = useState(false);
@@ -742,6 +740,9 @@ const App: React.FC = () => {
                 auth_user_id: sessionUser.id,
                 email: sessionUser.email,
                 full_name: meta.full_name || 'Novo Usuário',
+                // Default 'investor' quando meta.role falta: cai no gate isRoleBlocked
+                // (services/companyScope.ts) e mostra AccessUnavailable — nega por padrão,
+                // não concede acesso de admin por engano.
                 role: (meta.role as UserRole) || 'investor',
                 tenant_id: meta.tenant_id || '00000000-0000-0000-0000-000000000000',
                 company_id: meta.company_id || null,
@@ -1020,6 +1021,13 @@ const App: React.FC = () => {
     />
   );
 
+  // Gate de role: a aplicação é exclusiva de admin. Perfis investor/debtor foram
+  // descontinuados. Vem ANTES do Layout para que não-admin nunca monte a sidebar
+  // nem alcance AppView.DASHBOARD (que faz fall-through para AdminDashboardView).
+  if (isRoleBlocked(profile)) {
+    return <AccessUnavailable onLogout={handleLogout} />;
+  }
+
   return (
     <Router>
       <CompanyContextProvider value={companyContextValue}>
@@ -1050,28 +1058,6 @@ const App: React.FC = () => {
           onOpenCompanySettings={openSettingsSection}
           onOpenSubscriptionSettings={() => openSettingsSection('assinatura')}
         >
-          {currentView === AppView.HOME && profile?.role === 'investor' && (
-            <div className="mx-auto max-w-7xl space-y-4 p-4 animate-fade-in md:space-y-6">
-              <div className="panel-card rounded-[2rem] px-6 py-7 md:px-8">
-                <p className="section-kicker mb-2">Bem-vindo</p>
-                <h1 className="type-display text-[color:var(--text-primary)]">Olá, {profile.full_name?.split(' ')[0]}</h1>
-              </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <button onClick={() => { setInvestorDefaultTab('portfolio'); setCurrentView(AppView.DASHBOARD); }}
-                  className="panel-card card-hover rounded-[1.8rem] p-6 text-left">
-                  <p className="section-kicker mb-2">Contratos</p>
-                  <h3 className="type-title font-display text-[color:var(--text-primary)]">Minha Carteira</h3>
-                  <p className="mt-3 type-body text-[color:var(--text-secondary)]">Visão geral dos seus investimentos e recebimentos.</p>
-                </button>
-                <button onClick={() => { setInvestorDefaultTab('monthly'); setCurrentView(AppView.DASHBOARD); }}
-                  className="panel-card card-hover rounded-[1.8rem] p-6 text-left">
-                  <p className="section-kicker mb-2 text-[color:var(--accent-brass)]">Organização</p>
-                  <h3 className="type-title font-display text-[color:var(--text-primary)]">Análise Mensal</h3>
-                  <p className="mt-3 type-body text-[color:var(--text-secondary)]">% pagamento, atrasados e breakdown por devedor mês a mês.</p>
-                </button>
-              </div>
-            </div>
-          )}
           {currentView === AppView.HOME && profile?.role === 'admin' && !isFreeLocked && (
             <AdminHome
               tenant={tenant}
@@ -1088,12 +1074,8 @@ const App: React.FC = () => {
           )}
           {currentView === AppView.DASHBOARD && !(isFreeLocked && profile?.role === 'admin') && (
             <Dashboard
-                targetUserId={targetUserId}
-                userRole={profile?.role}
                 tenant={tenant}
                 defaultTab={adminDashboardDefaultTab}
-                investorDefaultTab={investorDefaultTab}
-                onBack={targetUserId ? () => { setTargetUserId(undefined); setCurrentView(AppView.USERS); } : undefined}
                 onNavigate={(view) => {
                     if (view !== AppView.DASHBOARD && view !== AppView.USER_DETAILS) setTargetUserId(undefined);
                     setCurrentView(view);

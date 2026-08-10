@@ -32,9 +32,12 @@ export const calculateInstallmentDates = (
 
   if (frequency === 'monthly') {
     cursorDate.setDate(dueDay);
+    // `>` e não `>=`: no dia exato do vencimento o RPC create_investment_validated
+    // usa ESTE mês (`due_day >= dia de hoje`). Com `>=` aqui o preview mostrava o mês
+    // seguinte e o banco gravava o corrente — divergiam um dia por mês.
     const shouldGoNext = monthOffset !== undefined
       ? monthOffset === 1
-      : now.getDate() >= dueDay;
+      : now.getDate() > dueDay;
     if (shouldGoNext) {
       cursorDate.setMonth(cursorDate.getMonth() + 1);
     }

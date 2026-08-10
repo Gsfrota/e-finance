@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { fetchProfileByAuthUserId, getSupabase, parseSupabaseError, isValidCPF } from '../services/supabase';
 import { useDebtorLateMap } from '../hooks/useDebtorLateMap';
 import { logEvent } from '../services/eventLog';
@@ -8,7 +8,6 @@ import { useCompanyContext } from '../services/companyScope';
 import { getBrazilToday, addDaysBR, toBrazilYMD } from '../services/dateUtils';
 import QuickContractInput from './QuickContractInput';
 import ContractDetail from './ContractDetail';
-import ContractRenewalModal from './ContractRenewalModal';
 import {
     Search, PlusCircle, CheckCircle2, X, RefreshCw,
     ArrowRight, Calendar, Zap, Wallet, ChevronRight,
@@ -227,8 +226,11 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
   const [monthOffset, setMonthOffset] = useState<0 | 1 | undefined>(undefined);
   const [viewingContractId, setViewingContractId] = useState<number | null>(null);
   const [viewingContract, setViewingContract] = useState<Investment | null>(null);
-  const [contractsSubView, setContractsSubView] = useState<'list' | 'detail' | 'renewal' | 'create' | 'create-client' | 'edit'>(autoOpenCreate ? 'create' : 'list');
+  const [contractsSubView, setContractsSubView] = useState<'list' | 'detail' | 'create' | 'create-client' | 'edit'>(autoOpenCreate ? 'create' : 'list');
   const [renewalSource, setRenewalSource] = useState<Investment | null>(null);
+  // Guarda o id já pré-preenchido: `profiles` é array novo a cada fetchData(), e sem isso
+  // um refetch (troca de empresa) com o wizard aberto reescreveria o que o admin digitou.
+  const prefilledRenewalIdRef = useRef<number | null>(null);
 
   const [contractSearchTerm, setContractSearchTerm] = useState('');
 
@@ -256,9 +258,15 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
 
   const editPaidPrincipal = useMemo(() => {
       // Para contratos bullet (interest_only), parcelas pagas via pay_bullet_interest_only
-      // têm amount_principal = saldo devedor (display), mas o principal NUNCA foi amortizado.
-      // Usar 0 para que remainingPrincipal = principal intacto.
-      if (contractToEdit?.calculation_mode === 'interest_only') return 0;
+      // têm amount_principal = saldo devedor (display), então somá-las conta o principal
+      // inteiro como recuperado. A verdade está no remaining_balance do contrato.
+      // v47: pagar acima do juros do ciclo ABATE principal, então isso deixou de ser
+      // sempre zero — assumir 0 aqui redistribuiria o principal cheio nas parcelas abertas.
+      if (contractToEdit?.calculation_mode === 'interest_only') {
+          const investido = Number(contractToEdit.amount_invested || 0);
+          const saldo = Number(contractToEdit.remaining_balance ?? investido);
+          return roundCurrency(Math.max(0, investido - saldo));
+      }
       return roundCurrency(editPaidInstallments.reduce((sum, installment) => sum + Number(installment.amount_principal || 0), 0));
   }, [editPaidInstallments, contractToEdit]);
 
@@ -369,6 +377,115 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
     fetchBalance();
   }, [selectedInvestor, currentTenant]);
 
+  // Renovação: o wizard é a única tela de contrato. Ao receber um contrato de origem,
+  // espelha os termos dele no formulário — tudo editável. Depende de `profiles` porque
+  // investidor/devedor são resolvidos por id.
+  useEffect(() => {
+    if (!renewalSource || contractsSubView !== 'create' || profiles.length === 0) return;
+    if (prefilledRenewalIdRef.current === renewalSource.id) return;
+    prefilledRenewalIdRef.current = renewalSource.id;
+
+    const src = renewalSource;
+    const isBullet = src.calculation_mode === 'interest_only';
+
+    // `profiles` é filtrado por empresa (linha ~326) e a lista de contratos não —
+    // um contrato de empresa X com devedor de company_id null/diferente aparece na
+    // lista, mas suas partes ficam fora da lista de perfis. Sem o fallback, o wizard
+    // abria com investidor/devedor nulos e handleCreateContract voltava em silêncio:
+    // o botão "Renovar Contrato" simplesmente não fazia nada.
+    const investor = profiles.find(p => p.id === src.user_id) || null;
+    const payer = profiles.find(p => p.id === src.payer_id) || null;
+    setSelectedInvestor(investor);
+    setSelectedPayer(payer);
+
+    if (!investor || !payer) {
+      const missing = [investor ? null : src.user_id, payer ? null : src.payer_id]
+        .filter((id): id is string => !!id);
+      const supabase = getSupabase();
+      if (supabase && missing.length > 0) {
+        void supabase.from('profiles').select('*').in('id', missing).then(({ data }) => {
+          for (const p of (data || []) as Profile[]) {
+            if (p.id === src.user_id) setSelectedInvestor(p);
+            if (p.id === src.payer_id) setSelectedPayer(p);
+          }
+        });
+      }
+    }
+
+    const nextForm = {
+      asset_name: `${src.asset_name} (Renovação)`,
+      amount_invested: Number(src.amount_invested) || 0,
+      total_installments: Number(src.total_installments) || 12,
+      frequency: (src.frequency || 'monthly') as typeof formData.frequency,
+      due_day: Number(src.due_day) || 10,
+      weekday: Number(src.weekday) || 1,
+      start_date: getBrazilToday(),
+      interest_rate: src.interest_rate != null ? Number(src.interest_rate) : 10,
+      installment_value: Number(src.installment_value) || 0,
+      current_value: 0,
+      calculation_mode: (src.calculation_mode || 'auto') as typeof formData.calculation_mode,
+      // source_profit_amount fica 0: availableProfit chega por efeito assíncrono e
+      // qualquer valor pré-preenchido aqui seria clampado a 0 por updateFormState.
+      source_profit_amount: 0,
+      skip_saturday: src.include_saturday === false,
+      skip_sunday: src.include_sunday === false,
+      bullet_principal_mode: (src.bullet_principal_mode || 'together') as typeof formData.bullet_principal_mode,
+      capitalize_interest: src.capitalize_interest !== false,
+      break_fee_percent: isBullet && src.break_fee_percent != null ? String(src.break_fee_percent) : '',
+      default_after_days: Number(src.default_after_days) || 20,
+      late_fine_percent: isBullet && src.late_fine_percent != null ? String(src.late_fine_percent) : '',
+    };
+
+    const financial = calculateFinancials(
+      nextForm.amount_invested,
+      nextForm.total_installments,
+      nextForm.interest_rate,
+      nextForm.calculation_mode,
+      nextForm.installment_value,
+      nextForm.bullet_principal_mode,
+    );
+
+    setFormData({
+      ...nextForm,
+      installment_value: financial.installmentValue,
+      current_value: financial.totalValue,
+      interest_rate: financial.interestRate,
+    });
+
+    setInstallmentsInput(String(nextForm.total_installments));
+    setRateInput(String(financial.interestRate));
+    setInstallmentValueInput(String(financial.installmentValue));
+    setMonthOffset(undefined);
+    // Freelancer precisa nascer com datas: com a lista vazia o RPC gravava todas as
+    // parcelas vencendo hoje, e os botões de intervalo do step 3 só reconstroem
+    // quando já existe alguma data. O intervalo do pai não é persistido — usa o padrão.
+    setFreelancerInterval(7);
+    setFreelancerDates(
+      nextForm.frequency === 'freelancer'
+        ? buildFreelancerDates(nextForm.total_installments, nextForm.start_date, 7)
+        : [],
+    );
+
+    if (nextForm.frequency !== 'freelancer') {
+      const dateObjects = calculateInstallmentDates(
+        nextForm.frequency,
+        nextForm.due_day,
+        nextForm.weekday,
+        nextForm.start_date,
+        nextForm.total_installments,
+        nextForm.skip_saturday,
+        nextForm.skip_sunday,
+        undefined,
+      );
+      setPreviewDateStrings(dateObjects.map(d =>
+        d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })
+      ));
+    } else {
+      setPreviewDateStrings([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renewalSource, contractsSubView, profiles]);
+
   const handleOpenWizard = async () => {
       const today = new Date();
 
@@ -402,6 +519,8 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
           defaultInvestor = profiles.find(p => p.role === 'admin') || null;
       }
       
+      setRenewalSource(null);
+      prefilledRenewalIdRef.current = null;
       setSelectedInvestor(defaultInvestor);
       setSelectedPayer(null);
       setPreviewDateStrings([]);
@@ -492,7 +611,11 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
   };
 
   const handleCreateContract = async () => {
-      if (!selectedInvestor || !selectedPayer || !currentTenant) return;
+      if (!selectedInvestor || !selectedPayer || !currentTenant) {
+          // Voltar em silêncio aqui já custou um "o botão não faz nada" em produção.
+          alert('Selecione o investidor e o devedor antes de confirmar.');
+          return;
+      }
       setWizardLoading(true);
       const supabase = getSupabase();
       if (!supabase) return;
@@ -502,7 +625,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               p_tenant_id: currentTenant.id,
               p_user_id: selectedInvestor.id,
               p_payer_id: selectedPayer.id,
-              p_asset_name: formData.asset_name || `Contrato ${selectedPayer.full_name.split(' ')[0]}`,
+              p_asset_name: formData.asset_name || `Contrato ${selectedPayer.full_name?.split(' ')[0] ?? 'Cliente'}`,
               p_amount_invested: formData.amount_invested,
               p_source_capital: formData.amount_invested - formData.source_profit_amount,
               p_source_profit: formData.source_profit_amount,
@@ -531,13 +654,16 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               p_skip_saturday: formData.frequency === 'daily' ? formData.skip_saturday : false,
               p_skip_sunday:   formData.frequency === 'daily' ? formData.skip_sunday   : false,
               p_custom_dates:  formData.frequency === 'freelancer' ? freelancerDates : null,
-              p_company_id:    activeCompanyId || null,
+              // Renovação herda a empresa do contrato de origem — o escopo ativo pode
+              // ser 'all' (null) ou outra empresa, e o filho nasceria separado do pai.
+              p_company_id:    renewalSource?.company_id ?? activeCompanyId ?? null,
               p_bullet_principal_mode: formData.calculation_mode === 'interest_only' ? null : formData.bullet_principal_mode,
               p_capitalize_interest: formData.capitalize_interest,
               // CB-003: regras de cobrança bullet persistidas atomicamente no próprio RPC (auditado em audit_events)
               p_break_fee_percent: formData.calculation_mode === 'interest_only' ? parsePercentInput(formData.break_fee_percent) : null,
               p_default_after_days: formData.default_after_days || 20,
               p_late_fine_percent: formData.calculation_mode === 'interest_only' ? parsePercentInput(formData.late_fine_percent) : null,
+              p_parent_investment_id: renewalSource?.id ?? null,
           });
 
           if (rpcError) throw rpcError;
@@ -545,16 +671,19 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
           if (currentTenant && currentUserId) {
             logEvent({
               tenant_id: currentTenant.id, user_id: currentUserId,
-              event_category: 'contract', event_type: 'contract_created',
+              event_category: 'contract', event_type: renewalSource ? 'contract_renewed' : 'contract_created',
               entity_type: 'investment', entity_id: String(rpcData),
               after: { investor_id: selectedInvestor.id, payer_id: selectedPayer.id, amount_invested: formData.amount_invested, frequency: formData.frequency, calculation_mode: formData.calculation_mode,
                 ...(formData.calculation_mode === 'interest_only' ? {
                   break_fee_percent: parsePercentInput(formData.break_fee_percent),
                   default_after_days: formData.default_after_days || 20,
                   late_fine_percent: parsePercentInput(formData.late_fine_percent),
-                } : {}) },
+                } : {}),
+                ...(renewalSource ? { parent_investment_id: renewalSource.id } : {}) },
             });
           }
+          setRenewalSource(null);
+          prefilledRenewalIdRef.current = null;
           setContractsSubView('list');
           fetchData();
 
@@ -829,8 +958,11 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               interest_rate: nextInterestRate,
           };
           // Para bullet, manter remaining_balance sincronizado com o principal editado.
+          // Tem que ser o principal AINDA EM ABERTO, não o principal cheio: desde a v47
+          // um pagamento acima do juros do ciclo amortiza o bullet, e gravar `principal`
+          // aqui ressuscitaria o que já foi devolvido.
           if (isBulletEdit) {
-              investmentUpdate.remaining_balance = principal;
+              investmentUpdate.remaining_balance = remainingPrincipal;
           }
 
           const { error: investmentError } = await supabase
@@ -869,19 +1001,9 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
       <ContractDetail
         investmentId={viewingContractId}
         onBack={() => { setContractsSubView('list'); setViewingContractId(null); setViewingContract(null); }}
-        onRenew={(inv) => { setRenewalSource(inv); setContractsSubView('renewal'); }}
+        onRenew={(inv) => { setRenewalSource(inv); setStep(2); setContractsSubView('create'); }}
         onRefreshList={fetchData}
         tenant={currentTenant}
-      />
-    );
-  }
-
-  if (contractsSubView === 'renewal') {
-    return (
-      <ContractRenewalModal
-        sourceContract={renewalSource}
-        onBack={() => setContractsSubView('detail')}
-        onSuccess={() => { fetchData(); setContractsSubView('list'); setViewingContractId(null); setRenewalSource(null); }}
       />
     );
   }
@@ -902,15 +1024,27 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
         <div className="px-8 py-6 border-b border-[color:var(--border-subtle)] flex justify-between items-center bg-[color:var(--bg-base)]/50">
             <div>
                 <h3 className="type-label text-[color:var(--text-primary)] flex items-center gap-2">
-                    Novo Contrato
+                    {renewalSource ? 'Renovar Contrato' : 'Novo Contrato'}
                 </h3>
+                {renewalSource && (
+                    <p className="mt-1 text-xs text-[color:var(--text-faint)] truncate">
+                        Renovação de #{renewalSource.id} —{' '}
+                        <span className="font-semibold text-[color:var(--accent-brass)]">{renewalSource.asset_name}</span>
+                    </p>
+                )}
                 <div className="flex gap-1.5 mt-2">
                     {[1, 2, 3].map(i => (
                         <div key={i} className={`h-1.5 w-8 rounded-full transition-all duration-300 ${step >= i ? 'bg-[color:var(--accent-positive)]' : 'bg-[color:var(--border-subtle)]'}`}></div>
                     ))}
                 </div>
             </div>
-            <button onClick={() => setContractsSubView('list')} className="p-3 hover:bg-[color:var(--bg-soft)] rounded-full transition-colors group">
+            <button
+              onClick={() => {
+                  if (renewalSource) { setRenewalSource(null); prefilledRenewalIdRef.current = null; setContractsSubView('detail'); return; }
+                  setContractsSubView('list');
+              }}
+              className="p-3 hover:bg-[color:var(--bg-soft)] rounded-full transition-colors group"
+            >
                 <X className="text-[color:var(--text-muted)] group-hover:text-[color:var(--text-primary)]" size={24}/>
             </button>
         </div>
@@ -1000,7 +1134,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                             <input
                                 type="text"
                                 className="w-full bg-[color:var(--bg-base)] border border-[color:var(--border-subtle)] rounded-2xl p-4 text-[color:var(--text-primary)] font-bold focus:border-[color:var(--accent-steel)] outline-none transition-all"
-                                placeholder={`Ex: Empréstimo ${selectedPayer?.full_name.split(' ')[0]}`}
+                                placeholder={`Ex: Empréstimo ${selectedPayer?.full_name?.split(' ')[0] ?? 'Cliente'}`}
                                 value={formData.asset_name}
                                 onChange={e => setFormData({...formData, asset_name: e.target.value})}
                             />
@@ -1691,7 +1825,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
                 </button>
             ) : (
                 <button onClick={handleCreateContract} disabled={wizardLoading} className="flex-[2] bg-[color:var(--accent-positive)] hover:opacity-90 disabled:opacity-50 text-white py-4 rounded-2xl type-label flex items-center justify-center gap-2 transition-all shadow-lg shadow-[0_4px_16px_var(--accent-positive-subtle)]">
-                    {wizardLoading ? <RefreshCw className="animate-spin" size={18}/> : <CheckCircle2 size={18}/>} Criar Contrato
+                    {wizardLoading ? <RefreshCw className="animate-spin" size={18}/> : <CheckCircle2 size={18}/>} {renewalSource ? 'Renovar Contrato' : 'Criar Contrato'}
                 </button>
             )}
         </div>
@@ -2031,7 +2165,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               const isSettled = contract.status === 'completed';
               const isRenewed = contract.status === 'renewed';
               return (
-                <div key={contract.id} className="panel-card relative flex h-full flex-col justify-between rounded-[2rem] p-7 transition-all hover:border-white/15"
+                <div key={contract.id} data-testid="contract-card" data-contract-id={contract.id} className="panel-card relative flex h-full flex-col justify-between rounded-[2rem] p-7 transition-all hover:border-white/15"
                     style={isSettled ? { borderColor: 'rgba(52,211,153,0.45)', boxShadow: '0 0 0 1px rgba(52,211,153,0.20)' } : undefined}>
                     <div>
                         <div className="flex justify-between items-start mb-6">

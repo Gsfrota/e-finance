@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getSupabase, withRetry } from '../services/supabase';
 import { getCached, setCached } from '../services/cache';
-import { Investment, LoanInstallment, AdminDashboardStats, DashboardKPIs } from '../types';
+import { Investment, LoanInstallment, AdminDashboardStats, DashboardKPIs, isInactiveContract } from '../types';
 import { getBrazilToday, isoToBrazilYMD, getMonthRangeBR } from '../services/dateUtils';
 import { calcSalaryPortions, isSalaryPhantom } from '../services/salary';
 
@@ -348,7 +348,7 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
 
       // Exclui parcelas de contratos já concluídos (BR-CNT-011)
       const uniqueInstallments = instData.filter(
-        (inst: any) => inst.investment?.status !== 'completed',
+        (inst: any) => !isInactiveContract(inst.investment?.status),
       );
       
       const computedKPIs = buildKPIs(safeInvestments, uniqueInstallments, monthRange);

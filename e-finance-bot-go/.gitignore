@@ -1,0 +1,12 @@
+# binários
+/bin/
+*.exe
+# binário do go build na raiz do módulo (nome do pacote main)
+/spike
+/bot
+# env local do dev (secrets nunca versionados)
+.env
+.env.local
+# artefatos de teste
+*.out
+coverage.txt

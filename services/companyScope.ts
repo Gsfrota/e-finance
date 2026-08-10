@@ -88,6 +88,15 @@ export const isPlatformOwner = (profile?: Profile | null, tenant?: Tenant | null
   return tenant.owner_email === PLATFORM_OWNER_EMAIL && profile.role === 'admin';
 };
 
+/**
+ * A aplicação web é exclusiva de administradores desde 2026-08.
+ * Perfis 'investor' e 'debtor' continuam existindo como dados (investments.user_id /
+ * payer_id), mas não têm tela própria — ver components/AccessUnavailable.tsx.
+ * Nega por padrão: perfil ausente ou role desconhecida também é bloqueado.
+ */
+export const isRoleBlocked = (profile: Profile | null | undefined): boolean =>
+  profile?.role !== 'admin';
+
 export const isFreePlanLocked = (tenant?: Tenant | null): boolean => {
   if (tenant?.owner_email === PLATFORM_OWNER_EMAIL) return false;
   return tenant?.plan === 'free' && !isTrialActive(tenant);

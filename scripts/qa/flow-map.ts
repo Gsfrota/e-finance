@@ -17,27 +17,29 @@ export const FLOW_MAP: FlowMapping[] = [
     risk: 'high',
     hasInputs: true,
   },
+  // PaymentModal casa por substring — pega também o PaymentModal exportado por
+  // InstallmentModals.tsx (baixa de pagamento do admin).
   {
     filePattern: 'PaymentModal.tsx',
     flowName: 'payment',
-    testFiles: ['e2e/debtor/dashboard.spec.ts'],
-    playwrightProject: 'chromium-debtor',
+    testFiles: ['e2e/payment/installment-payment.spec.ts'],
+    playwrightProject: 'chromium',
     risk: 'high',
     hasInputs: true,
   },
   {
     filePattern: 'InstallmentDetailFlow.tsx',
     flowName: 'payment',
-    testFiles: ['e2e/debtor/dashboard.spec.ts'],
-    playwrightProject: 'chromium-debtor',
+    testFiles: ['e2e/payment/installment-payment.spec.ts'],
+    playwrightProject: 'chromium',
     risk: 'high',
     hasInputs: true,
   },
   {
     filePattern: 'InstallmentRowActions.tsx',
     flowName: 'payment',
-    testFiles: ['e2e/debtor/dashboard.spec.ts'],
-    playwrightProject: 'chromium-debtor',
+    testFiles: ['e2e/payment/installment-payment.spec.ts'],
+    playwrightProject: 'chromium',
     risk: 'high',
   },
   {
@@ -68,33 +70,21 @@ export const FLOW_MAP: FlowMapping[] = [
     playwrightProject: 'chromium',
     risk: 'medium',
   },
-  {
-    filePattern: 'InvestorDashboard.tsx',
-    flowName: 'investor-dash',
-    testFiles: ['e2e/investor/dashboard.spec.ts'],
-    playwrightProject: 'chromium-investor',
-    risk: 'medium',
-  },
+  // Sobreviveu à remoção das telas de investidor: hoje só exporta os helpers puros
+  // (computeMonthlyView etc.) que alimentam a aba "Visão Mensal" do admin.
   {
     filePattern: 'useInvestorMetrics.ts',
-    flowName: 'investor-dash',
-    testFiles: ['e2e/investor/dashboard.spec.ts'],
-    playwrightProject: 'chromium-investor',
-    risk: 'medium',
+    flowName: 'monthly-view',
+    testFiles: ['e2e/reports/dashboard-monthly.spec.ts'],
+    playwrightProject: 'chromium',
+    risk: 'high',
   },
   {
-    filePattern: 'DebtorDashboard.tsx',
-    flowName: 'debtor-dash',
-    testFiles: ['e2e/debtor/dashboard.spec.ts'],
-    playwrightProject: 'chromium-debtor',
-    risk: 'medium',
-  },
-  {
-    filePattern: 'useDebtorFinance.ts',
-    flowName: 'debtor-dash',
-    testFiles: ['e2e/debtor/dashboard.spec.ts'],
-    playwrightProject: 'chromium-debtor',
-    risk: 'medium',
+    filePattern: 'MonthlyInvestorView.tsx',
+    flowName: 'monthly-view',
+    testFiles: ['e2e/reports/dashboard-monthly.spec.ts'],
+    playwrightProject: 'chromium',
+    risk: 'high',
   },
   {
     filePattern: 'AdminUsers.tsx',
@@ -180,9 +170,12 @@ export const FLOW_MAP: FlowMapping[] = [
     hasInputs: true,
   },
   {
-    filePattern: 'ContractRenewalModal.tsx',
+    // A renovação deixou de ter tela própria: virou o wizard de AdminContracts
+    // pré-preenchido, com o vínculo pai→filho feito dentro do RPC. A cobertura
+    // vive em contract-lifecycle.spec.ts (CNT-LC-01/06/07).
+    filePattern: 'AdminContracts.tsx',
     flowName: 'contract-renewal',
-    testFiles: [],
+    testFiles: ['e2e/contract/contract-lifecycle.spec.ts'],
     playwrightProject: 'chromium',
     risk: 'high',
     hasInputs: true,
@@ -190,8 +183,8 @@ export const FLOW_MAP: FlowMapping[] = [
   {
     filePattern: 'InstallmentModals.tsx',
     flowName: 'payment',
-    testFiles: ['e2e/debtor/dashboard.spec.ts'],
-    playwrightProject: 'chromium-debtor',
+    testFiles: ['e2e/payment/installment-payment.spec.ts'],
+    playwrightProject: 'chromium',
     risk: 'high',
     hasInputs: true,
   },
@@ -238,8 +231,8 @@ export const ALL_SPEC_FILES = [
   'e2e/auth/login.spec.ts',
   'e2e/admin/dashboard.spec.ts',
   'e2e/admin/users.spec.ts',
-  'e2e/investor/dashboard.spec.ts',
-  'e2e/debtor/dashboard.spec.ts',
+  'e2e/payment/installment-payment.spec.ts',
+  'e2e/reports/dashboard-monthly.spec.ts',
   'e2e/edge-cases.spec.ts',
 ];
 

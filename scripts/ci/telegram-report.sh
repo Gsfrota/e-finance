@@ -253,8 +253,6 @@ make_caption() {
   label=$(echo "$dir" \
     | sed 's/-chromium$//' \
     | sed 's/-no-auth$//' \
-    | sed 's/-chromium-investor$//' \
-    | sed 's/-chromium-debtor$//' \
     | sed 's/-webkit$//' \
     | sed 's/-firefox$//')
 

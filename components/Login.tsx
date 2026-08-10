@@ -5,7 +5,6 @@ import {
   AlertCircle,
   ArrowRight,
   CheckCircle,
-  Key,
   Landmark,
   Lock,
   Settings2,
@@ -28,12 +27,11 @@ interface LoginProps {
 }
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
-  const [authMode, setAuthMode] = useState<'login' | 'signUpAdmin' | 'signUpInvited'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'signUpAdmin'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,25 +118,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           onLoginSuccess();
         }
 
-      } else if (authMode === 'signUpInvited') {
-          const { data, error: signUpError } = await supabase.auth.signUp({
-              email,
-              password,
-              options: {
-                  data: {
-                      full_name: fullName,
-                      invite_code: inviteCode.toUpperCase().trim()
-                  }
-              }
-          });
-          if (signUpError) throw signUpError;
-          if (data.user && !data.session) {
-              setError("Conta criada! Verifique seu e-mail de confirmação para poder fazer login.");
-          } else if (data.session) {
-              void logAuthEvent(supabase, data.user!.id, 'signup_invited', email);
-              onLoginSuccess();
-          }
-
       } else { // Login
         const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
@@ -192,12 +171,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           <div className="mb-8 text-center">
             <p className="section-kicker mb-2">Acesso seguro</p>
             <h2 className="type-display text-[color:var(--text-primary)]">
-              {authMode === 'signUpAdmin' ? 'Criar Organização' : 'Ativar Conta com Convite'}
+              Criar Organização
             </h2>
             <p className="mt-3 text-sm text-[color:var(--text-secondary)]">
-              {authMode === 'signUpAdmin'
-                ? 'Preencha os dados para configurar seu ambiente.'
-                : 'Use o código fornecido para acessar sua conta.'}
+              Preencha os dados para configurar seu ambiente.
             </p>
           </div>
         )}
@@ -240,27 +217,17 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         {/* Formulário */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {authMode === 'signUpAdmin' && (
-            <div className="animate-fade-in-down">
-              <label className="mb-2 block type-label text-[color:var(--text-faint)]">Organização</label>
-              <input required type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={baseInputClass} placeholder="Nome da organização" />
-            </div>
-          )}
-
-          {(authMode === 'signUpAdmin' || authMode === 'signUpInvited') && (
-            <div>
-              <label className="mb-2 block type-label text-[color:var(--text-faint)]">Nome completo</label>
-              <input required type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className={baseInputClass} placeholder="Seu nome" />
-            </div>
-          )}
-
-          {authMode === 'signUpInvited' && (
-            <div>
-              <label className="mb-2 block type-label text-[color:var(--text-faint)]">Código de convite</label>
-              <div className="relative">
-                <Key className="absolute left-4 top-4 text-[color:var(--text-faint)]" size={16} />
-                <input required type="text" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} className={`${baseInputClass} pl-12 font-mono tracking-[0.2em]`} placeholder="CÓDIGO" />
+            <>
+              <div>
+                <label className="mb-2 block type-label text-[color:var(--text-faint)]">Organização</label>
+                <input required type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={baseInputClass} placeholder="Nome da organização" />
               </div>
-            </div>
+
+              <div>
+                <label className="mb-2 block type-label text-[color:var(--text-faint)]">Nome completo</label>
+                <input required type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className={baseInputClass} placeholder="Seu nome" />
+              </div>
+            </>
           )}
 
           <div>
@@ -319,12 +286,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </p>
           ) : (
             <>
-              <p>
-                Recebeu um convite?
-                <button onClick={() => { setAuthMode('signUpInvited'); setError(null); }} className="ml-2 font-semibold text-[color:var(--accent-brass)]">
-                  Ativar conta
-                </button>
-              </p>
               <p>
                 Vai abrir uma nova operação?
                 <button onClick={() => { setAuthMode('signUpAdmin'); setError(null); }} className="ml-2 font-semibold text-[color:var(--accent-brass)]">
