@@ -388,8 +388,29 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
     const src = renewalSource;
     const isBullet = src.calculation_mode === 'interest_only';
 
-    setSelectedInvestor(profiles.find(p => p.id === src.user_id) || null);
-    setSelectedPayer(profiles.find(p => p.id === src.payer_id) || null);
+    // `profiles` é filtrado por empresa (linha ~326) e a lista de contratos não —
+    // um contrato de empresa X com devedor de company_id null/diferente aparece na
+    // lista, mas suas partes ficam fora da lista de perfis. Sem o fallback, o wizard
+    // abria com investidor/devedor nulos e handleCreateContract voltava em silêncio:
+    // o botão "Renovar Contrato" simplesmente não fazia nada.
+    const investor = profiles.find(p => p.id === src.user_id) || null;
+    const payer = profiles.find(p => p.id === src.payer_id) || null;
+    setSelectedInvestor(investor);
+    setSelectedPayer(payer);
+
+    if (!investor || !payer) {
+      const missing = [investor ? null : src.user_id, payer ? null : src.payer_id]
+        .filter((id): id is string => !!id);
+      const supabase = getSupabase();
+      if (supabase && missing.length > 0) {
+        void supabase.from('profiles').select('*').in('id', missing).then(({ data }) => {
+          for (const p of (data || []) as Profile[]) {
+            if (p.id === src.user_id) setSelectedInvestor(p);
+            if (p.id === src.payer_id) setSelectedPayer(p);
+          }
+        });
+      }
+    }
 
     const nextForm = {
       asset_name: `${src.asset_name} (Renovação)`,
@@ -435,7 +456,15 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
     setRateInput(String(financial.interestRate));
     setInstallmentValueInput(String(financial.installmentValue));
     setMonthOffset(undefined);
-    setFreelancerDates([]);
+    // Freelancer precisa nascer com datas: com a lista vazia o RPC gravava todas as
+    // parcelas vencendo hoje, e os botões de intervalo do step 3 só reconstroem
+    // quando já existe alguma data. O intervalo do pai não é persistido — usa o padrão.
+    setFreelancerInterval(7);
+    setFreelancerDates(
+      nextForm.frequency === 'freelancer'
+        ? buildFreelancerDates(nextForm.total_installments, nextForm.start_date, 7)
+        : [],
+    );
 
     if (nextForm.frequency !== 'freelancer') {
       const dateObjects = calculateInstallmentDates(
@@ -582,7 +611,11 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
   };
 
   const handleCreateContract = async () => {
-      if (!selectedInvestor || !selectedPayer || !currentTenant) return;
+      if (!selectedInvestor || !selectedPayer || !currentTenant) {
+          // Voltar em silêncio aqui já custou um "o botão não faz nada" em produção.
+          alert('Selecione o investidor e o devedor antes de confirmar.');
+          return;
+      }
       setWizardLoading(true);
       const supabase = getSupabase();
       if (!supabase) return;
@@ -621,7 +654,9 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
               p_skip_saturday: formData.frequency === 'daily' ? formData.skip_saturday : false,
               p_skip_sunday:   formData.frequency === 'daily' ? formData.skip_sunday   : false,
               p_custom_dates:  formData.frequency === 'freelancer' ? freelancerDates : null,
-              p_company_id:    activeCompanyId || null,
+              // Renovação herda a empresa do contrato de origem — o escopo ativo pode
+              // ser 'all' (null) ou outra empresa, e o filho nasceria separado do pai.
+              p_company_id:    renewalSource?.company_id ?? activeCompanyId ?? null,
               p_bullet_principal_mode: formData.calculation_mode === 'interest_only' ? null : formData.bullet_principal_mode,
               p_capitalize_interest: formData.capitalize_interest,
               // CB-003: regras de cobrança bullet persistidas atomicamente no próprio RPC (auditado em audit_events)

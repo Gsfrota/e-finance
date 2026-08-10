@@ -535,9 +535,13 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
               >
                 <History size={13} /> Histórico
               </button>
+              {/* BR-CNT-007: só contrato quitado pode ser renovado. O RPC rejeita os demais —
+                  desabilitar aqui evita preencher o wizard inteiro para levar erro no final. */}
               {onRenew && (
                 <button onClick={() => onRenew(data.investment)}
-                  className="type-label flex items-center gap-2 rounded-full bg-[rgba(202,176,122,0.12)] px-4 py-2 text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)] transition-all hover:bg-[rgba(202,176,122,0.20)]">
+                  disabled={data.investment.status !== 'completed'}
+                  title={data.investment.status === 'completed' ? undefined : 'Só contrato quitado pode ser renovado'}
+                  className="type-label flex items-center gap-2 rounded-full bg-[rgba(202,176,122,0.12)] px-4 py-2 text-[color:var(--accent-brass)] ring-1 ring-[rgba(202,176,122,0.20)] transition-all hover:bg-[rgba(202,176,122,0.20)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[rgba(202,176,122,0.12)]">
                   <RotateCcw size={13} /> Renovar Contrato
                 </button>
               )}
