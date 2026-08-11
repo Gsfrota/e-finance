@@ -17,6 +17,9 @@ export interface DashboardDataState {
   loading: boolean;
   hasLoaded: boolean;
   isStale: boolean;
+  /** Quando o dado na tela veio do servidor (epoch ms). Null = nunca carregou.
+   *  É o que a faixa de offline usa para dizer "atualizado há 3h". */
+  fetchedAt: number | null;
   error: string | null;
   refetch: () => void;
   monthRange: { start: string; end: string };
@@ -238,6 +241,7 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
         loading: true,
         hasLoaded: true,
         isStale: true,
+        fetchedAt: cached.fetchedAt,
         error: null,
         refetch: () => {},
       };
@@ -251,6 +255,7 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
       loading: true,
       hasLoaded: false,
       isStale: false,
+      fetchedAt: null,
       error: null,
       refetch: () => {},
       monthRange: { start: '', end: '' }
@@ -443,6 +448,7 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
         loading: false,
         hasLoaded: true,
         isStale: false,
+        fetchedAt: Date.now(),
         error: null,
         refetch: fetchData,
       });

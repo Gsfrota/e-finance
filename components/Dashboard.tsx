@@ -1,6 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useDashboardData } from '../hooks/useDashboardData';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import OfflineBanner from './OfflineBanner';
 import {
   KPICards, OverviewCharts, ResumoGeral,
   InvestmentsTable, InstallmentsTable,
@@ -75,7 +77,8 @@ const DashboardSkeleton: React.FC = () => (
 // Sub-component for Admin View
 const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultTab?: 'overview' | 'receivables' | 'collection' | 'monthly' | 'yield'; onNavigate?: (view: AppView) => void }> = ({ tenant, defaultTab = 'overview', onNavigate }) => {
   const { activeCompanyId } = useCompanyContext();
-  const { stats, detailedKPIs, investments, installments, allPaidInstallments, loading, hasLoaded, isStale, error, refetch } = useDashboardData(tenant?.id, activeCompanyId);
+  const { stats, detailedKPIs, investments, installments, allPaidInstallments, loading, hasLoaded, isStale, fetchedAt, error, refetch } = useDashboardData(tenant?.id, activeCompanyId);
+  const online = useOnlineStatus();
   const [activeTab, setActiveTab] = useState<'overview' | 'receivables' | 'collection' | 'monthly' | 'yield'>(defaultTab);
 
   // Visão Mensal — mês selecionado
@@ -272,7 +275,10 @@ const AdminDashboardView: React.FC<{ tenant: Tenant | null | undefined; defaultT
           Não foi possível atualizar agora. Os últimos dados continuam visíveis.
         </div>
       )}
-      {isStale && (
+      {/* Sem rede, a faixa de offline assume — ela diz a idade do dado, que é a
+          informação que falta para o operador decidir se pode confiar na tela. */}
+      <OfflineBanner fetchedAt={fetchedAt} />
+      {isStale && online && (
         <div className="flex items-center gap-1.5 px-4 py-1 text-xs text-amber-400">
           <WifiOff size={12} /> Exibindo dados da última sessão
         </div>

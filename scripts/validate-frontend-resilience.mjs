@@ -107,8 +107,19 @@ assertCheck(
 
 assertCheck(
   serviceWorkerSource.includes('caches.keys()')
-    && serviceWorkerSource.includes('caches.delete(cacheName)'),
-  'service worker remove caches legados na ativação',
+    && /caches\.delete\(/.test(serviceWorkerSource)
+    && /!==\s*CACHE|!==\s*CACHE_NAME/.test(serviceWorkerSource),
+  'service worker remove caches de versões ANTERIORES (e só elas) na ativação',
+);
+
+// Regra dura do offline: o SW cuida do shell, não dos dados. localStorage guarda
+// o snapshot da carteira e, na Entrega 3, a fila de baixas ainda não enviadas —
+// apagar isso pelo SW é apagar dinheiro já recebido em campo.
+// Procura ACESSO (`localStorage.getItem`, `indexedDB.open`), não a menção —
+// o próprio SW documenta essa regra em comentário no topo.
+assertCheck(
+  !/(localStorage|indexedDB)\s*[.[]/i.test(serviceWorkerSource),
+  'service worker não toca em localStorage nem em IndexedDB',
 );
 
 for (const stableAsset of ['service-worker.js', 'env-config.js']) {
@@ -178,8 +189,9 @@ if (validateDist) {
     'bundle de produção referencia entrada com hash',
   );
   assertCheck(
-    distServiceWorker.includes('caches.delete(cacheName)'),
-    'bundle de produção contém limpeza de caches legados',
+    /caches\.delete\(/.test(distServiceWorker)
+      && /!==\s*CACHE|!==\s*CACHE_NAME/.test(distServiceWorker),
+    'bundle de produção limpa caches de versões anteriores sem apagar o atual',
   );
   let distVersion = null;
   try {
