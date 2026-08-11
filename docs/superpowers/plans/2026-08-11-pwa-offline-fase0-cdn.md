@@ -36,7 +36,7 @@ Esta task escreve a verificação **antes** da correção. Ela deve falhar no fi
 **Files:**
 - Modify: `scripts/validate-frontend-resilience.mjs`
 
-- [ ] **Step 1: Adicionar a checagem no gate**
+- [x] **Step 1: Adicionar a checagem no gate**
 
 Inserir imediatamente antes do bloco `if (failures.length > 0) {`, no nível superior do arquivo. A variável `indexHtml` já existe nesse escopo — é lida no destructuring do topo.
 
@@ -53,7 +53,7 @@ assertCheck(
 );
 ```
 
-- [ ] **Step 2: Rodar o gate e confirmar que ele FALHA**
+- [x] **Step 2: Rodar o gate e confirmar que ele FALHA**
 
 Run: `npm run lint`
 
@@ -62,7 +62,7 @@ Expected: falha com
 
 Se passar, a regex está errada — corrigir antes de seguir.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add scripts/validate-frontend-resilience.mjs
@@ -81,13 +81,13 @@ deixa a interface sem estilo nenhum quando não há rede."
 - Create: `tailwind.config.js`
 - Create: `postcss.config.js`
 
-- [ ] **Step 1: Instalar as dependências**
+- [x] **Step 1: Instalar as dependências**
 
 Run: `npm install -D tailwindcss@^3.4.0 postcss@^8.4.0 autoprefixer@^10.4.0`
 
 Expected: `package.json` ganha as três em `devDependencies`.
 
-- [ ] **Step 2: Criar `tailwind.config.js` com a config migrada 1:1**
+- [x] **Step 2: Criar `tailwind.config.js` com a config migrada 1:1**
 
 O tema abaixo é cópia exata do objeto `tailwind.config` que hoje está inline no `index.html`. Não alterar valores — qualquer diferença muda a aparência do app em produção.
 
@@ -146,7 +146,7 @@ export default {
 };
 ```
 
-- [ ] **Step 3: Criar `postcss.config.js`**
+- [x] **Step 3: Criar `postcss.config.js`**
 
 ```js
 export default {
@@ -157,7 +157,7 @@ export default {
 };
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add package.json package-lock.json tailwind.config.js postcss.config.js
@@ -174,7 +174,7 @@ migrar para v4 traz breaking changes visuais e é outra mudança."
 **Files:**
 - Modify: `index.css:1`
 
-- [ ] **Step 1: Inserir as diretivas no topo do `index.css`**
+- [x] **Step 1: Inserir as diretivas no topo do `index.css`**
 
 Antes da linha `:root {`, inserir:
 
@@ -186,13 +186,13 @@ Antes da linha `:root {`, inserir:
 
 As 590 linhas existentes ficam intactas abaixo — são CSS puro com variáveis e continuam válidas.
 
-- [ ] **Step 2: Verificar que o CSS gerado contém utilitários do Tailwind**
+- [x] **Step 2: Verificar que o CSS gerado contém utilitários do Tailwind**
 
 Run: `npm run build && grep -c 'flex\|rounded-full' dist/assets/*.css`
 
 Expected: número maior que zero. Se der zero, o PostCSS não rodou — conferir se `postcss.config.js` está na raiz e usa `export default` (o projeto é ESM, `"type": "module"`).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add index.css
@@ -207,11 +207,11 @@ git commit -m "build(tailwind): diretivas base/components/utilities no index.css
 - Modify: `package.json`
 - Modify: `index.css:1`
 
-- [ ] **Step 1: Instalar os pacotes de fonte**
+- [x] **Step 1: Instalar os pacotes de fonte**
 
 Run: `npm install @fontsource/inter@^5 @fontsource/playfair-display@^5`
 
-- [ ] **Step 2: Importar exatamente os pesos que o app usa**
+- [x] **Step 2: Importar exatamente os pesos que o app usa**
 
 No topo do `index.css`, **acima** das diretivas `@tailwind`, inserir:
 
@@ -229,13 +229,13 @@ No topo do `index.css`, **acima** das diretivas `@tailwind`, inserir:
 
 `@import` precisa vir antes de qualquer outra regra, incluindo as diretivas do Tailwind.
 
-- [ ] **Step 3: Confirmar que os arquivos de fonte entraram no build**
+- [x] **Step 3: Confirmar que os arquivos de fonte entraram no build**
 
 Run: `npm run build && ls dist/assets/*.woff2 | head -5`
 
 Expected: arquivos `.woff2` listados. Se não houver nenhum, os `@import` não foram resolvidos — conferir se os pacotes estão em `dependencies` e o caminho está correto.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add package.json package-lock.json index.css
@@ -253,7 +253,7 @@ tipografia em vez de cair no fallback do sistema."
 - Modify: `index.html:65-67` (links do Google Fonts)
 - Modify: `index.html` (script do CDN e a config inline)
 
-- [ ] **Step 1: Remover os três links do Google Fonts**
+- [x] **Step 1: Remover os três links do Google Fonts**
 
 Apagar as linhas:
 
@@ -263,23 +263,23 @@ Apagar as linhas:
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
 ```
 
-- [ ] **Step 2: Remover o script do CDN e a config inline**
+- [x] **Step 2: Remover o script do CDN e a config inline**
 
 Apagar `<script src="https://cdn.tailwindcss.com"></script>` e todo o bloco `<script>` que define `tailwind.config = { ... }` — o conteúdo dele já vive em `tailwind.config.js` desde a Task 2.
 
-- [ ] **Step 3: Rodar o gate e confirmar que agora PASSA**
+- [x] **Step 3: Rodar o gate e confirmar que agora PASSA**
 
 Run: `npm run lint`
 
 Expected: `✓ index.html não pode carregar recurso de terceiro (encontrado: nenhum)`
 
-- [ ] **Step 4: Confirmar que o build não referencia mais host externo**
+- [x] **Step 4: Confirmar que o build não referencia mais host externo**
 
 Run: `grep -o 'https://[a-z0-9.-]*' dist/index.html | sort -u`
 
 Expected: nenhuma saída.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add index.html
@@ -297,25 +297,25 @@ O risco desta fase não é o app parar de funcionar — é ele ficar visualmente
 
 **Files:** nenhum (só verificação)
 
-- [ ] **Step 1: Typecheck e build**
+- [x] **Step 1: Typecheck e build**
 
 Run: `npx tsc --noEmit && npm run build`
 
 Expected: ambos sem erro. `tsc --noEmit` é o gate real do CI.
 
-- [ ] **Step 2: Rodar a suíte de resiliência**
+- [x] **Step 2: Rodar a suíte de resiliência**
 
 Run: `npm test`
 
 Expected: `5 passed` e `Gate de resiliência aprovado: deploy liberado.`
 
-- [ ] **Step 3: Conferir o tamanho do CSS gerado**
+- [x] **Step 3: Conferir o tamanho do CSS gerado**
 
 Run: `ls -la dist/assets/*.css`
 
 Expected: o arquivo deve crescer em relação ao build anterior (~10 kB antes, dezenas de kB agora), porque agora ele contém os utilitários que o CDN gerava em runtime. Um arquivo que **não** cresceu indica que o Tailwind não escaneou os componentes — revisar o `content` do `tailwind.config.js`.
 
-- [ ] **Step 4: Conferência visual no preview**
+- [x] **Step 4: Conferência visual no preview**
 
 Run: `npm run preview` e abrir `http://localhost:4173`
 
@@ -324,7 +324,7 @@ Verificar, com a aba Network em modo offline após o primeiro load:
 - As cores de marca (dourado do `--accent-brass`, azul do header) estão iguais.
 - Nenhuma requisição para `cdn.tailwindcss.com` ou `fonts.g*` no Network.
 
-- [ ] **Step 5: Commit final se houver ajuste**
+- [x] **Step 5: Commit final se houver ajuste**
 
 Se algo precisou ser corrigido:
 
@@ -334,6 +334,13 @@ git commit -m "fix(build): ajustes da migração do Tailwind para build local"
 ```
 
 ---
+
+## Achados durante a execução
+
+- **A paleta customizada é código morto.** `ink`, `brass`, `sage`, `rust` e `steel` têm **zero** usos no código — nenhum `bg-brass-400`, nenhum `text-ink-950`. O app usa variáveis CSS por classe arbitrária (`text-[color:var(--accent-brass)]`). A config foi migrada 1:1 mesmo assim, por fidelidade e porque o Tailwind só gera o que encontra: manter custa zero bytes no CSS final.
+- **Só o subset latino das fontes.** O import completo trazia 40 arquivos `.woff2` (cirílico, grego, vietnamita). Trocado por `latin-*`: 7 arquivos, 168 KB — o que o Service Worker vai ter que cachear na Entrega 2.
+- **O `body` não tem `background-color`, e isso é correto.** Ele usa `background:` shorthand com gradientes, o que zera a cor. Quem carrega a cor sólida é o `html`. Qualquer verificação futura deve medir `backgroundImage` no body, não `backgroundColor`.
+- **`www.w3.org` precisou de exceção no gate** — é namespace de SVG (`xmlns`), identificador e não requisição de rede.
 
 ## Definition of Done
 
