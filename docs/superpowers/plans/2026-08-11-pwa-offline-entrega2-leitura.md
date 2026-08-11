@@ -422,7 +422,17 @@ falta de rede."
 
 ---
 
-## Task 6: Remover os resíduos do Cloud Run
+## Task 6: Remover os resíduos do Cloud Run — **NÃO EXECUTADA, por decisão do Step 1**
+
+O próprio Step 1 mandava parar se algo referenciasse o arquivo. E referencia:
+
+- `scripts/validate-frontend-resilience.mjs:53,64,127` — o gate **lê e valida** o `nginx.conf`
+- `docker-entrypoint.sh:8,18` — gera o `env-config.js` e sobe o nginx
+- `README.md` — documenta a arquitetura de deploy
+
+Deletar o arquivo vira uma limpeza de toda a superfície Docker (Dockerfile, entrypoint, gate, README), que não é pré-requisito de offline e tem risco próprio. Fica registrado como pendência: **o app migrou para a Vercel e o Cloud Run está desativado, então essa superfície inteira é resíduo** — mas a remoção merece frente própria.
+
+## Task 6 (original, preservada para a frente futura)
 
 **Files:**
 - Delete: `nginx.conf`

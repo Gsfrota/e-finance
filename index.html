@@ -94,10 +94,17 @@
           window.clearTimeout(bootTimer);
           screen.setAttribute('role', 'alert');
           screen.setAttribute('data-state', 'error');
-          document.getElementById('app-boot-title').textContent = 'Não foi possível abrir o sistema';
-          document.getElementById('app-boot-copy').textContent =
-            'Uma versão antiga pode ter ficado salva neste aparelho. Limpe o cache do aplicativo e tente novamente.';
-          document.getElementById('app-boot-recover').hidden = false;
+
+          // Falta de rede NÃO é app quebrado. Um cobrador em campo que visse
+          // "limpe o cache do aplicativo" clicaria e apagaria a cópia local —
+          // ficando sem sistema no meio da rua. Sem sinal, o botão some.
+          var semRede = ('onLine' in navigator) && navigator.onLine === false;
+          document.getElementById('app-boot-title').textContent =
+            semRede ? 'Sem conexão' : 'Não foi possível abrir o sistema';
+          document.getElementById('app-boot-copy').textContent = semRede
+            ? 'Você está sem internet e este aparelho ainda não tem uma cópia do sistema salva. Conecte-se uma vez para poder usar offline depois.'
+            : 'Uma versão antiga pode ter ficado salva neste aparelho. Limpe o cache do aplicativo e tente novamente.';
+          document.getElementById('app-boot-recover').hidden = semRede;
           console.error('[AppBootstrap]', reason || 'Falha antes da montagem do React');
         };
 
