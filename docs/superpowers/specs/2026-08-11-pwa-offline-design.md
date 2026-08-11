@@ -31,6 +31,18 @@ Isso elimina a parte cara do offline — CRDT, resolução de conflito, sync par
 
 Uma decisão tomada sem consulta, por só haver uma resposta correta: **a baixa vale a data em que o dinheiro foi recebido em campo**, não a do sync. `pay_installment` já recebe `timestamptz`. Sincronizar dois dias depois não pode gerar multa de dois dias.
 
+### Premissa operacional: a janela offline é curta
+
+O usuário informou que o cliente **não passa 24 horas sem rede** — a falta de sinal é intermitente, ao longo do dia de trabalho, não prolongada.
+
+Isso não relaxa nenhuma garantia do desenho, mas muda a calibragem e derruba o pior risco:
+
+- **O cenário de perda no iOS deixa de ser realista.** O Safari apaga storage após ~7 dias *sem uso*; um app aberto e sincronizado todo dia nunca chega perto disso. O risco vira residual, não assumido.
+- **A fila é curta e some rápido.** Nada de acumular centenas de intenções por dias.
+- **Dado velho é anomalia, não rotina.** Um snapshot com mais de 24h significa que algo está errado (usuário sem rede há tempo demais, ou sync falhando em silêncio), e o app deve gritar em vez de sussurrar.
+
+Se essa premissa cair — cliente em zona rural passando dias sem sinal —, o que muda é o peso das mitigações de iOS, não a arquitetura.
+
 ## Fase 0 — cortar as dependências de CDN
 
 **Pré-requisito absoluto.** O `index.html` (e o build em `dist/`) carrega três recursos externos:
@@ -137,10 +149,10 @@ Não há como eliminar o risco, então o desenho o assume:
 
 - **`navigator.storage.persist()`** é chamado. No Android segura; no iOS é pedido educado.
 - **Sync agressivo.** No iPhone não existe Background Sync — o envio só acontece com o app aberto. Quanto menos tempo a fila fica parada, menor a janela de perda.
-- **Alarme de pendência velha.** Passando de ~12h com item na fila, banner fixo, não badge discreto.
-- **Exportar pendências** em texto (WhatsApp, Telegram, print) — o paraquedas manual caso o Safari limpe o storage.
+- **Alarme de pendência velha.** Passando de ~12h com item na fila, banner fixo, não badge discreto. O limite é metade da janela operacional declarada (24h), então o alarme dispara bem antes de virar problema.
+- **Exportar pendências** em texto (WhatsApp, Telegram, print) — paraquedas manual, barato de implementar e útil também para conferência do dono.
 
-O Safari pode apagar o storage do site após ~7 dias sem uso, e um PWA não tem como impedir. Isso não torna o iOS confiável; torna a perda **visível antes** de acontecer, que é o máximo honesto. Deve constar do que se promete ao cliente.
+O Safari pode apagar o storage do site após ~7 dias **sem uso**, e um PWA não tem como impedir. Com a janela operacional declarada (nunca 24h sem rede, app usado diariamente), esse cenário não se materializa — as mitigações acima existem para o caso de a premissa falhar, não para o dia a dia. O que se promete ao cliente: em uso normal, nada se perde; se o aparelho ficar dias parado sem abrir o app, o iOS pode limpar dados e o app avisa antes disso.
 
 ## Testes
 
@@ -163,7 +175,8 @@ Gate obrigatório antes de push: `npx tsc --noEmit`.
 
 | Risco | Mitigação |
 |---|---|
-| Safari apagar o storage e perder baixas | Sync agressivo, alarme de pendência antiga, exportação manual. Risco residual **assumido e comunicado ao cliente** |
+| Safari apagar o storage e perder baixas | Só ocorre após ~7 dias **sem uso**, o que a janela operacional declarada (nunca 24h sem rede) torna improvável. Sync agressivo, alarme de pendência antiga e exportação manual cobrem o caso de a premissa falhar |
+| A premissa da janela curta se provar falsa | O alarme de pendência antiga é o detector: se disparar com frequência, o uso real não é o declarado e as mitigações de iOS precisam virar prioridade |
 | Cobrador clicar em "limpar cache" na tela de erro | Boot offline abaixo de 15s e tela que distingue sem-rede de app-quebrado |
 | Atualização de versão apagar a fila | IndexedDB fora do alcance do SW; schema versionado com migração |
 | Replicar cálculo financeiro no cliente por pressão de UX | A decisão 2 é explícita: a baixa offline não mostra saldo. Qualquer pedido de "mostrar quanto falta" offline reabre esta spec |
