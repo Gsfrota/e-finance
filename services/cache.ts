@@ -6,13 +6,15 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
-export function getCached<T>(key: string): { data: T; stale: boolean } | null {
+export function getCached<T>(key: string): { data: T; stale: boolean; fetchedAt: number } | null {
   try {
     const raw = localStorage.getItem(PREFIX + key);
     if (!raw) return null;
     const entry: CacheEntry<T> = JSON.parse(raw);
     const stale = Date.now() - entry.timestamp > CACHE_TTL;
-    return { data: entry.data, stale };
+    // `fetchedAt` é o que a UI usa para dizer "atualizado há 3h" quando está
+    // offline. Sem isso o operador olha um saldo de ontem achando que é de agora.
+    return { data: entry.data, stale, fetchedAt: entry.timestamp };
   } catch {
     return null;
   }

@@ -1,37 +1,60 @@
-// service-worker.js — limpa o SW legado do Google AI Studio e
-// encaminha /api-proxy/ para generativelanguage.googleapis.com
+// service-worker.js — cache do app shell para funcionamento offline.
+//
+// REGRA DURA: este arquivo só mexe na Cache API. Nunca em localStorage nem em
+// IndexedDB — é lá que vivem o snapshot da carteira e, na Entrega 3, a fila de
+// baixas ainda não sincronizadas. Apagar isso é apagar dinheiro registrado.
 
-const GEMINI_HOST = 'generativelanguage.googleapis.com';
-const PROXY_PREFIX = '/api-proxy/';
+const CACHE = 'ef-shell-v1';
 
 self.addEventListener('install', () => self.skipWaiting());
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     Promise.all([
-      caches.keys().then((cacheNames) => Promise.all(
-        cacheNames.map((cacheName) => caches.delete(cacheName))
+      // Remove apenas caches de versões ANTERIORES deste app.
+      caches.keys().then((names) => Promise.all(
+        names.filter((name) => name !== CACHE).map((name) => caches.delete(name)),
       )),
       self.clients.claim(),
-    ])
+    ]),
   );
 });
 
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
+  const { request } = event;
+  if (request.method !== 'GET') return;
 
-  // Intercepta chamadas diretas ao Gemini (path base do AI Studio antigo)
-  if (url.hostname === GEMINI_HOST) {
-    const proxyUrl = `${self.location.origin}${PROXY_PREFIX}${url.pathname.replace(/^\//, '')}${url.search}`;
-    console.log('Service Worker: Proxying to', proxyUrl);
+  const url = new URL(request.url);
+  // Só mexe no que é nosso. Supabase e qualquer outra origem passam direto —
+  // dado de API não entra em cache de shell.
+  if (url.origin !== self.location.origin) return;
 
+  // Navegação: tenta a rede primeiro (para pegar deploy novo), cai no cache.
+  if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(new Request(proxyUrl, {
-        method: event.request.method,
-        headers: event.request.headers,
-        body: event.request.method !== 'GET' ? event.request.body : undefined,
-        duplex: 'half',
-      }))
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put('/index.html', copy));
+          return response;
+        })
+        .catch(() => caches.match('/index.html').then((cached) => cached
+          || new Response('Sem conexão e sem cópia local do app.', {
+            status: 503,
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+          }))),
     );
+    return;
   }
-  // Tudo mais: comportamento padrão
+
+  // Assets com hash são imutáveis: cache primeiro, rede só na primeira vez.
+  event.respondWith(
+    caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+      if (response.ok && response.type === 'basic') {
+        const copy = response.clone();
+        caches.open(CACHE).then((cache) => cache.put(request, copy));
+      }
+      return response;
+    })),
+  );
 });
