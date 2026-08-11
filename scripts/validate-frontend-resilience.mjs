@@ -195,6 +195,19 @@ if (validateDist) {
   );
 }
 
+// Offline (Fase 0): nenhuma dependência de terceiro pode voltar ao HTML.
+// Sem rede, um <script> ou <link> externo deixa o app sem estilo ou sem boot.
+// w3.org é namespace de XML/SVG (xmlns), identificador e não requisição.
+const XML_NAMESPACE_HOSTS = new Set(['www.w3.org']);
+const externalHosts = [...new Set(
+  [...indexHtml.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)].map((match) => match[1]),
+)].filter((host) => !XML_NAMESPACE_HOSTS.has(host));
+
+assertCheck(
+  externalHosts.length === 0,
+  `index.html não pode carregar recurso de terceiro (encontrado: ${externalHosts.join(', ') || 'nenhum'})`,
+);
+
 if (failures.length > 0) {
   console.error(`\nGate estrutural reprovado (${failures.length} problema(s)):`);
   failures.forEach((failure) => console.error(`- ${failure}`));
