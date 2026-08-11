@@ -62,9 +62,8 @@
       #app-boot-recover[hidden] { display: none; }
       #app-boot-recover:disabled { cursor: wait; opacity: 0.65; }
     </style>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+    <!-- Inter e Playfair Display vêm do bundle via @fontsource (ver index.css). -->
+
 <link rel="stylesheet" href="/index.css">
 </head>
   <body>
@@ -154,50 +153,10 @@
     </script>
     <!-- Runtime env vars injetados pelo docker-entrypoint.sh (Cloud Run) -->
     <script src="/env-config.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              display: ['Playfair Display', 'serif'],
-            },
-            colors: {
-              ink: {
-                950: '#0a1020',
-                900: '#0f1d33',
-                850: '#172540',
-                800: '#1c2d4d',
-                700: '#223558',
-                600: '#2e4470',
-              },
-              brass: {
-                300: '#f5c842',
-                400: '#f0b429',
-                500: '#d49a18',
-                600: '#b07f10',
-              },
-              sage: {
-                300: '#6ee7b7',
-                400: '#34d399',
-                500: '#10b981',
-              },
-              rust: {
-                300: '#fca5a5',
-                400: '#f87171',
-                500: '#ef4444',
-              },
-              steel: {
-                300: '#93c5fd',
-                400: '#60a5fa',
-                500: '#3b82f6',
-              },
-            }
-          }
-        }
-      }
-    </script>
+    <!-- Tailwind saiu do Play CDN: agora é gerado no build (tailwind.config.js +
+         postcss.config.js). O CDN compilava as classes em runtime, o que deixava
+         o app sem estilo nenhum quando não havia rede. -->
+
   <script type="module" src="/index.tsx"></script>
   <script>
     if ('serviceWorker' in navigator) {
