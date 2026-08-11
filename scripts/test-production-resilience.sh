@@ -108,7 +108,10 @@ fetch_production_file "/env-config.js" "${task_temp_dir}/env-config.js" "${task_
 fetch_production_file "${task_main_asset}" "${task_temp_dir}/main.js" "${task_temp_dir}/main.headers"
 
 test -s "${task_temp_dir}/main.js"
-grep -q 'caches.delete(cacheName)' "${task_temp_dir}/service-worker.js"
+if ! grep -Eq 'caches\.delete\(' "${task_temp_dir}/service-worker.js"; then
+  echo "service-worker.js publicado não remove caches antigos" >&2
+  exit 1
+fi
 
 echo "[4/5] Política de cache contra bootstrap obsoleto"
 assert_cache_contains "${task_temp_dir}/version.headers" "no-cache" "/version.json"

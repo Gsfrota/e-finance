@@ -43,6 +43,7 @@
 | `hooks/useDashboardData.ts` (modificar) | Refetch após confirmação financeira do servidor |
 | `App.tsx` (modificar) | Montagem global da sincronização e da caixa de pendências |
 | `e2e/regression/frontend-resilience.spec.ts` (modificar) | Fluxo offline → reconexão → envio único no navegador |
+| `scripts/test-production-resilience.sh` (modificar) | Smoke pós-deploy valida a remoção de caches sem depender do nome da variável local |
 
 ---
 
