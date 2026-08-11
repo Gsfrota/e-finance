@@ -21,7 +21,8 @@ import CompanyScopeGate from './components/CompanyScopeGate';
 import AdminSettings, { type SettingsSection } from './components/AdminSettings';
 import AccessUnavailable from './components/AccessUnavailable';
 import { AppView, UserRole, Tenant, Profile, Company, CompanyAccessMode, CompanyScope } from './types';
-import { clearAllCache } from './services/cache';
+import { clearAllCache, getCached, setCached } from './services/cache';
+import OfflineBanner from './components/OfflineBanner';
 import { fetchProfileByAuthUserId, getSupabase, isProduction, logError } from './services/supabase';
 import {
   CompanyContextProvider,
@@ -522,6 +523,11 @@ const Layout: React.FC<LayoutProps> = ({
         <main ref={mainContentRef} data-testid="app-main-scroll" className="custom-scrollbar relative flex-1 overflow-y-auto bg-[color:var(--bg-base)]">
           <div className="app-noise pointer-events-none absolute inset-0 z-0"></div>
           <div className="relative z-10 mx-auto w-full max-w-[1680px] px-4 py-6 md:px-8 md:py-8">
+            {/* Fica no shell, não numa tela: sem rede o aviso vale em qualquer
+                lugar do app, não só no dashboard. */}
+            <div className="mb-4 empty:mb-0">
+              <OfflineBanner />
+            </div>
             {children}
           </div>
         </main>
@@ -692,6 +698,8 @@ const App: React.FC = () => {
             setProfile(dbData);
             const tenantData = dbData.tenants as unknown as Tenant;
             setTenant(tenantData);
+            // Guarda o bootstrap para o app conseguir abrir sem rede depois.
+            setCached(`bootstrap_${sessionUser.id}`, { profile: dbData, tenant: tenantData });
             await refreshCompanies(tenantData, dbData);
 
             // Detecta retorno do Stripe Checkout e agenda re-fetch do tenant
@@ -768,6 +776,22 @@ const App: React.FC = () => {
     } catch (e: any) {
         console.error('[LoadAppData] Error:', e);
         logError("LoadAppData", e);
+
+        // Sem rede, o app não pode morrer na inicialização só porque não
+        // alcançou o servidor. Se este aparelho já abriu a operação antes,
+        // segue com o último perfil conhecido — é disso que depende a leitura
+        // da carteira em campo. `refreshCompanies` já tem fallback próprio.
+        const cached = getCached<{ profile: Profile; tenant: Tenant }>(`bootstrap_${sessionUser.id}`);
+        if (cached && typeof navigator !== 'undefined' && navigator.onLine === false) {
+            console.log('[LoadAppData] Offline — retomando com o perfil em cache');
+            setProfile(cached.data.profile);
+            setTenant(cached.data.tenant);
+            await refreshCompanies(cached.data.tenant, cached.data.profile);
+            setIsLoading(false);
+            setCurrentView(AppView.HOME);
+            return;
+        }
+
         setAppError(`Erro ao carregar seu perfil: ${e.message}`);
         setIsLoading(false);
     }

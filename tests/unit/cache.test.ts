@@ -19,7 +19,7 @@ vi.stubGlobal('localStorage', {
   get length() { return store.size; },
 });
 
-const { clearAllCache, getCached, setCached } = await import('@/services/cache');
+const { clearAllCache, getCached, getNewestCachedAt, setCached } = await import('@/services/cache');
 
 describe('cache — idade do dado', () => {
   beforeEach(() => {
@@ -68,5 +68,44 @@ describe('cache — idade do dado', () => {
 
   it('devolve null quando não há nada guardado', () => {
     expect(getCached('inexistente')).toBeNull();
+  });
+});
+
+describe('getNewestCachedAt — idade para a faixa de offline global', () => {
+  beforeEach(() => {
+    store.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('devolve o timestamp mais recente entre as chaves do prefixo', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 11, 6, 0, 0));
+    setCached('dashboard_t1_all', { a: 1 });
+
+    const maisNovo = new Date(2026, 7, 11, 9, 30, 0);
+    vi.setSystemTime(maisNovo);
+    setCached('dashboard_t1_empresa2', { a: 2 });
+
+    expect(getNewestCachedAt('dashboard_')).toBe(maisNovo.getTime());
+  });
+
+  it('ignora chaves de outro prefixo', () => {
+    vi.useFakeTimers();
+    const doBootstrap = new Date(2026, 7, 11, 23, 0, 0);
+    vi.setSystemTime(doBootstrap);
+    setCached('bootstrap_user1', { p: 1 });
+
+    const doDashboard = new Date(2026, 7, 11, 7, 0, 0);
+    vi.setSystemTime(doDashboard);
+    setCached('dashboard_t1_all', { a: 1 });
+
+    expect(getNewestCachedAt('dashboard_')).toBe(doDashboard.getTime());
+  });
+
+  it('devolve null quando não há nada do prefixo', () => {
+    expect(getNewestCachedAt('dashboard_')).toBeNull();
   });
 });

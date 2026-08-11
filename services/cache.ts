@@ -29,6 +29,32 @@ export function setCached<T>(key: string, data: T): void {
   }
 }
 
+/**
+ * Timestamp mais recente entre as entradas de um prefixo.
+ *
+ * A faixa de offline é global (fica no shell, não numa tela), então ela não
+ * recebe o `fetchedAt` de nenhum hook — pergunta ao cache qual foi o último
+ * sync de dados de carteira.
+ */
+export function getNewestCachedAt(prefixoLogico: string): number | null {
+  try {
+    let maisRecente: number | null = null;
+    for (let i = 0; i < localStorage.length; i++) {
+      const chave = localStorage.key(i);
+      if (!chave || !chave.startsWith(PREFIX + prefixoLogico)) continue;
+      const raw = localStorage.getItem(chave);
+      if (!raw) continue;
+      const entry: CacheEntry<unknown> = JSON.parse(raw);
+      if (typeof entry.timestamp === 'number' && (maisRecente === null || entry.timestamp > maisRecente)) {
+        maisRecente = entry.timestamp;
+      }
+    }
+    return maisRecente;
+  } catch {
+    return null;
+  }
+}
+
 export function clearCache(key: string): void {
   try {
     localStorage.removeItem(PREFIX + key);

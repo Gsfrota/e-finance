@@ -1,9 +1,12 @@
 import React from 'react';
 import { CloudOff, Clock } from 'lucide-react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { getNewestCachedAt } from '../services/cache';
 
 interface OfflineBannerProps {
-  /** Momento em que o dado na tela veio do servidor (epoch ms). */
+  /** Momento em que o dado na tela veio do servidor (epoch ms).
+   *  Omitido, a faixa pergunta ao cache qual foi o último sync de carteira —
+   *  é o caso quando ela vive no shell, fora de uma tela específica. */
   fetchedAt?: number | null;
 }
 
@@ -31,8 +34,9 @@ const OfflineBanner: React.FC<OfflineBannerProps> = ({ fetchedAt }) => {
   const online = useOnlineStatus();
   if (online) return null;
 
-  const idade = fetchedAt ? descreverIdade(fetchedAt) : null;
-  const velho = fetchedAt ? Date.now() - fetchedAt > UM_DIA_MS : false;
+  const momento = fetchedAt ?? getNewestCachedAt('dashboard_');
+  const idade = momento ? descreverIdade(momento) : null;
+  const velho = momento ? Date.now() - momento > UM_DIA_MS : false;
 
   return (
     <div
