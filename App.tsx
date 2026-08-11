@@ -23,6 +23,8 @@ import AccessUnavailable from './components/AccessUnavailable';
 import { AppView, UserRole, Tenant, Profile, Company, CompanyAccessMode, CompanyScope } from './types';
 import { clearAllCache, getCached, setCached } from './services/cache';
 import OfflineBanner from './components/OfflineBanner';
+import PendingIntentsPanel from './components/PendingIntentsPanel';
+import { useOfflineSync } from './hooks/useOfflineSync';
 import { fetchProfileByAuthUserId, getSupabase, isProduction, logError } from './services/supabase';
 import {
   CompanyContextProvider,
@@ -103,6 +105,7 @@ interface LayoutProps {
   onSelectCompanyScope: (scope: CompanyScope) => void;
   onOpenCompanySettings: (section?: SettingsSection) => void;
   onOpenSubscriptionSettings: () => void;
+  onOpenContract: (investmentId: number, companyId: string | null) => void;
 }
 
 const Layout: React.FC<LayoutProps> = ({
@@ -125,6 +128,7 @@ const Layout: React.FC<LayoutProps> = ({
   onSelectCompanyScope,
   onOpenCompanySettings,
   onOpenSubscriptionSettings,
+  onOpenContract,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mainContentRef = useRef<HTMLElement | null>(null);
@@ -135,6 +139,7 @@ const Layout: React.FC<LayoutProps> = ({
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('EF_THEME') as 'dark' | 'light') || 'light';
   });
+  const offlineSync = useOfflineSync(tenant?.id, userRole === 'admin');
 
   const toggleSidebar = () => {
     setSidebarCollapsed(v => {
@@ -528,6 +533,13 @@ const Layout: React.FC<LayoutProps> = ({
             <div className="mb-4 empty:mb-0">
               <OfflineBanner />
             </div>
+            <PendingIntentsPanel
+              intents={offlineSync.intents}
+              syncing={offlineSync.syncing}
+              syncError={offlineSync.error}
+              onSync={offlineSync.syncNow}
+              onOpenContract={onOpenContract}
+            />
             {children}
           </div>
         </main>
@@ -552,6 +564,7 @@ const App: React.FC = () => {
   const [settingsInitialSection, setSettingsInitialSection] = useState<SettingsSection | undefined>(undefined);
   const [targetUserId, setTargetUserId] = useState<string | undefined>(undefined);
   const [contractAutoNew, setContractAutoNew] = useState(false);
+  const [targetContractId, setTargetContractId] = useState<number | null>(null);
   const [adminDashboardDefaultTab, setAdminDashboardDefaultTab] = useState<'overview' | 'receivables' | 'collection' | 'monthly' | 'yield'>('overview');
   const [isLoading, setIsLoading] = useState(true);
   const [isPlatformOwnerServer, setIsPlatformOwnerServer] = useState(false);
@@ -1081,6 +1094,12 @@ const App: React.FC = () => {
           onSelectCompanyScope={handleCompanyScopeChange}
           onOpenCompanySettings={openSettingsSection}
           onOpenSubscriptionSettings={() => openSettingsSection('assinatura')}
+          onOpenContract={(investmentId, companyId) => {
+            if (companyId) setActiveCompanyScope(companyId);
+            setTargetContractId(investmentId);
+            setContractAutoNew(false);
+            setCurrentView(AppView.CONTRACTS);
+          }}
         >
           {currentView === AppView.HOME && profile?.role === 'admin' && !isFreeLocked && (
             <AdminHome
@@ -1149,6 +1168,8 @@ const App: React.FC = () => {
                   )
                 : <AdminContracts
                     autoOpenCreate={contractAutoNew}
+                    initialContractId={targetContractId}
+                    onInitialContractOpened={() => setTargetContractId(null)}
                     onNavigate={(view) => setCurrentView(view)}
                     onPaywallRedirect={isFreeLocked ? () => openSettingsSection('assinatura') : undefined}
                   />

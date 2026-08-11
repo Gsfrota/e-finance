@@ -7,7 +7,7 @@ import {
   ArrowLeft, CheckCircle2, AlertTriangle, Loader2, Clock3,
   DollarSign, Calendar, Percent, RefreshCw, Save, XCircle,
   Pencil, FileText, ArrowRight, ArrowDownToLine, Plus, ChevronLeft, TrendingUp,
-  Layers, ChevronDown, ChevronUp,
+  Layers, ChevronDown, ChevronUp, CloudOff,
 } from 'lucide-react';
 
 type SurplusAction = 'next' | 'last' | 'spread' | 'pay_late';
@@ -36,6 +36,8 @@ import { logPaymentTransaction, calcBreakdown } from '../services/paymentAudit';
 import { logEventFromSession } from '../services/eventLog';
 import ReceiptTemplate from './ReceiptTemplate';
 import { useCompanyContext } from '../services/companyScope';
+import { enqueueOfflinePayment, type OfflinePaymentIntent } from '../services/offlineQueue';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -511,6 +513,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
   action, tenant, payerName, onBack, onSuccess,
 }) => {
   const { activeCompany } = useCompanyContext();
+  const online = useOnlineStatus();
   const { installment } = action;
   const outstanding = calcOutstanding(installment);
 
@@ -521,6 +524,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState<string | null>(null);
   const [isReceiptMode, setIsReceiptMode] = useState(false);
+  const [offlineQueued, setOfflineQueued] = useState<OfflinePaymentIntent | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('PIX');
 
   // Pay step 2 state
@@ -617,7 +621,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
   const lateSurplusLeftover = Math.max(0, surplus - latePaymentTotal);
 
   useEffect(() => {
-    setError(null); setIsReceiptMode(false); setActionSummary(null);
+    setError(null); setIsReceiptMode(false); setOfflineQueued(null); setActionSummary(null);
     setPayStep(1); setDeferAction('last'); setUseInterest(false); setInterestPercent(''); setContext({ nextInst: null, lastInst: null });
     setSurplusAction('next'); setPendingInstallments([]); setShowSpreadPreview(false);
     setLateInstallments([]); setShowLatePreview(false); setPostLateAction('next');
@@ -755,6 +759,47 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     // CB-005/CB-007: contratos bullet roteiam para pay_bullet_interest_only.
     // CB-007: se investment não veio no join, busca calculation_mode como fallback.
     let calcMode = installment.investment?.calculation_mode;
+
+    // Sem rede, só registramos a intenção simples que a RPC idempotente sabe
+    // reproduzir. Nada de saldo, surplus, bullet ou deferimento no cliente.
+    if (!online) {
+      if (!calcMode) {
+        setError('Os dados offline não informam o tipo deste contrato. Conecte-se antes de registrar esta baixa.');
+        return;
+      }
+      if (calcMode === 'interest_only') {
+        setError('Baixa Bullet exige conexão para calcular juros e principal no servidor.');
+        return;
+      }
+      if (installment.missed_at) {
+        setError('Parcela com falta registrada exige conexão para tratar o adiamento.');
+        return;
+      }
+      if (hasExcedente) {
+        setError('Valor excedente exige conexão para escolher o destino. Registre no máximo o saldo exibido.');
+        return;
+      }
+
+      try {
+        const investment = installment.investment as any;
+        const intent = enqueueOfflinePayment({
+          tenantId: installment.tenant_id || tenant?.id || '',
+          installmentId: installment.id,
+          investmentId: installment.investment_id,
+          companyId: installment.company_id ?? null,
+          installmentNumber: installment.number,
+          debtorName: payerName || investment?.payer?.full_name || investment?.payer_name || 'Cliente',
+          contractName: investment?.asset_name || installment.contract_name || 'Contrato',
+          amount: val,
+          paidAt: paymentDate + 'T12:00:00',
+        });
+        setOfflineQueued(intent);
+      } catch (queueError: any) {
+        setError(queueError?.message || 'Não foi possível salvar a baixa neste aparelho.');
+      }
+      return;
+    }
+
     if (!calcMode && installment.investment_id) {
       const supabase = getSupabase();
       if (supabase) {
@@ -1308,6 +1353,45 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
     </div>
   );
 
+  if (offlineQueued) {
+    return (
+      <div className="flex h-full flex-col" style={{ background: 'var(--bg-base)' }}>
+        <div className="flex items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-4" style={{ background: 'var(--bg-elevated)' }}>
+          <button onClick={onSuccess} className="rounded-full p-2 text-[color:var(--text-muted)] hover:bg-[color:var(--bg-soft)] transition-colors">
+            <ArrowLeft size={20} />
+          </button>
+          <h2 className="type-subheading text-[color:var(--text-primary)]">Recebimento salvo</h2>
+        </div>
+        <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-8" data-testid="offline-payment-saved">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[rgba(240,180,41,0.14)] text-[color:var(--accent-brass)] ring-2 ring-[rgba(240,180,41,0.24)]">
+            <CloudOff size={42} />
+          </div>
+          <div className="max-w-sm text-center">
+            <p className="text-lg font-bold text-[color:var(--text-primary)]">
+              {fmtMoney(offlineQueued.amount)} registrado neste aparelho
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-[color:var(--text-muted)]">
+              Ainda não é uma baixa confirmada. O servidor aplicará este recebimento automaticamente quando a conexão voltar.
+            </p>
+          </div>
+          <div className="w-full rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-elevated)] p-5 space-y-3">
+            <SummaryRow label="Cliente" value={offlineQueued.debtorName} />
+            <SummaryRow label="Parcela" value={`#${offlineQueued.installmentNumber}`} />
+            <SummaryRow label="Recebido" value={fmtMoney(offlineQueued.amount)} accent />
+            <SummaryRow label="Situação" value="Aguardando envio" warn />
+          </div>
+          <button
+            onClick={onSuccess}
+            className="type-label w-full rounded-2xl py-4 text-[color:var(--accent-brass)] ring-1 ring-[rgba(240,180,41,0.24)] transition-all active:scale-95"
+            style={{ background: 'rgba(240,180,41,0.12)' }}
+          >
+            Voltar para cobranças
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (isReceiptMode && tenant) {
     return (
       <div className="flex h-full flex-col">
@@ -1419,6 +1503,12 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
       <div className="flex-1 overflow-y-auto px-4 pb-8">
         {action.type === 'pay' && payStep === 1 && (
           <form onSubmit={handlePayStep1} className="space-y-4 pt-2">
+            {!online && (
+              <div className="flex items-start gap-2 rounded-xl border border-[rgba(240,180,41,0.24)] bg-[rgba(240,180,41,0.10)] p-3 text-xs leading-relaxed text-[color:var(--accent-brass)]">
+                <CloudOff size={15} className="mt-0.5 shrink-0" />
+                <span>Sem conexão: o recebimento ficará salvo neste aparelho. O saldo só muda depois da confirmação do servidor.</span>
+              </div>
+            )}
             <div>
               <label className="block type-label text-[color:var(--text-faint)] mb-2">Valor Recebido (R$)</label>
               <div className="relative">
@@ -1462,7 +1552,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
               <label className="block type-label text-[color:var(--text-faint)] mb-2">Data do Pagamento</label>
               <div className="relative">
                 <Calendar size={16} className="absolute left-4 top-4 text-[color:var(--text-muted)]" />
-                <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
+                <input type="date" max={getBrazilToday()} value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
                   className={`${inputCls} pl-10 focus:ring-[color:var(--accent-steel)]`} />
               </div>
             </div>
@@ -1477,6 +1567,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
               className="type-label w-full rounded-xl bg-[rgba(52,211,153,0.12)] py-4 text-[color:var(--accent-positive)] ring-1 ring-[rgba(52,211,153,0.2)] active:scale-95 transition-all flex items-center justify-center gap-2">
               {loading || loadingContext ? <Loader2 className="animate-spin" size={18} /> : (isPartialPay || hasExcedente) ? <ArrowRight size={18} /> : <CheckCircle2 size={18} />}
               {loading || loadingContext ? 'Aguarde...'
+                : !online ? 'Salvar recebimento neste aparelho'
                 : isPartialPay ? `Próximo — destinar ${fmtMoney(remainder)} →`
                 : hasExcedente ? `Próximo — aplicar excedente ${fmtMoney(surplus)}`
                 : 'Confirmar Recebimento'}

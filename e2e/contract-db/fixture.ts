@@ -199,7 +199,16 @@ export interface ContractFixture {
 }
 
 /** Registro do lixo criado nesta execução; `cleanupAll` esvazia e VERIFICA. */
-const trash: { investmentIds: number[]; profileIds: string[] } = { investmentIds: [], profileIds: [] };
+const trash: { investmentIds: number[]; profileIds: string[]; offlineIntentIds: string[] } = {
+  investmentIds: [],
+  profileIds: [],
+  offlineIntentIds: [],
+};
+
+/** Registra uma intenção criada por um teste para o cleanup obrigatório. */
+export function trackOfflineIntent(id: string): void {
+  if (!trash.offlineIntentIds.includes(id)) trash.offlineIntentIds.push(id);
+}
 
 const stamp = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -293,6 +302,14 @@ export const num = (v: unknown): number => (v === null || v === undefined ? NaN 
 export async function cleanupAll(ctx: DbCtx): Promise<void> {
   const problems: string[] = [];
 
+  // offline_payment_intents -> loan_installments é NO ACTION: a intenção precisa
+  // sair antes do contrato. Cada id é registrado antes da chamada à RPC, então
+  // também cobrimos casos em que a chamada falhou antes de inserir a linha.
+  for (const id of trash.offlineIntentIds) {
+    const intent = await rest(ctx, `/rest/v1/offline_payment_intents?id=eq.${id}`, { method: 'DELETE' });
+    if (!intent.ok) problems.push(`DELETE offline_payment_intents(${id}) HTTP ${intent.status}: ${intent.raw}`);
+  }
+
   for (const id of trash.investmentIds) {
     // payment_transactions -> investments é NO ACTION: precisa sair antes.
     const tx = await rest(ctx, `/rest/v1/payment_transactions?investment_id=eq.${id}`, { method: 'DELETE' });
@@ -319,9 +336,14 @@ export async function cleanupAll(ctx: DbCtx): Promise<void> {
     const p = await rest<any[]>(ctx, `/rest/v1/profiles?id=eq.${id}&select=id`);
     if (p.data?.length) problems.push(`profile ${id} SOBREVIVEU ao cleanup`);
   }
+  for (const id of trash.offlineIntentIds) {
+    const intent = await rest<any[]>(ctx, `/rest/v1/offline_payment_intents?id=eq.${id}&select=id`);
+    if (intent.data?.length) problems.push(`offline_payment_intents ${id} SOBREVIVEU ao cleanup`);
+  }
 
   trash.investmentIds = [];
   trash.profileIds = [];
+  trash.offlineIntentIds = [];
 
   if (problems.length) {
     throw new Error(`CLEANUP INCOMPLETO — lixo deixado em produção:\n  ${problems.join('\n  ')}`);

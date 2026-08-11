@@ -5,6 +5,7 @@ import { getCached, setCached } from '../services/cache';
 import { Investment, LoanInstallment, AdminDashboardStats, DashboardKPIs, isInactiveContract } from '../types';
 import { getBrazilToday, isoToBrazilYMD, getMonthRangeBR } from '../services/dateUtils';
 import { calcSalaryPortions, isSalaryPhantom } from '../services/salary';
+import { OFFLINE_FINANCIAL_CHANGE_EVENT } from '../services/offlineQueue';
 
 // --- TYPES ---
 
@@ -466,6 +467,9 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
   useEffect(() => {
     setData(prev => ({ ...prev, refetch: fetchData }));
     fetchData();
+    const handleOfflineFinancialChange = () => { void fetchData(); };
+    window.addEventListener(OFFLINE_FINANCIAL_CHANGE_EVENT, handleOfflineFinancialChange);
+    return () => window.removeEventListener(OFFLINE_FINANCIAL_CHANGE_EVENT, handleOfflineFinancialChange);
   }, [fetchData]);
 
   return { ...data };

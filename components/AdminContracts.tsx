@@ -171,8 +171,20 @@ type EditableContractInstallment = {
 
 // --- MAIN COMPONENT ---
 
-interface AdminContractsProps { autoOpenCreate?: boolean; onNavigate?: (view: AppView) => void; onPaywallRedirect?: () => void; }
-const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false, onNavigate, onPaywallRedirect }) => {
+interface AdminContractsProps {
+  autoOpenCreate?: boolean;
+  initialContractId?: number | null;
+  onInitialContractOpened?: () => void;
+  onNavigate?: (view: AppView) => void;
+  onPaywallRedirect?: () => void;
+}
+const AdminContracts: React.FC<AdminContractsProps> = ({
+  autoOpenCreate = false,
+  initialContractId = null,
+  onInitialContractOpened,
+  onNavigate,
+  onPaywallRedirect,
+}) => {
   const { activeCompanyId } = useCompanyContext();
   const [contracts, setContracts] = useState<Investment[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -227,6 +239,14 @@ const AdminContracts: React.FC<AdminContractsProps> = ({ autoOpenCreate = false,
   const [viewingContractId, setViewingContractId] = useState<number | null>(null);
   const [viewingContract, setViewingContract] = useState<Investment | null>(null);
   const [contractsSubView, setContractsSubView] = useState<'list' | 'detail' | 'create' | 'create-client' | 'edit'>(autoOpenCreate ? 'create' : 'list');
+
+  useEffect(() => {
+    if (initialContractId === null) return;
+    setViewingContractId(initialContractId);
+    setViewingContract(null);
+    setContractsSubView('detail');
+    onInitialContractOpened?.();
+  }, [initialContractId, onInitialContractOpened]);
   const [renewalSource, setRenewalSource] = useState<Investment | null>(null);
   // Guarda o id já pré-preenchido: `profiles` é array novo a cada fetchData(), e sem isso
   // um refetch (troca de empresa) com o wizard aberto reescreveria o que o admin digitou.

@@ -149,7 +149,7 @@ function buildLargeCollectionFixture(count: number): DashboardFixture {
       source_profit: 0,
       total_installments: 12,
       installment_value: 100,
-      calculation_mode: 'price',
+      calculation_mode: 'auto',
       frequency: 'monthly',
       remaining_balance: 1_000,
       created_at: '2024-01-01T12:00:00.000Z',
@@ -385,6 +385,63 @@ test.describe('FIX-001 — resiliência contra tela azul/vazia', () => {
     await expect(root).toBeVisible();
 
     expect(pageErrors).toEqual([]);
+    expect(unexpectedSupabaseRequests).toEqual([]);
+  });
+
+  test('baixa capturada sem rede sobe uma vez quando a conexão volta', async ({ page, context }) => {
+    const fixture = buildLargeCollectionFixture(1);
+    const unexpectedSupabaseRequests = await setupEmptyEnterprise(page, { companyA: fixture });
+    const rpcBodies: Record<string, unknown>[] = [];
+
+    // Registrada depois do fallback para ter precedência (rotas são LIFO).
+    await page.route('**/rest/v1/rpc/submit_offline_payment', async (route) => {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      rpcBodies.push(body);
+      const installment = fixture.loan_installments[0];
+      installment.amount_paid = body.p_amount;
+      installment.status = 'paid';
+      installment.paid_at = body.p_paid_at;
+      await fulfillJson(route, { status: 'applied', duplicada: false });
+    });
+
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    const collectionButton = page.getByRole('button', { name: 'Cobranças' }).first();
+    await expect(collectionButton).toBeVisible({ timeout: 20_000 });
+    await collectionButton.click();
+
+    const card = page.getByTestId('daily-collection-card').first();
+    await expect(card).toBeVisible({ timeout: 12_000 });
+
+    await context.setOffline(true);
+    await expect(page.getByTestId('offline-banner')).toBeVisible();
+    await card.click();
+    await page.getByRole('button', { name: 'Receber' }).click();
+
+    const saveOffline = page.getByRole('button', { name: 'Salvar recebimento neste aparelho' });
+    await expect(saveOffline).toBeVisible();
+    await saveOffline.click();
+    await expect(page.getByTestId('offline-payment-saved')).toContainText('R$ 100,00 registrado neste aparelho');
+
+    const queued = await page.evaluate(() => JSON.parse(localStorage.getItem('EF_OFFLINE_PAYMENT_QUEUE') || '{}'));
+    expect(queued.version).toBe(1);
+    expect(queued.intents).toHaveLength(1);
+    expect(queued.intents[0]).toMatchObject({ amount: 100, status: 'pending' });
+
+    await page.getByRole('button', { name: 'Voltar para cobranças' }).click();
+    await expect(page.getByTestId('pending-intents-panel')).toContainText('1 baixa aguardando envio');
+
+    await context.setOffline(false);
+    await expect.poll(() => rpcBodies.length, { timeout: 10_000 }).toBe(1);
+    await expect.poll(async () => page.evaluate(() => {
+      const queue = JSON.parse(localStorage.getItem('EF_OFFLINE_PAYMENT_QUEUE') || '{"intents":[]}');
+      return queue.intents.length;
+    }), { timeout: 10_000 }).toBe(0);
+    await expect(page.getByTestId('pending-intents-panel')).toHaveCount(0);
+
+    expect(rpcBodies[0]).toMatchObject({
+      p_installment_id: fixture.loan_installments[0].id,
+      p_amount: 100,
+    });
     expect(unexpectedSupabaseRequests).toEqual([]);
   });
 });

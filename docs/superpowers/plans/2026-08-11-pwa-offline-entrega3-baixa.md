@@ -2,6 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** Ready for Review
+
+> **Registro de execução (2026-08-11):** a v50 foi endurecida pelas migrations
+> v51 e v52 depois dos testes adversariais. A fonte de verdade final da RPC é
+> `context/migration_v52_offline_intents_atomic_ledger.sql`; o SQL v50 abaixo é
+> preservado somente como histórico do plano inicial.
+
 **Goal:** O cobrador registra o recebimento sem rede; o servidor confirma quando a conexão volta, e o que ele recusar vira pendência para decisão humana.
 
 **Architecture:** A baixa offline é uma **intenção**, não um fato. O celular gera um UUID e guarda a intenção numa fila local; ao sincronizar, a RPC `submit_offline_payment` usa esse UUID como chave primária — reenvio não cobra duas vezes. Nenhum cálculo financeiro sai do servidor: o app confirma só o recebimento, sem recalcular saldo.
@@ -21,12 +28,21 @@
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `context/migration_v50_offline_payment_intents.sql` (criar) | Tabela, RLS, índices e a RPC de idempotência |
-| `e2e/contract-db/offline-intents.dbspec.ts` (criar) | Provas executáveis: idempotência, rejeição preservada, data de campo |
-| `services/offlineQueue.ts` (criar) | A fila: enfileirar, listar, marcar, remover |
+| `context/migration_v50_offline_payment_intents.sql` (existente) | Base: tabela, RLS, índices e primeira versão da RPC |
+| `context/migration_v51_offline_intents_hardening.sql` (existente) | Retomada de `pending`/`rejected`, teto de data, tenant e erros transitórios |
+| `context/migration_v52_offline_intents_atomic_ledger.sql` (criar) | Mutex por intenção, payload imutável, ledger atômico e RPCs de resolução |
+| `e2e/contract-db/offline-intents.dbspec.ts` (criar) | 12 provas executáveis de dinheiro, idempotência, concorrência e resolução |
+| `e2e/contract-db/fixture.ts` (modificar) | Rastreio, remoção e releitura obrigatória das intenções de teste |
+| `services/offlineQueue.ts` (criar) | Fila local versionada: enfileirar, listar, marcar e remover |
 | `tests/unit/offlineQueue.test.ts` (criar) | Testes da fila sem browser e sem banco |
-| `hooks/useOfflineSync.ts` (criar) | Dispara o envio quando a rede volta |
-| `components/PendingIntentsPanel.tsx` (criar) | Caixa de pendências para o dono resolver |
+| `hooks/useOfflineSync.ts` (criar) | Envio serial ao abrir, reconectar ou voltar do background |
+| `tests/unit/offlineSync.test.ts` (criar) | Ordem serial, rejeições e retry de falhas transitórias |
+| `components/PendingIntentsPanel.tsx` (criar) | Pendências e decisões explícitas do dono |
+| `components/InstallmentDetailFlow.tsx` (modificar) | Captura offline sem alterar saldo nem emitir recibo |
+| `components/AdminContracts.tsx` (modificar) | Abertura direta do contrato associado à pendência |
+| `hooks/useDashboardData.ts` (modificar) | Refetch após confirmação financeira do servidor |
+| `App.tsx` (modificar) | Montagem global da sincronização e da caixa de pendências |
+| `e2e/regression/frontend-resilience.spec.ts` (modificar) | Fluxo offline → reconexão → envio único no navegador |
 
 ---
 
@@ -35,7 +51,7 @@
 **Files:**
 - Create: `context/migration_v50_offline_payment_intents.sql`
 
-- [ ] **Step 1: Escrever a migration**
+- [x] **Step 1: Escrever a migration**
 
 ```sql
 -- ============================================================================
@@ -144,15 +160,19 @@ REVOKE ALL ON FUNCTION public.submit_offline_payment(uuid, uuid, numeric, timest
 GRANT EXECUTE ON FUNCTION public.submit_offline_payment(uuid, uuid, numeric, timestamptz) TO authenticated;
 ```
 
-- [ ] **Step 2: Pedir aprovação explícita do usuário antes de aplicar**
+- [x] **Step 2: Pedir aprovação explícita do usuário antes de aplicar**
 
 O CLAUDE.md é explícito: nenhuma migration é aplicada sem acordo. Apresentar o SQL e aguardar.
 
-- [ ] **Step 3: Aplicar e validar exercitando com rollback forçado**
+- [x] **Step 3: Aplicar e validar exercitando com rollback forçado**
 
 Depois de aplicar, rodar um `DO $$ ... $$` que: envia uma intenção nova (espera `applied`), reenvia o **mesmo** id (espera `duplicada: true` e um só pagamento), e envia contra parcela já paga (espera `rejected` com a intenção preservada). Terminar com `RAISE EXCEPTION` para desfazer tudo.
 
-- [ ] **Step 4: Commit**
+Executado com uma prova mais forte e legível: migration v52 registrada no
+Supabase, 12 cenários `.dbspec.ts` contra o banco real, cleanup com releitura e
+consulta final retornando zero intenções residuais.
+
+- [x] **Step 4: Commit**
 
 ```bash
 git add context/migration_v50_offline_payment_intents.sql
@@ -168,20 +188,28 @@ git commit -m "feat(db): migration v50 — intenções de baixa offline com idem
 
 Seguir o padrão dos `.dbspec.ts` existentes (`e2e/contract-db/fixture.ts` recusa rodar fora do tenant de QA e confere o cleanup relendo o banco).
 
-- [ ] **Step 1: Escrever os quatro casos**
+- [x] **Step 1: Escrever os quatro casos**
 
 1. **Idempotência:** mesma intenção enviada duas vezes → `duplicada: true` na segunda e **um** `payment_transactions` a mais, não dois.
 2. **Rejeição preserva:** intenção contra parcela já paga → status `rejected`, `error_message` preenchida, e a linha **continua existindo**.
 3. **Data de campo:** `paid_at` de dois dias atrás é gravado como tal, não substituído pela data do sync.
 4. **Tenant alheio:** intenção contra parcela de outro tenant → exceção, e nada gravado.
 
-- [ ] **Step 2: Rodar**
+A suíte final foi ampliada para 12 casos. Além dos quatro acima, cobre retomada
+de `pending` e `rejected`, imutabilidade do payload persistido, teto de data,
+negação para `anon`, resolução avulsa atômica, descarte idempotente e oito
+requisições simultâneas com um único efeito financeiro e uma única linha no
+ledger.
+
+- [x] **Step 2: Rodar**
 
 Run: `npm run test:db-contract`
 
 Expected: os 15 existentes continuam verdes + os 4 novos.
 
-- [ ] **Step 3: Commit**
+Resultado final: **27/27** testes de contrato verdes — 15 existentes + 12 novos.
+
+- [x] **Step 3: Commit**
 
 ---
 
@@ -191,15 +219,15 @@ Expected: os 15 existentes continuam verdes + os 4 novos.
 - Create: `services/offlineQueue.ts`
 - Create: `tests/unit/offlineQueue.test.ts`
 
-- [ ] **Step 1: Escrever os testes primeiro**
+- [x] **Step 1: Escrever os testes primeiro**
 
 Cobrir: enfileirar gera UUID e persiste; listar devolve na ordem de criação; marcar como enviada remove da fila; marcar rejeitada mantém com o motivo; enfileirar duas vezes o mesmo pagamento gera **duas** intenções distintas (são dois recebimentos, não um retry).
 
-- [ ] **Step 2: Implementar sobre localStorage**
+- [x] **Step 2: Implementar sobre localStorage**
 
 Mesma escolha da Entrega 2: os volumes são de dezenas de kB e `services/cache.ts` já provou o caminho. IndexedDB só se o volume mudar de ordem.
 
-- [ ] **Step 3: Rodar, verificar, commitar**
+- [x] **Step 3: Rodar, verificar, commitar**
 
 ---
 
@@ -208,13 +236,13 @@ Mesma escolha da Entrega 2: os volumes são de dezenas de kB e `services/cache.t
 **Files:**
 - Create: `hooks/useOfflineSync.ts`
 
-- [ ] **Step 1: Implementar o disparo**
+- [x] **Step 1: Implementar o disparo**
 
 Dispara no evento `online`, ao abrir o app e ao voltar do background. Envia **em série** — a ordem importa quando duas baixas caem na mesma parcela. Cada resposta atualiza a fila pelo `status` devolvido.
 
-- [ ] **Step 2: Montar no shell (`App.tsx`), ao lado do `OfflineBanner`**
+- [x] **Step 2: Montar no shell (`App.tsx`), ao lado do `OfflineBanner`**
 
-- [ ] **Step 3: Verificar com `setOffline(true)` → baixa → `setOffline(false)` → confirmar que subiu**
+- [x] **Step 3: Verificar com `setOffline(true)` → baixa → `setOffline(false)` → confirmar que subiu**
 
 ---
 
@@ -223,21 +251,35 @@ Dispara no evento `online`, ao abrir o app e ao voltar do background. Envia **em
 **Files:**
 - Create: `components/PendingIntentsPanel.tsx`
 
-- [ ] **Step 1: Listar as intenções `rejected` com o motivo em português**
+- [x] **Step 1: Listar as intenções `rejected` com o motivo em português**
 
-- [ ] **Step 2: Três ações, todas explícitas do dono:** lançar como avulso (`pay_avulso`), descartar (`status = 'resolved'`), ou abrir o contrato para resolver na mão. Nenhuma é automática.
+- [x] **Step 2: Três ações, todas explícitas do dono:** lançar como avulso (`pay_avulso`), descartar (`status = 'resolved'`), ou abrir o contrato para resolver na mão. Nenhuma é automática.
 
-- [ ] **Step 3: Verificar, commitar**
+- [x] **Step 3: Verificar, commitar**
 
 ---
 
 ## Definition of Done
 
-- Baixa registrada offline sobe sozinha quando a rede volta.
-- Reenvio da mesma intenção **não** cobra duas vezes — provado no banco, não presumido.
-- Baixa recusada aparece na caixa de pendências com o motivo.
-- `paid_at` é a data do recebimento em campo.
-- `npx tsc --noEmit`, `npm run lint`, `npm test`, `npm run test:unit` e `npm run test:db-contract` verdes.
+- [x] Baixa registrada offline sobe sozinha quando a rede volta.
+- [x] Reenvio da mesma intenção **não** cobra duas vezes — provado no banco, não presumido.
+- [x] Baixa recusada aparece na caixa de pendências com o motivo.
+- [x] `paid_at` é a data do recebimento em campo.
+- [x] Pagamento, ledger e mudança para `applied` são atômicos.
+- [x] `anon` não executa nenhuma das três RPCs financeiras da fila.
+- [x] `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:unit`, `npm run test:db-contract` e `npm run build` verdes.
+
+### Evidências finais
+
+- Supabase: `v52_offline_intents_atomic_ledger` aplicada em
+  `enzgerrnlbiojkuzeilw` em 2026-08-11.
+- Banco: 4 arquivos e 27 testes de contrato verdes; zero intenções deixadas pelo
+  teardown.
+- Frontend: 74 testes unitários e 6 cenários Playwright verdes.
+- Estáticos: lint, typecheck, build e `git diff --check` verdes.
+- Limitação conhecida: deadlock, serialization failure e lock timeout não são
+  reproduzíveis por requests isolados do PostgREST; os SQLSTATEs são
+  explicitamente relançados pela função para retry técnico.
 
 ## Fora do escopo
 
