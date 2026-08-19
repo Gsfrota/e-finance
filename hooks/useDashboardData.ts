@@ -271,6 +271,7 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
       return {
         ...cached.data,
         installments: remontarCarteira(cached.data.installments ?? [], cached.data.investments ?? []),
+        allPaidInstallments: remontarCarteira(cached.data.allPaidInstallments ?? [], cached.data.investments ?? []),
         loading: true,
         hasLoaded: true,
         isStale: true,
@@ -490,15 +491,17 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
         monthRange: { start: monthRange.startYMD, end: monthRange.endYMD }
       };
 
-      // O snapshot guarda só o que a operação sem rede precisa: a parcela sem a
-      // lista de irmãs (remontada na leitura) e sem o histórico de pagas, que
-      // sozinho passa de 2 MB na maior carteira e só alimenta a aba de
-      // rendimento — tela de escritório, não de campo. Estourar a cota do
-      // localStorage aqui é ficar sem cobrança offline.
+      // O snapshot guarda cada coisa uma vez: as parcelas sem o contrato dentro
+      // (é o que inflava tudo) e os contratos em `investments`, religados na
+      // leitura. As pagas continuam no snapshot — a Caderneta Bullet monta o mês
+      // a partir delas e sem isso a tela abre vazia até o servidor responder.
+      const semContrato = (lista: LoanInstallment[]) => lista
+        .map(({ investment: _contrato, ...parcela }) => parcela as LoanInstallment);
+
       setCached(`dashboard_${tenantId ?? 'default'}_${companyId ?? 'all'}`, {
         ...newData,
-        installments: uiInstallments.map(({ investment: _contrato, ...parcela }) => parcela as LoanInstallment),
-        allPaidInstallments: [],
+        installments: semContrato(uiInstallments),
+        allPaidInstallments: semContrato(allPaidInstallments),
       });
 
       setData({

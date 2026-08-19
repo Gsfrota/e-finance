@@ -159,6 +159,9 @@ function buildLargeCollectionFixture(count: number, parcelasPorContrato = 1): Da
 
     investments.push(investment);
     for (let numero = 1; numero <= parcelasPorContrato; numero += 1) {
+      // Metade paga: o histórico de pagas também vai para o snapshot (a
+      // Caderneta Bullet monta o mês com ele), então precisa entrar na conta.
+      const paga = numero > 1 && numero % 2 === 0;
       loanInstallments.push({
         id: numero === 1 ? `installment-stress-${index}` : `installment-stress-${index}-${numero}`,
         tenant_id: TENANT_ID,
@@ -166,14 +169,14 @@ function buildLargeCollectionFixture(count: number, parcelasPorContrato = 1): Da
         investment_id: investmentId,
         number: numero,
         due_date: '2024-01-15',
-        status: 'late',
+        status: paga ? 'paid' : 'late',
         amount_total: 100,
         amount_principal: 80,
         amount_interest: 20,
-        amount_paid: 0,
+        amount_paid: paga ? 100 : 0,
         fine_amount: 0,
         interest_delay_amount: 0,
-        paid_at: null,
+        paid_at: paga ? '2024-01-15T12:00:00.000Z' : null,
         investment: {
           ...investment,
           investor: { role: 'admin' },
