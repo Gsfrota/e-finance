@@ -24,8 +24,11 @@ export function setCached<T>(key: string, data: T): void {
   try {
     const entry: CacheEntry<T> = { data, timestamp: Date.now() };
     localStorage.setItem(PREFIX + key, JSON.stringify(entry));
-  } catch {
-    // silencia erros de quota ou modo privado
+  } catch (error) {
+    // Quota estourada, modo privado ou estrutura circular. Não quebra a tela,
+    // mas grita: sem esta gravação o aparelho fica sem dado para trabalhar sem
+    // rede, e o silêncio aqui já escondeu exatamente essa falha uma vez.
+    console.warn('[cache] não foi possível gravar', key, error);
   }
 }
 

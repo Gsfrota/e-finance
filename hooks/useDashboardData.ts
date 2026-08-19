@@ -232,6 +232,37 @@ interface CachedDashboard {
   monthRange: { start: string; end: string };
 }
 
+/**
+ * Remonta cada parcela do snapshot com o contrato e as irmãs.
+ *
+ * O snapshot guarda cada coisa uma vez só: as parcelas de um lado, os contratos
+ * do outro. Repetir o contrato e a lista de irmãs dentro de cada parcela — que
+ * é a forma como a tela usa — levava a maior carteira de produção a ~9 MB,
+ * muito acima da cota do localStorage. O navegador recusava a gravação,
+ * `setCached` engolia o erro, e o aparelho ficava sem carteira offline.
+ */
+const remontarCarteira = (
+  installments: LoanInstallment[],
+  investments: Investment[],
+): LoanInstallment[] => {
+  const contratoPorId = new Map(investments.map((inv) => [inv.id, inv]));
+  const irmasPorContrato = new Map<number, LoanInstallment[]>();
+  installments.forEach((inst) => {
+    const irmas = irmasPorContrato.get(inst.investment_id) ?? [];
+    irmas.push(inst);
+    irmasPorContrato.set(inst.investment_id, irmas);
+  });
+
+  return installments.map((inst) => {
+    const contrato = contratoPorId.get(inst.investment_id) ?? inst.investment;
+    if (!contrato) return inst;
+    return {
+      ...inst,
+      investment: { ...contrato, loan_installments: irmasPorContrato.get(inst.investment_id) ?? [] },
+    } as LoanInstallment;
+  });
+};
+
 export const useDashboardData = (tenantId?: string, companyId?: string | null) => {
   const [data, setData] = useState<DashboardDataState>(() => {
     const cacheKey = `dashboard_${tenantId ?? 'default'}_${companyId ?? 'all'}`;
@@ -239,6 +270,7 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
     if (cached) {
       return {
         ...cached.data,
+        installments: remontarCarteira(cached.data.installments ?? [], cached.data.investments ?? []),
         loading: true,
         hasLoaded: true,
         isStale: true,
@@ -269,6 +301,16 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
 
     if (!supabase) {
       setData(prev => ({ ...prev, loading: false, error: "Supabase client not initialized" }));
+      return;
+    }
+
+    // Sem rede a consulta não falha rápido: antes de cada tentativa do
+    // `withRetry`, o supabase-js tenta renovar o token vencido e insiste por
+    // ~30s. A tela já está pintada com o cache — insistir só queima bateria e
+    // deixa o app em "carregando" para sempre. Volta a buscar no evento
+    // `online` abaixo.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setData(prev => ({ ...prev, loading: false }));
       return;
     }
 
@@ -388,12 +430,18 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
         }
       });
 
-      // Agrupar TODAS as parcelas por investment_id para que o detail screen tenha acesso às irmãs
+      // Agrupar TODAS as parcelas por investment_id para que o detail screen tenha acesso às irmãs.
+      // A irmã entra SEM o `investment` de volta: logo abaixo o investment passa
+      // a apontar para a lista de irmãs, e o par de referências fecharia um
+      // ciclo. `JSON.stringify` morre em ciclo, e `setCached` engole o erro —
+      // era por isso que o snapshot da carteira (o que a tela lê sem rede)
+      // nunca chegava a ser gravado, e o app abria offline com a lista vazia.
       const siblingsByInvestment = new Map<number, LoanInstallment[]>();
       uniqueInstallments.forEach((inst: any) => {
         const invId = inst.investment_id;
         if (!siblingsByInvestment.has(invId)) siblingsByInvestment.set(invId, []);
-        siblingsByInvestment.get(invId)!.push(inst);
+        const { investment: _pai, ...irmaSemPai } = inst;
+        siblingsByInvestment.get(invId)!.push(irmaSemPai);
       });
       uiInstallments.forEach(inst => {
         if (inst.investment) {
@@ -442,7 +490,16 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
         monthRange: { start: monthRange.startYMD, end: monthRange.endYMD }
       };
 
-      setCached(`dashboard_${tenantId ?? 'default'}_${companyId ?? 'all'}`, newData);
+      // O snapshot guarda só o que a operação sem rede precisa: a parcela sem a
+      // lista de irmãs (remontada na leitura) e sem o histórico de pagas, que
+      // sozinho passa de 2 MB na maior carteira e só alimenta a aba de
+      // rendimento — tela de escritório, não de campo. Estourar a cota do
+      // localStorage aqui é ficar sem cobrança offline.
+      setCached(`dashboard_${tenantId ?? 'default'}_${companyId ?? 'all'}`, {
+        ...newData,
+        installments: uiInstallments.map(({ investment: _contrato, ...parcela }) => parcela as LoanInstallment),
+        allPaidInstallments: [],
+      });
 
       setData({
         ...newData,
@@ -469,7 +526,11 @@ export const useDashboardData = (tenantId?: string, companyId?: string | null) =
     fetchData();
     const handleOfflineFinancialChange = () => { void fetchData(); };
     window.addEventListener(OFFLINE_FINANCIAL_CHANGE_EVENT, handleOfflineFinancialChange);
-    return () => window.removeEventListener(OFFLINE_FINANCIAL_CHANGE_EVENT, handleOfflineFinancialChange);
+    window.addEventListener('online', handleOfflineFinancialChange);
+    return () => {
+      window.removeEventListener(OFFLINE_FINANCIAL_CHANGE_EVENT, handleOfflineFinancialChange);
+      window.removeEventListener('online', handleOfflineFinancialChange);
+    };
   }, [fetchData]);
 
   return { ...data };

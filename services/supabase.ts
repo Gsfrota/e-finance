@@ -1,5 +1,5 @@
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 import type { Profile } from '../types';
 
 const STORAGE_KEYS = {
@@ -156,6 +156,8 @@ export async function fetchProfileByAuthUserId<T extends Record<string, any> = P
   return { data: null, error: lastError, matchedBy: null };
 }
 
+const SESSION_STORAGE_KEY = isProduction() ? 'ef_prod_session' : 'ef_dev_session';
+
 let supabase: SupabaseClient | null = null;
 const config = getSupabaseConfig();
 
@@ -164,7 +166,7 @@ if (config.url && config.key && config.url.startsWith('http')) {
     supabase = createClient(config.url, config.key, {
       auth: {
         flowType: 'pkce',
-        storageKey: isProduction() ? 'ef_prod_session' : 'ef_dev_session',
+        storageKey: SESSION_STORAGE_KEY,
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true
@@ -174,6 +176,30 @@ if (config.url && config.key && config.url.startsWith('http')) {
     logError("Supabase Init", e);
   }
 }
+
+/**
+ * Usuário da sessão gravada neste aparelho, sem falar com o servidor.
+ *
+ * Sem rede, `auth.getSession()` não devolve a sessão do storage: o access token
+ * do Supabase vale 1h, e ao vencer ele tenta renovar contra o servidor, insiste
+ * por ~30s e devolve sessão nula. O app fica travado em "Conectando ao
+ * servidor" e depois manda o cobrador para o login no meio da rua.
+ *
+ * A sessão persistida é a resposta certa nesse caso: o auth-js só a apaga
+ * quando o servidor RECUSA a credencial (refresh token revogado, senha
+ * trocada). Falha de rede nunca apaga — se ela ainda está aqui, ainda vale.
+ */
+export const readPersistedSessionUser = (): User | null => {
+  if (!canUseLocalStorage()) return null;
+  try {
+    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw);
+    return session?.user?.id ? (session.user as User) : null;
+  } catch {
+    return null;
+  }
+};
 
 export const getSupabase = () => supabase;
 

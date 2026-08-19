@@ -25,7 +25,7 @@ import { clearAllCache, getCached, setCached } from './services/cache';
 import OfflineBanner from './components/OfflineBanner';
 import PendingIntentsPanel from './components/PendingIntentsPanel';
 import { useOfflineSync } from './hooks/useOfflineSync';
-import { fetchProfileByAuthUserId, getSupabase, isProduction, logError } from './services/supabase';
+import { fetchProfileByAuthUserId, getSupabase, isProduction, logError, readPersistedSessionUser } from './services/supabase';
 import {
   CompanyContextProvider,
   canUseAggregateScope as canUseAggregateCompanyScope,
@@ -632,6 +632,21 @@ const App: React.FC = () => {
     const supabase = getSupabase();
     if (!supabase) return;
 
+    const cacheKey = `companies_${nextTenant.id}`;
+    const aplicar = (lista: Company[]) => {
+      setCompanies(lista);
+      setActiveCompanyScope(hydrateCompanyScope(nextTenant, nextProfile, lista));
+    };
+    const doCache = () => getCached<Company[]>(cacheKey)?.data;
+
+    // Sem rede, consultar o servidor só custa tempo: antes de cada query o
+    // supabase-js tenta renovar o token vencido e insiste por ~30s. A lista do
+    // último sync serve — e é melhor que a empresa sintética do fallback.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      aplicar(doCache() ?? [createFallbackCompany(nextTenant)]);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('companies')
@@ -646,13 +661,11 @@ const App: React.FC = () => {
         ? (data as Company[])
         : [createFallbackCompany(nextTenant)];
 
-      setCompanies(availableCompanies);
-      setActiveCompanyScope(hydrateCompanyScope(nextTenant, nextProfile, availableCompanies));
+      setCached(cacheKey, availableCompanies);
+      aplicar(availableCompanies);
     } catch (error) {
       logError('RefreshCompanies', error);
-      const fallbackCompanies = [createFallbackCompany(nextTenant)];
-      setCompanies(fallbackCompanies);
-      setActiveCompanyScope(hydrateCompanyScope(nextTenant, nextProfile, fallbackCompanies));
+      aplicar(doCache() ?? [createFallbackCompany(nextTenant)]);
     }
   };
 
@@ -695,6 +708,26 @@ const App: React.FC = () => {
         setIsLoading(false);
         return;
     }
+
+    // Abre a operação com o último perfil conhecido. É disso que depende a
+    // leitura da carteira em campo. `refreshCompanies` tem o mesmo cuidado.
+    const abrirComCache = async (motivo: string) => {
+        const cached = getCached<{ profile: Profile; tenant: Tenant }>(`bootstrap_${sessionUser.id}`);
+        if (!cached) return false;
+        console.log(`[LoadAppData] ${motivo} — retomando com o perfil em cache`);
+        setProfile(cached.data.profile);
+        setTenant(cached.data.tenant);
+        await refreshCompanies(cached.data.tenant, cached.data.profile);
+        setIsLoading(false);
+        setCurrentView(AppView.HOME);
+        return true;
+    };
+
+    // Sem rede, perguntar ao servidor só atrasa o cobrador: antes de cada
+    // consulta o supabase-js tenta renovar o token vencido e insiste por ~30s
+    // até desistir. O app abre agora, do cache; o servidor entra quando voltar.
+    const semRede = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (semRede && await abrirComCache('Sem rede')) return;
 
     try {
         const { data: dbData, error } = await fetchProfileByAuthUserId<Profile>(
@@ -790,20 +823,13 @@ const App: React.FC = () => {
         console.error('[LoadAppData] Error:', e);
         logError("LoadAppData", e);
 
-        // Sem rede, o app não pode morrer na inicialização só porque não
-        // alcançou o servidor. Se este aparelho já abriu a operação antes,
-        // segue com o último perfil conhecido — é disso que depende a leitura
-        // da carteira em campo. `refreshCompanies` já tem fallback próprio.
-        const cached = getCached<{ profile: Profile; tenant: Tenant }>(`bootstrap_${sessionUser.id}`);
-        if (cached && typeof navigator !== 'undefined' && navigator.onLine === false) {
-            console.log('[LoadAppData] Offline — retomando com o perfil em cache');
-            setProfile(cached.data.profile);
-            setTenant(cached.data.tenant);
-            await refreshCompanies(cached.data.tenant, cached.data.profile);
-            setIsLoading(false);
-            setCurrentView(AppView.HOME);
-            return;
-        }
+        // O app não pode morrer na inicialização só porque não alcançou o
+        // servidor. Se este aparelho já abriu a operação antes, segue com o
+        // último perfil conhecido em vez de mostrar erro. Erro vindo DO
+        // servidor (tem `code`) continua virando tela de erro: aí o problema
+        // não é a rede, e esconder isso atrás de dado velho seria pior.
+        const falhaDeRede = semRede || !e?.code;
+        if (falhaDeRede && await abrirComCache('Servidor inalcançável')) return;
 
         setAppError(`Erro ao carregar seu perfil: ${e.message}`);
         setIsLoading(false);
@@ -860,17 +886,32 @@ const App: React.FC = () => {
         return;
     }
 
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-        if (error) logError("GetSession", error);
-        if (session?.user && !profileLoadedRef.current) {
-            console.log('[GetSession] Found session, loading app data');
-            loadAppData(session.user);
-        } else if (!session) {
-            console.log('[GetSession] No session found, showing login');
-            setIsLoading(false);
-        setCurrentView(AppView.LOGIN);
+    // Sem rede não se pergunta ao servidor quem está logado: `getSession()`
+    // tenta renovar o token vencido, insiste por ~30s e volta sem sessão — o
+    // app trava em "Conectando ao servidor" e joga o cobrador no login em plena
+    // rua. A sessão gravada no aparelho basta para abrir a operação em cache.
+    const usuarioLocal = readPersistedSessionUser();
+    const semRede = typeof navigator !== 'undefined' && navigator.onLine === false;
+
+    if (usuarioLocal && semRede) {
+        console.log('[GetSession] Sem rede — abrindo com a sessão salva no aparelho');
+        loadAppData(usuarioLocal);
+    } else {
+        supabase.auth.getSession().then(({ data: { session }, error }) => {
+            if (error) logError("GetSession", error);
+            // Servidor inalcançável com o navegador achando que há rede: o
+            // refresh falha, mas a sessão continua no storage e ainda vale.
+            const user = session?.user ?? (error ? readPersistedSessionUser() : null);
+            if (user && !profileLoadedRef.current) {
+                console.log('[GetSession] Found session, loading app data');
+                loadAppData(user);
+            } else if (!user) {
+                console.log('[GetSession] No session found, showing login');
+                setIsLoading(false);
+                setCurrentView(AppView.LOGIN);
+            }
+        });
     }
-    });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
         console.log('[Auth State Change]', event, session?.user?.email);

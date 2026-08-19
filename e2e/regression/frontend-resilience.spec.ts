@@ -122,7 +122,7 @@ async function fulfillPagedJson(
   });
 }
 
-function buildLargeCollectionFixture(count: number): DashboardFixture {
+function buildLargeCollectionFixture(count: number, parcelasPorContrato = 1): DashboardFixture {
   const investments: Record<string, unknown>[] = [];
   const loanInstallments: Record<string, unknown>[] = [];
 
@@ -158,26 +158,28 @@ function buildLargeCollectionFixture(count: number): DashboardFixture {
     };
 
     investments.push(investment);
-    loanInstallments.push({
-      id: `installment-stress-${index}`,
-      tenant_id: TENANT_ID,
-      company_id: COMPANY_A_ID,
-      investment_id: investmentId,
-      number: 1,
-      due_date: '2024-01-15',
-      status: 'late',
-      amount_total: 100,
-      amount_principal: 80,
-      amount_interest: 20,
-      amount_paid: 0,
-      fine_amount: 0,
-      interest_delay_amount: 0,
-      paid_at: null,
-      investment: {
-        ...investment,
-        investor: { role: 'admin' },
-      },
-    });
+    for (let numero = 1; numero <= parcelasPorContrato; numero += 1) {
+      loanInstallments.push({
+        id: numero === 1 ? `installment-stress-${index}` : `installment-stress-${index}-${numero}`,
+        tenant_id: TENANT_ID,
+        company_id: COMPANY_A_ID,
+        investment_id: investmentId,
+        number: numero,
+        due_date: '2024-01-15',
+        status: 'late',
+        amount_total: 100,
+        amount_principal: 80,
+        amount_interest: 20,
+        amount_paid: 0,
+        fine_amount: 0,
+        interest_delay_amount: 0,
+        paid_at: null,
+        investment: {
+          ...investment,
+          investor: { role: 'admin' },
+        },
+      });
+    }
   }
 
   return { investments, loan_installments: loanInstallments };
@@ -443,5 +445,96 @@ test.describe('FIX-001 — resiliência contra tela azul/vazia', () => {
       p_amount: 100,
     });
     expect(unexpectedSupabaseRequests).toEqual([]);
+  });
+
+  test('sessão vencida sem rede abre a operação em vez de exigir login', async ({ page }) => {
+    const fixture = buildLargeCollectionFixture(1);
+    await setupEmptyEnterprise(page, { companyA: fixture });
+
+    // Primeiro uso com rede: é o que popula o cache do aparelho.
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: 'Cobranças' }).first().click();
+    await expect(page.getByTestId('daily-collection-card').first()).toBeVisible({ timeout: 20_000 });
+
+    // Sem este snapshot não existe carteira offline — ele é o dado que a tela lê sem rede.
+    expect(await page.evaluate(() => Object.keys(localStorage)
+      .filter((chave) => chave.startsWith('ef_cache_dashboard_')))).not.toEqual([]);
+
+    // O access token do Supabase vale 1h. O cobrador que reabre o app em campo
+    // depois disso precisa de rede para renovar — e não tem. A sessão continua
+    // no aparelho (o refresh falhou por rede, não por credencial inválida).
+    await page.addInitScript(({ storageKeys }) => {
+      Object.defineProperty(navigator, 'onLine', { get: () => false, configurable: true });
+      for (const key of storageKeys) {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const session = JSON.parse(raw);
+        session.expires_at = Math.floor(Date.now() / 1000) - 60;
+        localStorage.setItem(key, JSON.stringify(session));
+      }
+    }, { storageKeys: STORAGE_KEYS });
+
+    const semRede = (route: Parameters<Parameters<Page['route']>[1]>[0]) => route.abort('internetdisconnected');
+    for (const rota of ['**/auth/v1/**', '**/rest/v1/**']) {
+      await page.route(rota, semRede);
+    }
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+
+    await expect(page.getByTestId('offline-banner')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('button', { name: 'Cobranças' }).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('login-btn')).toHaveCount(0);
+
+    // E dá para trabalhar: a carteira do último sync está na tela e a baixa vai
+    // para a fila mesmo com a credencial vencida.
+    await page.getByRole('button', { name: 'Cobranças' }).first().click();
+    const card = page.getByTestId('daily-collection-card').first();
+    await expect(card).toBeVisible({ timeout: 12_000 });
+    await card.click();
+    await page.getByRole('button', { name: 'Receber' }).click();
+    await page.getByRole('button', { name: 'Salvar recebimento neste aparelho' }).click();
+    await expect(page.getByTestId('offline-payment-saved')).toContainText('R$ 100,00 registrado neste aparelho');
+
+    // Rede de volta: o token é renovado e a fila sobe sozinha.
+    const rpcBodies: Record<string, unknown>[] = [];
+    await page.route('**/rest/v1/rpc/submit_offline_payment', async (route) => {
+      rpcBodies.push(route.request().postDataJSON() as Record<string, unknown>);
+      await fulfillJson(route, { status: 'applied', duplicada: false });
+    });
+    for (const rota of ['**/auth/v1/**', '**/rest/v1/**']) {
+      await page.unroute(rota, semRede);
+    }
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, 'onLine', { get: () => true, configurable: true });
+      window.dispatchEvent(new Event('online'));
+    });
+
+    await expect.poll(() => rpcBodies.length, { timeout: 15_000 }).toBe(1);
+    await expect.poll(async () => page.evaluate(() => {
+      const queue = JSON.parse(localStorage.getItem('EF_OFFLINE_PAYMENT_QUEUE') || '{"intents":[]}');
+      return queue.intents.length;
+    }), { timeout: 10_000 }).toBe(0);
+  });
+
+  test('snapshot da carteira cabe no aparelho com contratos longos', async ({ page }) => {
+    // 200 contratos de 12 parcelas: a ordem de grandeza da maior carteira em
+    // produção. Repetir a lista de irmãs dentro de cada parcela levava isso a
+    // ~9 MB, o navegador recusava a gravação e o aparelho ficava sem carteira
+    // offline — sem estourar nenhum erro visível.
+    await setupEmptyEnterprise(page, { companyA: buildLargeCollectionFixture(200, 12) });
+
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: 'Cobranças' }).first().click();
+    await expect(page.getByTestId('daily-collection-card').first()).toBeVisible({ timeout: 20_000 });
+
+    const tamanho = await page.evaluate(() => {
+      const chave = Object.keys(localStorage).find((k) => k.startsWith('ef_cache_dashboard_'));
+      return chave ? (localStorage.getItem(chave) ?? '').length : 0;
+    });
+
+    // ~1,1 MB com o snapshot normalizado; com o contrato repetido dentro de
+    // cada parcela passava de 9 MB e o navegador recusava tudo.
+    expect(tamanho).toBeGreaterThan(0);
+    expect(tamanho).toBeLessThan(1_500_000);
   });
 });
