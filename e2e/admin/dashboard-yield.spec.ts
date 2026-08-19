@@ -49,8 +49,8 @@ test.describe('Dashboard Admin — Aba Rendimento', () => {
     if (!ok) test.skip(true, 'Dashboard bloqueado (paywall) ou aba Rendimento não encontrada');
 
     // Filtros de período devem estar visíveis
-    await expect(page.getByRole('button', { name: /Este mês/i }).first()).toBeVisible({ timeout: 8_000 });
-    await expect(page.getByRole('button', { name: /Tudo/i }).first()).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByRole('radio', { name: /Este mês/i }).first()).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByRole('radio', { name: /Tudo/i }).first()).toBeVisible({ timeout: 3_000 });
 
     // Sem crash de renderização
     await expect(page.locator('[data-testid="error-message"]')).not.toBeVisible();
@@ -61,10 +61,10 @@ test.describe('Dashboard Admin — Aba Rendimento', () => {
     if (!ok) test.skip(true, 'Dashboard bloqueado (paywall) ou aba Rendimento não encontrada');
 
     // Aguarda componente carregar
-    await expect(page.getByRole('button', { name: /Este mês/i }).first()).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByRole('radio', { name: /Este mês/i }).first()).toBeVisible({ timeout: 8_000 });
 
     // Clica em "Tudo"
-    const tudoBtn = page.getByRole('button', { name: /^Tudo$/i }).first();
+    const tudoBtn = page.getByRole('radio', { name: /^Tudo$/i }).first();
     await tudoBtn.click();
     await page.waitForTimeout(600);
 
@@ -72,7 +72,7 @@ test.describe('Dashboard Admin — Aba Rendimento', () => {
     await expect(page.locator('[data-testid="error-message"]')).not.toBeVisible();
 
     // Componente ainda visível (não crashou)
-    await expect(page.getByRole('button', { name: /^Tudo$/i }).first()).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByRole('radio', { name: /^Tudo$/i }).first()).toBeVisible({ timeout: 3_000 });
   });
 
   test('DASH-YIELD-03: Seção "Detalhamento" ou "Portfólio" visível no Rendimento', async ({ page }) => {
@@ -99,7 +99,7 @@ test.describe('Dashboard Admin — Aba Rendimento', () => {
     if (!ok) test.skip(true, 'Dashboard bloqueado (paywall) ou aba Rendimento não encontrada');
 
     // Filtra por "Este mês" (mais provável de ser vazio em ambiente de teste)
-    const estesMesBtn = page.getByRole('button', { name: /Este mês/i }).first();
+    const estesMesBtn = page.getByRole('radio', { name: /Este mês/i }).first();
     await estesMesBtn.isVisible({ timeout: 8_000 });
     await estesMesBtn.click();
     await page.waitForTimeout(800);

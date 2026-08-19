@@ -116,19 +116,23 @@ test.describe('Dashboard KPIs — Verificação contra dados reais', () => {
       return;
     }
 
-    // Lê o valor do card EM ATRASO
+    // Lê o valor do card EM ATRASO. O dashboard pinta primeiro o snapshot do
+    // último sync (é ele que sustenta a operação sem rede) e só depois troca
+    // pelo número que veio do servidor — então o valor certo é o que estabiliza,
+    // não o primeiro que aparece.
     const valueEl = emAtrasaCard.locator('p.type-metric-lg, [class*="type-metric-lg"]').first();
-    const rawText = await valueEl.textContent({ timeout: 5_000 }).catch(() => '');
-    const currentOverdue = parseBRL(rawText ?? '');
+    const lerValor = async () => parseBRL(await valueEl.textContent({ timeout: 5_000 }).catch(() => '') ?? '');
 
     // Os dados de teste têm 2 parcelas late:
     // #1: amount_total=200 + fine=4 + delay=2 = outstanding 206
     // #2: amount_total=200 + fine=4 + delay=1 = outstanding 205
     // Total mínimo esperado em "EM ATRASO": 411
-    expect(
-      currentOverdue,
-      `"EM ATRASO" (${rawText}) deveria incluir ao menos R$411 dos dados de teste`,
-    ).toBeGreaterThanOrEqual(411);
+    await expect
+      .poll(lerValor, {
+        timeout: 20_000,
+        message: '"EM ATRASO" deveria incluir ao menos R$411 dos dados de teste',
+      })
+      .toBeGreaterThanOrEqual(411);
   });
 
   // ─── DASH-DATA-02: "Recebimentos do Mês" sobe após pagamento ─────────────
