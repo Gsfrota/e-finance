@@ -231,10 +231,17 @@ export function AnimatedAIChat({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Rola para o fim quando chega mensagem nova
+  // Rola para o fim quando chega mensagem nova — e ao voltar de outra tela com a
+  // conversa já preenchida, que abriria no começo. Quem rola pode ser a lista ou a
+  // própria página, conforme a altura disponível.
   useLayoutEffect(() => {
     const list = listRef.current;
-    if (list) list.scrollTop = list.scrollHeight;
+    if (!list) return;
+    if (list.scrollHeight > list.clientHeight) {
+      list.scrollTop = list.scrollHeight;
+    } else {
+      list.lastElementChild?.scrollIntoView({ block: 'end' });
+    }
   }, [messages, isTyping]);
 
   const send = () => {

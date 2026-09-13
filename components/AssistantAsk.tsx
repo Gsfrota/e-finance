@@ -22,13 +22,45 @@ const SUGGESTIONS: ChatSuggestion[] = [
 let messageSeq = 0;
 const nextId = () => `msg-${++messageSeq}`;
 
+/**
+ * ponytail: o histórico vive fora do componente porque sair da tela — inclusive
+ * clicando numa linha do detalhamento, que navega para o contrato — desmonta o chat.
+ * Em memória de propósito: F5 ou logout zeram, e nada de cliente/valor fica gravado
+ * no navegador. Trocar de tenant também zera, para não misturar operações.
+ */
+let historico: ChatMessage[] = [];
+let historicoFollowUp: string | null = null;
+let historicoTenantId: string | null = null;
+
+function lerHistorico(tenantId: string): ChatMessage[] {
+  if (historicoTenantId !== tenantId) {
+    historico = [];
+    historicoFollowUp = null;
+    historicoTenantId = tenantId;
+  }
+  return historico;
+}
+
 /** Tela de conversa com o assistente — respostas determinísticas, sem LLM. */
 const AssistantAsk: React.FC<AssistantAskProps> = ({ tenantId, onOpenContract }) => {
   const { activeCompanyId, activeCompany } = useCompanyContext();
   const { config } = useBotConfig(tenantId);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessagesState] = useState<ChatMessage[]>(() => lerHistorico(tenantId));
   const [isTyping, setIsTyping] = useState(false);
-  const [followUp, setFollowUp] = useState<string | null>(null);
+  const [followUpState, setFollowUpState] = useState<string | null>(() => historicoFollowUp);
+
+  const setMessages = (atualizar: (anteriores: ChatMessage[]) => ChatMessage[]) =>
+    setMessagesState(anteriores => {
+      historico = atualizar(anteriores);
+      return historico;
+    });
+
+  const setFollowUp = (valor: string | null) => {
+    historicoFollowUp = valor;
+    setFollowUpState(valor);
+  };
+
+  const followUp = followUpState;
 
   const scopeLabel = activeCompanyId ? (activeCompany?.name ?? 'empresa ativa') : 'todas as empresas';
 

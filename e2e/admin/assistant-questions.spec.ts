@@ -224,6 +224,7 @@ test('Assistente responde atraso, a receber, recebido e saldo do cliente com o n
 
   const primeira = linhas.first();
   const rotuloLinha = await primeira.innerText();
+  const antesDeSair = await baloes.count(); // contar ANTES de sair da tela do chat
   await primeira.click();
   // o detalhe do contrato mostra o id; a lista de contratos, não
   await expect(
@@ -231,7 +232,13 @@ test('Assistente responde atraso, a receber, recebido e saldo do cliente com o n
     `clicar em "${rotuloLinha.replace(/\n/g, ' · ')}" não abriu o detalhe de um contrato`,
   ).toBeVisible({ timeout: 15_000 });
 
+  // Voltar não pode apagar a conversa: clicar numa linha SAI da tela do chat, então
+  // sem histórico persistido o cliente perde tudo que perguntou ao abrir um contrato.
   await navigateToView(page, 'Assistente');
+  await expect(
+    baloes,
+    'a conversa sumiu ao voltar do contrato — histórico do chat não sobreviveu à navegação',
+  ).toHaveCount(antesDeSair);
   await input.click();
 
   // 6. Cliente inexistente não pode virar R$ 0,00 (BR-BOT-010)
