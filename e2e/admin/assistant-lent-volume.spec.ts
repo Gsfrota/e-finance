@@ -25,6 +25,21 @@ import {
 const brl = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
+/**
+ * O Assistente grava cada resposta (BR-BOT-012), então conversar aqui deixa linha no
+ * banco. A RLS restringe ao próprio usuário de teste, então isto só apaga o que o
+ * teste criou — mas apaga sempre, inclusive quando o teste cai no meio.
+ */
+test.afterEach(async ({ page }) => {
+  const ctx = await getCtx(page).catch(() => null);
+  if (!ctx) return;
+  const { tenantId } = await resolveScope(ctx).catch(() => ({ tenantId: '' }));
+  if (!tenantId) return;
+  await restCall(ctx, `assistant_conversations?tenant_id=eq.${tenantId}`, 'DELETE').catch(
+    () => undefined,
+  );
+});
+
 test('Assistente responde o volume emprestado da semana com o número do banco (BR-BOT-009)', async ({ page }) => {
   await page.goto('/');
   await waitForApp(page, { requireSidebar: true });

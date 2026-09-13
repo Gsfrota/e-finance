@@ -95,9 +95,13 @@ test('O catálogo de perguntas prontas responde de verdade (BR-BOT-013)', async 
   await waitForApp(page, { requireSidebar: true });
   await navigateToView(page, 'Assistente');
 
+  await page.getByTestId('nova-conversa').waitFor({ timeout: 20_000 });
   await page.getByTestId('nova-conversa').click();
+  await expect(page.getByTestId('catalogo'), 'catálogo não apareceu na tela vazia').toHaveCount(1);
   const itens = page.getByTestId('catalogo-item');
-  expect(await itens.count(), 'tela vazia sem perguntas prontas').toBeGreaterThanOrEqual(10);
+  await expect
+    .poll(() => itens.count(), { message: 'tela vazia sem perguntas prontas' })
+    .toBeGreaterThanOrEqual(10);
 
   // um botão que devolve "não entendi" é pior que botão nenhum
   const baloes = page.getByTestId('chat-msg-assistant');

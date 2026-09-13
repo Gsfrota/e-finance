@@ -48,6 +48,21 @@ const aberto = (p: ParcelaAberta) =>
     0,
   );
 
+/**
+ * O Assistente grava cada resposta (BR-BOT-012), então conversar aqui deixa linha no
+ * banco. A RLS restringe ao próprio usuário de teste, então isto só apaga o que o
+ * teste criou — mas apaga sempre, inclusive quando o teste cai no meio.
+ */
+test.afterEach(async ({ page }) => {
+  const ctx = await getCtx(page).catch(() => null);
+  if (!ctx) return;
+  const { tenantId } = await resolveScope(ctx).catch(() => ({ tenantId: '' }));
+  if (!tenantId) return;
+  await restCall(ctx, `assistant_conversations?tenant_id=eq.${tenantId}`, 'DELETE').catch(
+    () => undefined,
+  );
+});
+
 test('Assistente responde atraso, a receber, recebido e saldo do cliente com o número do banco (BR-BOT-010)', async ({
   page,
 }) => {
