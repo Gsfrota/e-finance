@@ -20,17 +20,50 @@ export type { AssistantIntent, AssistantMatch, PeriodKind, ResolvedPeriod };
 const UNSUPPORTED_PERIOD = /\b(hoje|ontem|amanha|mes|meses|mensal|ano|anual|semestre|trimestre|quinzena|ultimo mes|mes passado)\b/;
 
 const VOLUME_INTENT = /\b(quanto|total|volume|soma)\b/;
-const LENDING_VERB = /(emprest|invest|apliquei|coloquei na rua|botei na rua)/;
+
+/**
+ * Verbo de emprestar, preso a limite de palavra: sem isso "DELETE FROM investments"
+ * casava `invest` e uma injeção de SQL era respondida com o volume emprestado.
+ */
+const LENDING_VERB =
+  /\b(emprest\w*|invest(?:i|iu|ir|imos|ido|imento|imentos)?|apliquei|aplicado)\b|\b(?:coloquei|botei|joguei)\s+na\s+rua\b/;
+
+/**
+ * Substantivo que já é a pergunta inteira, sem precisar de "quanto":
+ * "meu emprestado do mês", "capital investido essa semana".
+ */
+const LENDING_NOUN =
+  /\b(emprestado|investido|investimento|investimentos)\b|\bcapital\s+(?:investido|empregado|na rua|emprestado)\b|\b(?:saiu|botei|coloquei)\s+(?:de\s+)?(?:grana|dinheiro)\b|\bsaiu\s+do\s+meu\s+bolso\b|\bgrana\s+(?:que\s+)?(?:coloquei|botei)\b|\bgrana\s+que\s+(?:saiu|coloquei)\b/;
+
+/** Abreviação de celular vista nas conversas reais do WhatsApp. */
+const ABREVIACOES: [RegExp, string][] = [
+  [/\bq(?:t|nt|to|nto)\b/g, 'quanto'],
+  [/\bhj\b/g, 'hoje'],
+  [/\bvc\b/g, 'voce'],
+  [/\bagr\b/g, 'agora'],
+  [/\btbm\b/g, 'tambem'],
+  [/\bmsm\b/g, 'mesmo'],
+  [/\bq\b/g, 'que'],
+  [/\bp\b/g, 'para'],
+];
 
 function normalize(text: string): string {
-  return text
+  let t = text
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+  for (const [de, para] of ABREVIACOES) t = t.replace(de, para);
+  return t;
 }
+
+/**
+ * Só para CASAR INTENT: colapsa letra repetida que o português não tem, para
+ * "devenndo" virar "devendo". Fica fora da extração de nome, senão "Anna" virava "Ana".
+ */
+const semRepetidas = (t: string) => t.replace(/([abdefghijklmnopqtuvwxyz])\1+/g, '$1');
 
 // ---------------------------------------------------------------------------
 // Período (BR-BOT-010)
@@ -125,15 +158,15 @@ export function resolvePeriod(kind: PeriodKind, now: Date = new Date(), n?: numb
 // ---------------------------------------------------------------------------
 
 const LATE_DEBTORS =
-  /(atrasad|inadimplent|quem nao pagou|quem nao me pagou|nao pagaram|devo cobrar|preciso cobrar|quem cobrar|cobrar hoje|em atraso|quem (?:ainda )?me deve|quem (?:esta|ta) devendo|quem deve)/;
+  /(atrasad|inadimplent|nao\s+(?:me\s+)?pag(?:ou|aram|a)\b|devo cobrar|preciso cobrar|quem cobrar|cobrar hoje|em atraso|pendente|pendencia|devedor|devedores|vencid[oa]s?|quem\s+(?:\w+\s+){0,3}dev(?:e|endo)\b|quem\s+(?:\w+\s+){0,3}cobrar)/;
 
 const RECEIVABLES =
-  /(pra receber|para receber|vou receber|a receber|tenho que receber|recebivel|recebiveis|o que vence|que vence|quanto vence|vai vencer|quanto entra)/;
+  /((?:pra|para|a|que)\s+receb(?:er|e)\b|vou\s+receb(?:er|e)\b|tenho que receber|recebivel|recebiveis|o que vence|que vence|quanto vence|vai vencer|quanto entra|vai entrar|vai cair|previsao|previst[oa]s?|(?:para|pra)\s+(?:entrar?|cair?)|marcad[oa]\s+(?:para|pra))/;
 
 // 'pagou/pagaram/foi pago' entram aqui, mas LATE_DEBTORS é testado antes e fica com
 // "quem não pagou" — a ordem de detectIntent é que separa os dois.
 const RECEIVED =
-  /\b(recebi|recebemos|entrou|caiu|recebimento|recebimentos|pagaram|pagou|foi pago|foram pagos)\b/;
+  /\b(recebi|recebemos|recebido|recebidos|entrou|caiu|recebimento|recebimentos|pagaram|pagou|pago|pagos|cobrado|cobrei|arrecadei|arrecadado|arrecadacao|entrada|entradas)\b/;
 
 /** Preposição/pronome que gruda no nome — some das pontas antes de devolver `debtorName`. */
 const NAME_STOPWORDS = new Set([
@@ -142,15 +175,27 @@ const NAME_STOPWORDS = new Set([
   'cliente', 'pro', 'pra', 'para', 'no', 'na', 'e', 'com', 'saldo', 'falta', 'deve', 'devendo',
   // interrogativo nunca é nome: sem isto, "quem me deve?" virava busca pelo cliente "quem"
   'quem', 'quantas', 'quais', 'quanta',
+  // palavra funcional que sobrava depois de cortar o interrogativo: "quem não pagou"
+  // deixava o nome "nao", e "quanto foi pago" deixava "foi"
+  'nao', 'foi', 'ainda', 'tudo', 'total', 'pago', 'pagos', 'pagamento',
+  'hoje', 'ontem', 'semana', 'mes', 'ano', 'agora', 'vc', 'voce',
 ]);
 
 const DEBTOR_PATTERNS: RegExp[] = [
   /\bsaldo\s+(?:do|da|de|dos|das|d[oa])?\s*([a-z0-9][a-z0-9 ]*)$/,
   /([a-z0-9][a-z0-9 ]*?)\s+(?:ainda\s+)?me deve\b/,
   /\bquanto falta\s+([a-z0-9][a-z0-9 ]*?)\s+(?:pagar|quitar)\b/,
+  // "quanto falta receber de João" / "quanto falta de João"
+  /\bquanto falta\s+(?:(?:pra|para)\s+)?(?:receb\w*\s+)?d[eoa]\s+([a-z0-9][a-z0-9 ]*)$/,
   /([a-z0-9][a-z0-9 ]*?)\s+deve quanto\b/,
   /\bquanto\s+(?:o|a|que o|que a)?\s*([a-z0-9][a-z0-9 ]*?)\s+(?:ainda\s+)?deve\b/,
   /\bquanto\s+(?:o|a)?\s*([a-z0-9][a-z0-9 ]*?)\s+(?:esta|ta)\s+devendo\b/,
+  // nome primeiro, do jeito que se fala: "joão da silva tá devendo?"
+  /^(?:(?:q|que)\s+)?([a-z0-9][a-z0-9 ]*?)\s+(?:ainda\s+)?(?:esta|ta)\s+devendo\b/,
+  // nome antes do verbo: "Priscila cabelos quanto deve"
+  /^([a-z0-9][a-z0-9 ]*?)\s+quanto\s+(?:ainda\s+)?deve\b/,
+  /^([a-z0-9][a-z0-9 ]*?)\s+(?:qual o |quanto )?(?:saldo|falta)\b/,
+  /\bsaldo\s+(?:d[eoa]\s+)?([a-z0-9][a-z0-9 ]*?)\s*$/,
 ];
 
 /**
@@ -159,15 +204,31 @@ const DEBTOR_PATTERNS: RegExp[] = [
  * os clientes, como se fosse a resposta sobre aquela pessoa.
  */
 const PAYER_PATTERNS: RegExp[] = [
-  /\bquanto\s+(?:o|a|que o|que a)?\s*([a-z0-9][a-z0-9 ]*?)\s+(?:ja\s+)?(?:me\s+)?(?:pagou|pagaram)\b/,
-  /([a-z0-9][a-z0-9 ]*?)\s+(?:ja\s+)?(?:me\s+)?(?:pagou|pagaram)\b/,
+  /\bquanto\s+(?:o|a|que o|que a)?\s*([a-z0-9][a-z0-9 ]*?)\s+(?:ja\s+)?(?:me\s+)?(?:pagou|pagaram|quitou)\b/,
+  /([a-z0-9][a-z0-9 ]*?)\s+(?:ja\s+)?(?:me\s+)?(?:pagou|pagaram|quitou)\b/,
+  // "pago do joão", "pagamento da maria", "total pago do joão"
+  /\b(?:total\s+)?pag(?:o|amento|amentos)\s+(?:total\s+)?d[oae]\s+([a-z0-9][a-z0-9 ]*)$/,
+  // "joão da silva total pago"
+  /^([a-z0-9][a-z0-9 ]*?)\s+(?:ja\s+)?(?:total\s+)?pag(?:o|ou)\b/,
 ];
+
+/**
+ * Nome de gente não passa disso; acima daqui o padrão pegou uma frase inteira.
+ * Folga para o apelido, que é como o dono fala no WhatsApp: "Damião bom bom",
+ * "Cilene mulher de bom bom", "Mailsom cabeção".
+ */
+const NAME_MAX_WORDS = 6;
+const NAME_MAX_CHARS = 40;
 
 function cleanDebtorName(raw: string): string {
   const words = raw.split(' ').filter(Boolean);
   while (words.length && NAME_STOPWORDS.has(words[0])) words.shift();
   while (words.length && NAME_STOPWORDS.has(words[words.length - 1])) words.pop();
-  return words.join(' ');
+  const nome = words.join(' ');
+  // "você manda mensagem diariamente com um relatório de quem me deve" casava o
+  // padrão de nome e virava uma busca pela frase inteira; sem nome, cai na intent certa
+  if (words.length > NAME_MAX_WORDS || nome.length > NAME_MAX_CHARS) return '';
+  return nome;
 }
 
 function casarNome(t: string, padroes: RegExp[]): string {
@@ -184,15 +245,18 @@ function casarNome(t: string, padroes: RegExp[]): string {
 const extractDebtorName = (t: string) => casarNome(t, DEBTOR_PATTERNS);
 
 /** Nome de quem pagou, quando a frase pergunta sobre o pagamento de alguém. */
-const extractPayerName = (t: string) => casarNome(t, PAYER_PATTERNS);
+const NEGADO = /\bnao\s+(?:me\s+)?(?:pag|quit)/;
+const extractPayerName = (t: string) => (NEGADO.test(t) ? '' : casarNome(t, PAYER_PATTERNS));
 
 function detectIntent(t: string): AssistantIntent {
-  if (VOLUME_INTENT.test(t) && LENDING_VERB.test(t)) return 'lent_volume';
-  if (LATE_DEBTORS.test(t)) return 'late_debtors';
-  if (RECEIVABLES.test(t)) return 'receivables';
-  // nome citado junto de "pagou" é pergunta sobre aquele cliente, não sobre o caixa do dia
-  if (RECEIVED.test(t)) return extractPayerName(t) ? 'received_from_debtor' : 'received';
+  const i = semRepetidas(t); // "devenndo" → "devendo"
+  if ((VOLUME_INTENT.test(i) && LENDING_VERB.test(i)) || LENDING_NOUN.test(i)) return 'lent_volume';
+  // o nome citado manda: "quanto o joão me deve" não é a lista de atrasados
   if (extractDebtorName(t)) return 'debtor_balance';
+  if (extractPayerName(t)) return 'received_from_debtor';
+  if (LATE_DEBTORS.test(i)) return 'late_debtors';
+  if (RECEIVABLES.test(i)) return 'receivables';
+  if (RECEIVED.test(i)) return 'received';
   return 'unknown';
 }
 

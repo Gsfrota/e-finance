@@ -26,6 +26,18 @@ const num = (val: any): number => {
 
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
+/**
+ * O digitado casa com o cadastro se um contém o outro. Os dois sentidos importam:
+ * o dono escreve o apelido ("João da Silva bom bom") sobre um cadastro mais curto,
+ * e escreve o primeiro nome ("joão") sobre um cadastro mais longo.
+ */
+export const nomeCasa = (cadastro: string, alvo: string): boolean => {
+  const c = normalizeName(cadastro);
+  const a = normalizeName(alvo);
+  if (!c || !a) return false;
+  return c.includes(a) || a.includes(c);
+};
+
 /** minúsculo, sem acento, sem espaço duplo — para casar nome digitado com cadastro */
 const normalizeName = (text: unknown): string =>
   String(text ?? '')
@@ -186,9 +198,7 @@ async function acharCliente(
     .eq('role', 'debtor');
   if (error) throw new Error(parseSupabaseError(error));
 
-  const candidatos = ((data ?? []) as any[]).filter((p) =>
-    normalizeName(p.full_name).includes(alvo)
-  );
+  const candidatos = ((data ?? []) as any[]).filter((p) => nomeCasa(p.full_name ?? '', alvo));
 
   if (candidatos.length === 0) return { reply: formatDebtorNotFound(nome) };
   if (candidatos.length > 1) {
