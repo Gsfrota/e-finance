@@ -12,6 +12,7 @@ export type AssistantIntent =
   | 'receivables'     // "quanto tenho pra receber"
   | 'received'        // "quanto recebi hoje"
   | 'debtor_balance'  // "quanto o João me deve"
+  | 'received_from_debtor' // "quanto o João já me pagou"
   | 'unknown';
 
 export type PeriodKind =

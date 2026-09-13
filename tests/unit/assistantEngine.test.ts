@@ -137,6 +137,27 @@ describe('matchAssistant — intents', () => {
     expect(em('quem nao pagou').intent).toBe('late_debtors');
   });
 
+  // Achado perguntando como um cliente perguntaria: a frase citava o João e o bot
+  // respondia o caixa do dia inteiro, de todos os clientes, sem avisar.
+  it('nome citado junto de "pagou" é pergunta sobre aquele cliente', () => {
+    for (const p of [
+      'quanto o joao ja me pagou',
+      'quanto o joao pagou',
+      'o joao pagou?',
+      'quanto a maria ja me pagou esse mes',
+    ]) {
+      const m = em(p);
+      expect(m.intent, p).toBe('received_from_debtor');
+      expect(m.debtorName, p).toMatch(/joao|maria/);
+    }
+  });
+
+  it('sem nome, "pagou" continua sendo o caixa do período', () => {
+    for (const p of ['quanto foi pago hoje', 'quem pagou hoje', 'quanto pagaram hoje']) {
+      expect(em(p).intent, p).toBe('received');
+    }
+  });
+
   it('receivables: o que ainda vai entrar', () => {
     for (const p of [
       'quanto tenho pra receber',

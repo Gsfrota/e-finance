@@ -7,7 +7,7 @@
  */
 
 import { getSupabase, parseSupabaseError } from './supabase';
-import { getBrazilToday, ymdToDM } from './dateUtils';
+import { getBrazilToday, ymdToDM, isoToBrazilYMD } from './dateUtils';
 import { detalheDe } from './assistantAnswerCollection';
 import type {
   AssistantCtx,
@@ -159,42 +159,57 @@ export async function answerReceived(
   return formatReceived(total, detalhe.length, period, ctx.scopeLabel, detalhe);
 }
 
+/**
+ * Acha UM cliente pelo nome digitado. Devolve `reply` quando não dá para seguir:
+ * ninguém com esse nome, ou mais de um (BR-BOT-010 — nunca escolher sozinho).
+ *
+ * O cadastro NÃO é filtrado por empresa de propósito: `profiles.company_id` é nulo
+ * em cliente antigo, enquanto o contrato dele carrega a empresa. Filtrar aqui fazia
+ * o assistente listar o cliente em "quem está atrasado" (escopo vindo da parcela) e
+ * negar a existência dele em "quanto fulano me deve". O escopo de empresa vem das
+ * parcelas de cada consulta.
+ *
+ * ponytail: filtro do nome em JS — ilike do Postgres não ignora acento e a lista de
+ * devedores de um tenant é pequena. Se virar milhares, criar índice unaccent.
+ */
+async function acharCliente(
+  nome: string,
+  ctx: AssistantCtx
+): Promise<{ cliente?: { id: string; full_name: string | null }; reply?: AssistantReply }> {
+  const alvo = normalizeName(nome);
+  if (!alvo) return { reply: formatDebtorNotFound(nome) };
+
+  const { data, error } = await getSupabase()
+    .from('profiles')
+    .select('id, full_name')
+    .eq('tenant_id', ctx.tenantId)
+    .eq('role', 'debtor');
+  if (error) throw new Error(parseSupabaseError(error));
+
+  const candidatos = ((data ?? []) as any[]).filter((p) =>
+    normalizeName(p.full_name).includes(alvo)
+  );
+
+  if (candidatos.length === 0) return { reply: formatDebtorNotFound(nome) };
+  if (candidatos.length > 1) {
+    return {
+      reply: formatDebtorAmbiguous(
+        nome,
+        candidatos.map((p) => String(p.full_name ?? 'sem nome'))
+      ),
+    };
+  }
+  return { cliente: candidatos[0] };
+}
+
 /** Saldo em aberto de um cliente, casando o nome por parte, sem acento e sem caixa. */
 export async function answerDebtorBalance(
   nome: string,
   ctx: AssistantCtx
 ): Promise<AssistantReply> {
   const supabase = getSupabase();
-  const alvo = normalizeName(nome);
-  if (!alvo) return formatDebtorNotFound(nome);
-
-  // ponytail: filtro do nome em JS — ilike do Postgres não ignora acento e a lista
-  // de devedores de um tenant é pequena. Se virar milhares, criar índice unaccent.
-  //
-  // O cadastro NÃO é filtrado por empresa de propósito: `profiles.company_id` é nulo
-  // em cliente antigo, enquanto o contrato dele carrega a empresa. Filtrar aqui fazia
-  // o assistente listar o cliente em "quem está atrasado" (escopo vindo da parcela) e
-  // negar a existência dele em "quanto fulano me deve". O escopo de empresa vem das
-  // parcelas, logo abaixo.
-  const { data: perfilData, error: perfilError } = await supabase
-    .from('profiles')
-    .select('id, full_name')
-    .eq('tenant_id', ctx.tenantId)
-    .eq('role', 'debtor');
-  if (perfilError) throw new Error(parseSupabaseError(perfilError));
-
-  const candidatos = ((perfilData ?? []) as any[])
-    .filter((p) => normalizeName(p.full_name).includes(alvo));
-
-  if (candidatos.length === 0) return formatDebtorNotFound(nome);
-  if (candidatos.length > 1) {
-    return formatDebtorAmbiguous(
-      nome,
-      candidatos.map((p) => String(p.full_name ?? 'sem nome'))
-    );
-  }
-
-  const cliente = candidatos[0];
+  const { cliente, reply } = await acharCliente(nome, ctx);
+  if (!cliente) return reply!;
   let parcelas = supabase
     .from('loan_installments')
     .select(
@@ -238,4 +253,73 @@ export async function answerDebtorBalance(
   }
 
   return formatDebtorBalance(nomeCliente, saldo, contratos.size, proximo, detalhe);
+}
+
+/** "Quanto o João já me pagou" — pagamentos daquele cliente, não o caixa do dia. */
+export function formatReceivedFromDebtor(
+  nome: string,
+  total: number,
+  count: number,
+  period: ResolvedPeriod | null,
+  detalhe: ReplyLine[] = []
+): AssistantReply {
+  const followUp = `Quanto o ${nome} me deve?`;
+  const janela = period ? ` ${period.label}` : '';
+  if (count === 0) {
+    return { text: `${nome} não tem nenhum pagamento registrado${janela}.`, followUp };
+  }
+  const plural = count === 1 ? 'pagamento' : 'pagamentos';
+  const quando = period ? `${capitalize(period.label)} ` : '';
+  const verbo = period ? 'pagou' : 'já pagou';
+  return {
+    text: `${quando}${nome} ${verbo} *${formatBRL(total)}*, em ${count} ${plural}.`,
+    followUp,
+    ...detalheDe(detalhe, 'parcela paga', 'parcelas pagas'),
+  };
+}
+
+/**
+ * Pagamentos de UM cliente. Sem período citado soma a vida inteira do cadastro —
+ * "já me pagou" não tem janela.
+ */
+export async function answerReceivedFromDebtor(
+  nome: string,
+  period: ResolvedPeriod | null,
+  ctx: AssistantCtx
+): Promise<AssistantReply> {
+  const { cliente, reply } = await acharCliente(nome, ctx);
+  if (!cliente) return reply!;
+
+  let query = getSupabase()
+    .from('loan_installments')
+    .select(
+      'id, investment_id, company_id, number, due_date, paid_at, amount_paid, amount_total, status, ' +
+        'investments!inner(payer_id, total_installments)'
+    )
+    .eq('tenant_id', ctx.tenantId)
+    .eq('investments.payer_id', cliente.id)
+    .gt('amount_paid', 0);
+  if (ctx.companyId) query = query.eq('company_id', ctx.companyId);
+  if (period) query = query.gte('paid_at', period.startISO).lt('paid_at', period.endISO);
+
+  const { data, error } = await query;
+  if (error) throw new Error(parseSupabaseError(error));
+
+  const nomeCliente = String(cliente.full_name ?? nome);
+  let total = 0;
+  const detalhe: ReplyLine[] = [];
+  for (const row of (data ?? []) as any[]) {
+    if (isPhantom(row)) continue; // BR-REL-002
+    total += num(row.amount_paid);
+    detalhe.push({
+      key: String(row.id),
+      investmentId: Number(row.investment_id),
+      companyId: row.company_id ?? null,
+      title: nomeCliente,
+      subtitle: `${rotuloParcela(row)} · ${row.paid_at ? `pago ${ymdToDM(isoToBrazilYMD(row.paid_at))}` : `venc. ${ymdToDM(row.due_date)}`}`,
+      amount: num(row.amount_paid),
+    });
+  }
+
+  return formatReceivedFromDebtor(nomeCliente, total, detalhe.length, period, detalhe);
 }

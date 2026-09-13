@@ -9,7 +9,11 @@ import { matchAssistant, resolvePeriod } from '../utils/assistantEngine';
 import type { AssistantCtx, AssistantReply } from '../utils/assistantTypes';
 import { answerLentVolume, formatUnknownReply } from './assistantAnswer';
 import { answerLateDebtors, answerReceivables } from './assistantAnswerCollection';
-import { answerReceived, answerDebtorBalance } from './assistantAnswerMoney';
+import {
+  answerReceived,
+  answerDebtorBalance,
+  answerReceivedFromDebtor,
+} from './assistantAnswerMoney';
 
 export async function answerAssistant(question: string, ctx: AssistantCtx): Promise<AssistantReply> {
   const match = matchAssistant(question);
@@ -40,6 +44,10 @@ export async function answerAssistant(question: string, ctx: AssistantCtx): Prom
 
     case 'received':
       return answerReceived(match.period ?? resolvePeriod('today'), ctx);
+
+    case 'received_from_debtor':
+      // sem período citado soma tudo: "já me pagou" não tem janela
+      return answerReceivedFromDebtor(match.debtorName ?? '', match.period, ctx);
 
     case 'debtor_balance':
       // o motor só devolve esta intent com nome extraído; sem nome seria 'unknown'

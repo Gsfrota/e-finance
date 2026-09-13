@@ -153,6 +153,16 @@ const DEBTOR_PATTERNS: RegExp[] = [
   /\bquanto\s+(?:o|a)?\s*([a-z0-9][a-z0-9 ]*?)\s+(?:esta|ta)\s+devendo\b/,
 ];
 
+/**
+ * "o joão já me pagou", "quanto o joão pagou" — nome de quem PAGOU.
+ * Sem isto, a frase caía em `received` e devolvia o total do dia inteiro, de todos
+ * os clientes, como se fosse a resposta sobre aquela pessoa.
+ */
+const PAYER_PATTERNS: RegExp[] = [
+  /\bquanto\s+(?:o|a|que o|que a)?\s*([a-z0-9][a-z0-9 ]*?)\s+(?:ja\s+)?(?:me\s+)?(?:pagou|pagaram)\b/,
+  /([a-z0-9][a-z0-9 ]*?)\s+(?:ja\s+)?(?:me\s+)?(?:pagou|pagaram)\b/,
+];
+
 function cleanDebtorName(raw: string): string {
   const words = raw.split(' ').filter(Boolean);
   while (words.length && NAME_STOPWORDS.has(words[0])) words.shift();
@@ -160,9 +170,8 @@ function cleanDebtorName(raw: string): string {
   return words.join(' ');
 }
 
-/** Nome do cliente citado, já normalizado (sem acento, sem caixa). '' quando não dá para extrair. */
-function extractDebtorName(t: string): string {
-  for (const pattern of DEBTOR_PATTERNS) {
+function casarNome(t: string, padroes: RegExp[]): string {
+  for (const pattern of padroes) {
     const match = t.match(pattern);
     if (!match) continue;
     const name = cleanDebtorName(match[1]);
@@ -171,11 +180,18 @@ function extractDebtorName(t: string): string {
   return '';
 }
 
+/** Nome do cliente citado, já normalizado (sem acento, sem caixa). '' quando não dá para extrair. */
+const extractDebtorName = (t: string) => casarNome(t, DEBTOR_PATTERNS);
+
+/** Nome de quem pagou, quando a frase pergunta sobre o pagamento de alguém. */
+const extractPayerName = (t: string) => casarNome(t, PAYER_PATTERNS);
+
 function detectIntent(t: string): AssistantIntent {
   if (VOLUME_INTENT.test(t) && LENDING_VERB.test(t)) return 'lent_volume';
   if (LATE_DEBTORS.test(t)) return 'late_debtors';
   if (RECEIVABLES.test(t)) return 'receivables';
-  if (RECEIVED.test(t)) return 'received';
+  // nome citado junto de "pagou" é pergunta sobre aquele cliente, não sobre o caixa do dia
+  if (RECEIVED.test(t)) return extractPayerName(t) ? 'received_from_debtor' : 'received';
   if (extractDebtorName(t)) return 'debtor_balance';
   return 'unknown';
 }
@@ -196,9 +212,9 @@ export function matchAssistant(text: string, now: Date = new Date()): AssistantM
   if (intent === 'unknown') return { intent: 'unknown', period: null };
 
   const period = hit ? resolvePeriod(hit.kind, now, hit.n) : null;
-  if (intent !== 'debtor_balance') return { intent, period };
-
-  return { intent, period, debtorName: extractDebtorName(t) };
+  if (intent === 'debtor_balance') return { intent, period, debtorName: extractDebtorName(t) };
+  if (intent === 'received_from_debtor') return { intent, period, debtorName: extractPayerName(t) };
+  return { intent, period };
 }
 
 export interface LentRow {
