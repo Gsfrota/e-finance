@@ -137,6 +137,12 @@ export function getWeekRemainderRangeBR(now: Date = new Date()): DateRangeBR {
   return getDayWindowBR(now, 0, 7 - daysSinceMonday);
 }
 
+/** 'YYYY-MM-DD' -> 'DD/MM', para rótulo curto de vencimento. */
+export function ymdToDM(ymd: string): string {
+  const [, month, day] = ymd.split('-');
+  return `${day}/${month}`;
+}
+
 /** Últimos 7 dias: hoje-6 00:00 BRT até o fim de hoje (BR-BOT-009). */
 export function getLast7DaysRangeBR(now: Date = new Date()): DateRangeBR {
   return rangeEndingTodayBR(now, 6);

@@ -194,7 +194,47 @@ test('Assistente responde atraso, a receber, recebido e saldo do cliente com o n
     [brl(saldo), `${contratos} ${contratos === 1 ? 'contrato' : 'contratos'}`],
   ]);
 
-  // 5. Cliente inexistente não pode virar R$ 0,00 (BR-BOT-010)
+  // 5. O detalhamento: a lista tem que somar o número que a frase afirma (BR-BOT-011),
+  //    e clicar numa linha tem que abrir aquele contrato — não a lista de contratos.
+  const balaoSaldo = baloes.nth((await baloes.count()) - 1);
+  const linhas = balaoSaldo.getByTestId('reply-line');
+  expect(await linhas.count(), 'resposta de saldo veio sem detalhamento').toBeGreaterThan(0);
+
+  const toggle = balaoSaldo.getByTestId('reply-breakdown-toggle');
+  if (await toggle.count()) {
+    const colapsadas = await linhas.count();
+    await toggle.click();
+    await expect
+      .poll(() => linhas.count(), { message: 'botão não expandiu a lista' })
+      .toBeGreaterThan(colapsadas);
+  }
+
+  const brlParaNumero = (t: string) =>
+    Number(t.replace(/[^\d,]/g, '').replace(/\./g, '').replace(',', '.'));
+  const valores = await linhas.allInnerTexts();
+  const somaDaLista =
+    Math.round(
+      valores.reduce((acc, t) => acc + brlParaNumero(t.split('\n').pop() ?? '0'), 0) * 100,
+    ) / 100;
+  const totalDaFrase = brlParaNumero(respSaldo.match(/R\$[\s\u00a0][\d.,]+/)?.[0] ?? '0');
+  expect(
+    somaDaLista,
+    `a lista soma ${somaDaLista} mas a frase afirma ${totalDaFrase}`,
+  ).toBeCloseTo(totalDaFrase, 2);
+
+  const primeira = linhas.first();
+  const rotuloLinha = await primeira.innerText();
+  await primeira.click();
+  // o detalhe do contrato mostra o id; a lista de contratos, não
+  await expect(
+    page.getByText(/ID #\d+/).first(),
+    `clicar em "${rotuloLinha.replace(/\n/g, ' · ')}" não abriu o detalhe de um contrato`,
+  ).toBeVisible({ timeout: 15_000 });
+
+  await navigateToView(page, 'Assistente');
+  await input.click();
+
+  // 6. Cliente inexistente não pode virar R$ 0,00 (BR-BOT-010)
   const respNinguem = await perguntar('quanto o Zoroastro Inexistente me deve?');
   expect(respNinguem).toContain('Não achei nenhum cliente');
   expect(respNinguem).not.toContain('R$ 0,00');

@@ -855,6 +855,15 @@ Categorias:
 - **Status:** ativa
 - **Stories:** implementa BR-BOT-010 em 13/09/2026
 
+### BR-BOT-011: Assistente — detalhamento clicável da resposta
+- **Descrição:** Toda resposta numérica do Assistente carrega, além do texto, a lista do que **compõe** aquele número: uma linha por parcela (`late_debtors`, `receivables`, `received`, `debtor_balance`) ou por contrato (`lent_volume`). Cada linha traz cliente, referência (`Parcela 2/4 · vence 16/09`, `Cadastrado em 09/09`) e o valor que aquela linha soma
+- **Condição:** Resposta com pelo menos uma linha; sem linha o bloco não é renderizado (`details` ausente, nunca `details` vazio)
+- **Resultado:** A lista aparece dentro do balão, **colapsada** nas 3 primeiras linhas, com degradê sobre o corte e um botão "Ver as N ..." que expande e volta. **Clicar numa linha abre o contrato de origem** (`AppView.CONTRACTS` + `initialContractId`), trocando antes o escopo para a empresa daquele contrato — mesmo caminho que o `PendingIntentsPanel` já usa. Linhas vêm ordenadas por valor decrescente: o que decide a cobrança do dia fica no topo
+- **Exceções:** A soma das linhas é **a mesma** do total afirmado na frase — divergir é bug, e o E2E compara os dois. Em `received` o valor da linha é o que **entrou**, não o que resta em aberto. Sem `onOpenContract` (ex.: uso embarcado do componente) a lista continua visível, só não clicável
+- **Tabelas:** `investments`, `loan_installments`, `profiles` (leitura)
+- **Status:** ativa
+- **Stories:** implementa BR-BOT-011 em 13/09/2026
+
 ### BR-TZ-001: Timezone operacional do frontend
 - **Descrição:** Toda computação de "hoje" e comparação de datas no frontend deve usar o fuso horário `America/Sao_Paulo`. Proibido usar `new Date().toISOString().split('T')[0]` para obter a data atual (retorna UTC — às 21h BRT já é dia seguinte em UTC). Proibido usar `new Date().getFullYear()/.getMonth()/.getDate()` sem timezone explícito.
 - **Condição:** Qualquer hook, componente ou serviço que compare `due_date`, `paid_at`, ou compute "hoje"

@@ -1244,7 +1244,16 @@ const App: React.FC = () => {
           )}
           {currentView === AppView.ASSISTANT && profile?.role === 'admin' && tenant && profile && (
               ((tenant?.plan === 'empresarial' || tenant?.plan === 'caderneta') && tenant?.plan_status === 'active') || isTrialTenant ? (
-                <AdminAssistant tenant={tenant} profile={profile} />
+                <AdminAssistant
+                  tenant={tenant}
+                  profile={profile}
+                  onOpenContract={(investmentId, companyId) => {
+                    if (companyId) setActiveCompanyScope(companyId);
+                    setTargetContractId(investmentId);
+                    setContractAutoNew(false);
+                    setCurrentView(AppView.CONTRACTS);
+                  }}
+                />
               ) : (
                 <AssistantPaywall tenant={tenant} />
               )

@@ -7,6 +7,8 @@ import { AnimatedAIChat, type ChatMessage, type ChatSuggestion } from './ui/anim
 
 interface AssistantAskProps {
   tenantId: string;
+  /** Abre o contrato de uma linha do detalhamento; ausente deixa a lista só informativa. */
+  onOpenContract?: (investmentId: number, companyId: string | null) => void;
 }
 
 /** Atalhos fixos — o que ele sabe responder hoje (BR-BOT-009 / BR-BOT-010). */
@@ -21,7 +23,7 @@ let messageSeq = 0;
 const nextId = () => `msg-${++messageSeq}`;
 
 /** Tela de conversa com o assistente — respostas determinísticas, sem LLM. */
-const AssistantAsk: React.FC<AssistantAskProps> = ({ tenantId }) => {
+const AssistantAsk: React.FC<AssistantAskProps> = ({ tenantId, onOpenContract }) => {
   const { activeCompanyId, activeCompany } = useCompanyContext();
   const { config } = useBotConfig(tenantId);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -36,7 +38,10 @@ const AssistantAsk: React.FC<AssistantAskProps> = ({ tenantId }) => {
     setFollowUp(null);
     try {
       const reply = await answerAssistant(text, { tenantId, companyId: activeCompanyId, scopeLabel });
-      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: reply.text }]);
+      setMessages(prev => [
+        ...prev,
+        { id: nextId(), role: 'assistant', content: reply.text, details: reply.details },
+      ]);
       setFollowUp(reply.followUp ?? null);
     } catch (e) {
       const detail = e instanceof Error ? e.message : 'erro desconhecido';
@@ -63,6 +68,7 @@ const AssistantAsk: React.FC<AssistantAskProps> = ({ tenantId }) => {
       onSend={handleSend}
       placeholder={`Pergunte ao ${config.ai_persona_name}...`}
       emptyTitle={`Oi! Sou o ${config.ai_persona_name}`}
+      onOpenLine={onOpenContract ? line => onOpenContract(line.investmentId, line.companyId) : undefined}
     />
   );
 };

@@ -7,8 +7,13 @@
  */
 
 import { getSupabase, parseSupabaseError } from './supabase';
-import { getBrazilToday } from './dateUtils';
-import type { AssistantCtx, AssistantReply, ResolvedPeriod } from '../utils/assistantTypes';
+import { getBrazilToday, ymdToDM } from './dateUtils';
+import type {
+  AssistantCtx,
+  AssistantReply,
+  ReplyLine,
+  ResolvedPeriod,
+} from '../utils/assistantTypes';
 
 /** Uma linha da lista de atrasados: cliente, quanto está em aberto e há quantos dias. */
 export interface LateRow {
@@ -56,7 +61,11 @@ const ehFantasma = (i: { amount_total?: number | null; amount_paid?: number | nu
 const MAX_LISTADOS = 5;
 
 /** Texto de chat dos atrasados. Função PURA — é o que os testes cobrem. */
-export function formatLateDebtors(linhas: LateRow[], scopeLabel: string): AssistantReply {
+export function formatLateDebtors(
+  linhas: LateRow[],
+  scopeLabel: string,
+  detalhe: ReplyLine[] = []
+): AssistantReply {
   const followUp = 'Quanto tenho pra receber essa semana?';
 
   if (linhas.length === 0) {
@@ -83,7 +92,11 @@ export function formatLateDebtors(linhas: LateRow[], scopeLabel: string): Assist
     partes.push(`...e mais ${restantes} ${restantes === 1 ? 'cliente' : 'clientes'}.`);
   }
 
-  return { text: partes.join('\n'), followUp };
+  return {
+    text: partes.join('\n'),
+    followUp,
+    ...detalheDe(detalhe, 'parcela atrasada', 'parcelas atrasadas'),
+  };
 }
 
 /** Texto de chat dos recebíveis. Função PURA. */
@@ -91,7 +104,8 @@ export function formatReceivables(
   total: number,
   count: number,
   period: ResolvedPeriod,
-  scopeLabel: string
+  scopeLabel: string,
+  detalhe: ReplyLine[] = []
 ): AssistantReply {
   const followUp = 'Quem está atrasado?';
   const janela = capitalize(period.label);
@@ -107,6 +121,7 @@ export function formatReceivables(
   return {
     text: `${janela} você tem *${formatBRL(total)}* a receber, em ${count} ${parcelas} (${scopeLabel}).`,
     followUp,
+    ...detalheDe(detalhe, 'parcela', 'parcelas'),
   };
 }
 
@@ -114,21 +129,73 @@ export function formatReceivables(
 // O filtro de status do contrato fica em JS — evita depender de filtro em recurso
 // embutido do PostgREST, que falha em silêncio quando a sintaxe muda.
 const SELECT_COBRANCA = `
-  due_date, status, amount_total, amount_paid, fine_amount, interest_delay_amount,
+  id, investment_id, company_id, number, due_date, status,
+  amount_total, amount_paid, fine_amount, interest_delay_amount,
   investment:investments!inner (
-    status,
+    status, total_installments,
     payer:profiles!investments_payer_id_fkey ( full_name )
   )
 `;
 
 interface RowCobranca {
+  id: string;
+  investment_id: number;
+  company_id: string | null;
+  number: number;
   due_date: string;
   status: string;
   amount_total: number | null;
   amount_paid: number | null;
   fine_amount: number | null;
   interest_delay_amount: number | null;
-  investment: { status: string; payer: { full_name: string | null } | null } | null;
+  investment: {
+    status: string;
+    total_installments: number | null;
+    payer: { full_name: string | null } | null;
+  } | null;
+}
+
+const nomeDe = (row: RowCobranca) => row.investment?.payer?.full_name || 'Sem nome';
+
+/** Rótulo da parcela: "Parcela 2/4" quando o contrato diz quantas são. */
+function rotuloParcela(row: RowCobranca): string {
+  const total = row.investment?.total_installments;
+  return total && total > 0 ? `Parcela ${row.number}/${total}` : `Parcela ${row.number}`;
+}
+
+/** Linha clicável de uma parcela, já com o valor em aberto daquela parcela. */
+function linhaDeParcela(row: RowCobranca, sufixo: string): ReplyLine {
+  return {
+    key: row.id,
+    investmentId: row.investment_id,
+    companyId: row.company_id,
+    title: nomeDe(row),
+    subtitle: `${rotuloParcela(row)} · ${sufixo}`,
+    amount: openAmountOf(row),
+  };
+}
+
+/** Maior valor primeiro: o que decide a cobrança do dia aparece no topo. */
+const porValorDesc = (a: ReplyLine, b: ReplyLine) => b.amount - a.amount;
+
+/**
+ * Bloco `details` da resposta, ou nada quando não há linha para abrir — assim
+ * `{...detalheDe([])}` some do objeto em vez de virar `details: undefined`.
+ */
+export function detalheDe(
+  linhas: ReplyLine[],
+  singular: string,
+  plural: string
+): { details?: { label: string; lines: ReplyLine[] } } {
+  if (linhas.length === 0) return {};
+  const ordenadas = [...linhas].sort(porValorDesc);
+  const n = ordenadas.length;
+  return {
+    details: {
+      label: n === 1 ? `Ver a ${singular}` : `Ver as ${n} ${plural}`,
+      lines: ordenadas,
+    },
+  };
 }
 
 /** "quem está atrasado" — foto do agora, sem período (BR-BOT-010). */
@@ -147,14 +214,18 @@ export async function answerLateDebtors(ctx: AssistantCtx): Promise<AssistantRep
   if (error) throw new Error(parseSupabaseError(error));
 
   const porCliente = new Map<string, LateRow>();
+  const detalhe: ReplyLine[] = [];
   for (const row of (data ?? []) as unknown as RowCobranca[]) {
     if (CONTRATO_FORA.has(row.investment?.status ?? '')) continue;
     if (ehFantasma(row)) continue;
     const aberto = openAmountOf(row);
     if (aberto === 0) continue;
 
-    const name = row.investment?.payer?.full_name || 'Sem nome';
+    const name = nomeDe(row);
     const dias = daysBefore(row.due_date, hoje);
+    detalhe.push(
+      linhaDeParcela(row, `venceu ${ymdToDM(row.due_date)} · ${dias} ${dias === 1 ? 'dia' : 'dias'}`)
+    );
     const atual = porCliente.get(name);
     if (atual) {
       atual.openAmount += aberto;
@@ -164,7 +235,7 @@ export async function answerLateDebtors(ctx: AssistantCtx): Promise<AssistantRep
     }
   }
 
-  return formatLateDebtors([...porCliente.values()], ctx.scopeLabel);
+  return formatLateDebtors([...porCliente.values()], ctx.scopeLabel, detalhe);
 }
 
 /** "quanto tenho pra receber" — parcelas a vencer dentro da janela (fim EXCLUSIVO). */
@@ -182,15 +253,15 @@ export async function answerReceivables(period: ResolvedPeriod, ctx: AssistantCt
   if (error) throw new Error(parseSupabaseError(error));
 
   let total = 0;
-  let count = 0;
+  const detalhe: ReplyLine[] = [];
   for (const row of (data ?? []) as unknown as RowCobranca[]) {
     if (CONTRATO_FORA.has(row.investment?.status ?? '')) continue;
     if (ehFantasma(row)) continue;
     const aberto = openAmountOf(row);
     if (aberto === 0) continue;
     total += aberto;
-    count += 1;
+    detalhe.push(linhaDeParcela(row, `vence ${ymdToDM(row.due_date)}`));
   }
 
-  return formatReceivables(total, count, period, ctx.scopeLabel);
+  return formatReceivables(total, detalhe.length, period, ctx.scopeLabel, detalhe);
 }

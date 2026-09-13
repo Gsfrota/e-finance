@@ -1,12 +1,15 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SendHorizontal } from 'lucide-react';
+import { ChevronDown, ChevronRight, SendHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { ReplyDetails, ReplyLine } from '@/utils/assistantTypes';
 
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  /** Linha a linha do que compõe o número da resposta. */
+  details?: ReplyDetails;
 }
 
 export interface ChatSuggestion {
@@ -23,6 +26,8 @@ export interface AnimatedAIChatProps {
   onSend: (text: string) => void;
   placeholder?: string;
   emptyTitle?: string;
+  /** Clique numa linha do detalhamento — abre o contrato de origem. */
+  onOpenLine?: (line: ReplyLine) => void;
 }
 
 interface UseAutoResizeTextareaProps {
@@ -99,6 +104,84 @@ function renderEmphasis(text: string) {
   );
 }
 
+const formatBRL = (value: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
+/** Quantas linhas aparecem antes de expandir — o resto fica sob o degradê. */
+const LINHAS_VISIVEIS = 3;
+
+/**
+ * Detalhamento da resposta: o que soma no número, linha por linha.
+ * Colapsado mostra as primeiras e esconde o resto sob um degradê; cada linha
+ * abre o contrato de origem.
+ */
+function ReplyBreakdown({
+  details,
+  onOpenLine,
+}: {
+  details: ReplyDetails;
+  onOpenLine?: (line: ReplyLine) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const temMais = details.lines.length > LINHAS_VISIVEIS;
+  const visiveis = aberto ? details.lines : details.lines.slice(0, LINHAS_VISIVEIS);
+
+  return (
+    <div className="mt-3 border-t border-[color:var(--border-subtle)] pt-3">
+      <div className="relative">
+        <ul className="space-y-1" data-testid="reply-breakdown">
+          {visiveis.map((line) => (
+            <li key={line.key}>
+              <button
+                type="button"
+                onClick={() => onOpenLine?.(line)}
+                disabled={!onOpenLine}
+                data-testid="reply-line"
+                className={cn(
+                  'group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors',
+                  onOpenLine && 'hover:bg-[color:var(--bg-subtle)]',
+                )}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-medium text-[color:var(--text-primary)]">
+                    {line.title}
+                  </span>
+                  <span className="block truncate text-[11px] text-[color:var(--text-muted)]">
+                    {line.subtitle}
+                  </span>
+                </span>
+                <span className="shrink-0 text-[13px] font-semibold tabular-nums text-[color:var(--text-primary)]">
+                  {formatBRL(line.amount)}
+                </span>
+                {onOpenLine && (
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[color:var(--text-muted)] transition-transform group-hover:translate-x-0.5" />
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        {/* o degradê só existe quando há linha escondida embaixo dele */}
+        {temMais && !aberto && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-[color:var(--bg-elevated)] to-transparent" />
+        )}
+      </div>
+
+      {temMais && (
+        <button
+          type="button"
+          onClick={() => setAberto((v) => !v)}
+          data-testid="reply-breakdown-toggle"
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-teal-400/40 bg-teal-400/10 px-3 py-2 text-xs font-semibold text-teal-500 transition-colors hover:border-teal-400 hover:bg-teal-400/20 dark:text-teal-300"
+        >
+          {aberto ? 'Ver menos' : details.label}
+          <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', aberto && 'rotate-180')} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function AnimatedAIChat({
   messages,
   isTyping,
@@ -107,6 +190,7 @@ export function AnimatedAIChat({
   onSend,
   placeholder = 'Pergunte alguma coisa...',
   emptyTitle = 'Como posso ajudar?',
+  onOpenLine,
 }: AnimatedAIChatProps) {
   const [value, setValue] = useState('');
   const [inputFocused, setInputFocused] = useState(false);
@@ -280,6 +364,9 @@ export function AnimatedAIChat({
                 )}
               >
                 {renderEmphasis(message.content)}
+                {message.details && message.details.lines.length > 0 && (
+                  <ReplyBreakdown details={message.details} onOpenLine={onOpenLine} />
+                )}
               </div>
             </motion.div>
           ))}

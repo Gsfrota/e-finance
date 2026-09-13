@@ -50,9 +50,34 @@ export interface AssistantCtx {
   scopeLabel: string;
 }
 
+/**
+ * Uma linha do detalhamento — o que compõe o número da resposta.
+ * Clicar nela abre o contrato de origem, então `investmentId` é obrigatório.
+ */
+export interface ReplyLine {
+  /** Chave de render; única dentro da lista. */
+  key: string;
+  investmentId: number;
+  /** Empresa do contrato: o app troca o escopo ativo antes de abrir. */
+  companyId: string | null;
+  /** Quem — nome do cliente. */
+  title: string;
+  /** Onde/quando — "Parcela 2/4 · vence 16/09", "Cadastrado em 09/09". */
+  subtitle: string;
+  amount: number;
+}
+
+/** Lista expansível abaixo da resposta. `label` é o texto do botão. */
+export interface ReplyDetails {
+  label: string;
+  lines: ReplyLine[];
+}
+
 /** Resposta pronta para o chat. */
 export interface AssistantReply {
   text: string;
   /** Sugestão de próxima pergunta — vira botão clicável no chat. */
   followUp?: string;
+  /** Linha a linha do que soma no número; ausente quando não há o que abrir. */
+  details?: ReplyDetails;
 }

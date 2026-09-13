@@ -7,17 +7,17 @@
  */
 
 import { getSupabase, parseSupabaseError } from './supabase';
-import { getBrazilToday } from './dateUtils';
-import type { AssistantCtx, AssistantReply, ResolvedPeriod } from '../utils/assistantTypes';
+import { getBrazilToday, ymdToDM } from './dateUtils';
+import { detalheDe } from './assistantAnswerCollection';
+import type {
+  AssistantCtx,
+  AssistantReply,
+  ReplyLine,
+  ResolvedPeriod,
+} from '../utils/assistantTypes';
 
 const formatBRL = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-
-/** 'YYYY-MM-DD' -> 'DD/MM' */
-const formatDM = (ymd: string) => {
-  const [, month, day] = ymd.split('-');
-  return `${day}/${month}`;
-};
 
 const num = (val: any): number => {
   const n = Number(val ?? 0);
@@ -47,6 +47,12 @@ export const installmentOpenAmount = (row: {
     num(row.amount_total) + num(row.fine_amount) + num(row.interest_delay_amount) - num(row.amount_paid)
   );
 
+/** "Parcela 2/4" quando o contrato informa o total; senão só o número. */
+const rotuloParcela = (row: { number?: any; investments?: { total_installments?: any } | null }) => {
+  const total = Number(row.investments?.total_installments ?? 0);
+  return total > 0 ? `Parcela ${row.number}/${total}` : `Parcela ${row.number}`;
+};
+
 /** BR-REL-002: parcela fantasma (deferida e zerada) nunca entra em métrica financeira. */
 const isPhantom = (row: { amount_total?: any; amount_paid?: any; status?: string | null }) =>
   num(row.amount_total) === 0 && num(row.amount_paid) === 0 && row.status === 'paid';
@@ -58,7 +64,8 @@ export function formatReceived(
   total: number,
   count: number,
   period: ResolvedPeriod,
-  scopeLabel: string
+  scopeLabel: string,
+  detalhe: ReplyLine[] = []
 ): AssistantReply {
   const followUp = 'Quem está atrasado?';
   if (count === 0) {
@@ -68,6 +75,7 @@ export function formatReceived(
   return {
     text: `${capitalize(period.label)} entraram *${formatBRL(total)}* em ${count} ${plural} (${scopeLabel}).`,
     followUp,
+    ...detalheDe(detalhe, 'parcela paga', 'parcelas pagas'),
   };
 }
 
@@ -76,7 +84,8 @@ export function formatDebtorBalance(
   nome: string,
   saldo: number,
   contratosAtivos: number,
-  proximoVencimentoYMD: string | null
+  proximoVencimentoYMD: string | null,
+  detalhe: ReplyLine[] = []
 ): AssistantReply {
   const followUp = 'Quanto tenho pra receber essa semana?';
   if (saldo <= 0) {
@@ -86,11 +95,12 @@ export function formatDebtorBalance(
   const contratos = contratosAtivos > 0 ? `, em ${contratosAtivos} ${plural}` : '';
   // sem próximo vencimento a frase some — nunca escrever "null"
   const vencimento = proximoVencimentoYMD
-    ? ` O próximo vencimento é ${formatDM(proximoVencimentoYMD)}.`
+    ? ` O próximo vencimento é ${ymdToDM(proximoVencimentoYMD)}.`
     : '';
   return {
     text: `${nome} tem *${formatBRL(saldo)}* em aberto${contratos}.${vencimento}`,
     followUp,
+    ...detalheDe(detalhe, 'parcela em aberto', 'parcelas em aberto'),
   };
 }
 
@@ -117,7 +127,10 @@ export async function answerReceived(
 ): Promise<AssistantReply> {
   let query = getSupabase()
     .from('loan_installments')
-    .select('amount_paid, amount_total, status')
+    .select(
+      'id, investment_id, company_id, number, due_date, amount_paid, amount_total, status, ' +
+        'investments!inner(total_installments, profiles!investments_payer_id_fkey(full_name))'
+    )
     .eq('tenant_id', ctx.tenantId)
     .gte('paid_at', period.startISO)
     .lt('paid_at', period.endISO)
@@ -129,13 +142,21 @@ export async function answerReceived(
 
   const rows = (data ?? []) as any[];
   let total = 0;
-  let count = 0;
+  const detalhe: ReplyLine[] = [];
   for (const row of rows) {
     if (isPhantom(row)) continue; // BR-REL-002 (redundante com amount_paid > 0, mas explícito)
     total += num(row.amount_paid);
-    count += 1;
+    detalhe.push({
+      key: String(row.id),
+      investmentId: Number(row.investment_id),
+      companyId: row.company_id ?? null,
+      title: row.investments?.profiles?.full_name || 'Sem nome',
+      // aqui o valor da linha é o que ENTROU, não o que resta em aberto
+      subtitle: `${rotuloParcela(row)} · venc. ${ymdToDM(row.due_date)}`,
+      amount: num(row.amount_paid),
+    });
   }
-  return formatReceived(total, count, period, ctx.scopeLabel);
+  return formatReceived(total, detalhe.length, period, ctx.scopeLabel, detalhe);
 }
 
 /** Saldo em aberto de um cliente, casando o nome por parte, sem acento e sem caixa. */
@@ -177,7 +198,8 @@ export async function answerDebtorBalance(
   let parcelas = supabase
     .from('loan_installments')
     .select(
-      'investment_id, due_date, amount_total, amount_paid, fine_amount, interest_delay_amount, status, investments!inner(payer_id, status)'
+      'id, investment_id, company_id, number, due_date, amount_total, amount_paid, fine_amount, ' +
+        'interest_delay_amount, status, investments!inner(payer_id, status, total_installments)'
     )
     .eq('tenant_id', ctx.tenantId)
     .in('status', ['pending', 'late', 'partial'])
@@ -190,22 +212,30 @@ export async function answerDebtorBalance(
 
   const hoje = getBrazilToday();
   const contratos = new Set<any>();
+  const detalhe: ReplyLine[] = [];
   let saldo = 0;
   let proximo: string | null = null;
 
+  const nomeCliente = String(cliente.full_name ?? nome);
   for (const row of (parcelaData ?? []) as any[]) {
     if (isPhantom(row)) continue; // BR-REL-002
-    saldo += installmentOpenAmount(row);
+    const aberto = installmentOpenAmount(row);
+    saldo += aberto;
     contratos.add(row.investment_id);
     if (row.due_date && row.due_date >= hoje && (proximo === null || row.due_date < proximo)) {
       proximo = row.due_date;
     }
+    if (aberto > 0) {
+      detalhe.push({
+        key: String(row.id),
+        investmentId: Number(row.investment_id),
+        companyId: row.company_id ?? null,
+        title: nomeCliente,
+        subtitle: `${rotuloParcela(row)} · ${row.due_date < hoje ? 'venceu' : 'vence'} ${ymdToDM(row.due_date)}`,
+        amount: aberto,
+      });
+    }
   }
 
-  return formatDebtorBalance(
-    String(cliente.full_name ?? nome),
-    saldo,
-    contratos.size,
-    proximo
-  );
+  return formatDebtorBalance(nomeCliente, saldo, contratos.size, proximo, detalhe);
 }

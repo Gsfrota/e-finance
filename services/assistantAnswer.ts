@@ -6,9 +6,15 @@
  */
 
 import { getSupabase, parseSupabaseError } from './supabase';
-import { getWeekToDateRangeBR, getLast7DaysRangeBR } from './dateUtils';
+import { getWeekToDateRangeBR, getLast7DaysRangeBR, isoToBrazilYMD, ymdToDM } from './dateUtils';
+import { detalheDe } from './assistantAnswerCollection';
 import { sumLentInRange, type LentRow } from '../utils/assistantEngine';
-import type { AssistantCtx, AssistantReply, ResolvedPeriod } from '../utils/assistantTypes';
+import type {
+  AssistantCtx,
+  AssistantReply,
+  ReplyLine,
+  ResolvedPeriod,
+} from '../utils/assistantTypes';
 
 export interface LentVolumeAnswer {
   week: { total: number; count: number; startYMD: string };
@@ -18,11 +24,7 @@ export interface LentVolumeAnswer {
 const formatBRL = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-/** 'YYYY-MM-DD' -> 'DD/MM' */
-const formatDM = (ymd: string) => {
-  const [, month, day] = ymd.split('-');
-  return `${day}/${month}`;
-};
+const formatDM = ymdToDM;
 
 const contratos = (n: number) => `${n} ${n === 1 ? 'contrato' : 'contratos'}`;
 
@@ -80,6 +82,34 @@ export function formatUnknownReply(): AssistantReply {
   return { text: formatUnknownAnswer(), followUp: 'Quem está atrasado?' };
 }
 
+export interface ContratoRow extends LentRow {
+  id: number;
+  company_id: string | null;
+  asset_name: string | null;
+  profiles: { full_name: string | null } | null;
+}
+
+/** Um contrato por linha, com quem pegou e quando foi cadastrado. Função PURA. */
+export function linhasDeContratos(rows: ContratoRow[], startISO: string, endISO: string): ReplyLine[] {
+  const start = Date.parse(startISO);
+  const end = Date.parse(endISO);
+  const linhas: ReplyLine[] = [];
+  for (const row of rows) {
+    if (!row.created_at) continue;
+    const at = Date.parse(row.created_at);
+    if (Number.isNaN(at) || at < start || at >= end) continue;
+    linhas.push({
+      key: String(row.id),
+      investmentId: Number(row.id),
+      companyId: row.company_id ?? null,
+      title: row.profiles?.full_name || row.asset_name || 'Sem nome',
+      subtitle: `Cadastrado em ${formatDM(isoToBrazilYMD(row.created_at))}`,
+      amount: Number(row.amount_invested ?? 0),
+    });
+  }
+  return linhas;
+}
+
 /**
  * Busca no Supabase e devolve a resposta pronta.
  * `period` nulo = comportamento padrão de BR-BOT-009 (semana corrente + últimos 7 dias).
@@ -97,7 +127,10 @@ export async function answerLentVolume(
 
   let query = getSupabase()
     .from('investments')
-    .select('amount_invested, created_at')
+    .select(
+      'id, company_id, amount_invested, created_at, asset_name, ' +
+        'profiles!investments_payer_id_fkey(full_name)'
+    )
     .eq('tenant_id', ctx.tenantId)
     .gte('created_at', fromISO)
     .lt('created_at', toISO);
@@ -106,16 +139,19 @@ export async function answerLentVolume(
   const { data, error } = await query;
   if (error) throw new Error(parseSupabaseError(error));
 
-  const rows = (data ?? []) as LentRow[];
+  const rows = (data ?? []) as unknown as ContratoRow[];
   const followUp = 'Quem está atrasado?';
 
   if (period) {
     return {
       text: formatLentVolumePeriod(sumLentInRange(rows, period.startISO, period.endISO), period),
       followUp,
+      ...detalheDe(linhasDeContratos(rows, period.startISO, period.endISO), 'contrato', 'contratos'),
     };
   }
 
+  // O par de janelas se sobrepõe; a lista mostra a união, que é o que a query trouxe.
+  const inicio = week.startISO < last7.startISO ? week.startISO : last7.startISO;
   return {
     text: formatLentVolumeAnswer(
       {
@@ -125,5 +161,6 @@ export async function answerLentVolume(
       ctx.scopeLabel,
     ),
     followUp,
+    ...detalheDe(linhasDeContratos(rows, inicio, week.endISO), 'contrato', 'contratos'),
   };
 }

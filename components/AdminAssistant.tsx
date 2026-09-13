@@ -8,6 +8,8 @@ import AssistantAsk from './AssistantAsk';
 interface AdminAssistantProps {
   tenant: Tenant;
   profile: Profile;
+  /** Abre um contrato citado no detalhamento de uma resposta do Assistente. */
+  onOpenContract?: (investmentId: number, companyId: string | null) => void;
 }
 
 type AssistantSection = 'perguntar' | 'conexoes' | 'whitelist' | 'briefing' | 'perguntas' | 'automacoes';
@@ -72,7 +74,7 @@ function normalizePhoneDisplay(raw: string): PhonePreview | null {
   return { e164: digits, display: '+' + digits, country: 'unknown', wasInferred: true };
 }
 
-const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant }) => {
+const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant, onOpenContract }) => {
   const { config, loading, saving, error, saveConfig } = useBotConfig(tenant.id);
   const [activeSection, setActiveSection] = useState<AssistantSection>('perguntar');
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -139,7 +141,9 @@ const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant }) => {
       </div>
 
           {/* PERGUNTAR (BR-BOT-009) */}
-          {activeSection === 'perguntar' && <AssistantAsk tenantId={tenant.id} />}
+          {activeSection === 'perguntar' && (
+            <AssistantAsk tenantId={tenant.id} onOpenContract={onOpenContract} />
+          )}
 
           {/* CONEXÕES */}
           {activeSection === 'conexoes' && (
