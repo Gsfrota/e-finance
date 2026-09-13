@@ -833,6 +833,15 @@ Categorias:
 - **Tabelas:** `bot_tenant_config`, `bot_messages`, `bot_user_rate_limits` (nova — contador diário por `channel_user_id`)
 - **Status:** ativa (pendente aplicação das migrations `027_bot_tenant_ai_config.sql` e `028_bot_user_rate_limits.sql`)
 
+### BR-BOT-009: Pergunta determinística — volume emprestado na semana
+- **Descrição:** O Assistente responde "quanto emprestei essa semana" **sem LLM**: a pergunta é casada por regex (normalizada sem acento) exigindo intenção de volume (`quanto`/`total`) + verbo de empréstimo (`emprest*` / `invest*`). A resposta é a soma de `investments.amount_invested` dos contratos cujo `created_at` cai na janela, em **duas janelas sempre exibidas juntas**: (1) semana corrente — segunda 00:00 BRT até o fim do dia de hoje; (2) últimos 7 dias — hoje-6 00:00 BRT até o fim do dia de hoje. A data usada é `created_at` (cadastro/renovação no sistema), nunca `start_date` — o cliente pergunta pelo que ele **lançou** na semana, e `start_date` é nulo em ~1/3 dos contratos e pode estar no futuro
+- **Condição:** Seção "Perguntar" do `AdminAssistant` (`AppView.ASSISTANT`); acesso exclusivo ao perfil `admin`
+- **Resultado:** Por janela: valor total formatado em BRL + quantidade de contratos. Escopo = `tenant_id` do admin + `company_id` da empresa ativa quando houver uma selecionada (escopo agregado `'all'` soma o tenant inteiro), idêntico ao resto do app. **Renovações contam como empréstimo** — contrato com `parent_investment_id` preenchido entra na soma, porque renovar é emprestar aquele dinheiro novamente. Motor e janelas são funções puras testadas em `tests/unit/assistantEngine.test.ts`
+- **Exceções:** Pergunta que não casa o padrão, ou que cita período não suportado (`hoje`, `mês`, `ano`), retorna "não entendi" + lista do que é suportado, **sem consultar o banco** — nunca responder a semana quando o usuário pediu outro período. Nenhum filtro por `status`: contrato `completed` ou `defaulted` criado na janela continua contando (o dinheiro saiu). Fuso: `America/Sao_Paulo` por BR-TZ-001 — Mossoró/RN é o mesmo UTC-3 sem horário de verão
+- **Tabelas:** `investments` (leitura: `amount_invested`, `created_at`, `tenant_id`, `company_id`)
+- **Status:** ativa
+- **Stories:** implementa BR-BOT-009 em 12/09/2026
+
 ### BR-TZ-001: Timezone operacional do frontend
 - **Descrição:** Toda computação de "hoje" e comparação de datas no frontend deve usar o fuso horário `America/Sao_Paulo`. Proibido usar `new Date().toISOString().split('T')[0]` para obter a data atual (retorna UTC — às 21h BRT já é dia seguinte em UTC). Proibido usar `new Date().getFullYear()/.getMonth()/.getDate()` sem timezone explícito.
 - **Condição:** Qualquer hook, componente ou serviço que compare `due_date`, `paid_at`, ou compute "hoje"

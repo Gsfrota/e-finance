@@ -82,3 +82,42 @@ export function getMonthRangeBR(): {
     endYMD: padYMD(nextYear, nextMonth, 1),
   };
 }
+
+export interface DateRangeBR {
+  startISO: string;
+  endISO: string;
+  startYMD: string;
+  endYMD: string;
+}
+
+/**
+ * Intervalo [hoje - offsetDays, amanhã) em BRT, como timestamps UTC prontos para query.
+ * Meia-noite BRT = 03:00 UTC.
+ */
+function rangeEndingTodayBR(now: Date, offsetDays: number): DateRangeBR {
+  const { year, month, day } = getDatePartsInBrazil(now);
+  const start = new Date(Date.UTC(year, month - 1, day - offsetDays, 3, 0, 0));
+  const end = new Date(Date.UTC(year, month - 1, day + 1, 3, 0, 0));
+  return {
+    startISO: start.toISOString(),
+    endISO: end.toISOString(),
+    startYMD: toBrazilYMD(start),
+    endYMD: toBrazilYMD(end),
+  };
+}
+
+/**
+ * Semana corrente: segunda-feira 00:00 BRT até o fim de hoje (BR-BOT-009).
+ * Mossoró/RN é o mesmo UTC-3 de São Paulo (sem horário de verão desde 2019).
+ */
+export function getWeekToDateRangeBR(now: Date = new Date()): DateRangeBR {
+  const { year, month, day } = getDatePartsInBrazil(now);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay(); // 0=domingo
+  const daysSinceMonday = (weekday + 6) % 7;
+  return rangeEndingTodayBR(now, daysSinceMonday);
+}
+
+/** Últimos 7 dias: hoje-6 00:00 BRT até o fim de hoje (BR-BOT-009). */
+export function getLast7DaysRangeBR(now: Date = new Date()): DateRangeBR {
+  return rangeEndingTodayBR(now, 6);
+}

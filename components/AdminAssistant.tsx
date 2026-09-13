@@ -2,16 +2,18 @@ import React, { useState } from 'react';
 import { Tenant, Profile } from '../types';
 import { useBotConfig } from '../hooks/useBotConfig';
 import { BotConnectionWidget } from './BotConnectionWidget';
-import { Bot, Save, RefreshCw, CheckCircle2, Sun, MessageCircle, Zap, ToggleLeft, ToggleRight, Clock, Shield, Phone, X, Plus } from 'lucide-react';
+import { Bot, Save, RefreshCw, CheckCircle2, Sun, MessageCircle, Zap, ToggleLeft, ToggleRight, Clock, Shield, Phone, X, Plus, Search } from 'lucide-react';
+import AssistantAsk from './AssistantAsk';
 
 interface AdminAssistantProps {
   tenant: Tenant;
   profile: Profile;
 }
 
-type AssistantSection = 'conexoes' | 'whitelist' | 'briefing' | 'perguntas' | 'automacoes';
+type AssistantSection = 'perguntar' | 'conexoes' | 'whitelist' | 'briefing' | 'perguntas' | 'automacoes';
 
 const NAV_ITEMS: { id: AssistantSection; label: string; icon: React.ReactNode }[] = [
+  { id: 'perguntar',  label: 'Perguntar',       icon: <Search size={16} /> },
   { id: 'conexoes',   label: 'Conexões',       icon: <Bot size={16} /> },
   { id: 'whitelist',  label: 'Lista de Acesso', icon: <Shield size={16} /> },
   { id: 'briefing',   label: 'Briefing Matinal', icon: <Sun size={16} /> },
@@ -72,7 +74,7 @@ function normalizePhoneDisplay(raw: string): PhonePreview | null {
 
 const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant }) => {
   const { config, loading, saving, error, saveConfig } = useBotConfig(tenant.id);
-  const [activeSection, setActiveSection] = useState<AssistantSection>('conexoes');
+  const [activeSection, setActiveSection] = useState<AssistantSection>('perguntar');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [rawPhone, setRawPhone] = useState('');
   const [phonePreview, setPhonePreview] = useState<PhonePreview | null>(null);
@@ -135,6 +137,9 @@ const AdminAssistant: React.FC<AdminAssistantProps> = ({ tenant }) => {
           </button>
         ))}
       </div>
+
+          {/* PERGUNTAR (BR-BOT-009) */}
+          {activeSection === 'perguntar' && <AssistantAsk tenantId={tenant.id} />}
 
           {/* CONEXÕES */}
           {activeSection === 'conexoes' && (
