@@ -865,6 +865,15 @@ Categorias:
 - **Status:** ativa
 - **Stories:** implementa BR-BOT-011 em 13/09/2026
 
+### BR-BOT-012: Assistente — conversas salvas e reabertas
+- **Descrição:** O chat do Assistente guarda conversas em `assistant_conversations` (uma linha por conversa, mensagens em `jsonb`). A tela tem **"Nova conversa"** e uma lista das **conversas anteriores** (até 30, mais recentes primeiro), cada uma com título e data; a conversa aberta fica marcada. Título é a primeira pergunta, cortada em 48 caracteres numa palavra inteira
+- **Condição:** Aba "Perguntar" do `AdminAssistant`; a conversa é **pessoal** — a RLS restringe ao admin dono, nem outro admin do mesmo tenant lê
+- **Resultado:** A conversa é gravada **a cada resposta**, com o detalhamento clicável junto, então reabrir devolve as linhas funcionando. Conversa vazia **não** vira linha no banco: só grava quando existe a primeira pergunta. Trocar de tela mantém a conversa aberta (cache em memória); recarregar a página começa uma conversa nova, com o histórico intacto na lista. Apagar remove do banco na hora
+- **Exceções:** Falha ao gravar **não derruba a resposta** — ela continua na tela e o erro aparece como aviso; o cliente nunca perde o número por causa do histórico. Resposta de erro de consulta ("Não consegui consultar agora") não é gravada: é falha de momento, não conversa. Conversa passa de 200 mensagens, as mais antigas caem
+- **Tabelas:** `assistant_conversations` (leitura/escrita)
+- **Status:** ativa
+- **Stories:** implementa BR-BOT-012 em 13/09/2026
+
 ### BR-TZ-001: Timezone operacional do frontend
 - **Descrição:** Toda computação de "hoje" e comparação de datas no frontend deve usar o fuso horário `America/Sao_Paulo`. Proibido usar `new Date().toISOString().split('T')[0]` para obter a data atual (retorna UTC — às 21h BRT já é dia seguinte em UTC). Proibido usar `new Date().getFullYear()/.getMonth()/.getDate()` sem timezone explícito.
 - **Condição:** Qualquer hook, componente ou serviço que compare `due_date`, `paid_at`, ou compute "hoje"

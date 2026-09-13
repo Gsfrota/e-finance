@@ -234,6 +234,28 @@ Campos relevantes:
 
 Permanece tenant-level nesta etapa. Não recebe `company_id` no v1.
 
+### `public.assistant_conversations`
+
+Histórico do chat do Assistente determinístico (BR-BOT-012), criada em 13/09/2026.
+
+| coluna | tipo | nota |
+|---|---|---|
+| `id` | uuid pk | `gen_random_uuid()` |
+| `tenant_id` | uuid not null → `tenants` | on delete cascade |
+| `user_id` | uuid not null → `profiles` | dono da conversa; on delete cascade |
+| `title` | text not null | primeira pergunta, cortada em 48 caracteres |
+| `messages` | jsonb not null | a conversa inteira, incluindo o detalhamento clicável |
+| `created_at` / `updated_at` | timestamptz | |
+
+Sem `company_id` **de propósito**: uma conversa pode cruzar empresas e cada resposta
+já diz o escopo dela no texto.
+
+RLS `assistant_conversations_owner` (FOR ALL): `tenant_id = get_tenant_id_safe() AND
+get_profile_role_safe() = 'admin' AND user_id = get_profile_id_safe()` — nem outro admin
+do mesmo tenant lê a conversa alheia. `anon` sem grant; `authenticated` só com
+SELECT/INSERT/UPDATE/DELETE (TRUNCATE revogado, porque TRUNCATE ignora RLS).
+Índice `(tenant_id, user_id, updated_at desc)` para a lista.
+
 ## Helpers SQL e RPCs afetados
 
 ### Helpers de contexto
