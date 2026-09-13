@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, ChevronRight, SendHorizontal } from 'lucide-react';
+import { ChevronDown, ChevronRight, HelpCircle, SendHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ReplyDetails, ReplyLine } from '@/utils/assistantTypes';
 
@@ -18,6 +18,20 @@ export interface ChatSuggestion {
   prefix: string;
 }
 
+/** Uma pergunta pronta do catálogo. `needsInput` só preenche o campo, sem enviar. */
+export interface CatalogItem {
+  label: string;
+  question: string;
+  needsInput?: boolean;
+}
+
+/** Assunto do catálogo — vira um cartão com as perguntas prontas dentro. */
+export interface CatalogGroup {
+  title: string;
+  icon: React.ReactNode;
+  items: CatalogItem[];
+}
+
 export interface AnimatedAIChatProps {
   messages: ChatMessage[];
   isTyping: boolean;
@@ -28,6 +42,8 @@ export interface AnimatedAIChatProps {
   emptyTitle?: string;
   /** Clique numa linha do detalhamento — abre o contrato de origem. */
   onOpenLine?: (line: ReplyLine) => void;
+  /** Tudo que o assistente sabe responder, agrupado por assunto. */
+  catalog?: CatalogGroup[];
 }
 
 interface UseAutoResizeTextareaProps {
@@ -182,6 +198,53 @@ function ReplyBreakdown({
   );
 }
 
+/**
+ * Catálogo de perguntas prontas. É o que responde "o que eu posso perguntar?" sem
+ * o cliente ter que adivinhar — some do caminho depois que a conversa começa,
+ * mas continua a um clique no botão de ajuda.
+ */
+function CatalogPanel({
+  groups,
+  onPick,
+}: {
+  groups: CatalogGroup[];
+  onPick: (item: CatalogItem) => void;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2" data-testid="catalogo">
+      {groups.map((group) => (
+        <div
+          key={group.title}
+          className="rounded-xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-elevated)] p-3"
+        >
+          <div className="mb-2 flex items-center gap-2">
+            <span className="flex h-4 w-4 items-center justify-center text-teal-400">
+              {group.icon}
+            </span>
+            <span className="text-xs font-semibold text-[color:var(--text-primary)]">
+              {group.title}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {group.items.map((item) => (
+              <button
+                key={item.question + item.label}
+                type="button"
+                onClick={() => onPick(item)}
+                data-testid="catalogo-item"
+                title={item.question}
+                className="rounded-full border border-[color:var(--border-subtle)] px-2.5 py-1 text-[11px] text-[color:var(--text-muted)] transition-colors hover:border-teal-400/60 hover:text-teal-400"
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function AnimatedAIChat({
   messages,
   isTyping,
@@ -191,12 +254,14 @@ export function AnimatedAIChat({
   placeholder = 'Pergunte alguma coisa...',
   emptyTitle = 'Como posso ajudar?',
   onOpenLine,
+  catalog = [],
 }: AnimatedAIChatProps) {
   const [value, setValue] = useState('');
   const [inputFocused, setInputFocused] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [mostrarCatalogo, setMostrarCatalogo] = useState(false);
 
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({ minHeight: 60, maxHeight: 200 });
   const commandPaletteRef = useRef<HTMLDivElement>(null);
@@ -251,6 +316,18 @@ export function AnimatedAIChat({
     setValue('');
     adjustHeight(true);
     setShowCommandPalette(false);
+  };
+
+  /** Pergunta completa vai direto; a que precisa de nome só preenche o campo. */
+  const pickCatalog = (item: CatalogItem) => {
+    setMostrarCatalogo(false);
+    if (item.needsInput) {
+      setValue(item.question);
+      textareaRef.current?.focus();
+      requestAnimationFrame(() => adjustHeight());
+      return;
+    }
+    onSend(item.question);
   };
 
   const selectSuggestion = (index: number) => {
@@ -344,9 +421,13 @@ export function AnimatedAIChat({
               transition={{ delay: 0.3, duration: 0.7 }}
             />
             <p className="mt-3 text-sm text-[color:var(--text-muted)]">
-              Digite <span className="font-mono text-[color:var(--text-secondary)]">/</span> para ver
-              o que {assistantName} sabe responder.
+              Toque numa pergunta pronta ou escreva do seu jeito.
             </p>
+            {catalog.length > 0 && (
+              <div className="mt-5 w-full max-w-2xl text-left">
+                <CatalogPanel groups={catalog} onPick={pickCatalog} />
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -394,6 +475,16 @@ export function AnimatedAIChat({
       </div>
 
       {/* Input */}
+      {mostrarCatalogo && catalog.length > 0 && messages.length > 0 && (
+        <motion.div
+          className="relative z-10 mt-4"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <CatalogPanel groups={catalog} onPick={pickCatalog} />
+        </motion.div>
+      )}
+
       <motion.div
         className="relative z-10 mt-4"
         initial={{ opacity: 0, y: 16 }}
@@ -488,7 +579,8 @@ export function AnimatedAIChat({
           </div>
         </div>
 
-        {suggestions.length > 0 && (
+        {/* na tela vazia os chips repetiriam o catálogo, que já está aberto acima */}
+        {suggestions.length > 0 && !(messages.length === 0 && catalog.length > 0) && (
           <div className="mt-3 flex flex-wrap gap-2">
             {suggestions.map((suggestion, index) => (
               <motion.button
@@ -507,6 +599,18 @@ export function AnimatedAIChat({
                 {suggestion.label}
               </motion.button>
             ))}
+
+            {catalog.length > 0 && messages.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setMostrarCatalogo((v) => !v)}
+                data-testid="ver-catalogo"
+                className="flex items-center gap-1.5 rounded-full border border-teal-400/40 bg-teal-400/10 px-3 py-1.5 text-xs font-semibold text-teal-500 transition-colors hover:border-teal-400 dark:text-teal-300"
+              >
+                <HelpCircle className="h-3.5 w-3.5" />
+                {mostrarCatalogo ? 'Fechar' : 'O que posso perguntar'}
+              </button>
+            )}
           </div>
         )}
       </motion.div>

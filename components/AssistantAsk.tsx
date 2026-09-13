@@ -6,6 +6,7 @@ import {
   Wallet,
   Sparkles,
   Plus,
+  User,
   History,
   Trash2,
   Check,
@@ -20,7 +21,21 @@ import {
   apagarConversa,
   type ConversationSummary,
 } from '../services/assistantConversations';
-import { AnimatedAIChat, type ChatMessage, type ChatSuggestion } from './ui/animated-ai-chat';
+import {
+  ASSISTANT_CATALOG,
+  CATALOG_GROUPS,
+  GROUP_LENT,
+  GROUP_LATE,
+  GROUP_RECEIVABLES,
+  GROUP_RECEIVED,
+  GROUP_DEBTOR,
+} from '../utils/assistantCatalog';
+import {
+  AnimatedAIChat,
+  type ChatMessage,
+  type ChatSuggestion,
+  type CatalogGroup,
+} from './ui/animated-ai-chat';
 
 interface AssistantAskProps {
   tenantId: string;
@@ -28,7 +43,30 @@ interface AssistantAskProps {
   onOpenContract?: (investmentId: number, companyId: string | null) => void;
 }
 
-/** Atalhos fixos — o que ele sabe responder hoje (BR-BOT-009 / BR-BOT-010). */
+/**
+ * Os grupos da tela saem do catálogo em `utils/assistantCatalog.ts` — lá é dado puro,
+ * e o teste exige que toda pergunta oferecida seja entendida pelo motor. Aqui só entra
+ * o ícone de cada assunto.
+ */
+const ICONES: Record<string, React.ReactNode> = {
+  [GROUP_LENT]: <Landmark className="w-4 h-4" />,
+  [GROUP_LATE]: <AlertTriangle className="w-4 h-4" />,
+  [GROUP_RECEIVABLES]: <CalendarClock className="w-4 h-4" />,
+  [GROUP_RECEIVED]: <Wallet className="w-4 h-4" />,
+  [GROUP_DEBTOR]: <User className="w-4 h-4" />,
+};
+
+const CATALOG: CatalogGroup[] = CATALOG_GROUPS.map(titulo => ({
+  title: titulo,
+  icon: ICONES[titulo],
+  items: ASSISTANT_CATALOG.filter(e => e.group === titulo).map(({ label, question, needsInput }) => ({
+    label,
+    question,
+    needsInput,
+  })),
+}));
+
+/** Atalhos rápidos que ficam sempre à mão, ao lado do campo. */
 const SUGGESTIONS: ChatSuggestion[] = [
   { icon: <Landmark className="w-4 h-4" />, label: 'Emprestado na semana', prefix: 'Quanto emprestei essa semana?' },
   { icon: <AlertTriangle className="w-4 h-4" />, label: 'Quem está atrasado', prefix: 'Quem está atrasado?' },
@@ -324,7 +362,8 @@ const AssistantAsk: React.FC<AssistantAskProps> = ({ tenantId, onOpenContract })
         onSend={handleSend}
         placeholder={`Pergunte ao ${config.ai_persona_name}...`}
         emptyTitle={`Oi! Sou o ${config.ai_persona_name}`}
-        onOpenLine={onOpenContract ? line => onOpenContract(line.investmentId, line.companyId) : undefined}
+        catalog={CATALOG}
+      onOpenLine={onOpenContract ? line => onOpenContract(line.investmentId, line.companyId) : undefined}
       />
     </div>
   );

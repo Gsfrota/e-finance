@@ -876,6 +876,15 @@ Categorias:
 - **Status:** ativa
 - **Stories:** implementa BR-BOT-012 em 13/09/2026
 
+### BR-BOT-013: Assistente — catálogo de perguntas prontas
+- **Descrição:** A tela do Assistente mostra, agrupado por assunto, tudo que ele sabe responder: *Quanto emprestei*, *Quem está atrasado*, *Quanto tenho a receber*, *Quanto entrou* e *Sobre um cliente*. Cada assunto traz as variações de período que o motor entende (hoje, ontem, essa semana, esse mês, últimos 15 dias, próximos 7/30 dias)
+- **Condição:** Conversa vazia mostra o catálogo aberto no lugar dos atalhos; com conversa em andamento ele sai do caminho e volta pelo botão **"O que posso perguntar"**, acima do campo
+- **Resultado:** Clicar numa pergunta completa **envia** direto. A pergunta sobre um cliente só **preenche** o campo ("Quanto o ") e devolve o cursor — falta o nome, que só o dono sabe. O catálogo é dado puro em `utils/assistantCatalog.ts`, separado do JSX, justamente para o teste poder percorrê-lo
+- **Exceções:** **Toda pergunta do catálogo tem que ser entendida pelo motor** — botão que devolve "não entendi" é pior que botão nenhum, porque o cliente conclui que o assistente está quebrado e a culpa é da tela. O teste unitário percorre o catálogo inteiro e falha se alguma cair em `unknown`; as de cliente são a exceção declarada, e o teste exige que elas fiquem incompletas
+- **Tabelas:** nenhuma — é tela
+- **Status:** ativa
+- **Stories:** implementa BR-BOT-013 em 13/09/2026
+
 ### BR-TZ-001: Timezone operacional do frontend
 - **Descrição:** Toda computação de "hoje" e comparação de datas no frontend deve usar o fuso horário `America/Sao_Paulo`. Proibido usar `new Date().toISOString().split('T')[0]` para obter a data atual (retorna UTC — às 21h BRT já é dia seguinte em UTC). Proibido usar `new Date().getFullYear()/.getMonth()/.getDate()` sem timezone explícito.
 - **Condição:** Qualquer hook, componente ou serviço que compare `due_date`, `paid_at`, ou compute "hoje"
