@@ -120,6 +120,23 @@ describe('matchAssistant — intents', () => {
     }
   });
 
+  // Achados na bateria de 43 variações contra produção (13/09/2026).
+  it('pronome interrogativo nunca vira nome de cliente', () => {
+    for (const p of ['quem me deve', 'quem me deve?', 'quem esta devendo', 'quem deve']) {
+      const m = em(p);
+      expect(m.intent, p).toBe('late_debtors');
+      expect(m.debtorName, p).toBeUndefined();
+    }
+  });
+
+  it('received também entende "pago" na voz passiva', () => {
+    for (const p of ['quanto foi pago hoje', 'quanto pagaram hoje', 'quem pagou hoje']) {
+      expect(em(p).intent, p).toBe('received');
+    }
+    // ...sem roubar as frases de cobrança, que são testadas antes dele
+    expect(em('quem nao pagou').intent).toBe('late_debtors');
+  });
+
   it('receivables: o que ainda vai entrar', () => {
     for (const p of [
       'quanto tenho pra receber',

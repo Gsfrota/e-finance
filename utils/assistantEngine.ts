@@ -125,18 +125,23 @@ export function resolvePeriod(kind: PeriodKind, now: Date = new Date(), n?: numb
 // ---------------------------------------------------------------------------
 
 const LATE_DEBTORS =
-  /(atrasad|inadimplent|quem nao pagou|quem nao me pagou|nao pagaram|devo cobrar|preciso cobrar|quem cobrar|cobrar hoje|em atraso)/;
+  /(atrasad|inadimplent|quem nao pagou|quem nao me pagou|nao pagaram|devo cobrar|preciso cobrar|quem cobrar|cobrar hoje|em atraso|quem (?:ainda )?me deve|quem (?:esta|ta) devendo|quem deve)/;
 
 const RECEIVABLES =
   /(pra receber|para receber|vou receber|a receber|tenho que receber|recebivel|recebiveis|o que vence|que vence|quanto vence|vai vencer|quanto entra)/;
 
-const RECEIVED = /\b(recebi|recebemos|entrou|caiu|recebimento|recebimentos)\b/;
+// 'pagou/pagaram/foi pago' entram aqui, mas LATE_DEBTORS é testado antes e fica com
+// "quem não pagou" — a ordem de detectIntent é que separa os dois.
+const RECEIVED =
+  /\b(recebi|recebemos|entrou|caiu|recebimento|recebimentos|pagaram|pagou|foi pago|foram pagos)\b/;
 
 /** Preposição/pronome que gruda no nome — some das pontas antes de devolver `debtorName`. */
 const NAME_STOPWORDS = new Set([
   'quanto', 'quantos', 'qual', 'que', 'o', 'a', 'os', 'as', 'do', 'da', 'de', 'dos', 'das',
   'eu', 'ja', 'ainda', 'me', 'mim', 'sr', 'sra', 'senhor', 'senhora', 'dona', 'seu', 'sua',
   'cliente', 'pro', 'pra', 'para', 'no', 'na', 'e', 'com', 'saldo', 'falta', 'deve', 'devendo',
+  // interrogativo nunca é nome: sem isto, "quem me deve?" virava busca pelo cliente "quem"
+  'quem', 'quantas', 'quais', 'quanta',
 ]);
 
 const DEBTOR_PATTERNS: RegExp[] = [
