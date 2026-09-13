@@ -91,19 +91,27 @@ export interface DateRangeBR {
 }
 
 /**
- * Intervalo [hoje - offsetDays, amanhã) em BRT, como timestamps UTC prontos para query.
- * Meia-noite BRT = 03:00 UTC.
+ * Janela [hoje+startOffset 00:00 BRT, hoje+endOffset 00:00 BRT), como timestamps UTC
+ * prontos para query. Fim EXCLUSIVO. Meia-noite BRT = 03:00 UTC.
  */
-function rangeEndingTodayBR(now: Date, offsetDays: number): DateRangeBR {
+export function getDayWindowBR(now: Date, startOffset: number, endOffset: number): DateRangeBR {
   const { year, month, day } = getDatePartsInBrazil(now);
-  const start = new Date(Date.UTC(year, month - 1, day - offsetDays, 3, 0, 0));
-  const end = new Date(Date.UTC(year, month - 1, day + 1, 3, 0, 0));
+  const start = new Date(Date.UTC(year, month - 1, day + startOffset, 3, 0, 0));
+  const end = new Date(Date.UTC(year, month - 1, day + endOffset, 3, 0, 0));
   return {
     startISO: start.toISOString(),
     endISO: end.toISOString(),
     startYMD: toBrazilYMD(start),
     endYMD: toBrazilYMD(end),
   };
+}
+
+/**
+ * Intervalo [hoje - offsetDays, amanhã) em BRT, como timestamps UTC prontos para query.
+ * Meia-noite BRT = 03:00 UTC.
+ */
+function rangeEndingTodayBR(now: Date, offsetDays: number): DateRangeBR {
+  return getDayWindowBR(now, -offsetDays, 1);
 }
 
 /**
@@ -117,7 +125,28 @@ export function getWeekToDateRangeBR(now: Date = new Date()): DateRangeBR {
   return rangeEndingTodayBR(now, daysSinceMonday);
 }
 
+/**
+ * Restante da semana: hoje 00:00 BRT até segunda 00:00 BRT (BR-BOT-010).
+ * Usado por "a receber essa semana" — recebível olha pra frente, então da semana
+ * corrente só interessa o que ainda vai vencer. No domingo devolve só hoje.
+ */
+export function getWeekRemainderRangeBR(now: Date = new Date()): DateRangeBR {
+  const { year, month, day } = getDatePartsInBrazil(now);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay(); // 0=domingo
+  const daysSinceMonday = (weekday + 6) % 7;
+  return getDayWindowBR(now, 0, 7 - daysSinceMonday);
+}
+
 /** Últimos 7 dias: hoje-6 00:00 BRT até o fim de hoje (BR-BOT-009). */
 export function getLast7DaysRangeBR(now: Date = new Date()): DateRangeBR {
   return rangeEndingTodayBR(now, 6);
+}
+
+/**
+ * Mês corrente até o fim de hoje: dia 1 00:00 BRT → amanhã 00:00 BRT (BR-BOT-010).
+ * Difere de getMonthRangeBR(), que vai até o fim do mês (inclui futuro).
+ */
+export function getMonthToDateRangeBR(now: Date = new Date()): DateRangeBR {
+  const { day } = getDatePartsInBrazil(now);
+  return getDayWindowBR(now, -(day - 1), 1);
 }

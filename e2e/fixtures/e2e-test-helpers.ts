@@ -124,6 +124,27 @@ export async function resolveScope(ctx: SupabaseCtx): Promise<{ tenantId: string
   };
 }
 
+/** 'YYYY-MM-DD' de um Date no fuso de operação (BR-TZ-001). */
+export function ymdBR(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+/** Meia-noite BRT (= 03:00 UTC) do dia `ymd` deslocado de `offsetDays`. */
+export function midnightBR(ymd: string, offsetDays: number): Date {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + offsetDays, 3, 0, 0));
+}
+
+/** 'YYYY-MM-DD' deslocado de `offsetDays` em BRT — comparável direto com `due_date`. */
+export function ymdOffsetBR(ymd: string, offsetDays: number): string {
+  return midnightBR(ymd, offsetDays).toISOString().slice(0, 10);
+}
+
 /** Cria data YYYY-MM-DD com offset em dias. */
 export function dateOffset(days: number): string {
   const d = new Date();

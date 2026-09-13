@@ -1,5 +1,13 @@
 import { test, expect } from '@playwright/test';
-import { getCtx, restCall, resolveScope, waitForApp, navigateToView } from '../fixtures/e2e-test-helpers';
+import {
+  getCtx,
+  restCall,
+  resolveScope,
+  waitForApp,
+  navigateToView,
+  ymdBR,
+  midnightBR,
+} from '../fixtures/e2e-test-helpers';
 
 /**
  * BR-BOT-009 — o Assistente responde "quanto emprestei essa semana" com número do banco.
@@ -13,24 +21,6 @@ import { getCtx, restCall, resolveScope, waitForApp, navigateToView } from '../f
  * NÃO escreve no banco: o tenant de QA vive em produção. As bordas de janela (limite de
  * 1 segundo, virada de semana) são cobertas por tests/unit/assistantEngine.test.ts.
  */
-
-const BRAZIL_TZ = 'America/Sao_Paulo';
-
-/** 'YYYY-MM-DD' de um Date no fuso de operação. */
-function ymdBR(date: Date): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: BRAZIL_TZ,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date);
-}
-
-/** Meia-noite BRT (= 03:00 UTC) do dia `ymd` deslocado de `offsetDays`. */
-function midnightBR(ymd: string, offsetDays: number): Date {
-  const [y, m, d] = ymd.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d + offsetDays, 3, 0, 0));
-}
 
 const brl = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -126,7 +116,7 @@ test('Assistente responde o volume emprestado da semana com o número do banco (
   }
 
   // Pergunta fora do escopo não pode inventar número (BR-BOT-009, exceções)
-  await input.fill('quanto emprestei esse mês?');
+  await input.fill('qual a cotação do dólar?');
   await page.keyboard.press('Enter');
   await expect(page.getByText('Não entendi a pergunta.')).toBeVisible({ timeout: 10_000 });
 });

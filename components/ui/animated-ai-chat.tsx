@@ -263,6 +263,7 @@ export function AnimatedAIChat({
           {messages.map((message) => (
             <motion.div
               key={message.id}
+              data-testid={`chat-msg-${message.role}`}
               layout
               initial={{ opacity: 0, y: 14, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}

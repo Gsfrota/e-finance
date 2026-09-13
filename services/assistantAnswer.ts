@@ -1,13 +1,14 @@
 /**
- * Camada de resposta em TEXTO do Assistente (BR-BOT-009).
+ * Volume emprestado, em texto de chat (BR-BOT-009 / BR-BOT-010).
  *
- * O motor (utils/assistantEngine.ts) classifica e soma; aqui só viram frase de chat.
+ * O motor (utils/assistantEngine.ts) classifica e soma; aqui só vira frase.
  * Formatação é função pura — testada em tests/unit/assistantAnswer.test.ts.
  */
 
 import { getSupabase, parseSupabaseError } from './supabase';
 import { getWeekToDateRangeBR, getLast7DaysRangeBR } from './dateUtils';
-import { matchAssistantIntent, sumLentInRange, type LentRow } from '../utils/assistantEngine';
+import { sumLentInRange, type LentRow } from '../utils/assistantEngine';
+import type { AssistantCtx, AssistantReply, ResolvedPeriod } from '../utils/assistantTypes';
 
 export interface LentVolumeAnswer {
   week: { total: number; count: number; startYMD: string };
@@ -23,16 +24,17 @@ const formatDM = (ymd: string) => {
   return `${day}/${month}`;
 };
 
+const contratos = (n: number) => `${n} ${n === 1 ? 'contrato' : 'contratos'}`;
+
 const linha = (titulo: string, periodo: string, dado: { total: number; count: number }) => {
   const cabecalho = `*${titulo}* (${periodo})`;
   if (dado.count === 0) {
     return `${cabecalho}\nNenhum contrato cadastrado nesse período — ${formatBRL(0)}`;
   }
-  const plural = dado.count === 1 ? 'contrato' : 'contratos';
-  return `${cabecalho}\n${formatBRL(dado.total)} em ${dado.count} ${plural}`;
+  return `${cabecalho}\n${formatBRL(dado.total)} em ${contratos(dado.count)}`;
 };
 
-/** Formata a resposta em texto de chat. Função PURA — é o que os testes cobrem. */
+/** Resposta padrão (sem período na pergunta): as duas janelas juntas. Função PURA. */
 export function formatLentVolumeAnswer(data: LentVolumeAnswer, scopeLabel: string): string {
   return [
     `Volume emprestado — ${scopeLabel}:`,
@@ -45,47 +47,83 @@ export function formatLentVolumeAnswer(data: LentVolumeAnswer, scopeLabel: strin
   ].join('\n');
 }
 
-/** Texto de recusa quando a pergunta não é reconhecida. Função PURA. */
+/** Resposta quando a pergunta cita um período específico. Função PURA. */
+export function formatLentVolumePeriod(
+  dado: { total: number; count: number },
+  period: ResolvedPeriod,
+): string {
+  if (dado.count === 0) {
+    return `${capitalizar(period.label)} você não cadastrou nenhum contrato.`;
+  }
+  return `${capitalizar(period.label)} você emprestou *${formatBRL(dado.total)}*, em ${contratos(dado.count)}.\n\nRenovações contam como empréstimo.`;
+}
+
+const capitalizar = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Texto de recusa: diz o que ele SABE responder. Função PURA. */
 export function formatUnknownAnswer(): string {
   return [
     'Não entendi a pergunta.',
     '',
-    'Hoje eu sei responder só uma coisa: quanto você emprestou na semana (semana corrente e últimos 7 dias).',
+    'Por enquanto eu respondo:',
+    '• quanto você emprestou num período',
+    '• quem está atrasado',
+    '• quanto tem pra receber',
+    '• quanto entrou',
+    '• quanto um cliente deve',
+    '',
     'Ex.: "quanto emprestei essa semana?"',
   ].join('\n');
 }
 
-/** Busca no Supabase e devolve o texto pronto pro chat. */
-export async function answerAssistantQuestion(
-  question: string,
-  ctx: { tenantId: string; companyId: string | null; scopeLabel: string }
-): Promise<string> {
-  if (matchAssistantIntent(question) !== 'lent_volume') {
-    return formatUnknownAnswer(); // nunca consulta o banco sem intenção reconhecida
-  }
+export function formatUnknownReply(): AssistantReply {
+  return { text: formatUnknownAnswer(), followUp: 'Quem está atrasado?' };
+}
 
+/**
+ * Busca no Supabase e devolve a resposta pronta.
+ * `period` nulo = comportamento padrão de BR-BOT-009 (semana corrente + últimos 7 dias).
+ */
+export async function answerLentVolume(
+  period: ResolvedPeriod | null,
+  ctx: AssistantCtx,
+): Promise<AssistantReply> {
   const week = getWeekToDateRangeBR();
   const last7 = getLast7DaysRangeBR();
-  // Uma leitura só: a janela maior cobre as duas
-  const fromISO = week.startISO < last7.startISO ? week.startISO : last7.startISO;
+  const fromISO = period
+    ? period.startISO
+    : (week.startISO < last7.startISO ? week.startISO : last7.startISO);
+  const toISO = period ? period.endISO : week.endISO;
 
   let query = getSupabase()
     .from('investments')
     .select('amount_invested, created_at')
     .eq('tenant_id', ctx.tenantId)
     .gte('created_at', fromISO)
-    .lt('created_at', week.endISO);
+    .lt('created_at', toISO);
   if (ctx.companyId) query = query.eq('company_id', ctx.companyId);
 
   const { data, error } = await query;
   if (error) throw new Error(parseSupabaseError(error));
 
   const rows = (data ?? []) as LentRow[];
-  return formatLentVolumeAnswer(
-    {
-      week: { ...sumLentInRange(rows, week.startISO, week.endISO), startYMD: week.startYMD },
-      last7: { ...sumLentInRange(rows, last7.startISO, last7.endISO), startYMD: last7.startYMD },
-    },
-    ctx.scopeLabel
-  );
+  const followUp = 'Quem está atrasado?';
+
+  if (period) {
+    return {
+      text: formatLentVolumePeriod(sumLentInRange(rows, period.startISO, period.endISO), period),
+      followUp,
+    };
+  }
+
+  return {
+    text: formatLentVolumeAnswer(
+      {
+        week: { ...sumLentInRange(rows, week.startISO, week.endISO), startYMD: week.startYMD },
+        last7: { ...sumLentInRange(rows, last7.startISO, last7.endISO), startYMD: last7.startYMD },
+      },
+      ctx.scopeLabel,
+    ),
+    followUp,
+  };
 }

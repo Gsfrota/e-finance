@@ -64,14 +64,19 @@ describe('formatLentVolumeAnswer', () => {
 });
 
 describe('formatUnknownAnswer', () => {
-  it('recusa dizendo o que sabe hoje e dá um exemplo', () => {
+  it('recusa listando o catálogo atual e dá um exemplo (BR-BOT-010)', () => {
     const texto = formatUnknownAnswer();
     expect(texto).toContain('Não entendi a pergunta.');
-    expect(texto).toContain('quanto você emprestou na semana');
+    expect(texto).toContain('quanto você emprestou num período');
+    expect(texto).toContain('quem está atrasado');
+    expect(texto).toContain('quanto tem pra receber');
+    expect(texto).toContain('quanto entrou');
+    expect(texto).toContain('quanto um cliente deve');
     expect(texto).toContain('"quanto emprestei essa semana?"');
   });
 
-  it('não promete capacidade que não existe', () => {
-    expect(formatUnknownAnswer()).not.toMatch(/\b(mês|mes|ano|atrasad|lucro|receb)/i);
+  it('não promete capacidade fora do catálogo', () => {
+    // nada de relatório, gráfico, previsão ou criação de contrato pelo chat
+    expect(formatUnknownAnswer()).not.toMatch(/relat[óo]rio|gr[áa]fico|previs[ãa]o|criar contrato|renegoci/i);
   });
 });
