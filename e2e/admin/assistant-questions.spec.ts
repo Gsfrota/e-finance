@@ -50,15 +50,16 @@ const aberto = (p: ParcelaAberta) =>
 
 /**
  * O Assistente grava cada resposta (BR-BOT-012), então conversar aqui deixa linha no
- * banco. A RLS restringe ao próprio usuário de teste, então isto só apaga o que o
- * teste criou — mas apaga sempre, inclusive quando o teste cai no meio.
+ * banco. A marca vai na PRIMEIRA pergunta, que é a que vira título da conversa, e o
+ * afterEach apaga só por ela: os specs rodam em paralelo no mesmo tenant de QA, e
+ * apagar por tenant fazia um teste derrubar a conversa do outro.
  */
+const marca = `e2e-quest-${Date.now()}`;
+
 test.afterEach(async ({ page }) => {
   const ctx = await getCtx(page).catch(() => null);
   if (!ctx) return;
-  const { tenantId } = await resolveScope(ctx).catch(() => ({ tenantId: '' }));
-  if (!tenantId) return;
-  await restCall(ctx, `assistant_conversations?tenant_id=eq.${tenantId}`, 'DELETE').catch(
+  await restCall(ctx, `assistant_conversations?title=like.*${marca}*`, 'DELETE').catch(
     () => undefined,
   );
 });
@@ -151,7 +152,7 @@ test('Assistente responde atraso, a receber, recebido e saldo do cliente com o n
   };
 
   // 1. Quem está atrasado
-  const respAtraso = await perguntar('quem está atrasado?');
+  const respAtraso = await perguntar(`${marca} quem está atrasado?`);
   const atrasoDepois = atrasoDe(await lerAbertas());
   const textoAtraso = (d: { total: number; clientes: number }) =>
     d.clientes === 0
