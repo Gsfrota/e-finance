@@ -9,6 +9,8 @@ export interface BotConfig {
   followup_style: 'natural' | 'direto' | 'disabled';
   whitelist_enabled: boolean;
   whitelist_phones: string[];
+  /** Nome do assistente configurado pelo tenant (Salomão, Elisa, ...). Só leitura aqui. */
+  ai_persona_name: string;
 }
 
 const DEFAULT_CONFIG: BotConfig = {
@@ -19,6 +21,7 @@ const DEFAULT_CONFIG: BotConfig = {
   followup_style: 'natural',
   whitelist_enabled: false,
   whitelist_phones: [],
+  ai_persona_name: 'Assistente',
 };
 
 export function useBotConfig(tenantId: string) {
@@ -50,6 +53,7 @@ export function useBotConfig(tenantId: string) {
           followup_style: data.followup_style,
           whitelist_enabled: data.whitelist_enabled ?? false,
           whitelist_phones: data.whitelist_phones ?? [],
+          ai_persona_name: data.ai_persona_name || 'Assistente',
         });
       }
     } catch (err: unknown) {
