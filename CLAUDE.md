@@ -42,13 +42,13 @@ Os testes ficam em `e2e/` organizados por role: `auth/`, `admin/`, `investor/`, 
 
 ## Deploy & CI
 
-O **web app** deploya no **Google Cloud Run** via `.github/workflows/deploy.yml` (gatilho: `push` na `main`; ignora `e-finance-bot/**`, `*.md`, `docs/**`). Prod: **`https://juroscerto.com`** (service `e-finance`, projeto `tribal-pillar-476701-a3`, região `us-west1`). O bot tem deploy próprio (`deploy-bot.yml`).
+O **web app** deploya na **Vercel** (git-connected na `main`). Prod: **`https://e-finance-eight.vercel.app`**. ⚠️ A infra do Google Cloud **não existe mais** e o domínio `juroscerto.com` **não responde** — ignore qualquer referência a Cloud Run, `tribal-pillar-476701-a3` ou `us-west1` que ainda exista em docs e workflows. O CI (`.github/workflows/deploy.yml`) roda os gates, mas **CI vermelho NÃO segura o deploy da Vercel**.
 
 - O job `deploy` **depende** do job `test` (E2E Critical Gate), que roda nesta ordem: `npx tsc --noEmit` → `npm run build` → Playwright E2E (tiers 0/1/2).
 - ⚠️ **`tsc --noEmit` quebrado CONGELA produção silenciosamente**: o job `test` falha → `deploy` vira *skipped* → o último build permanece no ar sem aviso óbvio. **Sempre rode `npx tsc --noEmit` antes de pushar** — `npm run build` (vite) NÃO typecheca.
 - `tsconfig` usa `types: ["node"]` (sem `@types/react` nem `vite/client`): `import.meta.env` exige `vite-env.d.ts` (`/// <reference types="vite/client" />`); classes que estendem `React.Component` precisam declarar `props`/`state` explicitamente.
-- Confirmar o que está REALMENTE no ar: comparar o hash do bundle (`curl -s https://juroscerto.com | grep -o 'assets/index-[^"]*\.js'`) ou buscar a string única de um fix no bundle baixado. Bundle minificado é ~1 linha → `grep -c` conta linhas (engana); prefira presença / `grep -o … | wc -l`.
-- **`git push` / PR / merge / release / Cloud Run é autoridade EXCLUSIVA do @devops.**
+- Confirmar o que está REALMENTE no ar: comparar o hash do bundle (`curl -s https://e-finance-eight.vercel.app | grep -o 'assets/index-[^"]*\.js'`) ou buscar a string única de um fix no bundle baixado. Bundle minificado é ~1 linha → `grep -c` conta linhas (engana); prefira presença / `grep -o … | wc -l`.
+- **`git push` / PR / merge / release / deploy é autoridade EXCLUSIVA do @devops.**
 
 ## Environment
 
