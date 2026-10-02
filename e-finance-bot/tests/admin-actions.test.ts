@@ -145,6 +145,19 @@ describe('parseContractTextDeterministic', () => {
     });
   });
 
+  it('extrai vencimento na forma "parcelas dia N" (sem "todo")', () => {
+    // Regressão: extractDueDay divergia de extractContractDueDay e perdia o
+    // "dia N" puro, causando vazamento do dia entre rascunhos de contrato.
+    const parsed = parseContractTextDeterministic('contrato pro Delta, CPF 529.982.247-25, 1000 por 2000, 5 parcelas dia 5');
+    expect(parsed).toMatchObject({
+      debtor_name: 'Delta',
+      amount: 1000,
+      installments: 5,
+      frequency: 'monthly',
+      due_day: 5,
+    });
+  });
+
   it('retorna null quando faltam dados mínimos', () => {
     const parsed = parseContractTextDeterministic('quero criar algo pra depois');
     expect(parsed).toBeNull();
