@@ -1233,7 +1233,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({
                                         value={installmentsInput}
                                         onChange={e => setInstallmentsInput(e.target.value.replace(/\D/g, ''))}
                                         onBlur={() => {
-                                            const v = Math.min(120, Math.max(1, parseInt(installmentsInput) || 1));
+                                            const v = Math.min(160, Math.max(1, parseInt(installmentsInput) || 1));
                                             setInstallmentsInput(String(v));
                                             updateFormState({ total_installments: v });
                                         }}
@@ -1242,7 +1242,7 @@ const AdminContracts: React.FC<AdminContractsProps> = ({
                                     />
                                     <span className="type-micro text-[color:var(--text-muted)] block">Parcelas</span>
                                 </div>
-                                <button onClick={() => { const v = Math.min(120, formData.total_installments + 1); updateFormState({ total_installments: v }); setInstallmentsInput(String(v)); }} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Plus size={20}/></button>
+                                <button onClick={() => { const v = Math.min(160, formData.total_installments + 1); updateFormState({ total_installments: v }); setInstallmentsInput(String(v)); }} className="w-12 h-12 flex items-center justify-center text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-elevated)] rounded-xl transition-all"><Plus size={20}/></button>
                             </div>
                         </div>
                     )}

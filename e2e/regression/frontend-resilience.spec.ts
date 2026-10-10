@@ -295,6 +295,33 @@ test.describe('FIX-001 — resiliência contra tela azul/vazia', () => {
     await expect(page.getByRole('button', { name: 'Limpar cache e tentar novamente' })).toBeVisible();
   });
 
+  test('CNT-001 — formulário aceita até 160 parcelas e preserva os limites', async ({ page }) => {
+    const unexpectedRequests = await setupEmptyEnterprise(page);
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: 'Contratos', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Novo Contrato', exact: true }).click();
+    await page.getByPlaceholder('Busque ou selecione o cliente...').click();
+    await page.getByRole('button', { name: /Admin Resiliência/ }).click();
+    await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+
+    const count = page.getByRole('textbox', { name: 'Número de parcelas' });
+    const controls = count.locator('../..');
+    for (const [input, expected] of [['120', '120'], ['159', '159'], ['160', '160'], ['161', '160'], ['0', '1'], ['', '1']]) {
+      await count.fill(input);
+      await count.blur();
+      await expect(count).toHaveValue(expected);
+    }
+    await controls.getByRole('button').first().click();
+    await expect(count).toHaveValue('1');
+    await count.fill('159');
+    await count.blur();
+    await controls.getByRole('button').last().click();
+    await expect(count).toHaveValue('160');
+    await controls.getByRole('button').last().click();
+    await expect(count).toHaveValue('160');
+    expect(unexpectedRequests).toEqual([]);
+  });
+
   test('Caderneta vazia continua renderizada durante refetch de empresa', async ({ page }) => {
     const unexpectedSupabaseRequests = await setupEmptyEnterprise(page);
     await page.goto('/', { waitUntil: 'domcontentloaded' });
