@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { LoanInstallment, Tenant, isInactiveContract } from '../../types';
 import { getBrazilToday, addDaysBR, isoToBrazilYMD } from '../../services/dateUtils';
 import {
@@ -29,6 +29,11 @@ interface CollectionDashboardProps {
 
 
 type BucketId = 'overdue' | 'today' | '3d' | '7d' | '15d' | '30d';
+
+// Teto de itens renderizados por vez na fila ativa. Carteiras grandes (ex.: David
+// Aquino) podem ter milhares de parcelas num único bucket; renderizar tudo de uma
+// vez congela o navegador (a tela fica travada no fundo). Espelha o DailyCollectionView.
+const COLLECTION_RENDER_BATCH = 75;
 
 const bucketMeta: Record<BucketId, { title: string; subtitle: string; tone: string; icon: React.ReactNode }> = {
   overdue: {
@@ -74,6 +79,7 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
   const [showPaidToday, setShowPaidToday]         = useState(false);
   const [selectedInstallment, setSelectedInstallment] = useState<LoanInstallment | null>(null);
   const [installmentAction, setInstallmentAction] = useState<InstallmentAction>(null);
+  const [visibleLimit, setVisibleLimit] = useState(COLLECTION_RENDER_BATCH);
   const listRef = useRef<HTMLDivElement>(null);
 
   const today = getBrazilToday();
@@ -130,6 +136,14 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
   const selectedItems = bucketItems[selectedBucket]
     .slice()
     .sort((a, b) => a.due_date.localeCompare(b.due_date) || a.number - b.number);
+
+  // Volta ao teto inicial quando troca de bucket ou a carteira muda (ex.: após uma
+  // baixa). Sem isto, trocar de um bucket grande para um pequeno manteria o limite alto.
+  useEffect(() => {
+    setVisibleLimit(COLLECTION_RENDER_BATCH);
+  }, [selectedBucket, installments]);
+
+  const renderedItems = selectedItems.slice(0, visibleLimit);
 
   // ── Sub-view: Form Screen ───────────────────────────────────────────────────
   if (installmentAction !== null) {
@@ -289,7 +303,7 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
           </div>
         ) : (
           <div>
-            {selectedItems.map((installment, idx) => {
+            {renderedItems.map((installment, idx) => {
               const late         = installment.due_date < today;
               const isToday      = installment.due_date === today;
               const debtorName   = installment.investment?.payer?.full_name || installment.investment?.payer_name || 'Cliente';
@@ -406,6 +420,21 @@ export const CollectionDashboard: React.FC<CollectionDashboardProps> = ({ instal
                 </div>
               );
             })}
+
+            {renderedItems.length < selectedItems.length && (
+              <div className="flex flex-col items-center gap-2 px-6 py-5">
+                <p className="type-micro text-[color:var(--text-faint)]">
+                  Exibindo {renderedItems.length} de {selectedItems.length} títulos
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setVisibleLimit((limit) => Math.min(limit + COLLECTION_RENDER_BATCH, selectedItems.length))}
+                  className="rounded-full border border-white/10 bg-white/[0.03] px-5 py-2 text-xs font-semibold text-[color:var(--text-secondary)] transition-colors hover:bg-white/[0.06]"
+                >
+                  Carregar mais títulos
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
