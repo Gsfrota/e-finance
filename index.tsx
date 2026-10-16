@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { ToastProvider } from './components/Toast';
 import ErrorBoundary from './components/ErrorBoundary';
+import { startAutoUpdate } from './services/autoUpdate';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -19,3 +20,8 @@ root.render(
     </ErrorBoundary>
   </React.StrictMode>
 );
+
+// Atualização automática: traz a versão nova para o aparelho sem o cobrador
+// precisar limpar cache ou reinstalar. Fora da árvore React de propósito —
+// é infraestrutura do aparelho, não UI.
+startAutoUpdate();
