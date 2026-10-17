@@ -66,7 +66,9 @@ export const fmtDate = (ymd?: string | null) => {
 export const fmtDatetime = (iso?: string | null) => {
   if (!iso) return '—';
   const d = new Date(iso);
-  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  // BR-TZ-001: data e hora sempre em São Paulo, independente do fuso do aparelho.
+  return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+    + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
 };
 
 export const normalizeNum = (val: any): number => {
@@ -2013,7 +2015,7 @@ export const InstallmentFormScreen: React.FC<InstallmentFormScreenProps> = ({
                   <div>
                     <p className="text-xs font-bold text-[color:var(--accent-danger)] mb-0.5">Registrar falta</p>
                     <p className="text-xs text-[color:var(--text-secondary)] leading-relaxed">
-                      Registra que o pagamento <strong>não foi recebido</strong> em {new Date().toLocaleDateString('pt-BR')}.
+                      Registra que o pagamento <strong>não foi recebido</strong> em {new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.
                       A parcela ficará marcada como "falta".
                     </p>
                   </div>
