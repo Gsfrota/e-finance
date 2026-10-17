@@ -26,6 +26,9 @@ import OfflineBanner from './components/OfflineBanner';
 import PendingIntentsPanel from './components/PendingIntentsPanel';
 import { useOfflineSync } from './hooks/useOfflineSync';
 import { fetchProfileByAuthUserId, getSupabase, isProduction, logError, readPersistedSessionUser } from './services/supabase';
+import { AppLockGate } from './components/AppLock';
+import { disablePin } from './services/appLock';
+import { disableBiometric } from './services/biometric';
 import {
   CompanyContextProvider,
   canUseAggregateScope as canUseAggregateCompanyScope,
@@ -948,6 +951,10 @@ const App: React.FC = () => {
     clearAllCache();
     clearAppStorageKeys();
     resetSessionState();
+    // O bloqueio por PIN/biometria é atrelado à sessão atual: ao sair, limpa para
+    // o próximo login reconfigurar do zero (e para "Entrar com senha" não voltar travado).
+    disablePin();
+    disableBiometric();
     const supabase = getSupabase();
     if (supabase) await supabase.auth.signOut();
   };
@@ -1108,6 +1115,7 @@ const App: React.FC = () => {
 
   return (
     <Router>
+      <AppLockGate onForceLogin={handleLogout}>
       <CompanyContextProvider value={companyContextValue}>
         <Layout
           activeView={currentView}
@@ -1263,6 +1271,7 @@ const App: React.FC = () => {
           )}
         </Layout>
       </CompanyContextProvider>
+      </AppLockGate>
     </Router>
   );
 };

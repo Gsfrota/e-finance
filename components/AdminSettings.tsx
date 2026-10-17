@@ -13,9 +13,11 @@ import {
   QrCode,
   RefreshCw,
   Save,
+  ShieldCheck,
   Upload,
 } from 'lucide-react';
 import SubscriptionTab from './SubscriptionTab';
+import { AppLockSettings } from './AppLock';
 
 interface AdminSettingsProps {
   tenant: Tenant;
@@ -32,7 +34,7 @@ interface AdminSettingsProps {
   onRefreshCompanies?: () => Promise<void> | void;
 }
 
-export type SettingsSection = 'empresas' | 'empresa' | 'responsavel' | 'assinatura';
+export type SettingsSection = 'empresas' | 'empresa' | 'responsavel' | 'assinatura' | 'seguranca';
 
 const TIMEZONE_OPTIONS = [
   { value: 'America/Sao_Paulo', label: 'Brasília (GMT-3)' },
@@ -140,6 +142,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
       { id: 'empresa', label: 'Empresa', icon: <Building2 size={16} /> },
       { id: 'responsavel', label: 'Responsável', icon: <Crown size={16} /> },
       { id: 'assinatura', label: 'Assinatura', icon: <CreditCard size={16} /> },
+      { id: 'seguranca', label: 'Segurança', icon: <ShieldCheck size={16} /> },
     ];
     return showCompaniesSection
       ? [{ id: 'empresas' as const, label: 'Empresas', icon: <Building2 size={16} /> }, ...base]
@@ -612,6 +615,18 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
           </div>
           <div className="border-t border-[color:var(--border-subtle)] pt-6">
             <SubscriptionTab tenant={tenant} adminEmail={profile?.email || tenant.owner_email} />
+          </div>
+        </div>
+      )}
+
+      {activeSection === 'seguranca' && (
+        <div className="space-y-8">
+          <div>
+            <h3 className="text-base font-bold text-[color:var(--text-primary)] mb-0.5">Segurança</h3>
+            <p className="text-sm text-[color:var(--text-muted)]">Bloqueio do app por PIN e biometria neste aparelho.</p>
+          </div>
+          <div className="border-t border-[color:var(--border-subtle)] pt-6">
+            <AppLockSettings />
           </div>
         </div>
       )}
