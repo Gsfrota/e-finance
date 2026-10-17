@@ -136,7 +136,11 @@ export const buildFreelancerDates = (count: number, startDate: string, intervalD
   for (let i = 0; i < count; i++) {
     const dt = new Date(base);
     dt.setDate(base.getDate() + i * intervalDays);
-    dates.push(dt.toISOString().split('T')[0]);
+    // BR-TZ-001: lê a data CIVIL a partir dos componentes locais (como `base` foi
+    // construído), nunca via toISOString() — que converte para UTC e, num aparelho
+    // a leste de UTC, geraria o vencimento um dia antes.
+    const ymd = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    dates.push(ymd);
   }
   return dates;
 };

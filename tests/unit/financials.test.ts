@@ -240,20 +240,28 @@ describe('buildFreelancerDates — datas de contrato "Livre" que vão para o ban
     expect(buildFreelancerDates(3, '2026-03-10', 7)).toEqual(['2026-03-10', '2026-03-17', '2026-03-24']);
   });
 
-  it('num browser a leste de Greenwich toda data sai UM DIA ADIANTADA', () => {
-    // BUG CONFIRMADO (BR-TZ-001): financials.ts:136 usa o padrão proibido
+  it('num browser a leste de Greenwich as datas continuam corretas (BR-TZ-001 corrigido)', () => {
+    // Regressão do BR-TZ-001: antes, financials.ts usava o padrão proibido
     //   dt.toISOString().split('T')[0]
-    // sobre um Date construído em meia-noite LOCAL. Em fusos com offset positivo
-    // (Asia/Tokyo = UTC+9) a meia-noite local é o dia anterior em UTC, então o
-    // vencimento gravado no banco fica um dia antes do que o operador escolheu.
-    // Correto seria formatar com services/dateUtils.toBrazilYMD.
+    // sobre um Date em meia-noite LOCAL. Em fuso com offset positivo
+    // (Asia/Tokyo = UTC+9) a meia-noite local vira o dia anterior em UTC, e o
+    // vencimento saía um dia antes do escolhido. Agora a data civil é lida dos
+    // componentes locais do Date, então o resultado independe do fuso do aparelho.
     process.env.TZ = 'Asia/Tokyo';
-    expect(buildFreelancerDates(3, '2026-03-10', 7)).toEqual(['2026-03-09', '2026-03-16', '2026-03-23']);
+    expect(buildFreelancerDates(3, '2026-03-10', 7)).toEqual(['2026-03-10', '2026-03-17', '2026-03-24']);
+  });
 
-    // ⚠ DIVERGÊNCIA COM O BRIEFING: o documento "como-testar-o-saas.md" (§5.4 c-26)
-    // afirma "Em BRT (UTC-3), os vencimentos saem um dia adiantados". Isso é FALSO —
-    // em offset negativo a meia-noite local vira 03:00 UTC do MESMO dia. O bug só
-    // existe para offsets positivos, como o teste acima prova.
+  it('o resultado é idêntico em qualquer fuso do aparelho', () => {
+    process.env.TZ = 'America/Sao_Paulo';
+    const brt = buildFreelancerDates(4, '2026-12-30', 3);
+    process.env.TZ = 'Asia/Tokyo';
+    const tokyo = buildFreelancerDates(4, '2026-12-30', 3);
+    process.env.TZ = 'UTC';
+    const utc = buildFreelancerDates(4, '2026-12-30', 3);
+    expect(tokyo).toEqual(brt);
+    expect(utc).toEqual(brt);
+    // cruza a virada de ano sem shift
+    expect(brt).toEqual(['2026-12-30', '2027-01-02', '2027-01-05', '2027-01-08']);
   });
 });
 

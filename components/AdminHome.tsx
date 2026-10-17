@@ -184,11 +184,13 @@ const getGreeting = () => {
 };
 
 const todayLabel = () =>
+  // BR-TZ-001: fuso fixo de São Paulo — "hoje" não pode depender do fuso do aparelho.
   new Date().toLocaleDateString('pt-BR', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
+    timeZone: 'America/Sao_Paulo',
   });
 
 
@@ -935,7 +937,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({ tenant, profile, onNavigate, onNe
             <div className="flex items-center justify-between mb-3 px-1">
               <h3 className="type-subheading" style={{ color: 'var(--text-primary)' }}>Avisos do dia!</h3>
               <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                {new Date().toLocaleDateString('pt-BR')}
+                {new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
               </span>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
