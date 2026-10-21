@@ -99,6 +99,18 @@ const createCases: AgentEvalCase[] = [
     } }],
   },
   {
+    id: 'cap-create_contract-rate-out-of-range',
+    description: 'taxa absurda (99999% a.m.) → recusa e re-pede taxa, não monta preview',
+    category: 'functional', criticality: 'core', failureTag: 'missing_clarification',
+    // Taxa só no TEXTO (não nas entities): replica o caminho de produção em que
+    // a taxa entra pelo parse dentro do resolve, burlando o zod do plan.args.
+    setup: routeCreate({ debtor_name: 'João Silva', amount: 5000, installments: 12, debtor_cpf: VALID_CPF, frequency: 'monthly', due_day: 5 }),
+    steps: [{ input: { text: 'contrato João Silva 5000 taxa 99999% 12x dia 5 cpf 52998224725' }, expect: {
+      textIncludes: ['fora da faixa'], textExcludes: [CONFIRM_CONTRACT],
+      workingState: { pendingMissingFields: ['rate'] },
+    } }],
+  },
+  {
     id: 'cap-create_contract-clarify-installments',
     description: 'nome+valor+taxa → pergunta nº de parcelas',
     category: 'functional', criticality: 'core', failureTag: 'missing_clarification',
