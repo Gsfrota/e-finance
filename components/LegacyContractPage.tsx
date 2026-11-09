@@ -55,7 +55,6 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
   const [calculationMode, setCalculationMode] = useState<'auto' | 'manual' | 'interest_only'>('manual');
   const [interestRate, setInterestRate] = useState('');
   const [installmentValue, setInstallmentValue] = useState('');
-  const [bulletPrincipalMode, setBulletPrincipalMode] = useState<'together' | 'separate'>('together');
 
   // Origem
   const [sourceType, setSourceType] = useState<'own' | 'profit'>('own');
@@ -87,15 +86,15 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
       Number(interestRate) || 0,
       calculationMode,
       Number(installmentValue) || 0,
-      bulletPrincipalMode,
     );
-  }, [amountInvested, totalInstallments, interestRate, calculationMode, installmentValue, bulletPrincipalMode]);
+  }, [amountInvested, totalInstallments, interestRate, calculationMode, installmentValue]);
+
+  // BR-CNT-013: bullet não tem prazo — só ciclos de juros já pagos + 1 ciclo aberto.
+  const isBullet = calculationMode === 'interest_only';
 
   const totalParcelasGeradas = useMemo(() => {
-    const n = parseInt(totalInstallments) || 1;
-    if (calculationMode === 'interest_only' && bulletPrincipalMode === 'separate') return n + 1;
-    return n;
-  }, [totalInstallments, calculationMode, bulletPrincipalMode]);
+    return parseInt(totalInstallments) || 1;
+  }, [totalInstallments]);
 
   // Carregar dados ao montar
   useEffect(() => {
@@ -145,10 +144,10 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
     if (!investorId) { setCreateError('Nenhum investidor encontrado.'); return; }
 
     const principal = Number(amountInvested) || 0;
-    const nParcelas = parseInt(totalInstallments) || 0;
+    const nParcelas = isBullet ? 1 : parseInt(totalInstallments) || 0;
 
     if (!principal || !nParcelas) {
-      setCreateError('Preencha o valor emprestado e o número de parcelas.');
+      setCreateError(isBullet ? 'Preencha o valor emprestado.' : 'Preencha o valor emprestado e o número de parcelas.');
       return;
     }
 
@@ -168,6 +167,11 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
 
     if (!legacyFirstDueDate) {
       setCreateError('Informe a data da 1ª parcela.');
+      return;
+    }
+
+    if (isBullet && (!Number.isInteger(legacyPaidCount) || legacyPaidCount < 0)) {
+      setCreateError('Ciclos de juros já recebidos deve ser 0 ou mais.');
       return;
     }
 
@@ -209,7 +213,7 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
         p_skip_sunday:        frequency === 'daily' ? skipSunday : false,
         p_weekday:            frequency === 'weekly' ? weekday : null,
         p_custom_dates:       frequency === 'freelancer' ? freelancerDates : null,
-        p_bullet_principal_mode: calculationMode === 'interest_only' ? bulletPrincipalMode : null,
+        p_bullet_principal_mode: null,
       });
       if (error) throw error;
       setDone(true);
@@ -264,7 +268,6 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
     setCalculationMode('manual');
     setInterestRate('');
     setInstallmentValue('');
-    setBulletPrincipalMode('together');
     setSourceType('own');
     setFrequency('monthly');
     setDueDay('10');
@@ -516,11 +519,13 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
               onChange={e => setAmountInvested(e.target.value)} placeholder="0.00" />
             <p className="text-[10px] text-[color:var(--text-muted)] mt-0.5">Quanto foi emprestado ao devedor</p>
           </div>
+          {!isBullet && (
           <div>
             <label className={labelCls}>N. de Parcelas</label>
             <input type="number" inputMode="numeric" className={inputCls} value={totalInstallments}
               onChange={e => { setTotalInstallments(e.target.value); setLegacyPaidCount(0); }} placeholder="12" />
           </div>
+          )}
         </div>
       </div>
 
@@ -538,7 +543,11 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
             <button
               key={mode}
               type="button"
-              onClick={() => setCalculationMode(mode)}
+              onClick={() => {
+                setCalculationMode(mode);
+                setLegacyPaidCount(0);
+                if (mode === 'interest_only' && frequency === 'freelancer') setFrequency('monthly');
+              }}
               className={`flex-1 py-2 rounded-lg type-label flex items-center justify-center gap-1.5 transition-all text-xs ${
                 calculationMode === mode
                   ? 'bg-[color:var(--bg-soft)] text-white shadow-sm'
@@ -591,7 +600,7 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
           <div className="space-y-3">
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
               <p className="text-[11px] text-amber-300 leading-relaxed">
-                O devedor paga somente juros por parcela (simples, sobre o principal original). O principal e devolvido no final.
+                Pagamento único: principal + juros. A cada ciclo o devedor pode pagar só os juros para prorrogar; o principal é devolvido de uma vez ao quitar.
               </p>
             </div>
             <div>
@@ -603,43 +612,26 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
             </div>
             {financials.installmentValue > 0 && (
               <div className="text-xs text-[color:var(--text-secondary)]">
-                Juros por parcela: <strong className="text-amber-400">{formatCurrency(financials.installmentValue)}</strong>
+                Juros por ciclo: <strong className="text-amber-400">{formatCurrency(financials.installmentValue)}</strong>
               </div>
             )}
-            <div>
-              <p className="type-micro text-[color:var(--text-muted)] mb-1.5">Devolucao do Principal</p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setBulletPrincipalMode('together')}
-                  className={`p-2.5 rounded-xl border transition-all text-left ${
-                    bulletPrincipalMode === 'together'
-                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-                      : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:border-[color:var(--border-strong)]'
-                  }`}
-                >
-                  <p className="text-xs font-bold">Junto</p>
-                  <p className="text-[10px] text-[color:var(--text-muted)] mt-0.5">Ultima parcela = juros + principal</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBulletPrincipalMode('separate')}
-                  className={`p-2.5 rounded-xl border transition-all text-left ${
-                    bulletPrincipalMode === 'separate'
-                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-                      : 'bg-[color:var(--bg-base)] border-[color:var(--border-subtle)] text-[color:var(--text-muted)] hover:border-[color:var(--border-strong)]'
-                  }`}
-                >
-                  <p className="text-xs font-bold">Separado</p>
-                  <p className="text-[10px] text-[color:var(--text-muted)] mt-0.5">Parcela extra so para o principal</p>
-                </button>
-              </div>
-            </div>
           </div>
         )}
 
         {/* Resumo calculado */}
-        {(Number(amountInvested) > 0 && financials.totalValue > 0) && (
+        {isBullet && Number(amountInvested) > 0 && (
+          <div className="bg-[color:var(--bg-base)] rounded-xl p-3 border border-[color:var(--border-subtle)] space-y-1">
+            <div className="flex justify-between text-xs">
+              <span className="text-[color:var(--text-muted)]">Saldo devedor</span>
+              <span className="text-white font-bold">{formatCurrency(Number(amountInvested) || 0)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-[color:var(--text-muted)]">Para quitar no ciclo aberto</span>
+              <span className="text-amber-400 font-bold">{formatCurrency((Number(amountInvested) || 0) + financials.installmentValue)}</span>
+            </div>
+          </div>
+        )}
+        {!isBullet && (Number(amountInvested) > 0 && financials.totalValue > 0) && (
           <div className="bg-[color:var(--bg-base)] rounded-xl p-3 border border-[color:var(--border-subtle)] space-y-1">
             <div className="flex justify-between text-xs">
               <span className="text-[color:var(--text-muted)]">Total a receber</span>
@@ -649,12 +641,6 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
               <span className="text-[color:var(--text-muted)]">Lucro</span>
               <span className="text-emerald-400 font-bold">{formatCurrency(financials.totalValue - (Number(amountInvested) || 0))}</span>
             </div>
-            {calculationMode === 'interest_only' && bulletPrincipalMode === 'separate' && (
-              <div className="flex justify-between text-xs">
-                <span className="text-[color:var(--text-muted)]">Parcelas geradas</span>
-                <span className="text-amber-400 font-bold">{parseInt(totalInstallments) || 1} juros + 1 principal</span>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -696,6 +682,8 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
               key={freq}
               type="button"
               onClick={() => setFrequency(freq)}
+              disabled={isBullet && freq === 'freelancer'}
+              title={isBullet && freq === 'freelancer' ? 'Bullet não usa frequência Livre' : undefined}
               className={`py-2 rounded-xl type-label flex flex-col items-center gap-1 transition-all text-[10px] ${
                 frequency === freq
                   ? 'bg-teal-600 text-white'
@@ -849,7 +837,21 @@ const LegacyContractPage: React.FC<LegacyContractPageProps> = ({ onBack, onSucce
           />
         </div>
 
-        {legacyFirstDueDate && (
+        {legacyFirstDueDate && isBullet && (
+          <div>
+            <label className={labelCls}>Ciclos de juros já recebidos</label>
+            <input type="number" inputMode="numeric" min={0} step={1} className={inputCls}
+              value={legacyPaidCount}
+              onChange={e => setLegacyPaidCount(Math.max(0, parseInt(e.target.value) || 0))} />
+            <p className="text-[10px] text-amber-400 mt-1">
+              {legacyPaidCount > 0
+                ? <>Ciclos 1 a {legacyPaidCount} → <strong>JUROS PAGOS</strong> · Ciclo {legacyPaidCount + 1} → <strong>EM ABERTO</strong></>
+                : <>Ciclo 1 → <strong>EM ABERTO</strong></>}
+            </p>
+          </div>
+        )}
+
+        {legacyFirstDueDate && !isBullet && (
           <div>
             <label className={labelCls}>
               Parcelas ja recebidas: <span className="text-amber-400">{legacyPaidCount} de {totalParcelasGeradas}</span>

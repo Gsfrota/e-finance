@@ -652,7 +652,8 @@ export const PaymentModal: React.FC<BaseModalProps> = ({ isOpen, onClose, onSucc
       });
       if (payErr) throw payErr;
 
-      if (action) {
+      // BR-CNT-013: bullet não adia saldo (a RPC recusa) — parcial fica 'partial'.
+      if (action && installment.investment?.calculation_mode !== 'interest_only') {
         const { error: deferErr } = await supabase.rpc('apply_remainder_action', {
           p_installment_id: installment.id,
           p_action: action,

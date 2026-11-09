@@ -9,7 +9,7 @@ import {
 import { Investment, LoanInstallment, Tenant } from '../types';
 import { useContractDetail, ContractDetailData } from '../hooks/useContractDetail';
 import { getSupabase, parseSupabaseError } from '../services/supabase';
-import { getBrazilToday } from '../services/dateUtils';
+import { getBrazilToday, isoToBrazilYMD } from '../services/dateUtils';
 import ReceiptTemplate from './ReceiptTemplate';
 import {
   InstallmentDetailScreen as SharedInstallmentDetailScreen,
@@ -392,6 +392,13 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
     return { totalPago, totalRestante };
   }, [data]);
 
+  // BR-CNT-013: bullet não tem parcelas — as linhas são ciclos (prorrogações).
+  const isBullet = data?.investment.calculation_mode === 'interest_only';
+  const openCycle = useMemo(
+    () => (isBullet && data ? [...data.installments].sort((a, b) => b.number - a.number).find((i) => i.status !== 'paid') ?? null : null),
+    [data, isBullet],
+  );
+
   // ── Sub-view: histórico do contrato (BR-REL-016) ──
   if (showHistoryView && data) {
     const debtorName = data.investment.payer?.full_name || (data.investment as any).payer_name || 'Cliente';
@@ -491,7 +498,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                   {data.investment.asset_name}
                 </h2>
                 <p className="mt-1 text-xs text-[color:var(--text-faint)]">
-                  ID #{data.investment.id} · Criado em {fmtDate(data.investment.created_at?.split('T')[0])}
+                  ID #{data.investment.id} · Criado em {fmtDate(data.investment.created_at ? isoToBrazilYMD(data.investment.created_at) : null)}
                 </p>
               </div>
               <button onClick={onBack} className="shrink-0 rounded-full p-2.5 text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--bg-soft)] hover:text-[color:var(--text-primary)]">
@@ -511,6 +518,21 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
               </div>
             </div>
 
+            {isBullet ? (
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {[
+                { label: 'Saldo devedor', value: fmt(data.investment.remaining_balance ?? data.investment.amount_invested) },
+                { label: 'Juros do ciclo', value: openCycle ? fmt(openCycle.amount_interest) : '—' },
+                { label: 'Próximo vencimento', value: openCycle ? fmtDate(openCycle.due_date) : '—' },
+                { label: 'Ciclos pagos', value: String(data.metrics.parcelasPagas) },
+              ].map(({ label, value }) => (
+                <div key={label} className="rounded-xl bg-[color:var(--bg-soft)] px-3 py-1.5">
+                  <p className="type-label text-[color:var(--text-faint)]">{label}</p>
+                  <p className="font-semibold text-[color:var(--text-primary)] tabular-nums">{value}</p>
+                </div>
+              ))}
+            </div>
+            ) : (
             <div className="mt-4">
               <div className="mb-1.5 flex justify-between type-label text-[color:var(--text-faint)]">
                 <span>{data.metrics.parcelasPagas}/{data.metrics.parcelasTotal} parcelas pagas</span>
@@ -520,6 +542,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                 <div className="h-full rounded-full bg-[color:var(--accent-positive)] transition-all duration-700" style={{ width: `${progressPct}%` }} />
               </div>
             </div>
+            )}
 
             {!readOnly && (
             <div className="mt-4 flex flex-wrap gap-2">
@@ -569,7 +592,9 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                   </div>
                   <p className="type-metric-lg leading-none text-[color:var(--accent-positive)]">{fmt(totalPago)}</p>
                   <p className="mt-1.5 type-caption text-[color:var(--text-faint)]">
-                    {data.metrics.parcelasPagas} parcela{data.metrics.parcelasPagas !== 1 ? 's' : ''} quitada{data.metrics.parcelasPagas !== 1 ? 's' : ''}
+                    {isBullet
+                      ? `${data.metrics.parcelasPagas} ciclo${data.metrics.parcelasPagas !== 1 ? 's' : ''} pago${data.metrics.parcelasPagas !== 1 ? 's' : ''}`
+                      : `${data.metrics.parcelasPagas} parcela${data.metrics.parcelasPagas !== 1 ? 's' : ''} quitada${data.metrics.parcelasPagas !== 1 ? 's' : ''}`}
                   </p>
                 </div>
 
@@ -585,7 +610,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                     {fmt(totalRestante)}
                   </p>
                   <p className="mt-1.5 type-caption text-[color:var(--text-faint)]">
-                    {data.metrics.parcelasPendentes + data.metrics.parcelasAtrasadas} em aberto
+                    {isBullet ? 'para quitar o contrato' : `${data.metrics.parcelasPendentes + data.metrics.parcelasAtrasadas} em aberto`}
                   </p>
                 </div>
 
@@ -656,7 +681,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                 <div className="mt-3 rounded-2xl border border-amber-500/20 bg-amber-900/10 px-4 py-3">
                   <p className="type-label text-amber-400 mb-1">Contrato Bullet — Juros Apenas</p>
                   <p className="type-caption text-[color:var(--text-secondary)]">
-                    Principal de {fmt(data.investment.amount_invested)} devolvido {data.investment.bullet_principal_mode === 'separate' ? 'em parcela separada ao final' : 'junto na última parcela'}.
+                    Pagamento único de {fmt(data.investment.amount_invested)} + juros. Pagar só os juros prorroga para o próximo ciclo; o principal é devolvido de uma vez ao quitar.
                   </p>
                 </div>
               )}
@@ -665,7 +690,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
             {/* Parcelas */}
             <section>
               <div className="mb-2 flex items-center justify-between">
-                <p className="section-kicker">Parcelas</p>
+                <p className="section-kicker">{isBullet ? 'Histórico de ciclos' : 'Parcelas'}</p>
                 <div className="flex gap-2 type-caption font-bold">
                   <span className="chip chip-paid">{data.metrics.parcelasPagas} pagas</span>
                   {data.metrics.parcelasPartiais > 0 && <span className="chip chip-partial">{data.metrics.parcelasPartiais} parciais</span>}
@@ -673,11 +698,11 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                   {data.metrics.parcelasPendentes > 0 && <span className="chip chip-pending">{data.metrics.parcelasPendentes} pendentes</span>}
                 </div>
               </div>
-              <p className="type-caption text-[color:var(--text-faint)] mb-3">Toque em uma parcela para ver detalhes e ações</p>
+              <p className="type-caption text-[color:var(--text-faint)] mb-3">{isBullet ? 'Toque em um ciclo para ver detalhes e ações' : 'Toque em uma parcela para ver detalhes e ações'}</p>
 
               {data.installments.length === 0 ? (
                 <div className={`${panelCard} flex items-center justify-center py-10`}>
-                  <p className="type-label text-[color:var(--text-faint)]">Nenhuma parcela encontrada</p>
+                  <p className="type-label text-[color:var(--text-faint)]">{isBullet ? 'Nenhum ciclo encontrado' : 'Nenhuma parcela encontrada'}</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -706,7 +731,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                         {/* Número + status + seta */}
                         <div className="flex items-center justify-between mb-3">
                           <span className="type-label text-[color:var(--text-faint)]">
-                            Parcela {i.number}
+                            {isBullet ? 'Ciclo' : 'Parcela'} {i.number}
                           </span>
                           <div className="flex items-center gap-2">
                             {isMissed
@@ -729,14 +754,14 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                           </div>
                           <div className="text-right">
                             <p className="type-micro text-[color:var(--text-faint)] mb-1">
-                              {isPaid ? 'Pago' : isPartial ? 'Pago Parcial' : 'Total Devido'}
+                              {isPaid ? 'Pago' : isPartial ? 'Pago Parcial' : isBullet ? 'Juros do ciclo' : 'Total Devido'}
                             </p>
                             <p className={`type-metric-md leading-none ${
                               isPaid ? 'text-[color:var(--accent-positive)]' :
                               isPartial ? 'text-[color:var(--accent-brass)]' :
                               isLate ? 'text-[color:var(--accent-danger)]' : 'text-[color:var(--text-primary)]'
                             }`}>
-                              {isPaid || isPartial ? fmt(i.amount_paid) : fmt(i.amount_total)}
+                              {isPaid || isPartial ? fmt(i.amount_paid) : isBullet ? fmt(i.amount_interest) : fmt(i.amount_total)}
                             </p>
                           </div>
                         </div>
@@ -763,7 +788,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                             </div>
                           ) : (
                             <div>
-                              <p className="type-micro text-[color:var(--text-faint)] mb-0.5">Original</p>
+                              <p className="type-micro text-[color:var(--text-faint)] mb-0.5">{isBullet ? 'Para quitar' : 'Original'}</p>
                               <p className="text-xs font-semibold text-[color:var(--text-muted)] tabular-nums">{fmt(i.amount_total)}</p>
                             </div>
                           )}
@@ -857,7 +882,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ investmentId, onBack, o
                       <div className="min-w-0 flex-1">
                         <p className="type-label text-[color:var(--text-faint)]">Renovação</p>
                         <p className="truncate text-sm font-semibold text-[color:var(--text-primary)]">#{r.id} — {r.asset_name}</p>
-                        <p className="type-caption text-[color:var(--text-faint)]">Criado em {fmtDate(r.created_at?.split('T')[0])}</p>
+                        <p className="type-caption text-[color:var(--text-faint)]">Criado em {fmtDate(r.created_at ? isoToBrazilYMD(r.created_at) : null)}</p>
                       </div>
                       {statusBadge(r.status)}
                     </div>

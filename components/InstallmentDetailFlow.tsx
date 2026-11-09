@@ -200,7 +200,10 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
       });
   }, [investment?.id, declaredTotal]);
 
-  const totalInstallments = declaredTotal || siblings.length || 0;
+  // BR-CNT-013: bullet não tem total de parcelas — as linhas são ciclos.
+  const isBullet = investment?.calculation_mode === 'interest_only';
+  const totalInstallments = isBullet ? 0 : declaredTotal || siblings.length || 0;
+  const unit = isBullet ? 'ciclo' : 'parcela';
   const contractTotal = normalizeNum(investment?.current_value)
     || siblings.reduce((s: number, i: LoanInstallment) => s + normalizeNum(i.amount_total), 0);
 
@@ -278,7 +281,7 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
         {/* Parcela X de Y + Vencimento */}
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="rounded-xl p-3" style={{ background: 'var(--bg-soft)', border: '1px solid var(--border-subtle)' }}>
-            <p className="section-kicker mb-1">Parcela</p>
+            <p className="section-kicker mb-1">{isBullet ? 'Ciclo' : 'Parcela'}</p>
             <p className="type-metric-lg leading-none" style={{ color: 'var(--text-primary)' }}>
               {activeInst.number}
               {totalInstallments > 0 && (
@@ -309,28 +312,40 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
       <div className="flex-1 overflow-y-auto">
         <div className="mx-4 my-4 rounded-2xl p-5" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
 
-          <p className="section-kicker mb-3">Detalhes da Parcela</p>
+          <p className="section-kicker mb-3">{isBullet ? 'Detalhes do ciclo' : 'Detalhes da Parcela'}</p>
 
           {/* Detail rows */}
           <div className="space-y-3">
             {isPaid && activeInst.paid_at && (
               <DetailRow label="Data do pagamento" value={fmtDatetime(activeInst.paid_at)} />
             )}
-            <DetailRow label="Valor da parcela" value={fmtMoney(normalizeNum(activeInst.amount_total))} />
+            <DetailRow label={isBullet ? 'Para quitar (principal + juros)' : 'Valor da parcela'} value={fmtMoney(normalizeNum(activeInst.amount_total))} />
             {activeInst.amount_interest != null && normalizeNum(activeInst.amount_interest) > 0 && (
-              <DetailRow label="Juros ganho" value={fmtMoney(normalizeNum(activeInst.amount_interest))} />
+              <DetailRow label={isBullet ? 'Juros do ciclo (para prorrogar)' : 'Juros ganho'} value={fmtMoney(normalizeNum(activeInst.amount_interest))} />
             )}
             <DetailRow label="ID" value={String(activeInst.id).slice(0, 4)} />
-            <DetailRow label="Valor total do contrato" value={fmtMoney(contractTotal)} />
-            <DetailRow label="Total de parcelas" value={String(totalInstallments)} />
-            <DetailRow label="Parcelas pagas" value={String(m.parcelasPagas)} valueColor="var(--accent-positive)" labelColor="var(--accent-positive)" />
-            {m.parcelasAtrasadas > 0 && (
-              <DetailRow label="Parcelas em atraso" value={String(m.parcelasAtrasadas)} valueColor="var(--accent-danger)" labelColor="var(--accent-danger)" />
+            {isBullet ? (
+              <>
+                <DetailRow label="Saldo devedor" value={fmtMoney(normalizeNum(investment?.remaining_balance ?? investment?.amount_invested))} />
+                <DetailRow label="Ciclos pagos" value={String(m.parcelasPagas)} valueColor="var(--accent-positive)" labelColor="var(--accent-positive)" />
+                {m.parcelasAtrasadas > 0 && (
+                  <DetailRow label="Ciclos em atraso" value={String(m.parcelasAtrasadas)} valueColor="var(--accent-danger)" labelColor="var(--accent-danger)" />
+                )}
+              </>
+            ) : (
+              <>
+                <DetailRow label="Valor total do contrato" value={fmtMoney(contractTotal)} />
+                <DetailRow label="Total de parcelas" value={String(totalInstallments)} />
+                <DetailRow label="Parcelas pagas" value={String(m.parcelasPagas)} valueColor="var(--accent-positive)" labelColor="var(--accent-positive)" />
+                {m.parcelasAtrasadas > 0 && (
+                  <DetailRow label="Parcelas em atraso" value={String(m.parcelasAtrasadas)} valueColor="var(--accent-danger)" labelColor="var(--accent-danger)" />
+                )}
+                {m.parcelasPartiais > 0 && (
+                  <DetailRow label="Parcelas parciais" value={String(m.parcelasPartiais)} valueColor="var(--accent-brass)" labelColor="var(--accent-brass)" />
+                )}
+                <DetailRow label="Quantidade restante" value={String(remainingCount)} />
+              </>
             )}
-            {m.parcelasPartiais > 0 && (
-              <DetailRow label="Parcelas parciais" value={String(m.parcelasPartiais)} valueColor="var(--accent-brass)" labelColor="var(--accent-brass)" />
-            )}
-            <DetailRow label="Quantidade restante" value={String(remainingCount)} />
             {activeInst.notes && (
               <DetailRow label="Observação" value={activeInst.notes} />
             )}
@@ -375,7 +390,7 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
               {/* Saldo a receber — destaque */}
               <div className="flex justify-between pt-2 mt-1" style={{ borderTop: '1px solid var(--border-subtle)' }}>
                 <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                  Saldo a receber ({remainingCount} {remainingCount === 1 ? 'parcela' : 'parcelas'})
+                  Saldo a receber ({remainingCount} {remainingCount === 1 ? unit : `${unit}s`})
                 </p>
                 <p className="text-base font-bold" style={{ color: 'var(--accent-danger)' }}>
                   {fmtMoney(saldoAReceber)}
@@ -435,6 +450,8 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
               <CheckCircle2 size={20} />
               <span className="text-[0.65rem] font-bold text-center leading-tight">Receber</span>
             </button>
+            {/* BR-CNT-013: bullet não tem falta — sem pagamento o ciclo vai para atraso/rolagem */}
+            {(activeInst as any).investment?.calculation_mode !== 'interest_only' && (
             <button
               onClick={() => onAction({ type: 'miss', installment: activeInst })}
               className="flex-1 flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 font-bold text-white active:scale-95 transition-all"
@@ -443,6 +460,7 @@ export const InstallmentDetailScreen: React.FC<InstallmentDetailScreenProps> = (
               <XCircle size={20} />
               <span className="text-[0.65rem] font-bold text-center leading-tight">Não Recebido</span>
             </button>
+            )}
             <button
               onClick={() => onAction({ type: 'refinance', installment: activeInst })}
               className="flex-1 flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 font-bold active:scale-95 transition-all"

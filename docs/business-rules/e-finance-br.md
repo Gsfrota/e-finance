@@ -66,6 +66,18 @@ Categorias:
 - **Tabelas:** `investments`, `loan_installments`, `payment_transactions`.
 - **Status:** ativa como regra de produto — *atualizada em 2026-05-29 pela CB-002; implementação/RPC/migration ainda bloqueadas por aceite e revisão*
 
+### BR-CNT-013: Bullet não tem prazo nem parcelas — é um ciclo aberto por vez
+- **Descrição:** Contrato bullet é um pagamento único (principal + juros do ciclo) que pode ser prorrogado pagando só os juros. As linhas de `loan_installments` de um bullet são **ciclos** (histórico de prorrogações), nunca parcelas de um prazo.
+- **Critérios (EARS):**
+  - WHEN um bullet é criado por qualquer caminho (`create_investment_validated`, `create_legacy_investment`, carteira offline) THE SYSTEM SHALL gravar `total_installments = NULL`, `bullet_principal_mode = NULL`, `remaining_balance = principal` e exatamente 1 ciclo aberto.
+  - WHEN um bullet legado é criado com `p_paid_count = N > 0` THE SYSTEM SHALL gravar N ciclos `paid` (juros pagos, principal rolado) antes do ciclo aberto, e nenhuma linha só de principal.
+  - WHEN `p_paid_count < 0` em bullet legado THE SYSTEM SHALL rejeitar a criação.
+  - WHEN `mark_installment_missed`, `apply_remainder_action` ou `defer_remaining_to_last` recebe uma linha de contrato bullet THE SYSTEM SHALL rejeitar com erro descritivo, sem inserir nem alterar linhas.
+  - WHEN o detalhe de um contrato bullet é exibido THE SYSTEM SHALL mostrar saldo devedor, juros do ciclo, próximo vencimento e "Histórico de ciclos" (`Ciclo N`, juros do ciclo) — sem "X/Y parcelas", barra de % ou rótulo "Parcela".
+  - WHEN a ação de Falta / adiamento de saldo seria oferecida numa linha de bullet THE SYSTEM SHALL não exibi-la.
+- **Tabelas:** `investments`, `loan_installments`.
+- **Status:** ativa — BUL-001 (2026-11-08), migration v54.
+
 ### BR-CNT-005: Capital de origem deve ser classificado
 - **Descrição:** Todo contrato deve ter origem do capital identificada
 - **Condição:** Ao criar `investments`
